@@ -1,6 +1,9 @@
 http = require 'http'
 fs = require 'fs'
 
+cluster = require 'cluster'
+numCPUs = require('os').cpus().length
+
 TEMPLATE_SERIAL = '8KA8WA1151100043'
 TEMPLATE_TASKID = '50731c1bfb2b97e764000001'
 
@@ -21,7 +24,8 @@ sendRequest = (serial, taskId, seq = 0) ->
   headers['Content-Length'] = body.length
 
   options = {
-    host: '',
+    #host: '172.17.32.59',
+    host: '127.0.0.1',
     port: 1337,
     method: 'POST',
     headers: headers,
@@ -42,5 +46,15 @@ sendRequest = (serial, taskId, seq = 0) ->
 t = new Date()
 console.log("Start at #{t}")
 
-for i in [0 .. 500]
-  sendRequest(TEMPLATE_SERIAL + String(i), TEMPLATE_TASKID, 0)
+if cluster.isMaster
+  for i in [1 .. numCPUs]
+    cluster.fork()
+  cluster.on('exit', (worker, code, signal) ->
+    console.log('worker ' + worker.process.pid + ' died')
+  )
+else
+  workerid = Math.floor(Math.random() * 1000)
+  
+  for i in [1 .. 1000]
+    sendRequest("device" + String(workerid) + String(i), TEMPLATE_TASKID, 0)
+

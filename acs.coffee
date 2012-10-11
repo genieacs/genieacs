@@ -20,8 +20,18 @@ arrayToHash = (arr) ->
   return hash
 
 dbserver = new mongo.Server('localhost', 27017, {auto_reconnect: true})
+tasksCollection = null
+devicesCollection = null
 db = new mongo.Db(DATABASE_NAME, dbserver, {native_parser:true})
 db.open( (err, db) ->
+  db.collection('tasks', (err, collection) ->
+    tasksCollection = collection
+    tasksCollection.ensureIndex({device: 1, timestamp: 1})
+  )
+
+  db.collection('devices', (err, collection) ->
+    devicesCollection = collection
+  )
 )
 
 
@@ -29,40 +39,34 @@ updateDevice = (deviceId, actions) ->
   return if not actions?
   if actions.parameterValues?
     params = arrayToHash(actions.parameterValues)
-    db.collection('devices', (err, collection) ->
-      collection.update({'_id' : deviceId}, {'$set' : params}, {upsert: true})
-    )
+    devicesCollection.update({'_id' : deviceId}, {'$set' : params}, {upsert: true})
 
 
 nextTask = (sessionId, deviceId, response, cookies) ->
   if err?
     throw 'ERROR: Cannot open database connection'
 
-  db.collection('tasks', (err, collection) ->
-    cur = collection.find({'device' : deviceId}).sort(['timestamp']).limit(1)
-    cur.nextObject( (err, task) ->
-      reqParams = {}
-      resParams = {}
-      if not task
-        # add init task and end of queue
-        db.collection('tasks', (err, collection) ->
-          collection.insert({'name' : 'endOfQueue', 'device': deviceId, 'timestamp' : mongo.Timestamp(new Date(2020, 1, 1))})
-        )
-        task = {'name' : 'init', 'timestamp' : mongo.Timestamp()}
-      else if task.name == 'endOfQueue'
-        tr069.response(sessionId, response, resParams, cookies)
-        return
-
-      actions = tasks.task(task, reqParams, resParams)
-      updateDevice(deviceId, actions)
-      # TODO in rare cases a task could finish without sending response
-      collection.save(task, (err) ->
-        console.log("Device #{deviceId}: Running task #{task.name}(#{task._id})")
-        cookies.task = String(task._id)
-        tr069.response(sessionId, response, resParams, cookies)
-      )
+  cur = tasksCollection.find({'device' : deviceId}).sort(['timestamp']).limit(1)
+  cur.nextObject( (err, task) ->
+    reqParams = {}
+    resParams = {}
+    if not task
+      # add init task and end of queue
+      tasksCollection.insert({'name' : 'endOfQueue', 'device': deviceId, 'timestamp' : mongo.Timestamp(new Date(2020, 1, 1))})
+      task = {'name' : 'init', 'timestamp' : mongo.Timestamp()}
+    else if task.name == 'endOfQueue'
+      tr069.response(sessionId, response, resParams, cookies)
       return
+
+    actions = tasks.task(task, reqParams, resParams)
+    updateDevice(deviceId, actions)
+    # TODO in rare cases a task could finish without sending response
+    tasksCollection.save(task, (err) ->
+      console.log("Device #{deviceId}: Running task #{task.name}(#{task._id})")
+      cookies.task = String(task._id)
+      tr069.response(sessionId, response, resParams, cookies)
     )
+    return
   )
 
 
@@ -94,10 +98,8 @@ else
         resParams.inform = true
         cookies.ID = sessionId = reqParams.sessionId
         cookies.DeviceId = deviceId = reqParams.deviceId.SerialNumber
-        db.collection('devices', (err, collection) ->
-          collection.update({'_id' : deviceId}, {'$set' : arrayToHash(reqParams.informParameterValues)}, {upsert: true}, (err) ->
-            tr069.response(reqParams.sessionId, response, resParams, cookies)
-          )
+        devicesCollection.update({'_id' : deviceId}, {'$set' : arrayToHash(reqParams.informParameterValues)}, {upsert: true}, (err) ->
+          tr069.response(reqParams.sessionId, response, resParams, cookies)
         )
         return
 
@@ -109,22 +111,19 @@ else
         nextTask(sessionId, deviceId, response, cookies)
         return
 
-      db.collection('tasks', (err, collection) ->
-        cur = collection.find({'_id' : mongo.ObjectID(taskId)})
-        cur.nextObject( (err, task) ->
-          actions = tasks.task(task, reqParams, resParams)
-          updateDevice(deviceId, actions)
+      tasksCollection.findOne({'_id' : mongo.ObjectID(taskId)}, (err, task) ->
+        actions = tasks.task(task, reqParams, resParams)
+        updateDevice(deviceId, actions)
 
-          if Object.keys(resParams).length > 0
-            collection.save(task)
-            tr069.response(reqParams.sessionId, response, resParams, cookies)
-          else
-            console.log("Device #{deviceId}: Completed task #{task.name}(#{task._id})")
-            collection.remove({'_id' : task._id}, (err, removed) ->
-              cookies.task = undefined
-              nextTask(sessionId, deviceId, response, cookies)
-            )
-        )
+        if Object.keys(resParams).length > 0
+          tasksCollection.save(task)
+          tr069.response(reqParams.sessionId, response, resParams, cookies)
+        else
+          console.log("Device #{deviceId}: Completed task #{task.name}(#{task._id})")
+          tasksCollection.remove({'_id' : task._id}, (err, removed) ->
+            cookies.task = undefined
+            nextTask(sessionId, deviceId, response, cookies)
+          )
       )
 
   server.listen PORT
