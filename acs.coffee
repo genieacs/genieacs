@@ -1,15 +1,9 @@
-util = require 'util'
-http = require 'http'
-mongo = require 'mongodb'
-tr069 = require './tr-069'
-tasks = require './tasks'
-
-cluster = require 'cluster'
-numCPUs = require('os').cpus().length
-
+# Configurations
 DATABASE_NAME = 'genie'
 PORT = 1337
+CACHE_DURATION = 60000
 
+# Common functions
 endsWith = (str, suffix) ->
   str.indexOf(suffix, str.length - suffix.length) isnt -1
 
@@ -19,7 +13,17 @@ arrayToHash = (arr) ->
     hash[i[0]] = i[1]
   return hash
 
-dbserver = new mongo.Server('localhost', 27017, {auto_reconnect: true})
+util = require 'util'
+http = require 'http'
+mongo = require 'mongodb'
+tr069 = require './tr-069'
+tasks = require './tasks'
+Memcached = require 'memcached'
+memcached = new Memcached '/tmp/memcached.sock'
+
+
+# Create MongoDB connections
+dbserver = new mongo.Server('/tmp/mongodb-27017.sock', 0, {auto_reconnect: true, safe: true})
 tasksCollection = null
 devicesCollection = null
 db = new mongo.Db(DATABASE_NAME, dbserver, {native_parser:true})
@@ -41,34 +45,43 @@ updateDevice = (deviceId, actions) ->
     params = arrayToHash(actions.parameterValues)
     devicesCollection.update({'_id' : deviceId}, {'$set' : params}, {upsert: true})
 
+runTask = (sessionId, deviceId, task, reqParams, response) ->
+  resParams = {}
+  actions = tasks.task(task, reqParams, resParams)
+  updateDevice(deviceId, actions)
+
+  if Object.keys(resParams).length > 0
+    memcached.set(String(task._id), task, CACHE_DURATION, (err, result) ->
+      tr069.response(reqParams.sessionId, response, resParams, {task : String(task._id)})
+    )
+    return
+
+  # Task finished
+  memcached.del(String(task._id))
+  tasksCollection.remove({'_id' : mongo.ObjectID(task._id)}, {safe: true}, (err, removed) ->
+    console.log("Device #{deviceId}: Completed task #{task.name}(#{task._id})")
+    cookies = {task : null}
+    tr069.response(sessionId, response, resParams, cookies)
+    nextTask(sessionId, deviceId, response, cookies)
+  )
+
 
 nextTask = (sessionId, deviceId, response, cookies) ->
-  if err?
-    throw 'ERROR: Cannot open database connection'
-
-  cur = tasksCollection.find({'device' : deviceId}).sort(['timestamp']).limit(1)
+  cur = tasksCollection.find({'device' : deviceId, 'status' : 0}).sort(['timestamp']).limit(1)
   cur.nextObject( (err, task) ->
     reqParams = {}
     resParams = {}
     if not task
-      # add init task and end of queue
-      tasksCollection.insert({'name' : 'endOfQueue', 'device': deviceId, 'timestamp' : mongo.Timestamp(new Date(2020, 1, 1))})
-      task = {'name' : 'init', 'timestamp' : mongo.Timestamp()}
-    else if task.name == 'endOfQueue'
       tr069.response(sessionId, response, resParams, cookies)
       return
 
-    actions = tasks.task(task, reqParams, resParams)
-    updateDevice(deviceId, actions)
-    # TODO in rare cases a task could finish without sending response
-    tasksCollection.save(task, (err) ->
-      console.log("Device #{deviceId}: Running task #{task.name}(#{task._id})")
-      cookies.task = String(task._id)
-      tr069.response(sessionId, response, resParams, cookies)
-    )
-    return
+    console.log("Device #{deviceId}: Running task #{task.name}(#{task._id})")
+    runTask(sessionId, deviceId, task, reqParams, response)
   )
 
+
+cluster = require 'cluster'
+numCPUs = require('os').cpus().length
 
 if cluster.isMaster
   for i in [1 .. numCPUs]
@@ -98,8 +111,17 @@ else
         resParams.inform = true
         cookies.ID = sessionId = reqParams.sessionId
         cookies.DeviceId = deviceId = reqParams.deviceId.SerialNumber
-        devicesCollection.update({'_id' : deviceId}, {'$set' : arrayToHash(reqParams.informParameterValues)}, {upsert: true}, (err) ->
-          tr069.response(reqParams.sessionId, response, resParams, cookies)
+        devicesCollection.count({'_id' : deviceId}, (err, count) ->
+          if not count
+            console.log("New device #{deviceId}")
+            task = {device : deviceId, name : 'init', timestamp : mongo.Timestamp(), status: 0}
+            tasksCollection.save(task, (err) ->
+              console.log("Added init task for #{deviceId}")
+            )
+
+          devicesCollection.update({'_id' : deviceId}, {'$set' : arrayToHash(reqParams.informParameterValues)}, {upsert: true, safe:true}, (err, modified) ->
+            tr069.response(reqParams.sessionId, response, resParams, cookies)
+          )
         )
         return
 
@@ -110,21 +132,10 @@ else
       if not taskId
         nextTask(sessionId, deviceId, response, cookies)
         return
-
-      tasksCollection.findOne({'_id' : mongo.ObjectID(taskId)}, (err, task) ->
-        actions = tasks.task(task, reqParams, resParams)
-        updateDevice(deviceId, actions)
-
-        if Object.keys(resParams).length > 0
-          tasksCollection.save(task)
-          tr069.response(reqParams.sessionId, response, resParams, cookies)
-        else
-          console.log("Device #{deviceId}: Completed task #{task.name}(#{task._id})")
-          tasksCollection.remove({'_id' : task._id}, (err, removed) ->
-            cookies.task = undefined
-            nextTask(sessionId, deviceId, response, cookies)
-          )
-      )
+      else
+        memcached.get(taskId, (err, task) ->
+          runTask(sessionId, deviceId, task, reqParams, response)
+        )
 
   server.listen PORT
   console.log "Server listening on port #{PORT}"

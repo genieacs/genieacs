@@ -53,8 +53,6 @@ if cluster.isMaster
     console.log('worker ' + worker.process.pid + ' died')
   )
 else
-  workerid = Math.floor(Math.random() * 1000)
-  
-  for i in [1 .. 1000]
-    sendRequest("device" + String(workerid) + String(i), TEMPLATE_TASKID, 0)
+  for i in [1 .. 100]
+    sendRequest("device#{cluster.worker.id}-#{i}", TEMPLATE_TASKID, 0)
 
