@@ -1,7 +1,5 @@
+common = require './common'
 BATCH_SIZE = 16
-
-endsWith = (str, suffix) ->
-  str.indexOf(suffix, str.length - suffix.length) isnt -1
 
 this.init = (task, request, response) ->
   if not task.subtask?
@@ -12,7 +10,7 @@ this.init = (task, request, response) ->
     if ret? and ret.parameterNames? # task finished
       parameterNames = []
       for p in ret.parameterNames
-        if not endsWith(p[0], '.')
+        if not common.endsWith(p[0], '.')
           parameterNames.push(p[0])
       task.subtask = {'name' : 'getParameterValues', 'parameterNames' : parameterNames}
     else

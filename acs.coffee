@@ -1,32 +1,19 @@
-# Configurations
-DATABASE_NAME = 'genie'
-PORT = 1337
-CACHE_DURATION = 60000
-
-# Common functions
-endsWith = (str, suffix) ->
-  str.indexOf(suffix, str.length - suffix.length) isnt -1
-
-arrayToHash = (arr) ->
-  hash = {}
-  for i in arr
-    hash[i[0]] = i[1]
-  return hash
-
+config = require './config'
+common = require './common'
 util = require 'util'
 http = require 'http'
 mongo = require 'mongodb'
 tr069 = require './tr-069'
 tasks = require './tasks'
 Memcached = require 'memcached'
-memcached = new Memcached '/tmp/memcached.sock'
+memcached = new Memcached(config.MEMCACHED_SOCKET)
 
 
 # Create MongoDB connections
-dbserver = new mongo.Server('/tmp/mongodb-27017.sock', 0, {auto_reconnect: true, safe: true})
+dbserver = new mongo.Server(config.MONGODB_SOCKET, 0, {auto_reconnect: true, safe: true})
 tasksCollection = null
 devicesCollection = null
-db = new mongo.Db(DATABASE_NAME, dbserver, {native_parser:true})
+db = new mongo.Db(config.DATABASE_NAME, dbserver, {native_parser:true})
 db.open( (err, db) ->
   db.collection('tasks', (err, collection) ->
     tasksCollection = collection
@@ -42,7 +29,7 @@ db.open( (err, db) ->
 updateDevice = (deviceId, actions) ->
   return if not actions?
   if actions.parameterValues?
-    params = arrayToHash(actions.parameterValues)
+    params = common.arrayToHash(actions.parameterValues)
     devicesCollection.update({'_id' : deviceId}, {'$set' : params}, {upsert: true})
 
 runTask = (sessionId, deviceId, task, reqParams, response) ->
@@ -51,7 +38,7 @@ runTask = (sessionId, deviceId, task, reqParams, response) ->
   updateDevice(deviceId, actions)
 
   if Object.keys(resParams).length > 0
-    memcached.set(String(task._id), task, CACHE_DURATION, (err, result) ->
+    memcached.set(String(task._id), task, config.CACHE_DURATION, (err, result) ->
       tr069.response(reqParams.sessionId, response, resParams, {task : String(task._id)})
     )
     return
@@ -119,7 +106,7 @@ else
               console.log("Added init task for #{deviceId}")
             )
 
-          devicesCollection.update({'_id' : deviceId}, {'$set' : arrayToHash(reqParams.informParameterValues)}, {upsert: true, safe:true}, (err, modified) ->
+          devicesCollection.update({'_id' : deviceId}, {'$set' : common.arrayToHash(reqParams.informParameterValues)}, {upsert: true, safe:true}, (err, modified) ->
             tr069.response(reqParams.sessionId, response, resParams, cookies)
           )
         )
@@ -137,5 +124,5 @@ else
           runTask(sessionId, deviceId, task, reqParams, response)
         )
 
-  server.listen PORT
-  console.log "Server listening on port #{PORT}"
+  server.listen config.PORT
+  console.log "Server listening on port #{config.PORT}"

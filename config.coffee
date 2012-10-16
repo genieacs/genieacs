@@ -1,0 +1,6 @@
+DATABASE_NAME = 'genie'
+ACS_PORT = 1337
+API_PORT = 1338
+CACHE_DURATION = 60000
+MONGODB_SOCKET = '/tmp/mongodb-27017.sock'
+MEMCACHED_SOCKET = '/tmp/memcached.sock'
