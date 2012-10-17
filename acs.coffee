@@ -124,5 +124,5 @@ else
           runTask(sessionId, deviceId, task, reqParams, response)
         )
 
-  server.listen config.PORT
-  console.log "Server listening on port #{config.PORT}"
+  server.listen config.ACS_PORT, config.ACS_INTERFACE
+  console.log "Server listening on port #{config.ACS_PORT}"

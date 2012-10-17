@@ -1,3 +1,4 @@
+config = require './config'
 http = require 'http'
 fs = require 'fs'
 
@@ -26,7 +27,7 @@ sendRequest = (serial, taskId, seq = 0) ->
   options = {
     #host: '172.17.32.59',
     host: '127.0.0.1',
-    port: 1337,
+    port: config.ACS_PORT,
     method: 'POST',
     headers: headers,
   }
