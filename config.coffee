@@ -1,8 +1,9 @@
 exports.DATABASE_NAME = 'genie'
 exports.ACS_PORT = 7547 # same as AP Manager's port
-exports.ACS_INTERFACE = null # null to listen to all interfaces
+exports.ACS_INTERFACE = '0.0.0.0'
 exports.API_PORT = 7557
-exports.API_INTERFACE = null # null to listen to all interfaces
+exports.API_INTERFACE = '0.0.0.0'
 exports.CACHE_DURATION = 60000
 exports.MONGODB_SOCKET = '/tmp/mongodb-27017.sock'
 exports.MEMCACHED_SOCKET = '/tmp/memcached.sock'
+exports.WORKER_RESPAWN_TIME = 3000

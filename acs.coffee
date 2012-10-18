@@ -10,7 +10,7 @@ memcached = new Memcached(config.MEMCACHED_SOCKET)
 
 
 # Create MongoDB connections
-dbserver = new mongo.Server(config.MONGODB_SOCKET, 0, {auto_reconnect: true, safe: true})
+dbserver = new mongo.Server(config.MONGODB_SOCKET, 0, {auto_reconnect: true})
 tasksCollection = null
 devicesCollection = null
 db = new mongo.Db(config.DATABASE_NAME, dbserver, {native_parser:true})
@@ -46,7 +46,7 @@ runTask = (sessionId, deviceId, task, reqParams, response) ->
   # Task finished
   memcached.del(String(task._id))
   tasksCollection.remove({'_id' : mongo.ObjectID(task._id)}, {safe: true}, (err, removed) ->
-    console.log("Device #{deviceId}: Completed task #{task.name}(#{task._id})")
+    util.log("#{deviceId}: completed task #{task.name}(#{task._id})")
     cookies = {task : null}
     tr069.response(sessionId, response, resParams, cookies)
     nextTask(sessionId, deviceId, response, cookies)
@@ -62,7 +62,7 @@ nextTask = (sessionId, deviceId, response, cookies) ->
       tr069.response(sessionId, response, resParams, cookies)
       return
 
-    console.log("Device #{deviceId}: Running task #{task.name}(#{task._id})")
+    util.log("#{deviceId}: started task #{task.name}(#{task._id})")
     runTask(sessionId, deviceId, task, reqParams, response)
   )
 
@@ -71,15 +71,23 @@ cluster = require 'cluster'
 numCPUs = require('os').cpus().length
 
 if cluster.isMaster
+  cluster.on('listening', (worker, address) ->
+    util.log("Worker #{worker.process.pid} listening to #{address.address}:#{address.port}")
+  )
+
+  cluster.on('exit', (worker, code, signal) ->
+    util.log("Worker #{worker.process.pid} died (#{worker.process.exitCode})")
+    setTimeout(()->
+      cluster.fork()
+    , config.WORKER_RESPAWN_TIME)
+  )
+
   for i in [1 .. numCPUs]
     cluster.fork()
-  cluster.on('exit', (worker, code, signal) ->
-    console.log('worker ' + worker.process.pid + ' died')
-  )
 else
   server = http.createServer (request, response) ->
     if request.method != 'POST'
-      console.log '>>> 405 Method Not Allowed'
+      #console.log '>>> 405 Method Not Allowed'
       response.writeHead 405, {'Allow': 'POST'}
       response.end('405 Method Not Allowed')
       return
@@ -98,12 +106,13 @@ else
         resParams.inform = true
         cookies.ID = sessionId = reqParams.sessionId
         cookies.DeviceId = deviceId = reqParams.deviceId.SerialNumber
+        util.log("#{deviceId}: inform (#{reqParams.eventCodes}); retry count #{reqParams.retryCount}")
         devicesCollection.count({'_id' : deviceId}, (err, count) ->
           if not count
-            console.log("New device #{deviceId}")
+            util.log("#{deviceId}: new device detected")
             task = {device : deviceId, name : 'init', timestamp : mongo.Timestamp(), status: 0}
             tasksCollection.save(task, (err) ->
-              console.log("Added init task for #{deviceId}")
+              util.log("#{deviceId}: Added init task for #{task._id}")
             )
 
           devicesCollection.update({'_id' : deviceId}, {'$set' : common.arrayToHash(reqParams.informParameterValues)}, {upsert: true, safe:true}, (err, modified) ->
@@ -125,4 +134,4 @@ else
         )
 
   server.listen config.ACS_PORT, config.ACS_INTERFACE
-  console.log "Server listening on port #{config.ACS_PORT}"
+  #console.log "Server listening on port #{config.ACS_PORT}"
