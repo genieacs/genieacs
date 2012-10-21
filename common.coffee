@@ -16,3 +16,7 @@ exports.getDeviceId = (deviceIdStruct) ->
 
   return "#{escape(deviceIdStruct['OUI'])}-#{escape(deviceIdStruct['SerialNumber'])}"
 
+exports.extend = (obj, mixin) ->
+  obj[name] = method for name, method of mixin        
+  obj
+

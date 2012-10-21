@@ -2,24 +2,23 @@ common = require './common'
 BATCH_SIZE = 16
 
 this.init = (task, request, response) ->
+  ret = {}
   if not task.subtask?
     task.subtask = {'name' : 'getParameterNames', 'parameterPath' : '', 'nextLevel' : false}
 
   if task.subtask.name == 'getParameterNames'
-    ret = this.getParameterNames(task.subtask, request, response)
-    if ret? and ret.parameterNames? # task finished
+    common.extend(ret, this.getParameterNames(task.subtask, request, response))
+    if ret.parameterNames? # task finished
       parameterNames = []
       for p in ret.parameterNames
         if not common.endsWith(p[0], '.')
           parameterNames.push(p[0])
       task.subtask = {'name' : 'getParameterValues', 'parameterNames' : parameterNames}
-    else
-      return
 
   if task.subtask.name == 'getParameterValues'
-    return this.getParameterValues(task.subtask, request, response)
+    common.extend(ret, this.getParameterValues(task.subtask, request, response))
 
-  throw 'Unspecified error'
+  ret
 
 this.getParameterNames = (task, request, response) ->
   if request.getParameterNamesResponse?

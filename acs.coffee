@@ -26,11 +26,34 @@ db.open( (err, db) ->
 )
 
 
-updateDevice = (deviceId, actions) ->
-  return if not actions?
+updateDevice = (deviceId, actions, callback) ->
+  if not actions?
+    callback() if callback?
+    return
+
+  updates = {}
   if actions.parameterValues?
-    params = common.arrayToHash(actions.parameterValues)
-    devicesCollection.update({'_id' : deviceId}, {'$set' : params}, {upsert: true})
+    for p in actions.parameterValues
+      if common.endsWith(p[0], '.')
+        updates["#{p[0]}_value"] = p[1]
+      else
+        updates["#{p[0]}._value"] = p[1]
+
+  if actions.parameterNames?
+    for p in actions.parameterNames
+      if common.endsWith(p[0], '.')
+        updates["#{p[0]}_writable"] = p[1]
+        updates["#{p[0]}_object"] = true
+      else
+        updates["#{p[0]}._writable"] = p[1]
+
+  if Object.keys(updates).length > 0
+    devicesCollection.update({'_id' : deviceId}, {'$set' : updates}, {upsert: true, safe: true}, (err) ->
+      callback(err) if callback?
+    )
+  else
+    callback() if callback?
+
 
 runTask = (sessionId, deviceId, task, reqParams, response) ->
   resParams = {}
@@ -115,7 +138,7 @@ else
               util.log("#{deviceId}: Added init task #{task._id}")
             )
 
-          devicesCollection.update({'_id' : deviceId}, {'$set' : common.arrayToHash(reqParams.informParameterValues)}, {upsert: true, safe:true}, (err, modified) ->
+          updateDevice(deviceId, {'parameterValues' : reqParams.informParameterValues}, (err) ->
             tr069.response(reqParams.sessionId, response, resParams, cookies)
           )
         )
