@@ -105,14 +105,14 @@ else
       if reqParams.inform
         resParams.inform = true
         cookies.ID = sessionId = reqParams.sessionId
-        cookies.DeviceId = deviceId = reqParams.deviceId.SerialNumber
+        cookies.DeviceId = deviceId = common.getDeviceId(reqParams.deviceId)
         util.log("#{deviceId}: inform (#{reqParams.eventCodes}); retry count #{reqParams.retryCount}")
         devicesCollection.count({'_id' : deviceId}, (err, count) ->
           if not count
             util.log("#{deviceId}: new device detected")
             task = {device : deviceId, name : 'init', timestamp : mongo.Timestamp(), status: 0}
             tasksCollection.save(task, (err) ->
-              util.log("#{deviceId}: Added init task for #{task._id}")
+              util.log("#{deviceId}: Added init task #{task._id}")
             )
 
           devicesCollection.update({'_id' : deviceId}, {'$set' : common.arrayToHash(reqParams.informParameterValues)}, {upsert: true, safe:true}, (err, modified) ->
