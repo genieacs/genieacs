@@ -35,12 +35,6 @@ if cluster.isMaster
   )
 else
   server = http.createServer (request, response) ->
-    if request.method != 'GET'
-      console.log '>>> 405 Method Not Allowed'
-      response.writeHead 405, {'Allow': 'GET'}
-      response.end('405 Method Not Allowed')
-      return
-
     request.content = ''
 
     request.addListener 'data', (chunk) ->
@@ -49,8 +43,34 @@ else
     request.addListener 'end', () ->
       urlParts = url.parse(request.url, true)
       if DEVICES_REGEX.test(urlParts.pathname)
-        # TODO search for devices
+        if request.method != 'POST'
+          response.writeHead 405, {'Allow': 'POST'}
+          response.end('405 Method Not Allowed')
+          return
+        req = JSON.parse(request.content)
+        query = devicesCollection.find(req.query)
+
+        if req.sort?
+          query.sort(req.sort)
+
+        if req.skip?
+          query.skip(req.skip)
+        
+        if req.limit?
+          query.limit(req.limit)
+        else
+          query.limit(100)
+
+        query.toArray((err, devices) ->
+          response.writeHead 200
+          response.end(JSON.stringify(devices))
+        )
+        return
       else if DEVICE_REGEX.test(urlParts.pathname)
+        if request.method != 'GET'
+          response.writeHead 405, {'Allow': 'GET'}
+          response.end('405 Method Not Allowed')
+          return
         id = DEVICE_REGEX.exec(urlParts.pathname)[1]
         devicesCollection.findOne({_id : id}, (err, device)->
           if err
@@ -73,5 +93,5 @@ else
       response.writeHead 404
       response.end('404 Not Found')
 
-  server.listen config.API_PORT
+  server.listen config.API_PORT, config.API_INTERFACE
   console.log "Server listening on port #{config.API_PORT}"
