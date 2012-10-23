@@ -3,10 +3,52 @@ util = require 'util'
 http = require 'http'
 mongo = require 'mongodb'
 url  = require 'url'
+Timestamp = require('mongodb').Timestamp
+
 
 # regular expression objects
 DEVICES_REGEX = /^\/devices\/?$/
 DEVICE_REGEX = /^\/devices\/([a-zA-Z0-9\-\_]+)\/?$/
+TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_]+)\/tasks\/?$/
+
+connectionRequest = (deviceId, callback) ->
+  devicesCollection.findOne({_id : deviceId}, {'InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value' : 1}, (err, device)->
+    if err
+      callback(err)
+      return
+    connectionRequestUrl = device.InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value
+    # for testing
+    #connectionRequestUrl = connectionRequestUrl.replace(/^(http:\/\/)([0-9\.]+)(\:[0-9]+\/[a-zA-Z0-9]+\/?$)/, '$1192.168.1.1$3')
+    request = http.request(connectionRequestUrl, (res) ->
+      res.setEncoding('utf8')
+      res.on('end', () ->
+        callback()
+      )
+    )
+    request.on('socket', (socket) ->
+      socket.setTimeout(3000)
+      socket.on('timeout', () ->
+        request.abort()
+        callback('timeout')
+      )
+    )
+    request.end()
+  )
+
+watchTask = (taskId, timeout, callback) ->
+  setTimeout( () ->
+    tasksCollection.findOne({_id : taskId}, {'_id' : 1}, (err, task) ->
+      if task
+        timeout -= 500
+        if timeout < 0
+          callback('timeout')
+        else
+          watchTask(taskId, timeout, callback)
+      else
+        callback(err)
+    )
+  , 500)
+
 
 # Create MongoDB connections
 dbserver = new mongo.Server(config.MONGODB_SOCKET, 0, {auto_reconnect: true, safe: true})
@@ -43,55 +85,104 @@ else
     request.addListener 'end', () ->
       urlParts = url.parse(request.url, true)
       if DEVICES_REGEX.test(urlParts.pathname)
-        if request.method != 'POST'
+        if request.method == 'POST'
+          req = JSON.parse(request.content)
+          query = devicesCollection.find(req.query)
+          query.sort(req.sort) if req.sort?
+          query.skip(req.skip) if req.skip?
+          query.limit(req.limit if req.limit? else 100)
+
+          query.toArray((err, devices) ->
+            # TODO handle error
+            response.writeHead 200
+            response.end(JSON.stringify(devices))
+          )
+        else
           response.writeHead 405, {'Allow': 'POST'}
           response.end('405 Method Not Allowed')
-          return
-        req = JSON.parse(request.content)
-        query = devicesCollection.find(req.query)
-
-        if req.sort?
-          query.sort(req.sort)
-
-        if req.skip?
-          query.skip(req.skip)
-        
-        if req.limit?
-          query.limit(req.limit)
-        else
-          query.limit(100)
-
-        query.toArray((err, devices) ->
-          response.writeHead 200
-          response.end(JSON.stringify(devices))
-        )
-        return
       else if DEVICE_REGEX.test(urlParts.pathname)
         if request.method != 'GET'
           response.writeHead 405, {'Allow': 'GET'}
           response.end('405 Method Not Allowed')
           return
-        id = DEVICE_REGEX.exec(urlParts.pathname)[1]
-        devicesCollection.findOne({_id : id}, (err, device)->
+
+        deviceId = DEVICE_REGEX.exec(urlParts.pathname)[1]
+        devicesCollection.findOne({_id : deviceId}, (err, device) ->
           if err
             console.log("Error: " + err)
             response.writeHead 500
             response.end(err)
-            return
-
-          if device is null
+          else if device is null
             response.writeHead 404
             response.end()
-            return
-
-          response.end(JSON.stringify(device))
-          return
+          else
+            response.writeHead(200)
+            response.end(JSON.stringify(device))
         )
-        return
+      else if TASKS_REGEX.test(urlParts.pathname)
+        if request.method == 'GET'
+          deviceId = TASKS_REGEX.exec(urlParts.pathname)[1]
+          query = tasksCollection.find({'device' : deviceId}).sort(['timestamp'])
 
-      console.log '>>> 404 Not Found'
-      response.writeHead 404
-      response.end('404 Not Found')
+          query.toArray((err, tasks) ->
+            response.writeHead 200
+            response.end(JSON.stringify(tasks))
+          )
+        else if request.method == 'POST'
+          deviceId = TASKS_REGEX.exec(urlParts.pathname)[1]
+          if request.content
+            # queue given task
+            task = JSON.parse(request.content)
+            task.device = deviceId
+            task.timestamp = Timestamp()
+
+            tasksCollection.save(task, (err) ->
+              if err
+                response.writeHead(500)
+                response.end(err)
+                return
+
+              watch = () ->
+                if urlParts.query.timeout?
+                  timeout = parseInt(urlParts.query.timeout)
+                  watchTask(task._id, timeout, (err) ->
+                    if err
+                      response.writeHead(202)
+                      response.end()
+                      return
+                    response.writeHead(200)
+                    response.end()
+                  )
+                else
+                  response.writeHead(202)
+                  response.end()
+
+              if urlParts.query.connection_request?
+                connectionRequest(deviceId, (err) ->
+                  watch()
+                )
+              else
+                watch()
+            )
+          else if urlParts.query.connection_request?
+            # no task, send connection request only
+            connectionRequest(deviceId, (err) ->
+              if err
+                response.writeHead 504
+                response.end()
+                return
+              response.writeHead 200
+              response.end()
+            )
+          else
+            response.writeHead(400)
+            response.end()
+        else
+          response.writeHead 405, {'Allow': 'GET'}
+          response.end('405 Method Not Allowed')
+      else
+        response.writeHead 404
+        response.end('404 Not Found')
 
   server.listen config.API_PORT, config.API_INTERFACE
   console.log "Server listening on port #{config.API_PORT}"
