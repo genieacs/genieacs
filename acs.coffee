@@ -7,6 +7,7 @@ tr069 = require './tr-069'
 tasks = require './tasks'
 Memcached = require 'memcached'
 memcached = new Memcached(config.MEMCACHED_SOCKET)
+sanitize = require('./sanitize').sanitize
 
 
 # Create MongoDB connections
@@ -34,10 +35,13 @@ updateDevice = (deviceId, actions, callback) ->
   updates = {}
   if actions.parameterValues?
     for p in actions.parameterValues
-      if common.endsWith(p[0], '.')
-        updates["#{p[0]}_value"] = p[1]
+      v = sanitize(p[0], p[1])
+      path = if common.endsWith(p[0], '.') then p[0] else "#{p[0]}."
+      if v is undefined
+        updates["#{path}_value"] = p[1]
       else
-        updates["#{p[0]}._value"] = p[1]
+        updates["#{path}_value"] = v
+        updates["#{path}_orig"] = p[1]
 
   if actions.parameterNames?
     for p in actions.parameterNames
@@ -77,7 +81,7 @@ runTask = (sessionId, deviceId, task, reqParams, response) ->
 
 
 nextTask = (sessionId, deviceId, response, cookies) ->
-  cur = tasksCollection.find({'device' : deviceId, 'status' : 0}).sort(['timestamp']).limit(1)
+  cur = tasksCollection.find({'device' : deviceId}).sort(['timestamp']).limit(1)
   cur.nextObject( (err, task) ->
     reqParams = {}
     resParams = {}
@@ -133,7 +137,7 @@ else
         devicesCollection.count({'_id' : deviceId}, (err, count) ->
           if not count
             util.log("#{deviceId}: new device detected")
-            task = {device : deviceId, name : 'init', timestamp : mongo.Timestamp(), status: 0}
+            task = {device : deviceId, name : 'init', timestamp : mongo.Timestamp()}
             tasksCollection.save(task, (err) ->
               util.log("#{deviceId}: Added init task #{task._id}")
             )
