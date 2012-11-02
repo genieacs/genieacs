@@ -33,6 +33,9 @@ updateDevice = (deviceId, actions, callback) ->
     return
 
   updates = {}
+  if actions.inform
+    updates['_last_inform'] = new Date(Date.now())
+
   if actions.parameterValues?
     for p in actions.parameterValues
       v = sanitize(p[0], p[1])
@@ -142,7 +145,7 @@ else
               util.log("#{deviceId}: Added init task #{task._id}")
             )
 
-          updateDevice(deviceId, {'parameterValues' : reqParams.informParameterValues}, (err) ->
+          updateDevice(deviceId, {'inform' : true, 'parameterValues' : reqParams.informParameterValues}, (err) ->
             tr069.response(reqParams.sessionId, response, resParams, cookies)
           )
         )
