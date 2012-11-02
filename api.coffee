@@ -90,7 +90,7 @@ else
           query = devicesCollection.find(req.query)
           query.sort(req.sort) if req.sort?
           query.skip(req.skip) if req.skip?
-          query.limit(req.limit if req.limit? else 100)
+          query.limit(if req.limit? req.limit else 100)
 
           query.toArray((err, devices) ->
             # TODO handle error
