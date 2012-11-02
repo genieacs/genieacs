@@ -32,9 +32,10 @@ updateDevice = (deviceId, actions, callback) ->
     callback() if callback?
     return
 
+  now = new Date(Date.now())
   updates = {}
   if actions.inform
-    updates['_last_inform'] = new Date(Date.now())
+    updates['_last_inform'] = now
 
   if actions.parameterValues?
     for p in actions.parameterValues
@@ -45,14 +46,15 @@ updateDevice = (deviceId, actions, callback) ->
       else
         updates["#{path}_value"] = v
         updates["#{path}_orig"] = p[1]
+      updates["#{path}_timestamp"] = now
 
   if actions.parameterNames?
     for p in actions.parameterNames
+      path = if common.endsWith(p[0], '.') then p[0] else "#{p[0]}."
       if common.endsWith(p[0], '.')
-        updates["#{p[0]}_writable"] = p[1]
-        updates["#{p[0]}_object"] = true
-      else
-        updates["#{p[0]}._writable"] = p[1]
+        updates["#{path}_object"] = true
+      updates["#{path}_writable"] = p[1]
+      updates["#{path}_timestamp"] = now
 
   if Object.keys(updates).length > 0
     devicesCollection.update({'_id' : deviceId}, {'$set' : updates}, {upsert: true, safe: true}, (err) ->
