@@ -25,11 +25,17 @@ connectionRequest = (deviceId, callback) ->
         callback()
       )
     )
+
+    request.on('error', (err) ->
+      # error event when request is aborted
+      request.abort()
+      callback(err)
+    )
+
     request.on('socket', (socket) ->
-      socket.setTimeout(3000)
+      socket.setTimeout(2000)
       socket.on('timeout', () ->
         request.abort()
-        callback('timeout')
       )
     )
     request.end()
@@ -159,7 +165,11 @@ else
 
               if urlParts.query.connection_request?
                 connectionRequest(deviceId, (err) ->
-                  watch()
+                  if err
+                    response.writeHead(202)
+                    response.end()
+                  else
+                    watch()
                 )
               else
                 watch()
