@@ -124,15 +124,29 @@ else
       response.end('405 Method Not Allowed')
       return
 
-    request.content = ''
+    chunks = []
+    bytes = 0
     cookies = {}
 
     request.addListener 'data', (chunk) ->
-      request.content += chunk
+      chunks.push(chunk)
+      bytes += chunk.length
+
+    request.getBody = (encoding) ->
+      # Write all chunks into a Buffer
+      body = new Buffer(bytes)
+      offset = 0
+      chunks.forEach((chunk) ->
+        chunk.copy(body, offset, 0, chunk.length)
+        offset += chunk.length
+      )
+
+      #Return encoded (default to UTF8) string
+      return body.toString(encoding || 'utf8', 0, body.byteLength)
 
     request.addListener 'end', () ->
       resParams = {}
-      reqParams = tr069.request(request.headers, request.content)
+      reqParams = tr069.request(request.headers, request.getBody())
 
       if reqParams.inform
         resParams.inform = true
