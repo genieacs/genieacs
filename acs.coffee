@@ -9,6 +9,7 @@ Memcached = require 'memcached'
 memcached = new Memcached(config.MEMCACHED_SOCKET)
 sanitize = require('./sanitize').sanitize
 
+currentClientIP = null
 
 # Create MongoDB connections
 dbserver = new mongo.Server(config.MONGODB_SOCKET, 0, {auto_reconnect: true})
@@ -25,6 +26,16 @@ db.open( (err, db) ->
     devicesCollection = collection
   )
 )
+
+
+writeResponse = (serverResponse, res) ->
+  if config.DEBUG
+    s = "# RESPONSE #{new Date(Date.now())}\n" + JSON.stringify(res.headers) + "\n#{res.data}\n\n"
+    memcached.append("debug-#{currentClientIP}", s, (err, result) ->
+    )
+
+  serverResponse.writeHead(res.code, res.headers)
+  serverResponse.end(res.data)
 
 
 updateDevice = (deviceId, actions, callback) ->
@@ -71,7 +82,8 @@ runTask = (sessionId, deviceId, task, reqParams, response) ->
 
   if Object.keys(resParams).length > 0
     memcached.set(String(task._id), task, config.CACHE_DURATION, (err, result) ->
-      tr069.response(reqParams.sessionId, response, resParams, {task : String(task._id)})
+      res = tr069.response(reqParams.sessionId, resParams, {task : String(task._id)})
+      writeResponse response, res
     )
     return
 
@@ -80,7 +92,6 @@ runTask = (sessionId, deviceId, task, reqParams, response) ->
   tasksCollection.remove({'_id' : mongo.ObjectID(task._id)}, {safe: true}, (err, removed) ->
     util.log("#{deviceId}: completed task #{task.name}(#{task._id})")
     cookies = {task : null}
-    tr069.response(sessionId, response, resParams, cookies)
     nextTask(sessionId, deviceId, response, cookies)
   )
 
@@ -91,7 +102,8 @@ nextTask = (sessionId, deviceId, response, cookies) ->
     reqParams = {}
     resParams = {}
     if not task
-      tr069.response(sessionId, response, resParams, cookies)
+      res = tr069.response(sessionId, resParams, cookies)
+      writeResponse response, res
       return
 
     util.log("#{deviceId}: started task #{task.name}(#{task._id})")
@@ -117,6 +129,18 @@ if cluster.isMaster
   for i in [1 .. numCPUs]
     cluster.fork()
 else
+  if config.DEBUG
+    process.on('uncaughtException', (err) ->
+      # dump request/response logs and stack trace
+      util.log("Unexpected error occured. Writing log to debug/#{currentClientIP}.log.")
+      memcached.get("debug-#{currentClientIP}", (er, l) ->
+        fs = require 'fs'
+        fs.writeFile("debug/#{currentClientIP}.log", l + "\n\n" + err.stack, (err) ->
+          process.exit(1)
+        )
+      )
+    )
+
   server = http.createServer (request, response) ->
     if request.method != 'POST'
       #console.log '>>> 405 Method Not Allowed'
@@ -145,6 +169,15 @@ else
       return body.toString(encoding || 'utf8', 0, body.byteLength)
 
     request.addListener 'end', () ->
+      currentClientIP = request.connection.remoteAddress
+      if config.DEBUG
+        s = "# REQUEST #{new Date(Date.now())}\n" + JSON.stringify(request.headers) + "\n#{request.getBody()}\n\n"
+        memcached.append("debug-#{currentClientIP}", s, (err, result) ->
+          if err == 'Item is not stored'
+            memcached.set("debug-#{currentClientIP}", s, 10, (err, result) ->
+            )
+        )
+
       resParams = {}
       reqParams = tr069.request(request.headers, request.getBody())
 
@@ -162,7 +195,8 @@ else
             )
 
           updateDevice(deviceId, {'inform' : true, 'parameterValues' : reqParams.informParameterValues}, (err) ->
-            tr069.response(reqParams.sessionId, response, resParams, cookies)
+            res = tr069.response(reqParams.sessionId, resParams, cookies)
+            writeResponse response, res
           )
         )
         return

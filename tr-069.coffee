@@ -140,7 +140,7 @@ exports.request = (headers, data) ->
   return req
 
 
-exports.response = (sessionId, response, params, cookies = null) ->
+exports.response = (sessionId, params, cookies = null) ->
   headers = {
     'Content-Type' : 'text/xml; charset="utf-8"',
     'Server' : SERVER_NAME,
@@ -154,9 +154,7 @@ exports.response = (sessionId, response, params, cookies = null) ->
     #console.log '>>> EMPTY RESPONSE'
     # send empty response
     headers['Content-Length'] = 0
-    response.writeHead 204, headers
-    response.end()
-    return
+    return {code: 204, headers: headers, data: null}
 
   xml = libxmljs.Document()
   env = xml.node('soap-env:Envelope')
@@ -201,5 +199,4 @@ exports.response = (sessionId, response, params, cookies = null) ->
   #console.dir headers
   #console.log data
   
-  response.writeHead 200, headers
-  response.end(data)
+  return {code: 200, headers: headers, data: data}
