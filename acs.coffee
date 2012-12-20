@@ -132,16 +132,14 @@ if cluster.isMaster
     cluster.fork()
 else
   if config.DEBUG
-    process.on('uncaughtException', (err) ->
+    process.on('uncaughtException', (error) ->
       # dump request/response logs and stack trace
       util.log("Unexpected error occured. Writing log to debug/#{currentClientIP}.log.")
       memcached.get("debug-#{currentClientIP}", (err, l) ->
         util.error(err) if err
         fs = require 'fs'
-        fs.writeFile("debug/#{currentClientIP}.log", l + "\n\n" + err.stack, (err) ->
-          util.error(err) if err
-          process.exit(1)
-        )
+        fs.writeFileSync("debug/#{currentClientIP}.log", l + "\n\n" + error.stack)
+        process.exit(1)
       )
     )
 
