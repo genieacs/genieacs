@@ -176,7 +176,7 @@ else
         s = "# REQUEST #{new Date(Date.now())}\n" + JSON.stringify(request.headers) + "\n#{request.getBody()}\n\n"
         memcached.append("debug-#{currentClientIP}", s, (err, result) ->
           if err == 'Item is not stored'
-            memcached.set("debug-#{currentClientIP}", s, 10, (err, result) ->
+            memcached.set("debug-#{currentClientIP}", s, config.CACHE_DURATION, (err, result) ->
             )
         )
 
