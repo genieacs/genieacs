@@ -189,7 +189,8 @@ else
         resParams.inform = true
         cookies.ID = sessionId = reqParams.sessionId
         cookies.DeviceId = deviceId = common.getDeviceId(reqParams.deviceId)
-        util.log("#{deviceId}: inform (#{reqParams.eventCodes}); retry count #{reqParams.retryCount}")
+        if config.DEBUG
+          util.log("#{deviceId}: inform (#{reqParams.eventCodes}); retry count #{reqParams.retryCount}")
         devicesCollection.count({'_id' : deviceId}, (err, count) ->
           if not count
             util.log("#{deviceId}: new device detected")
