@@ -15,11 +15,13 @@ currentClientIP = null
 dbserver = new mongo.Server(config.MONGODB_SOCKET, 0, {auto_reconnect: true})
 tasksCollection = null
 devicesCollection = null
-db = new mongo.Db(config.DATABASE_NAME, dbserver, {native_parser:true})
+db = new mongo.Db(config.DATABASE_NAME, dbserver, {native_parser:true, safe:true})
+
 db.open( (err, db) ->
   db.collection('tasks', (err, collection) ->
     tasksCollection = collection
-    tasksCollection.ensureIndex({device: 1, timestamp: 1})
+    tasksCollection.ensureIndex({device: 1, timestamp: 1}, (err) ->
+    )
   )
 
   db.collection('devices', (err, collection) ->
