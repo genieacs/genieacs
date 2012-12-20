@@ -135,9 +135,11 @@ else
     process.on('uncaughtException', (err) ->
       # dump request/response logs and stack trace
       util.log("Unexpected error occured. Writing log to debug/#{currentClientIP}.log.")
-      memcached.get("debug-#{currentClientIP}", (er, l) ->
+      memcached.get("debug-#{currentClientIP}", (err, l) ->
+        util.error(err) if err
         fs = require 'fs'
         fs.writeFile("debug/#{currentClientIP}.log", l + "\n\n" + err.stack, (err) ->
+          util.error(err) if err
           process.exit(1)
         )
       )
@@ -181,7 +183,7 @@ else
         )
 
       resParams = {}
-      reqParams = tr069.request(request.headers, request.getBody())
+      reqParams = tr069.request(request)
 
       if reqParams.inform
         resParams.inform = true

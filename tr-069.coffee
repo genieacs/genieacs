@@ -117,16 +117,19 @@ setParameterValuesResponse = (xml) ->
   return undefined
 
 
-exports.request = (headers, data) ->
-  #console.log '<<< REQUEST'
-  #console.dir [headers, data]
-  #console.log data
-
+exports.request = (request) ->
   req = {cookies: {}}
-  req.cookies = cookiesToObj(headers.cookie) if headers.cookie
+  req.cookies = cookiesToObj(request.headers.cookie) if request.headers.cookie
 
-  if +headers['Content-Length'] > 0 || data.length > 0
-    xml = libxmljs.parseXml data
+  data = request.getBody()
+
+  if +request.headers['Content-Length'] > 0 || data.length > 0
+    try
+      xml = libxmljs.parseXml data
+    catch err
+      # some devices send invalid utf8 characters
+      xml = libxmljs.parseXml request.getBody('binary')
+
     req.sessionId = sessionId xml
     req.inform = true if xml.get('//soap-env:Envelope/soap-env:Body/cwmp:Inform', NAMESPACES)
     req.informParameterValues = informParameterValues xml
@@ -195,8 +198,4 @@ exports.response = (sessionId, params, cookies = null) ->
   data = xml.toString()
   headers['Content-Length'] = data.length
 
-  #console.log '>>> RESPONSE'
-  #console.dir headers
-  #console.log data
-  
   return {code: 200, headers: headers, data: data}
