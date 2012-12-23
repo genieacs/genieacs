@@ -8,6 +8,7 @@ Timestamp = require('mongodb').Timestamp
 
 # regular expression objects
 TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_]+)\/tasks\/?$/
+TAGS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_]+)\/tags\/([a-zA-Z0-9\-\_]+)\/?$/
 
 connectionRequest = (deviceId, callback) ->
   devicesCollection.findOne({_id : deviceId}, {'InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value' : 1}, (err, device)->
@@ -58,11 +59,12 @@ watchTask = (taskId, timeout, callback) ->
 dbserver = new mongo.Server(config.MONGODB_SOCKET, 0, {auto_reconnect: true, safe: true})
 tasksCollection = null
 devicesCollection = null
-db = new mongo.Db(config.DATABASE_NAME, dbserver, {native_parser:true})
+db = new mongo.Db(config.DATABASE_NAME, dbserver, {native_parser:true, safe:true})
 db.open( (err, db) ->
   db.collection('tasks', (err, collection) ->
     tasksCollection = collection
-    tasksCollection.ensureIndex({device: 1, timestamp: 1})
+    tasksCollection.ensureIndex({device: 1, timestamp: 1}, (err) ->
+    )
   )
 
   db.collection('devices', (err, collection) ->
@@ -102,7 +104,32 @@ else
 
     request.addListener 'end', () ->
       urlParts = url.parse(request.url, true)
-      if TASKS_REGEX.test(urlParts.pathname)
+      if TAGS_REGEX.test(urlParts.pathname)
+        r = TAGS_REGEX.exec(urlParts.pathname)
+        deviceId = r[1]
+        tag = r[2]
+        if request.method == 'POST'
+          devicesCollection.update({'_id' : deviceId}, {'$addToSet' : {'_tags' : tag}}, {safe: true}, (err) ->
+            if err
+              response.writeHead(500)
+              response.end(err)
+              return
+            response.writeHead(200)
+            response.end()
+          )
+        else if request.method == 'DELETE'
+          devicesCollection.update({'_id' : deviceId}, {'$pull' : {'_tags' : tag}}, {safe: true}, (err) ->
+            if err
+              response.writeHead(500)
+              response.end(err)
+              return
+            response.writeHead(200)
+            response.end()
+          )
+        else
+          response.writeHead 405, {'Allow': 'GET'}
+          response.end('405 Method Not Allowed')
+      else if TASKS_REGEX.test(urlParts.pathname)
         if request.method == 'POST'
           deviceId = TASKS_REGEX.exec(urlParts.pathname)[1]
           if request.content
