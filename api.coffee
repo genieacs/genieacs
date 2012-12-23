@@ -7,8 +7,6 @@ Timestamp = require('mongodb').Timestamp
 
 
 # regular expression objects
-DEVICES_REGEX = /^\/devices\/?$/
-DEVICE_REGEX = /^\/devices\/([a-zA-Z0-9\-\_]+)\/?$/
 TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_]+)\/tasks\/?$/
 
 connectionRequest = (deviceId, callback) ->
@@ -83,58 +81,29 @@ if cluster.isMaster
   )
 else
   server = http.createServer (request, response) ->
-    request.content = ''
+    chunks = []
+    bytes = 0
 
     request.addListener 'data', (chunk) ->
-      request.content += chunk
+      chunks.push(chunk)
+      bytes += chunk.length
+
+    request.getBody = (encoding) ->
+      # Write all chunks into a Buffer
+      body = new Buffer(bytes)
+      offset = 0
+      chunks.forEach((chunk) ->
+        chunk.copy(body, offset, 0, chunk.length)
+        offset += chunk.length
+      )
+
+      # Return encoded (default to UTF8) string
+      return body.toString(encoding || 'utf8', 0, body.byteLength)
 
     request.addListener 'end', () ->
       urlParts = url.parse(request.url, true)
-      if DEVICES_REGEX.test(urlParts.pathname)
+      if TASKS_REGEX.test(urlParts.pathname)
         if request.method == 'POST'
-          req = JSON.parse(request.content)
-          query = devicesCollection.find(req.query)
-          query.sort(req.sort) if req.sort?
-          query.skip(req.skip) if req.skip?
-          query.limit(if req.limit? req.limit else 100)
-
-          query.toArray((err, devices) ->
-            # TODO handle error
-            response.writeHead 200
-            response.end(JSON.stringify(devices))
-          )
-        else
-          response.writeHead 405, {'Allow': 'POST'}
-          response.end('405 Method Not Allowed')
-      else if DEVICE_REGEX.test(urlParts.pathname)
-        if request.method != 'GET'
-          response.writeHead 405, {'Allow': 'GET'}
-          response.end('405 Method Not Allowed')
-          return
-
-        deviceId = DEVICE_REGEX.exec(urlParts.pathname)[1]
-        devicesCollection.findOne({_id : deviceId}, (err, device) ->
-          if err
-            console.log("Error: " + err)
-            response.writeHead 500
-            response.end(err)
-          else if device is null
-            response.writeHead 404
-            response.end()
-          else
-            response.writeHead(200)
-            response.end(JSON.stringify(device))
-        )
-      else if TASKS_REGEX.test(urlParts.pathname)
-        if request.method == 'GET'
-          deviceId = TASKS_REGEX.exec(urlParts.pathname)[1]
-          query = tasksCollection.find({'device' : deviceId}).sort(['timestamp'])
-
-          query.toArray((err, tasks) ->
-            response.writeHead 200
-            response.end(JSON.stringify(tasks))
-          )
-        else if request.method == 'POST'
           deviceId = TASKS_REGEX.exec(urlParts.pathname)[1]
           if request.content
             # queue given task
