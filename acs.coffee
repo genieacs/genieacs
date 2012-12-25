@@ -70,8 +70,27 @@ updateDevice = (deviceId, actions, callback) ->
       updates["#{path}_timestamp"] = now
 
   if Object.keys(updates).length > 0
-    devicesCollection.update({'_id' : deviceId}, {'$set' : updates}, {upsert: true, safe: true}, (err) ->
-      callback(err) if callback?
+    devicesCollection.update({'_id' : deviceId}, {'$set' : updates}, {safe: true}, (err, count) ->
+      if (err)
+        callback(err) if callback?
+        return
+
+      if count == 0
+        util.log("#{deviceId}: new device detected")
+        updates['_id'] = deviceId
+        devicesCollection.save(updates, {safe: true}, (err) ->
+          if err?
+            callback(err) if callback?
+            return
+          
+          task = {device : deviceId, name : 'init', timestamp : mongo.Timestamp()}
+          tasksCollection.save(task, (err) ->
+            util.log("#{deviceId}: Added init task #{task._id}")
+            callback(err) if callback?
+          )
+        )
+      else
+        callback() if callback?
     )
   else
     callback() if callback?
@@ -189,18 +208,10 @@ else
         cookies.DeviceId = deviceId = common.getDeviceId(reqParams.deviceId)
         if config.DEBUG
           util.log("#{deviceId}: inform (#{reqParams.eventCodes}); retry count #{reqParams.retryCount}")
-        devicesCollection.count({'_id' : deviceId}, (err, count) ->
-          if not count
-            util.log("#{deviceId}: new device detected")
-            task = {device : deviceId, name : 'init', timestamp : mongo.Timestamp()}
-            tasksCollection.save(task, (err) ->
-              util.log("#{deviceId}: Added init task #{task._id}")
-            )
 
-          updateDevice(deviceId, {'inform' : true, 'parameterValues' : reqParams.informParameterValues}, (err) ->
-            res = tr069.response(reqParams.sessionId, resParams, cookies)
-            writeResponse response, res
-          )
+        updateDevice(deviceId, {'inform' : true, 'parameterValues' : reqParams.informParameterValues}, (err) ->
+          res = tr069.response(reqParams.sessionId, resParams, cookies)
+          writeResponse response, res
         )
         return
 
