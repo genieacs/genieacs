@@ -77,8 +77,7 @@ updateDevice = (deviceId, actions, callback) ->
 
       if count == 0
         util.log("#{deviceId}: new device detected")
-        updates['_id'] = deviceId
-        devicesCollection.save(updates, {safe: true}, (err) ->
+        devicesCollection.update({'_id' : deviceId}, {'$set' : updates}, {upsert: true, safe: true}, (err) ->
           if err?
             callback(err) if callback?
             return
@@ -103,7 +102,7 @@ runTask = (sessionId, deviceId, task, reqParams, response) ->
 
   if Object.keys(resParams).length > 0
     memcached.set(String(task._id), task, config.CACHE_DURATION, (err, result) ->
-      res = tr069.response(reqParams.sessionId, resParams, {task : String(task._id)})
+      res = tr069.response(sessionId, resParams, {task : String(task._id)})
       writeResponse response, res
     )
     return
@@ -210,7 +209,7 @@ else
           util.log("#{deviceId}: inform (#{reqParams.eventCodes}); retry count #{reqParams.retryCount}")
 
         updateDevice(deviceId, {'inform' : true, 'parameterValues' : reqParams.informParameterValues}, (err) ->
-          res = tr069.response(reqParams.sessionId, resParams, cookies)
+          res = tr069.response(sessionId, resParams, cookies)
           writeResponse response, res
         )
         return
@@ -221,7 +220,6 @@ else
 
       if not taskId
         nextTask(sessionId, deviceId, response, cookies)
-        return
       else
         memcached.get(taskId, (err, task) ->
           runTask(sessionId, deviceId, task, reqParams, response)
