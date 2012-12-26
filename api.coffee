@@ -9,6 +9,7 @@ Timestamp = require('mongodb').Timestamp
 # regular expression objects
 TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_]+)\/tasks\/?$/
 TAGS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_]+)\/tags\/([a-zA-Z0-9\-\_]+)\/?$/
+PROFILES_REGEX = /^\/profiles\/([a-zA-Z0-9\-\_]+)\/?$/
 
 connectionRequest = (deviceId, callback) ->
   devicesCollection.findOne({_id : deviceId}, {'InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value' : 1}, (err, device)->
@@ -103,8 +104,17 @@ else
       return body.toString(encoding || 'utf8', 0, body.byteLength)
 
     request.addListener 'end', () ->
+      body = request.getBody()
       urlParts = url.parse(request.url, true)
-      if TAGS_REGEX.test(urlParts.pathname)
+      if PROFILES_REGEX.test(urlParts.pathname)
+        if request.method == 'PUT'
+          # TODO save profile
+        else if request.method == 'DELETE'
+          # TODO delete profile
+        else
+          response.writeHead 405, {'Allow': 'PUT, DELETE'}
+          response.end('405 Method Not Allowed')
+      else if TAGS_REGEX.test(urlParts.pathname)
         r = TAGS_REGEX.exec(urlParts.pathname)
         deviceId = r[1]
         tag = r[2]
@@ -127,14 +137,14 @@ else
             response.end()
           )
         else
-          response.writeHead 405, {'Allow': 'GET'}
+          response.writeHead 405, {'Allow': 'POST, DELETE'}
           response.end('405 Method Not Allowed')
       else if TASKS_REGEX.test(urlParts.pathname)
         if request.method == 'POST'
           deviceId = TASKS_REGEX.exec(urlParts.pathname)[1]
-          if request.content
+          if body
             # queue given task
-            task = JSON.parse(request.content)
+            task = JSON.parse(body)
             task.device = deviceId
             task.timestamp = Timestamp()
 
