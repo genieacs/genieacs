@@ -2,38 +2,18 @@ config = require './config'
 common = require './common'
 util = require 'util'
 http = require 'http'
-mongo = require 'mongodb'
 tr069 = require './tr-069'
 tasks = require './tasks'
-Memcached = require 'memcached'
-memcached = new Memcached(config.MEMCACHED_SOCKET)
 sanitize = require('./sanitize').sanitize
+db = require './db'
+
 
 currentClientIP = null
-
-# Create MongoDB connections
-dbserver = new mongo.Server(config.MONGODB_SOCKET, 0, {auto_reconnect: true})
-tasksCollection = null
-devicesCollection = null
-db = new mongo.Db(config.DATABASE_NAME, dbserver, {native_parser:true, safe:true})
-
-db.open( (err, db) ->
-  db.collection('tasks', (err, collection) ->
-    tasksCollection = collection
-    tasksCollection.ensureIndex({device: 1, timestamp: 1}, (err) ->
-    )
-  )
-
-  db.collection('devices', (err, collection) ->
-    devicesCollection = collection
-  )
-)
-
 
 writeResponse = (serverResponse, res) ->
   if config.DEBUG
     s = "# RESPONSE #{new Date(Date.now())}\n" + JSON.stringify(res.headers) + "\n#{res.data}\n\n"
-    memcached.append("debug-#{currentClientIP}", s, (err, result) ->
+    db.memcached.append("debug-#{currentClientIP}", s, (err, result) ->
     )
 
   serverResponse.writeHead(res.code, res.headers)
@@ -70,20 +50,20 @@ updateDevice = (deviceId, actions, callback) ->
       updates["#{path}_timestamp"] = now
 
   if Object.keys(updates).length > 0
-    devicesCollection.update({'_id' : deviceId}, {'$set' : updates}, {safe: true}, (err, count) ->
+    db.devicesCollection.update({'_id' : deviceId}, {'$set' : updates}, {safe: true}, (err, count) ->
       if (err)
         callback(err) if callback?
         return
 
       if count == 0
         util.log("#{deviceId}: new device detected")
-        devicesCollection.update({'_id' : deviceId}, {'$set' : updates}, {upsert: true, safe: true}, (err) ->
+        db.devicesCollection.update({'_id' : deviceId}, {'$set' : updates}, {upsert: true, safe: true}, (err) ->
           if err?
             callback(err) if callback?
             return
           
-          task = {device : deviceId, name : 'init', timestamp : mongo.Timestamp()}
-          tasksCollection.save(task, (err) ->
+          task = {device : deviceId, name : 'init', timestamp : db.mongo.Timestamp()}
+          db.tasksCollection.save(task, (err) ->
             util.log("#{deviceId}: Added init task #{task._id}")
             callback(err) if callback?
           )
@@ -101,15 +81,15 @@ runTask = (sessionId, deviceId, task, reqParams, response) ->
   updateDevice(deviceId, actions)
 
   if Object.keys(resParams).length > 0
-    memcached.set(String(task._id), task, config.CACHE_DURATION, (err, result) ->
+    db.memcached.set(String(task._id), task, config.CACHE_DURATION, (err, result) ->
       res = tr069.response(sessionId, resParams, {task : String(task._id)})
       writeResponse response, res
     )
     return
 
   # Task finished
-  memcached.del(String(task._id))
-  tasksCollection.remove({'_id' : mongo.ObjectID(task._id)}, {safe: true}, (err, removed) ->
+  db.memcached.del(String(task._id))
+  db.tasksCollection.remove({'_id' : db.mongo.ObjectID(task._id)}, {safe: true}, (err, removed) ->
     util.log("#{deviceId}: completed task #{task.name}(#{task._id})")
     cookies = {task : null}
     nextTask(sessionId, deviceId, response, cookies)
@@ -117,7 +97,7 @@ runTask = (sessionId, deviceId, task, reqParams, response) ->
 
 
 nextTask = (sessionId, deviceId, response, cookies) ->
-  cur = tasksCollection.find({'device' : deviceId}).sort(['timestamp']).limit(1)
+  cur = db.tasksCollection.find({'device' : deviceId}).sort(['timestamp']).limit(1)
   cur.nextObject( (err, task) ->
     reqParams = {}
     resParams = {}
@@ -153,7 +133,7 @@ else
     process.on('uncaughtException', (error) ->
       # dump request/response logs and stack trace
       util.log("Unexpected error occured. Writing log to debug/#{currentClientIP}.log.")
-      memcached.get("debug-#{currentClientIP}", (err, l) ->
+      db.memcached.get("debug-#{currentClientIP}", (err, l) ->
         util.error(err) if err
         fs = require 'fs'
         fs.writeFileSync("debug/#{currentClientIP}.log", l + "\n\n" + error.stack)
@@ -192,9 +172,9 @@ else
       currentClientIP = request.connection.remoteAddress
       if config.DEBUG
         s = "# REQUEST #{new Date(Date.now())}\n" + JSON.stringify(request.headers) + "\n#{request.getBody()}\n\n"
-        memcached.append("debug-#{currentClientIP}", s, (err, result) ->
+        db.memcached.append("debug-#{currentClientIP}", s, (err, result) ->
           if err == 'Item is not stored'
-            memcached.set("debug-#{currentClientIP}", s, config.CACHE_DURATION, (err, result) ->
+            db.memcached.set("debug-#{currentClientIP}", s, config.CACHE_DURATION, (err, result) ->
             )
         )
 
@@ -221,7 +201,7 @@ else
       if not taskId
         nextTask(sessionId, deviceId, response, cookies)
       else
-        memcached.get(taskId, (err, task) ->
+        db.memcached.get(taskId, (err, task) ->
           runTask(sessionId, deviceId, task, reqParams, response)
         )
 
