@@ -6,18 +6,41 @@ tr069 = require './tr-069'
 tasks = require './tasks'
 sanitize = require('./sanitize').sanitize
 db = require './db'
+profiles = require './profiles'
 
 
-currentClientIP = null
+currentRequest = null
 
-writeResponse = (serverResponse, res) ->
+
+applyConfigurations = (configurations) ->
+  taskList = []
+  for c of configurations
+    task = {device : currentRequest.deviceId, name : 'setParameterValues', parameterValues: [], timestamp : db.mongo.Timestamp()}
+    task.parameterValues.push([c, configurations[c]])
+    taskList.push task
+
+  if taskList.length
+    util.log("#{currentRequest.deviceId}: Profiles discrepancy found")
+    db.tasksCollection.save(taskList, (err) ->
+      for task in taskList
+        util.log("#{currentRequest.deviceId}: Added #{task.name} task #{task._id}")
+      task = taskList[0]
+      util.log("#{currentRequest.deviceId}: started task #{task.name}(#{task._id})")
+      runTask(task, {})
+    )
+  else
+    res = tr069.response(currentRequest.sessionId, {}, {})
+    writeResponse res
+
+
+writeResponse = (res) ->
   if config.DEBUG
     s = "# RESPONSE #{new Date(Date.now())}\n" + JSON.stringify(res.headers) + "\n#{res.data}\n\n"
-    db.memcached.append("debug-#{currentClientIP}", s, (err, result) ->
+    db.memcached.append("debug-#{currentRequest.clientIp}", s, (err, result) ->
     )
 
-  serverResponse.writeHead(res.code, res.headers)
-  serverResponse.end(res.data)
+  currentRequest.response.writeHead(res.code, res.headers)
+  currentRequest.response.end(res.data)
 
 
 updateDevice = (deviceId, actions, callback) ->
@@ -50,21 +73,21 @@ updateDevice = (deviceId, actions, callback) ->
       updates["#{path}_timestamp"] = now
 
   if Object.keys(updates).length > 0
-    db.devicesCollection.update({'_id' : deviceId}, {'$set' : updates}, {safe: true}, (err, count) ->
+    db.devicesCollection.update({'_id' : currentRequest.deviceId}, {'$set' : updates}, {safe: true}, (err, count) ->
       if (err)
         callback(err) if callback?
         return
 
       if count == 0
-        util.log("#{deviceId}: new device detected")
-        db.devicesCollection.update({'_id' : deviceId}, {'$set' : updates}, {upsert: true, safe: true}, (err) ->
+        util.log("#{currentRequest.deviceId}: new device detected")
+        db.devicesCollection.update({'_id' : currentRequest.deviceId}, {'$set' : updates}, {upsert: true, safe: true}, (err) ->
           if err?
             callback(err) if callback?
             return
           
-          task = {device : deviceId, name : 'init', timestamp : db.mongo.Timestamp()}
+          task = {device : currentRequest.deviceId, name : 'init', timestamp : db.mongo.Timestamp()}
           db.tasksCollection.save(task, (err) ->
-            util.log("#{deviceId}: Added init task #{task._id}")
+            util.log("#{currentRequest.deviceId}: Added init task #{task._id}")
             callback(err) if callback?
           )
         )
@@ -75,39 +98,63 @@ updateDevice = (deviceId, actions, callback) ->
     callback() if callback?
 
 
-runTask = (sessionId, deviceId, task, reqParams, response) ->
+runTask = (task, reqParams) ->
   resParams = {}
   actions = tasks.task(task, reqParams, resParams)
-  updateDevice(deviceId, actions)
+  updateDevice(currentRequest.deviceId, actions)
 
   if Object.keys(resParams).length > 0
     db.memcached.set(String(task._id), task, config.CACHE_DURATION, (err, result) ->
-      res = tr069.response(sessionId, resParams, {task : String(task._id)})
-      writeResponse response, res
+      res = tr069.response(currentRequest.sessionId, resParams, {task : String(task._id)})
+      writeResponse res
     )
     return
 
   # Task finished
   db.memcached.del(String(task._id))
   db.tasksCollection.remove({'_id' : db.mongo.ObjectID(task._id)}, {safe: true}, (err, removed) ->
-    util.log("#{deviceId}: completed task #{task.name}(#{task._id})")
+    util.log("#{currentRequest.deviceId}: completed task #{task.name}(#{task._id})")
     cookies = {task : null}
-    nextTask(sessionId, deviceId, response, cookies)
+    nextTask(cookies)
   )
 
 
-nextTask = (sessionId, deviceId, response, cookies) ->
-  cur = db.tasksCollection.find({'device' : deviceId}).sort(['timestamp']).limit(1)
+nextTask = (cookies) ->
+  cur = db.tasksCollection.find({'device' : currentRequest.deviceId}).sort(['timestamp']).limit(1)
   cur.nextObject( (err, task) ->
     reqParams = {}
     resParams = {}
+
     if not task
-      res = tr069.response(sessionId, resParams, cookies)
-      writeResponse response, res
+      # no more taks, check profile discrepancy
+      db.memcached.get(["#{currentRequest.deviceId}_profiles_hash", 'profiles_hash'], (err, results) ->
+        profilesHash = results['profiles_hash']
+        deviceProfilesHash = results["#{currentRequest.deviceId}_profiles_hash"]
+
+        if not deviceProfilesHash or profilesHash != deviceProfilesHash
+          profiles.findDeviceConfigurationDiscrepancy(currentRequest.deviceId, profilesHash, (configurations) ->
+            applyConfigurations(configurations)
+          )
+        else if not profilesHash
+          profiles.getProfilesHash((hash) ->
+            if hash != deviceProfilesHash
+              profiles.findDeviceConfigurationDiscrepancy(currentRequest.deviceId, profilesHash, (configurations) ->
+                applyConfigurations(configurations)
+              )
+            else
+              # no discrepancy, return empty response
+              res = tr069.response(currentRequest.sessionId, resParams, cookies)
+              writeResponse res
+          )
+        else
+          # no discrepancy, return empty response
+          res = tr069.response(currentRequest.sessionId, resParams, cookies)
+          writeResponse res
+      )
       return
 
-    util.log("#{deviceId}: started task #{task.name}(#{task._id})")
-    runTask(sessionId, deviceId, task, reqParams, response)
+    util.log("#{currentRequest.deviceId}: started task #{task.name}(#{task._id})")
+    runTask(task, reqParams)
   )
 
 
@@ -131,12 +178,13 @@ if cluster.isMaster
 else
   if config.DEBUG
     process.on('uncaughtException', (error) ->
+      util.error(error.stack)
       # dump request/response logs and stack trace
-      util.log("Unexpected error occured. Writing log to debug/#{currentClientIP}.log.")
-      db.memcached.get("debug-#{currentClientIP}", (err, l) ->
+      db.memcached.get("debug-#{currentRequest.clientIp}", (err, l) ->
+        util.log("Unexpected error occured. Writing log to debug/#{currentRequest.clientIp}.log.")
         util.error(err) if err
         fs = require 'fs'
-        fs.writeFileSync("debug/#{currentClientIP}.log", l + "\n\n" + error.stack)
+        fs.writeFileSync("debug/#{currentRequest.clientIp}.log", l + "\n\n" + error.stack)
         process.exit(1)
       )
     )
@@ -169,12 +217,15 @@ else
       return body.toString(encoding || 'utf8', 0, body.byteLength)
 
     request.addListener 'end', () ->
-      currentClientIP = request.connection.remoteAddress
+      currentRequest = {}
+      currentRequest.request = request
+      currentRequest.response = response
+      currentRequest.clientIp = request.connection.remoteAddress
       if config.DEBUG
         s = "# REQUEST #{new Date(Date.now())}\n" + JSON.stringify(request.headers) + "\n#{request.getBody()}\n\n"
-        db.memcached.append("debug-#{currentClientIP}", s, (err, result) ->
+        db.memcached.append("debug-#{currentRequest.clientIp}", s, (err, result) ->
           if err == 'Item is not stored'
-            db.memcached.set("debug-#{currentClientIP}", s, config.CACHE_DURATION, (err, result) ->
+            db.memcached.set("debug-#{currentRequest.clientIp}", s, config.CACHE_DURATION, (err, result) ->
             )
         )
 
@@ -183,26 +234,27 @@ else
 
       if reqParams.inform
         resParams.inform = true
-        cookies.ID = sessionId = reqParams.sessionId
-        cookies.DeviceId = deviceId = common.getDeviceId(reqParams.deviceId)
+        cookies.ID = currentRequest.sessionId = reqParams.sessionId
+        cookies.DeviceId = currentRequest.deviceId = common.getDeviceId(reqParams.deviceId)
         if config.DEBUG
-          util.log("#{deviceId}: inform (#{reqParams.eventCodes}); retry count #{reqParams.retryCount}")
+          util.log("#{currentRequest.deviceId}: inform (#{reqParams.eventCodes}); retry count #{reqParams.retryCount}")
 
-        updateDevice(deviceId, {'inform' : true, 'parameterValues' : reqParams.informParameterValues}, (err) ->
-          res = tr069.response(sessionId, resParams, cookies)
-          writeResponse response, res
+        updateDevice(currentRequest.deviceId, {'inform' : true, 'parameterValues' : reqParams.informParameterValues}, (err) ->
+          res = tr069.response(currentRequest.sessionId, resParams, cookies)
+          writeResponse res
         )
         return
 
-      sessionId = reqParams.cookies.ID
-      deviceId = reqParams.cookies.DeviceId
+      currentRequest.sessionId = reqParams.cookies.ID
+      currentRequest.deviceId = reqParams.cookies.DeviceId
       taskId = reqParams.cookies.task
 
       if not taskId
-        nextTask(sessionId, deviceId, response, cookies)
+        nextTask(cookies)
       else
         db.memcached.get(taskId, (err, task) ->
-          runTask(sessionId, deviceId, task, reqParams, response)
+          # TODO if not found in memcached, fetch from mongo
+          runTask(task, reqParams)
         )
 
   server.listen config.ACS_PORT, config.ACS_INTERFACE

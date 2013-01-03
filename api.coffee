@@ -107,10 +107,28 @@ else
       body = request.getBody()
       urlParts = url.parse(request.url, true)
       if PROFILES_REGEX.test(urlParts.pathname)
+        profileName = PROFILES_REGEX.exec(urlParts.pathname)[1]
         if request.method == 'PUT'
-          # TODO save profile
+          profile = JSON.parse(body)
+          profile._id = profileName
+
+          profilesCollection.save(profile, (err) ->
+            if err
+              response.writeHead(500)
+              response.end(err)
+              return
+            response.writeHead(200)
+            response.end()
+          )
         else if request.method == 'DELETE'
-          # TODO delete profile
+          profilesCollection.remove({'_id' : profileName}, (err, removedCount) ->
+            if err
+              response.writeHead(500)
+              response.end(err)
+              return
+            response.writeHead(200)
+            response.end()
+          )
         else
           response.writeHead 405, {'Allow': 'PUT, DELETE'}
           response.end('405 Method Not Allowed')

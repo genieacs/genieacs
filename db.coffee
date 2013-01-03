@@ -1,13 +1,15 @@
 config = require './config'
 mongo = require 'mongodb'
 Memcached = require 'memcached'
-
-exports.memcached = new Memcached(config.MEMCACHED_SOCKET)
+Memcached.config.maxExpiration = 86400
+memcached = new Memcached(config.MEMCACHED_SOCKET)
 
 # Create MongoDB connections
-dbserver = new mongo.Server(config.MONGODB_SOCKET, 0, {auto_reconnect: true})
 tasksCollection = null
 devicesCollection = null
+profilesCollection = null
+
+dbserver = new mongo.Server(config.MONGODB_SOCKET, 0, {auto_reconnect: true})
 db = new mongo.Db(config.DATABASE_NAME, dbserver, {native_parser:true, safe:true})
 
 db.open( (err, db) ->
@@ -20,6 +22,11 @@ db.open( (err, db) ->
   db.collection('devices', (err, collection) ->
     exports.devicesCollection = collection
   )
+
+  db.collection('profiles', (err, collection) ->
+    exports.profilesCollection = collection
+  )
 )
 
 exports.mongo = mongo
+exports.memcached = memcached
