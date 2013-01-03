@@ -1,10 +1,8 @@
 config = require './config'
 util = require 'util'
 http = require 'http'
-mongo = require 'mongodb'
-url  = require 'url'
-Timestamp = require('mongodb').Timestamp
-
+url = require 'url'
+db = require './db'
 
 # regular expression objects
 TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_]+)\/tasks\/?$/
@@ -12,7 +10,7 @@ TAGS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_]+)\/tags\/([a-zA-Z0-9\-\_]+)\/?$/
 PROFILES_REGEX = /^\/profiles\/([a-zA-Z0-9\-\_]+)\/?$/
 
 connectionRequest = (deviceId, callback) ->
-  devicesCollection.findOne({_id : deviceId}, {'InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value' : 1}, (err, device)->
+  db.devicesCollection.findOne({_id : deviceId}, {'InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value' : 1}, (err, device)->
     if err
       callback(err)
       return
@@ -43,7 +41,7 @@ connectionRequest = (deviceId, callback) ->
 
 watchTask = (taskId, timeout, callback) ->
   setTimeout( () ->
-    tasksCollection.findOne({_id : taskId}, {'_id' : 1}, (err, task) ->
+    db.tasksCollection.findOne({_id : taskId}, {'_id' : 1}, (err, task) ->
       if task
         timeout -= 500
         if timeout < 0
@@ -55,23 +53,6 @@ watchTask = (taskId, timeout, callback) ->
     )
   , 500)
 
-
-# Create MongoDB connections
-dbserver = new mongo.Server(config.MONGODB_SOCKET, 0, {auto_reconnect: true, safe: true})
-tasksCollection = null
-devicesCollection = null
-db = new mongo.Db(config.DATABASE_NAME, dbserver, {native_parser:true, safe:true})
-db.open( (err, db) ->
-  db.collection('tasks', (err, collection) ->
-    tasksCollection = collection
-    tasksCollection.ensureIndex({device: 1, timestamp: 1}, (err) ->
-    )
-  )
-
-  db.collection('devices', (err, collection) ->
-    devicesCollection = collection
-  )
-)
 
 cluster = require 'cluster'
 numCPUs = require('os').cpus().length
@@ -112,7 +93,9 @@ else
           profile = JSON.parse(body)
           profile._id = profileName
 
-          profilesCollection.save(profile, (err) ->
+          db.profilesCollection.save(profile, (err) ->
+            db.memcached.del('profiles_hash', (err, res) ->
+            )
             if err
               response.writeHead(500)
               response.end(err)
@@ -121,7 +104,9 @@ else
             response.end()
           )
         else if request.method == 'DELETE'
-          profilesCollection.remove({'_id' : profileName}, (err, removedCount) ->
+          db.profilesCollection.remove({'_id' : profileName}, (err, removedCount) ->
+            db.memcached.del('profiles_hash', (err, res) ->
+            )
             if err
               response.writeHead(500)
               response.end(err)
@@ -137,7 +122,7 @@ else
         deviceId = r[1]
         tag = r[2]
         if request.method == 'POST'
-          devicesCollection.update({'_id' : deviceId}, {'$addToSet' : {'_tags' : tag}}, {safe: true}, (err) ->
+          db.devicesCollection.update({'_id' : deviceId}, {'$addToSet' : {'_tags' : tag}}, {safe: true}, (err) ->
             if err
               response.writeHead(500)
               response.end(err)
@@ -146,7 +131,7 @@ else
             response.end()
           )
         else if request.method == 'DELETE'
-          devicesCollection.update({'_id' : deviceId}, {'$pull' : {'_tags' : tag}}, {safe: true}, (err) ->
+          db.devicesCollection.update({'_id' : deviceId}, {'$pull' : {'_tags' : tag}}, {safe: true}, (err) ->
             if err
               response.writeHead(500)
               response.end(err)
@@ -164,9 +149,9 @@ else
             # queue given task
             task = JSON.parse(body)
             task.device = deviceId
-            task.timestamp = Timestamp()
+            task.timestamp = db.mongo.Timestamp()
 
-            tasksCollection.save(task, (err) ->
+            db.tasksCollection.save(task, (err) ->
               if err
                 response.writeHead(500)
                 response.end(err)
