@@ -51,7 +51,8 @@ exports.findDeviceConfigurationDiscrepancy = (deviceId, profilesHash, callback) 
     for p of profiles
       profile = profiles[p]
       for c in profile.configurations
-        params[c.name] = 1
+        if c.type == 'get' or c.type == 'set'
+          params[c.name] = 1
 
     db.devicesCollection.findOne({'_id' : deviceId}, params, (err, device) ->
       tags = device['_tags'] or []
@@ -63,19 +64,37 @@ exports.findDeviceConfigurationDiscrepancy = (deviceId, profilesHash, callback) 
           deviceProfiles.push(profiles[t])
 
       combinedConfigurations = combineProfileConfigurations(deviceProfiles)
-
-      discrepency = {}
+      now = Date.now()
+      taskList = []
+      expiry = config.PROFILES_CACHE_DURATION
+      getParameterValues = []
+      setParameterValues = []
       for c in combinedConfigurations
-        if c.value != getDeviceParamFromPath(device, "#{c.name}._value")
-          discrepency[c.name] = c.value
+        switch c.type
+          when 'set'
+            if c.value != getDeviceParamFromPath(device, "#{c.name}._value")
+              setParameterValues.push([c.name, c.value])
+          when 'get'
+            timeDiff = (now - getDeviceParamFromPath(device, "#{c.name}._timestamp")) / 1000
+            if (c.age - timeDiff < config.PROFILES_TIME_PADDING)
+              expiry = Math.min(expiry, c.age)
+              getParameterValues.push(c.name)
+            else
+              expiry = Math.min(expiry, c.age - timeDiff)
+          else
+            throw new Error('Unknown configuration type')
+      if getParameterValues.length
+        taskList.push {device : deviceId, name : 'getParameterValues', parameterNames: getParameterValues, timestamp : db.mongo.Timestamp()}
+      if setParameterValues.length
+        taskList.push {device : deviceId, name : 'setParameterValues', parameterValues: getParameterValues, timestamp : db.mongo.Timestamp()}
 
       if not profilesHash
         profilesHash = calculateProfilesHash(profiles)
-        db.memcached.set('profiles_hash', profilesHash, config.PROFILES_CACHE_DURATION, (err, res) ->
+        db.memcached.set('profiles_hash', profilesHash, expiry - config.PROFILES_TIME_PADDING, (err, res) ->
         )
 
-      db.memcached.set("#{deviceId}_profiles_hash", profilesHash, config.PROFILES_CACHE_DURATION, (err, res) ->
-        callback(discrepency)
+      db.memcached.set("#{deviceId}_profiles_hash", profilesHash, expiry - config.PROFILES_TIME_PADDING, (err, res) ->
+        callback(taskList)
       )
     )
   )
@@ -86,9 +105,11 @@ combineProfileConfigurations = (profiles) ->
   configurations = {}
   for p in profiles
     for c in p.configurations
-      if not maxWeights[c.name]? or p.weight > maxWeights[c.name]
-        configurations[c.name] = c
-        maxWeights[c.name] = p.weight
+      configurationHash = if c.name? then "#{c.type}_#{c.name}" else c.type
+
+      if not maxWeights[configurationHash]? or p.weight > maxWeights[configurationHash]
+        configurations[configurationHash] = c
+        maxWeights[configurationHash] = p.weight
 
   configurationsList = (configurations[c] for c of configurations)
   return configurationsList

@@ -12,13 +12,7 @@ profiles = require './profiles'
 currentRequest = null
 
 
-applyConfigurations = (configurations) ->
-  taskList = []
-  for c of configurations
-    task = {device : currentRequest.deviceId, name : 'setParameterValues', parameterValues: [], timestamp : db.mongo.Timestamp()}
-    task.parameterValues.push([c, configurations[c]])
-    taskList.push task
-
+applyConfigurations = (taskList) ->
   if taskList.length
     util.log("#{currentRequest.deviceId}: Profiles discrepancy found")
     db.tasksCollection.save(taskList, (err) ->
@@ -132,14 +126,14 @@ nextTask = (cookies) ->
         deviceProfilesHash = results["#{currentRequest.deviceId}_profiles_hash"]
 
         if not deviceProfilesHash or profilesHash != deviceProfilesHash
-          profiles.findDeviceConfigurationDiscrepancy(currentRequest.deviceId, profilesHash, (configurations) ->
-            applyConfigurations(configurations)
+          profiles.findDeviceConfigurationDiscrepancy(currentRequest.deviceId, profilesHash, (taskList) ->
+            applyConfigurations(taskList)
           )
         else if not profilesHash
           profiles.getProfilesHash((hash) ->
             if hash != deviceProfilesHash
-              profiles.findDeviceConfigurationDiscrepancy(currentRequest.deviceId, profilesHash, (configurations) ->
-                applyConfigurations(configurations)
+              profiles.findDeviceConfigurationDiscrepancy(currentRequest.deviceId, profilesHash, (taskList) ->
+                applyConfigurations(taskList)
               )
             else
               # no discrepancy, return empty response
