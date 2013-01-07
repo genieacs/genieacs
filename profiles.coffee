@@ -45,25 +45,13 @@ calculateProfilesHash = (profiles) ->
   return hash
 
 
-getProfilesVaraibles = (profiles) ->
-  vars = []
-  for p in profiles
-    for c in p.configurations
-      vars.push(c[0])
-  return vars
-
-
 exports.findDeviceConfigurationDiscrepancy = (deviceId, profilesHash, callback) ->
   getProfiles((profiles) ->
     params = {'_tags' : 1}
     for p of profiles
       profile = profiles[p]
       for c in profile.configurations
-        switch c.type
-          when 'value'
-            params[c.param] = 1
-          else
-            throw 'Unknown configuration type'
+        params[c.name] = 1
 
     db.devicesCollection.findOne({'_id' : deviceId}, params, (err, device) ->
       tags = device['_tags'] or []
@@ -78,12 +66,9 @@ exports.findDeviceConfigurationDiscrepancy = (deviceId, profilesHash, callback) 
 
       discrepency = {}
       for c in combinedConfigurations
-        switch c.type
-          when 'value'
-            if c.value != getDeviceParamFromPath(device, "#{c.param}._value")
-              discrepency[c.param] = c.value
-          else
-            throw 'Unknown configuration type'
+        if c.value != getDeviceParamFromPath(device, "#{c.name}._value")
+          discrepency[c.name] = c.value
+
       if not profilesHash
         profilesHash = calculateProfilesHash(profiles)
         db.memcached.set('profiles_hash', profilesHash, config.PROFILES_CACHE_DURATION, (err, res) ->
@@ -101,15 +86,9 @@ combineProfileConfigurations = (profiles) ->
   configurations = {}
   for p in profiles
     for c in p.configurations
-      type = c.type
-      switch type
-        when 'value'
-          paramName = c.param
-          if not maxWeights["#{type}_#{paramName}"]? or p.weight > maxWeights["#{type}_#{paramName}"]
-            configurations["#{type}_#{paramName}"] = c
-            maxWeights["#{type}_#{paramName}"] = p.weight
-        else
-          throw 'Unknown configuration type'
+      if not maxWeights[c.name]? or p.weight > maxWeights[c.name]
+        configurations[c.name] = c
+        maxWeights[c.name] = p.weight
 
   configurationsList = (configurations[c] for c of configurations)
   return configurationsList
