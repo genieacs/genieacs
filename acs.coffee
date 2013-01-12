@@ -6,7 +6,7 @@ tr069 = require './tr-069'
 tasks = require './tasks'
 sanitize = require('./sanitize').sanitize
 db = require './db'
-profiles = require './profiles'
+presets = require './presets'
 
 
 currentRequest = null
@@ -14,7 +14,7 @@ currentRequest = null
 
 applyConfigurations = (taskList) ->
   if taskList.length
-    util.log("#{currentRequest.deviceId}: Profiles discrepancy found")
+    util.log("#{currentRequest.deviceId}: Presets discrepancy found")
     db.tasksCollection.save(taskList, (err) ->
       for task in taskList
         util.log("#{currentRequest.deviceId}: Added #{task.name} task #{task._id}")
@@ -120,19 +120,19 @@ nextTask = (cookies) ->
     resParams = {}
 
     if not task
-      # no more taks, check profile discrepancy
-      db.memcached.get(["#{currentRequest.deviceId}_profiles_hash", 'profiles_hash'], (err, results) ->
-        profilesHash = results['profiles_hash']
-        deviceProfilesHash = results["#{currentRequest.deviceId}_profiles_hash"]
+      # no more taks, check presets discrepancy
+      db.memcached.get(["#{currentRequest.deviceId}_presets_hash", 'presets_hash'], (err, results) ->
+        presetsHash = results['presets_hash']
+        devicePresetsHash = results["#{currentRequest.deviceId}_presets_hash"]
 
-        if not deviceProfilesHash or profilesHash != deviceProfilesHash
-          profiles.findDeviceConfigurationDiscrepancy(currentRequest.deviceId, profilesHash, (taskList) ->
+        if not devicePresetsHash or presetsHash != devicePresetsHash
+          presets.assertPresets(currentRequest.deviceId, presetsHash, (taskList) ->
             applyConfigurations(taskList)
           )
-        else if not profilesHash
-          profiles.getProfilesHash((hash) ->
-            if hash != deviceProfilesHash
-              profiles.findDeviceConfigurationDiscrepancy(currentRequest.deviceId, profilesHash, (taskList) ->
+        else if not presetsHash
+          presets.getPresetsHash((hash) ->
+            if hash != devicePresetsHash
+              presets.assertPresets(currentRequest.deviceId, presetsHash, (taskList) ->
                 applyConfigurations(taskList)
               )
             else
