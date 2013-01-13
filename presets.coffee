@@ -83,10 +83,11 @@ exports.assertPresets = (deviceId, presetsHash, callback) ->
               expiry = Math.min(expiry, c.age - timeDiff)
           else
             throw new Error('Unknown configuration type')
+
       if getParameterValues.length
         taskList.push {device : deviceId, name : 'getParameterValues', parameterNames: getParameterValues, timestamp : db.mongo.Timestamp()}
       if setParameterValues.length
-        taskList.push {device : deviceId, name : 'setParameterValues', parameterValues: getParameterValues, timestamp : db.mongo.Timestamp()}
+        taskList.push {device : deviceId, name : 'setParameterValues', parameterValues: setParameterValues, timestamp : db.mongo.Timestamp()}
 
       if not presetsHash
         presetsHash = calculatePresetsHash(presets)
