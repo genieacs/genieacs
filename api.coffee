@@ -7,7 +7,7 @@ db = require './db'
 # regular expression objects
 TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_]+)\/tasks\/?$/
 TAGS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_]+)\/tags\/([a-zA-Z0-9\-\_]+)\/?$/
-PROFILES_REGEX = /^\/profiles\/([a-zA-Z0-9\-\_]+)\/?$/
+PRESETS_REGEX = /^\/presets\/([a-zA-Z0-9\-\_]+)\/?$/
 
 connectionRequest = (deviceId, callback) ->
   db.devicesCollection.findOne({_id : deviceId}, {'InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value' : 1}, (err, device)->
@@ -58,11 +58,19 @@ cluster = require 'cluster'
 numCPUs = require('os').cpus().length
 
 if cluster.isMaster
+  cluster.on('listening', (worker, address) ->
+    util.log("Worker #{worker.process.pid} listening to #{address.address}:#{address.port}")
+  )
+
+  cluster.on('exit', (worker, code, signal) ->
+    util.log("Worker #{worker.process.pid} died (#{worker.process.exitCode})")
+    setTimeout(()->
+      cluster.fork()
+    , config.WORKER_RESPAWN_TIME)
+  )
+
   for i in [1 .. numCPUs]
     cluster.fork()
-  cluster.on('exit', (worker, code, signal) ->
-    console.log('worker ' + worker.process.pid + ' died')
-  )
 else
   server = http.createServer (request, response) ->
     chunks = []
@@ -87,14 +95,14 @@ else
     request.addListener 'end', () ->
       body = request.getBody()
       urlParts = url.parse(request.url, true)
-      if PROFILES_REGEX.test(urlParts.pathname)
-        profileName = PROFILES_REGEX.exec(urlParts.pathname)[1]
+      if PRESETS_REGEX.test(urlParts.pathname)
+        presetName = PRESETS_REGEX.exec(urlParts.pathname)[1]
         if request.method == 'PUT'
-          profile = JSON.parse(body)
-          profile._id = profileName
+          preset = JSON.parse(body)
+          preset._id = presetName
 
-          db.profilesCollection.save(profile, (err) ->
-            db.memcached.del('profiles_hash', (err, res) ->
+          db.presetsCollection.save(preset, (err) ->
+            db.memcached.del('presets_hash', (err, res) ->
             )
             if err
               response.writeHead(500)
@@ -104,8 +112,8 @@ else
             response.end()
           )
         else if request.method == 'DELETE'
-          db.profilesCollection.remove({'_id' : profileName}, (err, removedCount) ->
-            db.memcached.del('profiles_hash', (err, res) ->
+          db.presetsCollection.remove({'_id' : presetName}, (err, removedCount) ->
+            db.memcached.del('presets_hash', (err, res) ->
             )
             if err
               response.writeHead(500)
@@ -204,4 +212,3 @@ else
         response.end('404 Not Found')
 
   server.listen config.API_PORT, config.API_INTERFACE
-  console.log "Server listening on port #{config.API_PORT}"
