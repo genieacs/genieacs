@@ -1,11 +1,12 @@
-exports.UNDEFINED_TYPE = '[object Undefined]'
-exports.NULL_TYPE = '[object Null]'
-exports.NUMBER_TYPE = '[object Number]'
-exports.STRING_TYPE = '[object String]'
-exports.ARRAY_TYPE = '[object Array]'
-exports.OBJECT_TYPE = '[object Object]'
+UNDEFINED_TYPE = '[object Undefined]'
+NULL_TYPE = '[object Null]'
+NUMBER_TYPE = '[object Number]'
+STRING_TYPE = '[object String]'
+ARRAY_TYPE = '[object Array]'
+OBJECT_TYPE = '[object Object]'
 
-exports.typeOf = (obj) ->
+
+typeOf = (obj) ->
   Object.prototype.toString.call(obj)
 
 
@@ -39,3 +40,23 @@ exports.getParamValueFromPath = (obj, path) ->
   for p in pp
     ref = ref[p]
   return ref
+
+
+exports.matchType = (src, dst) ->
+  switch typeOf(src)
+    when STRING_TYPE
+      String(dst)
+    when NUMBER_TYPE
+      Number(dst)
+    else
+      dst
+
+
+exports.UNDEFINED_TYPE = UNDEFINED_TYPE
+exports.NULL_TYPE = NULL_TYPE
+exports.NUMBER_TYPE = NUMBER_TYPE
+exports.STRING_TYPE = STRING_TYPE
+exports.ARRAY_TYPE = ARRAY_TYPE
+exports.OBJECT_TYPE = OBJECT_TYPE
+
+exports.typeOf = typeOf
