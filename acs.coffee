@@ -98,7 +98,7 @@ runTask = (task, reqParams) ->
   updateDevice(currentRequest.deviceId, actions)
 
   if Object.keys(resParams).length > 0
-    db.memcached.set(String(task._id), task, config.CACHE_DURATION, (err, result) ->
+    db.updateTask(task, (err) ->
       res = tr069.response(currentRequest.sessionId, resParams, {task : String(task._id)})
       writeResponse res
     )
@@ -106,7 +106,7 @@ runTask = (task, reqParams) ->
 
   # Task finished
   db.memcached.del(String(task._id))
-  db.tasksCollection.remove({'_id' : db.mongo.ObjectID(task._id)}, {safe: true}, (err, removed) ->
+  db.tasksCollection.remove({'_id' : db.mongo.ObjectID(String(task._id))}, {safe: true}, (err, removed) ->
     util.log("#{currentRequest.deviceId}: completed task #{task.name}(#{task._id})")
     cookies = {task : null}
     nextTask(cookies)
@@ -246,8 +246,7 @@ else
       if not taskId
         nextTask(cookies)
       else
-        db.memcached.get(taskId, (err, task) ->
-          # TODO if not found in memcached, fetch from mongo
+        db.getTask(taskId, (task) ->
           runTask(task, reqParams)
         )
 

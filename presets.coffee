@@ -6,8 +6,6 @@ mongoQuery = require './mongo-query'
 
 getPresets = (callback) ->
   db.memcached.get('presets', (err, res) ->
-    throw new Error(err) if err
-
     if res
       callback(res)
       return
