@@ -1,5 +1,6 @@
 UNDEFINED_TYPE = '[object Undefined]'
 NULL_TYPE = '[object Null]'
+BOOLEAN_TYPE = '[object Boolean]'
 NUMBER_TYPE = '[object Number]'
 STRING_TYPE = '[object String]'
 ARRAY_TYPE = '[object Array]'
@@ -48,6 +49,9 @@ exports.matchType = (src, dst) ->
       String(dst)
     when NUMBER_TYPE
       Number(dst)
+    when BOOLEAN_TYPE
+      v = String(dst).trim().toLowerCase()
+      v == 'true' or v == 'on' or v == '1'
     else
       dst
 
