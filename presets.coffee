@@ -73,9 +73,10 @@ exports.assertPresets = (deviceId, presetsHash, callback) ->
         switch c.type
           when 'value'
             src = common.getParamValueFromPath(device, "#{c.name}._value")
-            dst = common.matchType(src, c.value)
-            if src != dst
-              setParameterValues.push([c.name, dst])
+            if src isnt undefined # ignore parameters that don't exist
+              dst = common.matchType(src, c.value)
+              if src != dst
+                setParameterValues.push([c.name, dst])
           when 'age'
             timeDiff = (now - common.getParamValueFromPath(device, "#{c.name}._timestamp")) / 1000
             if (c.age - timeDiff < config.PRESETS_TIME_PADDING)

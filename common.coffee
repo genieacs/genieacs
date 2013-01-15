@@ -38,9 +38,12 @@ exports.extend = (obj, mixin) ->
 exports.getParamValueFromPath = (obj, path) ->
   pp = path.split('.')
   ref = obj
-  for p in pp
-    ref = ref[p]
-  return ref
+  try
+    for p in pp
+      ref = ref[p]
+    return ref
+  catch err
+    return undefined
 
 
 exports.matchType = (src, dst) ->
