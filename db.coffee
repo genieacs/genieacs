@@ -30,6 +30,7 @@ db.open( (err, db) ->
   )
 )
 
+
 getTask = (taskId, callback) ->
   memcached.get(taskId, (err, task) ->
     if not task?
@@ -55,7 +56,15 @@ updateTask = (task, callback) ->
   )
 
 
+saveTask = (task, callback) ->
+  task._id = mongo.ObjectID(String(task._id))
+  tasksCollection.save(task, (err) ->
+    callback(err)
+  )
+
+
 exports.mongo = mongo
 exports.memcached = memcached
 exports.getTask = getTask
 exports.updateTask = updateTask
+exports.saveTask = saveTask

@@ -73,7 +73,7 @@ updateDevice = (deviceId, actions, callback) ->
         return
 
       if count == 0
-        util.log("#{currentRequest.deviceId}: new device detected")
+        util.log("#{currentRequest.deviceId}: New device detected")
         db.devicesCollection.update({'_id' : currentRequest.deviceId}, {'$set' : updates}, {upsert: true, safe: true}, (err) ->
           if err?
             callback(err) if callback?
@@ -107,7 +107,7 @@ runTask = (task, reqParams) ->
   # Task finished
   db.memcached.del(String(task._id))
   db.tasksCollection.remove({'_id' : db.mongo.ObjectID(String(task._id))}, {safe: true}, (err, removed) ->
-    util.log("#{currentRequest.deviceId}: completed task #{task.name}(#{task._id})")
+    util.log("#{currentRequest.deviceId}: Completed task #{task.name}(#{task._id})")
     cookies = {task : null}
     nextTask(cookies)
   )
@@ -120,7 +120,7 @@ nextTask = (cookies) ->
     resParams = {}
 
     if not task
-      # no more taks, check presets discrepancy
+      # no more tasks, check presets discrepancy
       db.memcached.get(["#{currentRequest.deviceId}_presets_hash", 'presets_hash'], (err, results) ->
         presetsHash = results['presets_hash']
         devicePresetsHash = results["#{currentRequest.deviceId}_presets_hash"]
@@ -146,9 +146,13 @@ nextTask = (cookies) ->
           writeResponse res
       )
       return
-
-    util.log("#{currentRequest.deviceId}: started task #{task.name}(#{task._id})")
-    runTask(task, reqParams)
+    else if task.fault?
+      # last task was faulty. Do nothing until until task is deleted
+      res = tr069.response(currentRequest.sessionId, resParams, cookies)
+      writeResponse res
+    else
+      util.log("#{currentRequest.deviceId}: Started task #{task.name}(#{task._id})")
+      runTask(task, reqParams)
   )
 
 
@@ -175,7 +179,7 @@ else
       util.error(error.stack)
       # dump request/response logs and stack trace
       db.memcached.get("debug-#{currentRequest.clientIp}", (err, l) ->
-        util.log("Unexpected error occured. Writing log to debug/#{currentRequest.clientIp}.log.")
+        util.log("#{currentRequest.deviceId}: Unexpected error occured. Writing log to debug/#{currentRequest.clientIp}.log.")
         util.error(err) if err
         fs = require 'fs'
         fs.writeFileSync("debug/#{currentRequest.clientIp}.log", l + "\n\n" + error.stack)
@@ -231,7 +235,7 @@ else
         cookies.ID = currentRequest.sessionId = reqParams.sessionId
         cookies.DeviceId = currentRequest.deviceId = common.getDeviceId(reqParams.deviceId)
         if config.DEBUG
-          util.log("#{currentRequest.deviceId}: inform (#{reqParams.eventCodes}); retry count #{reqParams.retryCount}")
+          util.log("#{currentRequest.deviceId}: Inform (#{reqParams.eventCodes}); retry count #{reqParams.retryCount}")
 
         updateDevice(currentRequest.deviceId, {'inform' : true, 'parameterValues' : reqParams.informParameterValues}, (err) ->
           res = tr069.response(currentRequest.sessionId, resParams, cookies)
@@ -247,7 +251,16 @@ else
         nextTask(cookies)
       else
         db.getTask(taskId, (task) ->
-          runTask(task, reqParams)
+          if reqParams.fault?
+            util.log("#{currentRequest.deviceId}: Fault response for task #{task._id}")
+            task.fault = reqParams.fault
+            db.saveTask(task, (err) ->
+              # Faulty task. No more work to do until task is deleted.
+              res = tr069.response(currentRequest.sessionId, resParams, cookies)
+              writeResponse res
+            )
+          else
+            runTask(task, reqParams)
         )
 
   server.listen config.ACS_PORT, config.ACS_INTERFACE

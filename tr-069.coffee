@@ -116,6 +116,23 @@ setParameterValuesResponse = (xml) ->
     return JSON.parse(e.text())
   return undefined
 
+fault = (xml) ->
+  f = xml.get('//soap-env:Envelope/soap-env:Body/soap-env:Fault', NAMESPACES)
+  if f
+    traverse = (el) ->
+      children = el.childNodes()
+      obj = {}
+      for n in el.childNodes()
+        if n.type() == 'element'
+          obj[n.name()] = traverse(n)
+      if Object.keys(obj).length == 0
+        return el.text()
+      else
+        return obj
+
+    return traverse(f)
+  return undefined
+
 
 exports.request = (request) ->
   req = {cookies: {}}
@@ -140,6 +157,7 @@ exports.request = (request) ->
     req.getParameterNamesResponse = getParameterNamesResponse xml
     req.getParameterValuesResponse = getParameterValuesResponse xml
     req.setParameterValuesResponse = setParameterValuesResponse xml
+    req.fault = fault xml
   return req
 
 
@@ -157,7 +175,7 @@ exports.response = (sessionId, params, cookies = null) ->
     #console.log '>>> EMPTY RESPONSE'
     # send empty response
     headers['Content-Length'] = 0
-    return {code: 204, headers: headers, data: null}
+    return {code: 204, headers: headers, data: ''}
 
   xml = libxmljs.Document()
   env = xml.node('soap-env:Envelope')
