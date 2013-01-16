@@ -251,7 +251,9 @@ else
         nextTask(cookies)
       else
         db.getTask(taskId, (task) ->
-          if reqParams.fault?
+          if not task
+            nextTask(cookies)
+          else if reqParams.fault?
             util.log("#{currentRequest.deviceId}: Fault response for task #{task._id}")
             task.fault = reqParams.fault
             db.saveTask(task, (err) ->
