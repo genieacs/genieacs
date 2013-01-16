@@ -54,7 +54,7 @@ exports.matchType = (src, dst) ->
       Number(dst)
     when BOOLEAN_TYPE
       v = String(dst).trim().toLowerCase()
-      v == 'true' or v == 'on' or v == '1'
+      v == 'true' or v == 'on' or v == 'yes' or v == '1'
     else
       dst
 
