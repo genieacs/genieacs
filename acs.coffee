@@ -244,8 +244,7 @@ else
             nextTask(currentRequest, cookies)
           else if reqParams.fault?
             util.log("#{currentRequest.deviceId}: Fault response for task #{task._id}")
-            task.fault = reqParams.fault
-            db.saveTask(task, (err) ->
+            db.tasksCollection.update({_id : db.mongo.ObjectID(String(task._id))}, {$set : {fault : reqParams.fault}}, (err) ->
               # Faulty task. No more work to do until task is deleted.
               res = tr069.response(currentRequest.sessionId, resParams, cookies)
               writeResponse(currentRequest, res)
