@@ -9,35 +9,33 @@ db = require './db'
 presets = require './presets'
 
 
-currentRequest = null
-
-
-applyConfigurations = (taskList) ->
+applyConfigurations = (currentRequest, taskList) ->
   if taskList.length
     util.log("#{currentRequest.deviceId}: Presets discrepancy found")
     db.tasksCollection.save(taskList, (err) ->
       for task in taskList
         util.log("#{currentRequest.deviceId}: Added #{task.name} task #{task._id}")
       task = taskList[0]
-      util.log("#{currentRequest.deviceId}: started task #{task.name}(#{task._id})")
-      runTask(task, {})
+      util.log("#{currentRequest.deviceId}: Started task #{task.name}(#{task._id})")
+      runTask(currentRequest, task, {})
     )
   else
     res = tr069.response(currentRequest.sessionId, {}, {})
-    writeResponse res
+    writeResponse(currentRequest, res)
 
 
-writeResponse = (res) ->
-  if config.DEBUG
-    s = "# RESPONSE #{new Date(Date.now())}\n" + JSON.stringify(res.headers) + "\n#{res.data}\n\n"
-    db.memcached.append("debug-#{currentRequest.clientIp}", s, (err, result) ->
+writeResponse = (currentRequest, res) ->
+  if config.DEBUG_DEVICES[currentRequest.deviceId]
+    dump = "# RESPONSE #{new Date(Date.now())}\n" + JSON.stringify(res.headers) + "\n#{res.data}\n\n"
+    fs = require('fs').appendFile("debug/#{currentRequest.deviceId}.dump", dump, (err) ->
+      throw new Error(err) if err
     )
 
   currentRequest.response.writeHead(res.code, res.headers)
   currentRequest.response.end(res.data)
 
 
-updateDevice = (deviceId, actions, callback) ->
+updateDevice = (currentRequest, actions, callback) ->
   if not actions?
     callback() if callback?
     return
@@ -92,15 +90,15 @@ updateDevice = (deviceId, actions, callback) ->
     callback() if callback?
 
 
-runTask = (task, reqParams) ->
+runTask = (currentRequest, task, reqParams) ->
   resParams = {}
   actions = tasks.task(task, reqParams, resParams)
-  updateDevice(currentRequest.deviceId, actions)
+  updateDevice(currentRequest, actions)
 
   if Object.keys(resParams).length > 0
     db.updateTask(task, (err) ->
       res = tr069.response(currentRequest.sessionId, resParams, {task : String(task._id)})
-      writeResponse res
+      writeResponse(currentRequest, res)
     )
     return
 
@@ -109,11 +107,11 @@ runTask = (task, reqParams) ->
   db.tasksCollection.remove({'_id' : db.mongo.ObjectID(String(task._id))}, {safe: true}, (err, removed) ->
     util.log("#{currentRequest.deviceId}: Completed task #{task.name}(#{task._id})")
     cookies = {task : null}
-    nextTask(cookies)
+    nextTask(currentRequest, cookies)
   )
 
 
-nextTask = (cookies) ->
+nextTask = (currentRequest, cookies) ->
   cur = db.tasksCollection.find({'device' : currentRequest.deviceId}).sort(['timestamp']).limit(1)
   cur.nextObject( (err, task) ->
     reqParams = {}
@@ -127,32 +125,32 @@ nextTask = (cookies) ->
 
         if not devicePresetsHash or presetsHash != devicePresetsHash
           presets.assertPresets(currentRequest.deviceId, presetsHash, (taskList) ->
-            applyConfigurations(taskList)
+            applyConfigurations(currentRequest, taskList)
           )
         else if not presetsHash
           presets.getPresetsHash((hash) ->
             if hash != devicePresetsHash
               presets.assertPresets(currentRequest.deviceId, presetsHash, (taskList) ->
-                applyConfigurations(taskList)
+                applyConfigurations(currentRequest, taskList)
               )
             else
               # no discrepancy, return empty response
               res = tr069.response(currentRequest.sessionId, resParams, cookies)
-              writeResponse res
+              writeResponse(currentRequest, res)
           )
         else
           # no discrepancy, return empty response
           res = tr069.response(currentRequest.sessionId, resParams, cookies)
-          writeResponse res
+          writeResponse(currentRequest, res)
       )
       return
     else if task.fault?
       # last task was faulty. Do nothing until until task is deleted
       res = tr069.response(currentRequest.sessionId, resParams, cookies)
-      writeResponse res
+      writeResponse(currentRequest, res)
     else
       util.log("#{currentRequest.deviceId}: Started task #{task.name}(#{task._id})")
-      runTask(task, reqParams)
+      runTask(currentRequest, task, reqParams)
   )
 
 
@@ -174,19 +172,6 @@ if cluster.isMaster
   for i in [1 .. numCPUs]
     cluster.fork()
 else
-  if config.DEBUG
-    process.on('uncaughtException', (error) ->
-      util.error(error.stack)
-      # dump request/response logs and stack trace
-      db.memcached.get("debug-#{currentRequest.clientIp}", (err, l) ->
-        util.log("#{currentRequest.deviceId}: Unexpected error occured. Writing log to debug/#{currentRequest.clientIp}.log.")
-        util.error(err) if err
-        fs = require 'fs'
-        fs.writeFileSync("debug/#{currentRequest.clientIp}.log", l + "\n\n" + error.stack)
-        process.exit(1)
-      )
-    )
-
   server = http.createServer (request, response) ->
     if request.method != 'POST'
       #console.log '>>> 405 Method Not Allowed'
@@ -218,51 +203,55 @@ else
       currentRequest = {}
       currentRequest.request = request
       currentRequest.response = response
-      currentRequest.clientIp = request.connection.remoteAddress
-      if config.DEBUG
-        s = "# REQUEST #{new Date(Date.now())}\n" + JSON.stringify(request.headers) + "\n#{request.getBody()}\n\n"
-        db.memcached.append("debug-#{currentRequest.clientIp}", s, (err, result) ->
-          if err == 'Item is not stored'
-            db.memcached.set("debug-#{currentRequest.clientIp}", s, config.CACHE_DURATION, (err, result) ->
-            )
-        )
 
       resParams = {}
       reqParams = tr069.request(request)
 
+      # get deviceId either from inform xml or cookie
+      if reqParams.deviceId?
+        currentRequest.deviceId = common.getDeviceId(reqParams.deviceId)
+        cookies.DeviceId = currentRequest.deviceId
+      else
+        currentRequest.deviceId = reqParams.cookies.DeviceId
+
+      if config.DEBUG_DEVICES[currentRequest.deviceId]
+        dump = "# REQUEST #{new Date(Date.now())}\n" + JSON.stringify(request.headers) + "\n#{request.getBody()}\n\n"
+        require('fs').appendFile("debug/#{currentRequest.deviceId}.dump", dump, (err) ->
+          throw new Error(err) if err
+        )
+
       if reqParams.inform
         resParams.inform = true
         cookies.ID = currentRequest.sessionId = reqParams.sessionId
-        cookies.DeviceId = currentRequest.deviceId = common.getDeviceId(reqParams.deviceId)
-        if config.DEBUG
+
+        if config.LOG_INFORMS
           util.log("#{currentRequest.deviceId}: Inform (#{reqParams.eventCodes}); retry count #{reqParams.retryCount}")
 
-        updateDevice(currentRequest.deviceId, {'inform' : true, 'parameterValues' : reqParams.informParameterValues}, (err) ->
+        updateDevice(currentRequest, {'inform' : true, 'parameterValues' : reqParams.informParameterValues}, (err) ->
           res = tr069.response(currentRequest.sessionId, resParams, cookies)
-          writeResponse res
+          writeResponse(currentRequest, res)
         )
         return
 
       currentRequest.sessionId = reqParams.cookies.ID
-      currentRequest.deviceId = reqParams.cookies.DeviceId
       taskId = reqParams.cookies.task
 
       if not taskId
-        nextTask(cookies)
+        nextTask(currentRequest, cookies)
       else
         db.getTask(taskId, (task) ->
           if not task
-            nextTask(cookies)
+            nextTask(currentRequest, cookies)
           else if reqParams.fault?
             util.log("#{currentRequest.deviceId}: Fault response for task #{task._id}")
             task.fault = reqParams.fault
             db.saveTask(task, (err) ->
               # Faulty task. No more work to do until task is deleted.
               res = tr069.response(currentRequest.sessionId, resParams, cookies)
-              writeResponse res
+              writeResponse(currentRequest, res)
             )
           else
-            runTask(task, reqParams)
+            runTask(currentRequest, task, reqParams)
         )
 
   server.listen config.ACS_PORT, config.ACS_INTERFACE

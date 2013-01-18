@@ -38,10 +38,10 @@ sessionId = (xml) ->
 
 
 deviceId = (xml) ->
-  e = xml.find('//soap-env:Envelope/soap-env:Body/cwmp:Inform/DeviceId/child::*', NAMESPACES)
+  e = xml.get('//soap-env:Envelope/soap-env:Body/cwmp:Inform/DeviceId', NAMESPACES)
   if e?
     id = {}
-    for n in e
+    for n in e.find('//child::*')
       id[n.name()] = trim(n.text())
     return id
   return undefined
