@@ -2,6 +2,7 @@ config = require './config'
 common = require './common'
 db = require './db'
 mongoQuery = require './mongo-query'
+mongodb = require 'mongodb'
 
 
 getPresets = (callback) ->
@@ -86,9 +87,9 @@ exports.assertPresets = (deviceId, presetsHash, callback) ->
             throw new Error('Unknown configuration type')
 
       if getParameterValues.length
-        taskList.push {device : deviceId, name : 'getParameterValues', parameterNames: getParameterValues, timestamp : db.mongo.Timestamp()}
+        taskList.push {device : deviceId, name : 'getParameterValues', parameterNames: getParameterValues, timestamp : mongodb.Timestamp()}
       if setParameterValues.length
-        taskList.push {device : deviceId, name : 'setParameterValues', parameterValues: setParameterValues, timestamp : db.mongo.Timestamp()}
+        taskList.push {device : deviceId, name : 'setParameterValues', parameterValues: setParameterValues, timestamp : mongodb.Timestamp()}
 
       if not presetsHash
         presetsHash = calculatePresetsHash(presets)

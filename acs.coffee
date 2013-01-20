@@ -7,6 +7,7 @@ tasks = require './tasks'
 sanitize = require('./sanitize').sanitize
 db = require './db'
 presets = require './presets'
+mongodb = require 'mongodb'
 
 
 applyConfigurations = (currentRequest, taskList) ->
@@ -77,7 +78,7 @@ updateDevice = (currentRequest, actions, callback) ->
             callback(err) if callback?
             return
           
-          task = {device : currentRequest.deviceId, name : 'init', timestamp : db.mongo.Timestamp()}
+          task = {device : currentRequest.deviceId, name : 'init', timestamp : mongodb.Timestamp()}
           db.tasksCollection.save(task, (err) ->
             util.log("#{currentRequest.deviceId}: Added init task #{task._id}")
             callback(err) if callback?
@@ -104,7 +105,7 @@ runTask = (currentRequest, task, reqParams) ->
 
   # Task finished
   db.memcached.del(String(task._id))
-  db.tasksCollection.remove({'_id' : db.mongo.ObjectID(String(task._id))}, {safe: true}, (err, removed) ->
+  db.tasksCollection.remove({'_id' : mongodb.ObjectID(String(task._id))}, {safe: true}, (err, removed) ->
     util.log("#{currentRequest.deviceId}: Completed task #{task.name}(#{task._id})")
     cookies = {task : null}
     nextTask(currentRequest, cookies)
@@ -244,7 +245,7 @@ else
             nextTask(currentRequest, cookies)
           else if reqParams.fault?
             util.log("#{currentRequest.deviceId}: Fault response for task #{task._id}")
-            db.tasksCollection.update({_id : db.mongo.ObjectID(String(task._id))}, {$set : {fault : reqParams.fault}}, (err) ->
+            db.tasksCollection.update({_id : mongodb.ObjectID(String(task._id))}, {$set : {fault : reqParams.fault}}, (err) ->
               # Faulty task. No more work to do until task is deleted.
               res = tr069.response(currentRequest.sessionId, resParams, cookies)
               writeResponse(currentRequest, res)

@@ -1,5 +1,5 @@
 config = require './config'
-mongo = require 'mongodb'
+mongodb = require 'mongodb'
 Memcached = require 'memcached'
 Memcached.config.maxExpiration = 86400
 Memcached.config.timeout = 1000
@@ -11,8 +11,8 @@ tasksCollection = null
 devicesCollection = null
 presetsCollection = null
 
-dbserver = new mongo.Server(config.MONGODB_SOCKET, 0, {auto_reconnect: true})
-db = new mongo.Db(config.DATABASE_NAME, dbserver, {native_parser:true, safe:true})
+dbserver = new mongodb.Server(config.MONGODB_SOCKET, 0, {auto_reconnect: true})
+db = new mongodb.Db(config.DATABASE_NAME, dbserver, {native_parser:true, safe:true})
 
 db.open( (err, db) ->
   db.collection('tasks', (err, collection) ->
@@ -34,7 +34,7 @@ db.open( (err, db) ->
 getTask = (taskId, callback) ->
   memcached.get(taskId, (err, task) ->
     if not task?
-      tasksCollection.findOne({_id : mongo.ObjectID(String(taskId))}, (err, task) ->
+      tasksCollection.findOne({_id : mongodb.ObjectID(String(taskId))}, (err, task) ->
         callback(task)
       )
     else
@@ -49,14 +49,13 @@ updateTask = (task, callback) ->
     if res
       callback()
     else
-      task._id = mongo.ObjectID(id)
+      task._id = mongodb.ObjectID(id)
       tasksCollection.save(task, (err) ->
         callback(err)
       )
   )
 
 
-exports.mongo = mongo
 exports.memcached = memcached
 exports.getTask = getTask
 exports.updateTask = updateTask

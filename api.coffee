@@ -3,6 +3,7 @@ util = require 'util'
 http = require 'http'
 url = require 'url'
 db = require './db'
+mongodb = require 'mongodb'
 
 # regular expression objects
 TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_]+)\/tasks\/?$/
@@ -157,7 +158,7 @@ else
             # queue given task
             task = JSON.parse(body)
             task.device = deviceId
-            task.timestamp = db.mongo.Timestamp()
+            task.timestamp = mongodb.Timestamp()
 
             db.tasksCollection.save(task, (err) ->
               if err
