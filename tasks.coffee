@@ -1,13 +1,13 @@
 common = require './common'
 BATCH_SIZE = 16
 
-this.init = (task, request, response) ->
+this.init = (task, cwmpRequest, cwmpResponse) ->
   ret = {}
   if not task.subtask?
     task.subtask = {'name' : 'getParameterNames', 'parameterPath' : '', 'nextLevel' : false}
 
   if task.subtask.name == 'getParameterNames'
-    common.extend(ret, this.getParameterNames(task.subtask, request, response))
+    common.extend(ret, this.getParameterNames(task.subtask, cwmpRequest, cwmpResponse))
     if ret.parameterNames? # task finished
       parameterNames = []
       for p in ret.parameterNames
@@ -16,37 +16,37 @@ this.init = (task, request, response) ->
       task.subtask = {'name' : 'getParameterValues', 'parameterNames' : parameterNames}
 
   if task.subtask.name == 'getParameterValues'
-    common.extend(ret, this.getParameterValues(task.subtask, request, response))
+    common.extend(ret, this.getParameterValues(task.subtask, cwmpRequest, cwmpResponse))
 
   ret
 
-this.getParameterNames = (task, request, response) ->
-  if request.getParameterNamesResponse?
-    return {'parameterNames' : request.getParameterNamesResponse}
+this.getParameterNames = (task, cwmpRequest, cwmpResponse) ->
+  if cwmpRequest.getParameterNamesResponse?
+    return {'parameterNames' : cwmpRequest.getParameterNamesResponse}
   else
-    response.getParameterNames = [task.parameterPath, if task.nextLevel? task.nextLevel else false]
+    cwmpResponse.getParameterNames = [task.parameterPath, if task.nextLevel? task.nextLevel else false]
   return
 
-this.getParameterValues = (task, request, response) ->
+this.getParameterValues = (task, cwmpRequest, cwmpResponse) ->
   if not task.currentIndex?
     task.currentIndex = 0
-  else if request.getParameterValuesResponse?
+  else if cwmpRequest.getParameterValuesResponse?
     task.currentIndex = task.nextIndex
 
   task.nextIndex = Math.min(task.currentIndex + BATCH_SIZE, task.parameterNames.length)
   names = task.parameterNames.slice(task.currentIndex, task.nextIndex)
 
   if names.length > 0
-    response.getParameterValues = names
+    cwmpResponse.getParameterValues = names
 
-  if request.getParameterValuesResponse
-    return {'parameterValues' : request.getParameterValuesResponse}
+  if cwmpRequest.getParameterValuesResponse
+    return {'parameterValues' : cwmpRequest.getParameterValuesResponse}
   return
 
-this.setParameterValues = (task, request, response) ->
+this.setParameterValues = (task, cwmpRequest, cwmpResponse) ->
   if not task.currentIndex?
     task.currentIndex = 0
-  else if request.setParameterValuesResponse?
+  else if cwmpRequest.setParameterValuesResponse?
     prevValues = task.parameterValues.slice(task.currentIndex, task.nextIndex)
     task.currentIndex = task.nextIndex
 
@@ -54,15 +54,15 @@ this.setParameterValues = (task, request, response) ->
   values = task.parameterValues.slice(task.currentIndex, task.nextIndex)
 
   if values.length > 0
-    response.setParameterValues = values
+    cwmpResponse.setParameterValues = values
 
   if prevValues?
     return {'parameterValues' : prevValues}
   return
 
-this.reboot = (task, request, response) ->
-  if not request.reboot
-    response.reboot = 'reboot'
+this.reboot = (task, cwmpRequest, cwmpResponse) ->
+  if not cwmpRequest.reboot
+    cwmpResponse.reboot = 'reboot'
   
-exports.task = (task, request, response) ->
-  return this[task.name](task, request, response)
+exports.task = (task, cwmpRequest, cwmpResponse) ->
+  return this[task.name](task, cwmpRequest, cwmpResponse)

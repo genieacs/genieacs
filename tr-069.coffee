@@ -134,34 +134,34 @@ fault = (xml) ->
   return undefined
 
 
-exports.request = (request) ->
-  req = {cookies: {}}
-  req.cookies = cookiesToObj(request.headers.cookie) if request.headers.cookie
+exports.request = (httpRequest) ->
+  cwmpRequest = {cookies: {}}
+  cwmpRequest.cookies = cookiesToObj(httpRequest.headers.cookie) if httpRequest.headers.cookie
 
-  data = request.getBody()
+  data = httpRequest.getBody()
 
-  if +request.headers['Content-Length'] > 0 || data.length > 0
+  if +httpRequest.headers['Content-Length'] > 0 || data.length > 0
     try
       xml = libxmljs.parseXml data
     catch err
       # some devices send invalid utf8 characters
-      xml = libxmljs.parseXml request.getBody('binary')
+      xml = libxmljs.parseXml httpRequest.getBody('binary')
 
-    req.sessionId = sessionId xml
-    req.inform = true if xml.get('//soap-env:Envelope/soap-env:Body/cwmp:Inform', NAMESPACES)
-    req.informParameterValues = informParameterValues xml
-    req.reboot = true if xml.get('//soap-env:Envelope/soap-env:Body/cwmp:RebootResponse', NAMESPACES)
-    req.deviceId = deviceId xml
-    req.eventCodes = eventCodes xml
-    req.retryCount = retryCount xml
-    req.getParameterNamesResponse = getParameterNamesResponse xml
-    req.getParameterValuesResponse = getParameterValuesResponse xml
-    req.setParameterValuesResponse = setParameterValuesResponse xml
-    req.fault = fault xml
-  return req
+    cwmpRequest.sessionId = sessionId xml
+    cwmpRequest.inform = true if xml.get('//soap-env:Envelope/soap-env:Body/cwmp:Inform', NAMESPACES)
+    cwmpRequest.informParameterValues = informParameterValues xml
+    cwmpRequest.reboot = true if xml.get('//soap-env:Envelope/soap-env:Body/cwmp:RebootResponse', NAMESPACES)
+    cwmpRequest.deviceId = deviceId xml
+    cwmpRequest.eventCodes = eventCodes xml
+    cwmpRequest.retryCount = retryCount xml
+    cwmpRequest.getParameterNamesResponse = getParameterNamesResponse xml
+    cwmpRequest.getParameterValuesResponse = getParameterValuesResponse xml
+    cwmpRequest.setParameterValuesResponse = setParameterValuesResponse xml
+    cwmpRequest.fault = fault xml
+  return cwmpRequest
 
 
-exports.response = (sessionId, params, cookies = null) ->
+exports.response = (sessionId, cwmpResponse, cookies = null) ->
   headers = {
     'Content-Type' : 'text/xml; charset="utf-8"',
     'Server' : SERVER_NAME,
@@ -171,7 +171,7 @@ exports.response = (sessionId, params, cookies = null) ->
   if cookies? and Object.keys(cookies).length > 0
     headers['Set-Cookie'] = cookiesToStr(cookies)
 
-  if params is null or Object.keys(params).length == 0
+  if cwmpResponse is null or Object.keys(cwmpResponse).length == 0
     #console.log '>>> EMPTY RESPONSE'
     # send empty response
     headers['Content-Length'] = 0
@@ -187,30 +187,30 @@ exports.response = (sessionId, params, cookies = null) ->
   #header.node('cwmp:NoMoreRequests').text(0) # depracated
   body = env.node('soap-env:Body')
 
-  if params.inform
+  if cwmpResponse.inform
     body.node('cwmp:InformResponse').node('MaxEnvelopes').text(1)
 
-  if params.getParameterNames?
+  if cwmpResponse.getParameterNames?
     getParameterNames = body.node('cwmp:GetParameterNames')
-    getParameterNames.node('cwmp:ParameterPath').text(params.getParameterNames[0])
-    getParameterNames.node('cwmp:NextLevel').text(+params.getParameterNames[1])
+    getParameterNames.node('cwmp:ParameterPath').text(cwmpResponse.getParameterNames[0])
+    getParameterNames.node('cwmp:NextLevel').text(+cwmpResponse.getParameterNames[1])
 
-  if params.getParameterValues?
+  if cwmpResponse.getParameterValues?
     parameterNames = body.node('cwmp:GetParameterValues').node('cwmp:ParameterNames')
-    for p in params.getParameterValues
+    for p in cwmpResponse.getParameterValues
       parameterNames.node('xsd:string').text(p)
 
-  if params.setParameterValues?
+  if cwmpResponse.setParameterValues?
     setParameterValuesNode = body.node('cwmp:SetParameterValues')
     parameterList = setParameterValuesNode.node('ParameterList')
-    for i in params.setParameterValues
+    for i in cwmpResponse.setParameterValues
       pvs = parameterList.node('ParameterValueStruct')
       pvs.node('Name').text(i[0])
       pvs.node('Value').text(i[1])
     setParameterValuesNode.node('ParameterKey')
 
-  if params.reboot?
-    body.node('cwmp:Reboot').node('CommandKey').text(params.reboot)
+  if cwmpResponse.reboot?
+    body.node('cwmp:Reboot').node('CommandKey').text(cwmpResponse.reboot)
 
   
   data = xml.toString()

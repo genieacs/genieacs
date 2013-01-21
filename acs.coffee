@@ -32,8 +32,8 @@ writeResponse = (currentRequest, res) ->
       throw new Error(err) if err
     )
 
-  currentRequest.response.writeHead(res.code, res.headers)
-  currentRequest.response.end(res.data)
+  currentRequest.httpResponse.writeHead(res.code, res.headers)
+  currentRequest.httpResponse.end(res.data)
 
 
 updateDevice = (currentRequest, actions, callback) ->
@@ -91,14 +91,14 @@ updateDevice = (currentRequest, actions, callback) ->
     callback() if callback?
 
 
-runTask = (currentRequest, task, reqParams) ->
-  resParams = {}
-  actions = tasks.task(task, reqParams, resParams)
+runTask = (currentRequest, task, cwmpRequest) ->
+  cwmpResponse = {}
+  actions = tasks.task(task, cwmpRequest, cwmpResponse)
   updateDevice(currentRequest, actions)
 
-  if Object.keys(resParams).length > 0
+  if Object.keys(cwmpResponse).length > 0
     db.updateTask(task, (err) ->
-      res = tr069.response(currentRequest.sessionId, resParams, {task : String(task._id)})
+      res = tr069.response(currentRequest.sessionId, cwmpResponse, {task : String(task._id)})
       writeResponse(currentRequest, res)
     )
     return
@@ -115,8 +115,8 @@ runTask = (currentRequest, task, reqParams) ->
 nextTask = (currentRequest, cookies) ->
   cur = db.tasksCollection.find({'device' : currentRequest.deviceId}).sort(['timestamp']).limit(1)
   cur.nextObject( (err, task) ->
-    reqParams = {}
-    resParams = {}
+    cwmpRequest = {}
+    cwmpResponse = {}
 
     if not task
       # no more tasks, check presets discrepancy
@@ -136,22 +136,22 @@ nextTask = (currentRequest, cookies) ->
               )
             else
               # no discrepancy, return empty response
-              res = tr069.response(currentRequest.sessionId, resParams, cookies)
+              res = tr069.response(currentRequest.sessionId, cwmpResponse, cookies)
               writeResponse(currentRequest, res)
           )
         else
           # no discrepancy, return empty response
-          res = tr069.response(currentRequest.sessionId, resParams, cookies)
+          res = tr069.response(currentRequest.sessionId, cwmpResponse, cookies)
           writeResponse(currentRequest, res)
       )
       return
     else if task.fault?
       # last task was faulty. Do nothing until until task is deleted
-      res = tr069.response(currentRequest.sessionId, resParams, cookies)
+      res = tr069.response(currentRequest.sessionId, cwmpResponse, cookies)
       writeResponse(currentRequest, res)
     else
       util.log("#{currentRequest.deviceId}: Started task #{task.name}(#{task._id})")
-      runTask(currentRequest, task, reqParams)
+      runTask(currentRequest, task, cwmpRequest)
   )
 
 
@@ -173,22 +173,22 @@ if cluster.isMaster
   for i in [1 .. numCPUs]
     cluster.fork()
 else
-  server = http.createServer (request, response) ->
-    if request.method != 'POST'
+  server = http.createServer (httpRequest, httpResponse) ->
+    if httpRequest.method != 'POST'
       #console.log '>>> 405 Method Not Allowed'
-      response.writeHead 405, {'Allow': 'POST'}
-      response.end('405 Method Not Allowed')
+      httpResponse.writeHead 405, {'Allow': 'POST'}
+      httpResponse.end('405 Method Not Allowed')
       return
 
     chunks = []
     bytes = 0
     cookies = {}
 
-    request.addListener 'data', (chunk) ->
+    httpRequest.addListener 'data', (chunk) ->
       chunks.push(chunk)
       bytes += chunk.length
 
-    request.getBody = (encoding) ->
+    httpRequest.getBody = (encoding) ->
       # Write all chunks into a Buffer
       body = new Buffer(bytes)
       offset = 0
@@ -200,42 +200,42 @@ else
       #Return encoded (default to UTF8) string
       return body.toString(encoding || 'utf8', 0, body.byteLength)
 
-    request.addListener 'end', () ->
+    httpRequest.addListener 'end', () ->
       currentRequest = {}
-      currentRequest.request = request
-      currentRequest.response = response
+      currentRequest.httpRequest = httpRequest
+      currentRequest.httpResponse = httpResponse
 
-      resParams = {}
-      reqParams = tr069.request(request)
+      cwmpResponse = {}
+      cwmpRequest = tr069.request(httpRequest)
 
       # get deviceId either from inform xml or cookie
-      if reqParams.deviceId?
-        currentRequest.deviceId = common.getDeviceId(reqParams.deviceId)
+      if cwmpRequest.deviceId?
+        currentRequest.deviceId = common.getDeviceId(cwmpRequest.deviceId)
         cookies.DeviceId = currentRequest.deviceId
       else
-        currentRequest.deviceId = reqParams.cookies.DeviceId
+        currentRequest.deviceId = cwmpRequest.cookies.DeviceId
 
       if config.DEBUG_DEVICES[currentRequest.deviceId]
-        dump = "# REQUEST #{new Date(Date.now())}\n" + JSON.stringify(request.headers) + "\n#{request.getBody()}\n\n"
+        dump = "# REQUEST #{new Date(Date.now())}\n" + JSON.stringify(httpRequest.headers) + "\n#{httpRequest.getBody()}\n\n"
         require('fs').appendFile("debug/#{currentRequest.deviceId}.dump", dump, (err) ->
           throw new Error(err) if err
         )
 
-      if reqParams.inform
-        resParams.inform = true
-        cookies.ID = currentRequest.sessionId = reqParams.sessionId
+      if cwmpRequest.inform
+        cwmpResponse.inform = true
+        cookies.ID = currentRequest.sessionId = cwmpRequest.sessionId
 
         if config.LOG_INFORMS
-          util.log("#{currentRequest.deviceId}: Inform (#{reqParams.eventCodes}); retry count #{reqParams.retryCount}")
+          util.log("#{currentRequest.deviceId}: Inform (#{cwmpRequest.eventCodes}); retry count #{cwmpRequest.retryCount}")
 
-        updateDevice(currentRequest, {'inform' : true, 'parameterValues' : reqParams.informParameterValues}, (err) ->
-          res = tr069.response(currentRequest.sessionId, resParams, cookies)
+        updateDevice(currentRequest, {'inform' : true, 'parameterValues' : cwmpRequest.informParameterValues}, (err) ->
+          res = tr069.response(currentRequest.sessionId, cwmpResponse, cookies)
           writeResponse(currentRequest, res)
         )
         return
 
-      currentRequest.sessionId = reqParams.cookies.ID
-      taskId = reqParams.cookies.task
+      currentRequest.sessionId = cwmpRequest.cookies.ID
+      taskId = cwmpRequest.cookies.task
 
       if not taskId
         nextTask(currentRequest, cookies)
@@ -243,15 +243,15 @@ else
         db.getTask(taskId, (task) ->
           if not task
             nextTask(currentRequest, cookies)
-          else if reqParams.fault?
+          else if cwmpRequest.fault?
             util.log("#{currentRequest.deviceId}: Fault response for task #{task._id}")
-            db.tasksCollection.update({_id : mongodb.ObjectID(String(task._id))}, {$set : {fault : reqParams.fault}}, (err) ->
+            db.tasksCollection.update({_id : mongodb.ObjectID(String(task._id))}, {$set : {fault : cwmpRequest.fault}}, (err) ->
               # Faulty task. No more work to do until task is deleted.
-              res = tr069.response(currentRequest.sessionId, resParams, cookies)
+              res = tr069.response(currentRequest.sessionId, cwmpResponse, cookies)
               writeResponse(currentRequest, res)
             )
           else
-            runTask(currentRequest, task, reqParams)
+            runTask(currentRequest, task, cwmpRequest)
         )
 
   server.listen config.ACS_PORT, config.ACS_INTERFACE
