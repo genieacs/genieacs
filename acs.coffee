@@ -221,7 +221,7 @@ else
         )
 
       if cwmpRequest.methodRequest?
-        if cwmpRequest.methodRequest.type == 'Inform'
+        if cwmpRequest.methodRequest.type is 'Inform'
           cwmpResponse.methodResponse = {type : 'InformResponse'}
 
           if config.LOG_INFORMS
@@ -231,6 +231,12 @@ else
             res = tr069.response(cwmpRequest.id, cwmpResponse, cookies)
             writeResponse(currentRequest, res)
           )
+        else if cwmpRequest.methodRequest.type is 'TransferComplete'
+          # do nothing
+          util.log("#{currentRequest.deviceId}: Transfer complete")
+          cwmpResponse.methodResponse = {type : 'TransferCompleteResponse'}
+          res = tr069.response(cwmpRequest.id, cwmpResponse, cookies)
+          writeResponse(currentRequest, res)
         else
           throw Error('ACS method not supported')
       else if cwmpRequest.methodResponse?

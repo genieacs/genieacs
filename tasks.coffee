@@ -75,6 +75,14 @@ this.reboot = (task, methodResponse, cwmpResponse) ->
     cwmpResponse.methodRequest = {
       type : 'Reboot'
     }
+
+this.download = (task, methodResponse, cwmpResponse) ->
+  if methodResponse.type isnt 'DownloadResponse'
+    cwmpResponse.methodRequest = {
+      type : 'Download',
+      fileType : task.fileType,
+      url : task.url
+    }
   
 exports.task = (task, methodResponse, cwmpResponse) ->
   return this[task.name](task, methodResponse, cwmpResponse)

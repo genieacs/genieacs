@@ -128,6 +128,37 @@ cpeRebootResponse = (xml) ->
   {}
 
 
+cpeDownload = (xml, methodRequest) ->
+  el = xml.node('cwmp:Download')
+  el.node('CommandKey').text(methodRequest.commandKey or '')
+  el.node('FileType').text(methodRequest.fileType)
+  el.node('URL').text(methodRequest.url)
+  el.node('Username').text(methodRequest.username or '')
+  el.node('Password').text(methodRequest.password or '')
+  el.node('FileSize').text(methodRequest.fileSize or '0')
+  el.node('TargetFileName').text(methodRequest.TargetFileName or '')
+  el.node('DelaySeconds').text(methodRequest.delaySeconds or '0')
+  el.node('SuccessURL').text(methodRequest.successUrl or '')
+  el.node('FailureURL').text(methodRequest.failureUrl or '')
+
+
+cpeDownloadResponse = (xml) ->
+  {status : JSON.parse(xml.get('Status').text())}
+
+
+acsTransferComplete = (xml) ->
+  {
+    commandKey : xml.get('CommandKey').text(),
+    faultStruct : traverseXml(xml.get('FaultStruct')),
+    startTime : xml.get('StartTime').text(), # TODO convert to datetime
+    completeTime : xml.get('CompleteTime').text() # TODO convert to datetime
+  }
+
+
+acsTransferCompleteResponse = (xml, methodRequest) ->
+  xml.node('cwmp:TransferCompleteResponse').text('')
+
+
 exports.request = (httpRequest) ->
   cwmpRequest = {cookies: {}}
   cwmpRequest.cookies = cookiesToObj(httpRequest.headers.cookie) if httpRequest.headers.cookie
@@ -149,6 +180,9 @@ exports.request = (httpRequest) ->
         when 'Inform'
           cwmpRequest.methodRequest = acsInform(methodElement)
           cwmpRequest.methodRequest.type = 'Inform'
+        when 'TransferComplete'
+          cwmpRequest.methodRequest = acsTransferComplete(methodElement)
+          cwmpRequest.methodRequest.type = 'TransferComplete'
         when 'GetParameterNamesResponse'
           cwmpRequest.methodResponse = cpeGetParameterNamesResponse(methodElement)
           cwmpRequest.methodResponse.type = 'GetParameterNamesResponse'
@@ -161,8 +195,11 @@ exports.request = (httpRequest) ->
         when 'RebootResponse'
           cwmpRequest.methodResponse = cpeRebootResponse(methodElement)
           cwmpRequest.methodResponse.type = 'RebootResponse'
+        when 'DownloadResponse'
+          cwmpRequest.methodResponse = cpeDownloadResponse(methodElement)
+          cwmpRequest.methodResponse.type = 'DownloadResponse'
         else
-          throw Error('8000 Method not supported')
+          throw Error('8000 Method not supported ' + methodElement.name())
     else
       faultElement = xml.get('/soap-env:Envelope/soap-env:Body/soap-env:Fault', NAMESPACES)
       cwmpRequest.fault = fault(faultElement)
@@ -199,6 +236,8 @@ exports.response = (id, cwmpResponse, cookies = null) ->
     switch cwmpResponse.methodResponse.type
       when 'InformResponse'
         acsInformResponse(body)
+      when 'TransferCompleteResponse'
+        acsTransferCompleteResponse(body)
       else
         throw Error("Unknown method response type #{cwmpResponse.methodResponse.type}")
   else if cwmpResponse.methodRequest?
@@ -211,6 +250,8 @@ exports.response = (id, cwmpResponse, cookies = null) ->
         cpeSetParameterValues(body, cwmpResponse.methodRequest)
       when 'Reboot'
         cpeReboot(body, cwmpResponse.methodRequest)
+      when 'Download'
+        cpeDownload(body, cwmpResponse.methodRequest)
       else
         throw Error("Unknown method request #{cwmpResponse.methodRequest.type}")
   else
