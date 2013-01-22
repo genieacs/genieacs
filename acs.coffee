@@ -21,7 +21,7 @@ applyConfigurations = (currentRequest, taskList) ->
       runTask(currentRequest, task, {})
     )
   else
-    res = tr069.response(currentRequest.sessionId, {}, {})
+    res = tr069.response(null, {}, {})
     writeResponse(currentRequest, res)
 
 
@@ -91,14 +91,15 @@ updateDevice = (currentRequest, actions, callback) ->
     callback() if callback?
 
 
-runTask = (currentRequest, task, cwmpRequest) ->
+runTask = (currentRequest, task, methodResponse) ->
   cwmpResponse = {}
-  actions = tasks.task(task, cwmpRequest, cwmpResponse)
+  actions = tasks.task(task, methodResponse, cwmpResponse)
+
   updateDevice(currentRequest, actions)
 
   if Object.keys(cwmpResponse).length > 0
     db.updateTask(task, (err) ->
-      res = tr069.response(currentRequest.sessionId, cwmpResponse, {task : String(task._id)})
+      res = tr069.response(task._id, cwmpResponse)
       writeResponse(currentRequest, res)
     )
     return
@@ -107,7 +108,7 @@ runTask = (currentRequest, task, cwmpRequest) ->
   db.memcached.del(String(task._id))
   db.tasksCollection.remove({'_id' : mongodb.ObjectID(String(task._id))}, {safe: true}, (err, removed) ->
     util.log("#{currentRequest.deviceId}: Completed task #{task.name}(#{task._id})")
-    cookies = {task : null}
+    cookies = {}
     nextTask(currentRequest, cookies)
   )
 
@@ -115,7 +116,6 @@ runTask = (currentRequest, task, cwmpRequest) ->
 nextTask = (currentRequest, cookies) ->
   cur = db.tasksCollection.find({'device' : currentRequest.deviceId}).sort(['timestamp']).limit(1)
   cur.nextObject( (err, task) ->
-    cwmpRequest = {}
     cwmpResponse = {}
 
     if not task
@@ -136,22 +136,22 @@ nextTask = (currentRequest, cookies) ->
               )
             else
               # no discrepancy, return empty response
-              res = tr069.response(currentRequest.sessionId, cwmpResponse, cookies)
+              res = tr069.response(null, cwmpResponse, cookies)
               writeResponse(currentRequest, res)
           )
         else
           # no discrepancy, return empty response
-          res = tr069.response(currentRequest.sessionId, cwmpResponse, cookies)
+          res = tr069.response(null, cwmpResponse, cookies)
           writeResponse(currentRequest, res)
       )
       return
     else if task.fault?
       # last task was faulty. Do nothing until until task is deleted
-      res = tr069.response(currentRequest.sessionId, cwmpResponse, cookies)
+      res = tr069.response(null, cwmpResponse, cookies)
       writeResponse(currentRequest, res)
     else
       util.log("#{currentRequest.deviceId}: Started task #{task.name}(#{task._id})")
-      runTask(currentRequest, task, cwmpRequest)
+      runTask(currentRequest, task, {})
   )
 
 
@@ -209,11 +209,10 @@ else
       cwmpRequest = tr069.request(httpRequest)
 
       # get deviceId either from inform xml or cookie
-      if cwmpRequest.deviceId?
-        currentRequest.deviceId = common.getDeviceId(cwmpRequest.deviceId)
-        cookies.DeviceId = currentRequest.deviceId
+      if cwmpRequest.methodRequest? and cwmpRequest.methodRequest.type is 'Inform'
+        cookies.deviceId = currentRequest.deviceId = common.getDeviceId(cwmpRequest.methodRequest.deviceId)
       else
-        currentRequest.deviceId = cwmpRequest.cookies.DeviceId
+        currentRequest.deviceId = cwmpRequest.cookies.deviceId
 
       if config.DEBUG_DEVICES[currentRequest.deviceId]
         dump = "# REQUEST #{new Date(Date.now())}\n" + JSON.stringify(httpRequest.headers) + "\n#{httpRequest.getBody()}\n\n"
@@ -221,38 +220,40 @@ else
           throw new Error(err) if err
         )
 
-      if cwmpRequest.inform
-        cwmpResponse.inform = true
-        cookies.ID = currentRequest.sessionId = cwmpRequest.sessionId
+      if cwmpRequest.methodRequest?
+        if cwmpRequest.methodRequest.type == 'Inform'
+          cwmpResponse.methodResponse = {type : 'InformResponse'}
 
-        if config.LOG_INFORMS
-          util.log("#{currentRequest.deviceId}: Inform (#{cwmpRequest.eventCodes}); retry count #{cwmpRequest.retryCount}")
+          if config.LOG_INFORMS
+            util.log("#{currentRequest.deviceId}: Inform (#{cwmpRequest.methodRequest.event}); retry count #{cwmpRequest.methodRequest.retryCount}")
 
-        updateDevice(currentRequest, {'inform' : true, 'parameterValues' : cwmpRequest.informParameterValues}, (err) ->
-          res = tr069.response(currentRequest.sessionId, cwmpResponse, cookies)
-          writeResponse(currentRequest, res)
-        )
-        return
+          updateDevice(currentRequest, {'inform' : true, 'parameterValues' : cwmpRequest.methodRequest.parameterList}, (err) ->
+            res = tr069.response(cwmpRequest.id, cwmpResponse, cookies)
+            writeResponse(currentRequest, res)
+          )
+        else
+          throw Error('ACS method not supported')
+      else if cwmpRequest.methodResponse?
+        taskId = cwmpRequest.id
 
-      currentRequest.sessionId = cwmpRequest.cookies.ID
-      taskId = cwmpRequest.cookies.task
-
-      if not taskId
-        nextTask(currentRequest, cookies)
-      else
         db.getTask(taskId, (task) ->
           if not task
             nextTask(currentRequest, cookies)
-          else if cwmpRequest.fault?
-            util.log("#{currentRequest.deviceId}: Fault response for task #{task._id}")
-            db.tasksCollection.update({_id : mongodb.ObjectID(String(task._id))}, {$set : {fault : cwmpRequest.fault}}, (err) ->
-              # Faulty task. No more work to do until task is deleted.
-              res = tr069.response(currentRequest.sessionId, cwmpResponse, cookies)
-              writeResponse(currentRequest, res)
-            )
           else
-            runTask(currentRequest, task, cwmpRequest)
+            runTask(currentRequest, task, cwmpRequest.methodResponse)
         )
+      else if cwmpRequest.fault?
+        taskId = cwmpRequest.id
+        util.log("#{currentRequest.deviceId}: Fault response for task #{taskId}")
+        db.tasksCollection.update({_id : mongodb.ObjectID(taskId)}, {$set : {fault : cwmpRequest.fault}}, (err) ->
+          # Faulty task. No more work to do until task is deleted.
+          res = tr069.response(null, cwmpResponse, cookies)
+          writeResponse(currentRequest, res)
+        )
+      else
+        # cpe sent empty response. start sending acs requests
+        nextTask(currentRequest, cookies)
+
 
   server.listen config.ACS_PORT, config.ACS_INTERFACE
   #console.log "Server listening on port #{config.ACS_PORT}"
