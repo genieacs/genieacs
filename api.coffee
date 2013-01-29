@@ -6,9 +6,9 @@ db = require './db'
 mongodb = require 'mongodb'
 
 # regular expression objects
-TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_]+)\/tasks\/?$/
-TAGS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_]+)\/tags\/([a-zA-Z0-9\-\_]+)\/?$/
-PRESETS_REGEX = /^\/presets\/([a-zA-Z0-9\-\_]+)\/?$/
+TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/tasks\/?$/
+TAGS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/tags\/([a-zA-Z0-9\-\_\%]+)\/?$/
+PRESETS_REGEX = /^\/presets\/([a-zA-Z0-9\-\_\%]+)\/?$/
 
 connectionRequest = (deviceId, callback) ->
   db.devicesCollection.findOne({_id : deviceId}, {'InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value' : 1}, (err, device)->

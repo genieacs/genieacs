@@ -46,11 +46,16 @@ parameterValueList = (xml) ->
     valueType = e.get('Value').attr('type').value().trim()
     name = e.get('Name').text().trim()
     value = e.get('Value').text().trim()
-    switch valueType
-      when 'xsd:boolean'
-        value = Boolean(JSON.parse(value))
-      when 'xsd:unsignedInt'
-        value = JSON.parse(value)
+    try
+      switch valueType
+        when 'xsd:boolean'
+          value = Boolean(JSON.parse(value))
+        when 'xsd:unsignedInt'
+          value = JSON.parse(value)
+        when 'xsd:int'
+          value = JSON.parse(value)
+    catch err
+      value = null
     valueList.push([name, value])
   return valueList
 

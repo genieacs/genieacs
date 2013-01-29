@@ -25,9 +25,9 @@ exports.arrayToHash = (arr) ->
 exports.getDeviceId = (deviceIdStruct) ->
   # Guaranteeing globally unique id as defined in TR-069
   if deviceIdStruct['ProductClass']
-    return "#{escape(deviceIdStruct['OUI'])}-#{escape(deviceIdStruct['ProductClass'])}-#{escape(deviceIdStruct['SerialNumber'])}"
+    return "#{deviceIdStruct['OUI']}-#{deviceIdStruct['ProductClass']}-#{deviceIdStruct['SerialNumber']}"
 
-  return "#{escape(deviceIdStruct['OUI'])}-#{escape(deviceIdStruct['SerialNumber'])}"
+  return "#{deviceIdStruct['OUI']}-#{deviceIdStruct['SerialNumber']}"
 
 
 exports.extend = (obj, mixin) ->
