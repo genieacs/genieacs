@@ -56,6 +56,14 @@ updateTask = (task, callback) ->
   )
 
 
+saveTask = (task, callback) ->
+  task._id = mongodb.ObjectID(String(task._id))
+  tasksCollection.save(task, (err) ->
+    callback(err)
+  )
+
+
 exports.memcached = memcached
 exports.getTask = getTask
 exports.updateTask = updateTask
+exports.saveTask = saveTask

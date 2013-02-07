@@ -93,27 +93,39 @@ updateDevice = (currentRequest, actions, callback) ->
 
 runTask = (currentRequest, task, methodResponse) ->
   cwmpResponse = {}
-  actions = tasks.task(task, methodResponse, cwmpResponse)
+  deviceUpdates = {}
+  status = tasks.task(task, methodResponse, cwmpResponse, deviceUpdates)
 
-  updateDevice(currentRequest, actions)
+  updateDevice(currentRequest, deviceUpdates)
 
-  if Object.keys(cwmpResponse).length > 0
-    db.updateTask(task, (err) ->
-      res = tr069.response(task._id, cwmpResponse)
-      writeResponse(currentRequest, res)
-    )
-    return
+  switch status
+    when tasks.STATUS_FINISHED
+      db.memcached.del(String(task._id))
+      db.tasksCollection.remove({'_id' : mongodb.ObjectID(String(task._id))}, {safe: true}, (err, removed) ->
+        util.log("#{currentRequest.deviceId}: Completed task #{task.name}(#{task._id})")
+        nextTask(currentRequest)
+      )
+    when tasks.STATUS_FAULT
+      db.saveTask(task, (err) ->
+        # Faulty task. No more work to do until task is deleted.
+        res = tr069.response(null, cwmpResponse)
+        writeResponse(currentRequest, res)
+      )
+    when tasks.STATUS_PENDING
+      db.saveTask(task, (err) ->
+        # task expects CPE confirmation later
+        nextTask(currentRequest)
+      )
+    when tasks.STATUS_STARTED
+      db.updateTask(task, (err) ->
+        res = tr069.response(task._id, cwmpResponse)
+        writeResponse(currentRequest, res)
+      )
+    else
+      throw Error('Unknown task status')
 
-  # Task finished
-  db.memcached.del(String(task._id))
-  db.tasksCollection.remove({'_id' : mongodb.ObjectID(String(task._id))}, {safe: true}, (err, removed) ->
-    util.log("#{currentRequest.deviceId}: Completed task #{task.name}(#{task._id})")
-    cookies = {}
-    nextTask(currentRequest, cookies)
-  )
 
-
-nextTask = (currentRequest, cookies) ->
+nextTask = (currentRequest) ->
   cur = db.tasksCollection.find({'device' : currentRequest.deviceId}).sort(['timestamp']).limit(1)
   cur.nextObject( (err, task) ->
     cwmpResponse = {}
@@ -136,18 +148,17 @@ nextTask = (currentRequest, cookies) ->
               )
             else
               # no discrepancy, return empty response
-              res = tr069.response(null, cwmpResponse, cookies)
+              res = tr069.response(null, cwmpResponse)
               writeResponse(currentRequest, res)
           )
         else
           # no discrepancy, return empty response
-          res = tr069.response(null, cwmpResponse, cookies)
+          res = tr069.response(null, cwmpResponse)
           writeResponse(currentRequest, res)
       )
-      return
     else if task.fault?
       # last task was faulty. Do nothing until until task is deleted
-      res = tr069.response(null, cwmpResponse, cookies)
+      res = tr069.response(null, cwmpResponse)
       writeResponse(currentRequest, res)
     else
       util.log("#{currentRequest.deviceId}: Started task #{task.name}(#{task._id})")
@@ -244,21 +255,23 @@ else
 
         db.getTask(taskId, (task) ->
           if not task
-            nextTask(currentRequest, cookies)
+            nextTask(currentRequest)
           else
             runTask(currentRequest, task, cwmpRequest.methodResponse)
         )
       else if cwmpRequest.fault?
         taskId = cwmpRequest.id
         util.log("#{currentRequest.deviceId}: Fault response for task #{taskId}")
-        db.tasksCollection.update({_id : mongodb.ObjectID(taskId)}, {$set : {fault : cwmpRequest.fault}}, (err) ->
-          # Faulty task. No more work to do until task is deleted.
-          res = tr069.response(null, cwmpResponse, cookies)
-          writeResponse(currentRequest, res)
+
+        db.getTask(taskId, (task) ->
+          if not task
+            nextTask(currentRequest)
+          else
+            runTask(currentRequest, task, cwmpRequest.fault)
         )
       else
         # cpe sent empty response. start sending acs requests
-        nextTask(currentRequest, cookies)
+        nextTask(currentRequest)
 
 
   server.listen config.ACS_PORT, config.ACS_INTERFACE

@@ -1,37 +1,64 @@
 common = require './common'
 BATCH_SIZE = 16
 
-this.init = (task, methodResponse, cwmpResponse) ->
-  ret = {}
+exports.STATUS_QUEUED = STATUS_QUEUED = 0
+exports.STATUS_STARTED = STATUS_STARTED = 1
+exports.STATUS_PENDING = STATUS_PENDING = 2
+exports.STATUS_FAULT = STATUS_FAULT = 3
+exports.STATUS_FINISHED = STATUS_FINISHED = 4
+
+
+this.init = (task, methodResponse, cwmpResponse, deviceUpdates) ->
+  if methodResponse.faultcode?
+    task.fault = methodResponse
+    return STATUS_FAULT
+
   if not task.subtask?
     task.subtask = {'name' : 'getParameterNames', 'parameterPath' : '', 'nextLevel' : false}
 
   if task.subtask.name == 'getParameterNames'
-    common.extend(ret, this.getParameterNames(task.subtask, methodResponse, cwmpResponse))
-    if ret.parameterNames? # task finished
+    status = this.getParameterNames(task.subtask, methodResponse, cwmpResponse, deviceUpdates)
+    if status is STATUS_FINISHED
       parameterNames = []
-      for p in ret.parameterNames
+      for p in deviceUpdates.parameterNames
         if not common.endsWith(p[0], '.')
           parameterNames.push(p[0])
       task.subtask = {'name' : 'getParameterValues', 'parameterNames' : parameterNames}
+    else if status != STATUS_STARTED
+      throw Error('Unexpected subtask status')
 
   if task.subtask.name == 'getParameterValues'
-    common.extend(ret, this.getParameterValues(task.subtask, methodResponse, cwmpResponse))
+    status = this.getParameterValues(task.subtask, methodResponse, cwmpResponse, deviceUpdates)
+    if status is STATUS_FINISHED
+      return STATUS_FINISHED
+    else if status is not STATUS_STARTED
+      throw Error('Unexpected subtask status')
 
-  ret
+  return STATUS_STARTED
 
-this.getParameterNames = (task, methodResponse, cwmpResponse) ->
+
+this.getParameterNames = (task, methodResponse, cwmpResponse, deviceUpdates) ->
+  if methodResponse.faultcode?
+    task.fault = methodResponse
+    return STATUS_FAULT
+
   if methodResponse.type is 'GetParameterNamesResponse'
-    return {'parameterNames' : methodResponse.parameterList}
-  else
-    cwmpResponse.methodRequest = {
-      type : 'GetParameterNames',
-      parameterPath : task.parameterPath,
-      nextLevel : if task.nextLevel? then task.nextLevel else false
-    }
-  return
+    deviceUpdates.parameterNames = methodResponse.parameterList
+    return STATUS_FINISHED
 
-this.getParameterValues = (task, methodResponse, cwmpResponse) ->
+  cwmpResponse.methodRequest = {
+    type : 'GetParameterNames',
+    parameterPath : task.parameterPath,
+    nextLevel : if task.nextLevel? then task.nextLevel else false
+  }
+  return STATUS_STARTED
+
+
+this.getParameterValues = (task, methodResponse, cwmpResponse, deviceUpdates) ->
+  if methodResponse.faultcode?
+    task.fault = methodResponse
+    return STATUS_FAULT
+
   if not task.currentIndex?
     task.currentIndex = 0
   else if methodResponse.parameterList?
@@ -40,17 +67,25 @@ this.getParameterValues = (task, methodResponse, cwmpResponse) ->
   task.nextIndex = Math.min(task.currentIndex + BATCH_SIZE, task.parameterNames.length)
   names = task.parameterNames.slice(task.currentIndex, task.nextIndex)
 
-  if names.length > 0
-    cwmpResponse.methodRequest = {
-      type : 'GetParameterValues',
-      parameterNames : names
-    }
-
   if methodResponse.type is 'GetParameterValuesResponse'
-    return {'parameterValues' : methodResponse.parameterList}
-  return
+    deviceUpdates.parameterValues = methodResponse.parameterList
 
-this.setParameterValues = (task, methodResponse, cwmpResponse) ->
+  if names.length == 0
+    return STATUS_FINISHED
+
+  cwmpResponse.methodRequest = {
+    type : 'GetParameterValues',
+    parameterNames : names
+  }
+
+  return STATUS_STARTED
+
+
+this.setParameterValues = (task, methodResponse, cwmpResponse, deviceUpdates) ->
+  if methodResponse.faultcode?
+    task.fault = methodResponse
+    return STATUS_FAULT
+
   if not task.currentIndex?
     task.currentIndex = 0
   else if methodResponse.type is 'SetParameterValuesResponse'
@@ -60,29 +95,48 @@ this.setParameterValues = (task, methodResponse, cwmpResponse) ->
   task.nextIndex = Math.min(task.currentIndex + BATCH_SIZE, task.parameterValues.length)
   values = task.parameterValues.slice(task.currentIndex, task.nextIndex)
 
-  if values.length > 0
-    cwmpResponse.methodRequest = {
-      type : 'SetParameterValues',
-      parameterList : values
-    }
-
   if prevValues?
-    return {'parameterValues' : prevValues}
-  return
+    deviceUpdates.parameterValues = prevValues
 
-this.reboot = (task, methodResponse, cwmpResponse) ->
+  if values.length == 0
+    return STATUS_FINISHED
+
+  cwmpResponse.methodRequest = {
+    type : 'SetParameterValues',
+    parameterList : values
+  }
+  return STATUS_STARTED
+
+
+this.reboot = (task, methodResponse, cwmpResponse, deviceUpdates) ->
+  if methodResponse.faultcode?
+    task.fault = methodResponse
+    return STATUS_FAULT
+
   if methodResponse.type isnt 'RebootResponse'
     cwmpResponse.methodRequest = {
       type : 'Reboot'
     }
+    return STATUS_STARTED
 
-this.download = (task, methodResponse, cwmpResponse) ->
+  return STATUS_FINISHED
+
+
+this.download = (task, methodResponse, cwmpResponse, deviceUpdates) ->
+  if methodResponse.faultcode?
+    task.fault = methodResponse
+    return STATUS_FAULT
+
   if methodResponse.type isnt 'DownloadResponse'
     cwmpResponse.methodRequest = {
       type : 'Download',
       fileType : task.fileType,
       url : task.url
     }
-  
-exports.task = (task, methodResponse, cwmpResponse) ->
-  return this[task.name](task, methodResponse, cwmpResponse)
+    return STATUS_STARTED
+
+  return STATUS_FINISHED
+
+
+exports.task = (task, methodResponse, cwmpResponse, deviceUpdates) ->
+  return this[task.name](task, methodResponse, cwmpResponse, deviceUpdates)
