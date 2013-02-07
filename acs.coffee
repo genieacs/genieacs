@@ -106,6 +106,7 @@ runTask = (currentRequest, task, methodResponse) ->
         nextTask(currentRequest)
       )
     when tasks.STATUS_FAULT
+      util.log("#{currentRequest.deviceId}: Fault response for task #{taskId}")
       db.saveTask(task, (err) ->
         # Faulty task. No more work to do until task is deleted.
         res = tr069.response(null, cwmpResponse)
@@ -261,7 +262,6 @@ else
         )
       else if cwmpRequest.fault?
         taskId = cwmpRequest.id
-        util.log("#{currentRequest.deviceId}: Fault response for task #{taskId}")
 
         db.getTask(taskId, (task) ->
           if not task

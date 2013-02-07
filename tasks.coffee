@@ -9,14 +9,14 @@ exports.STATUS_FINISHED = STATUS_FINISHED = 4
 
 
 this.init = (task, methodResponse, cwmpResponse, deviceUpdates) ->
-  if methodResponse.faultcode?
-    task.fault = methodResponse
-    return STATUS_FAULT
-
   if not task.subtask?
     task.subtask = {'name' : 'getParameterNames', 'parameterPath' : '', 'nextLevel' : false}
 
   if task.subtask.name == 'getParameterNames'
+    if methodResponse.faultcode?
+      task.fault = methodResponse
+      return STATUS_FAULT
+
     status = this.getParameterNames(task.subtask, methodResponse, cwmpResponse, deviceUpdates)
     if status is STATUS_FINISHED
       parameterNames = []
@@ -28,10 +28,14 @@ this.init = (task, methodResponse, cwmpResponse, deviceUpdates) ->
       throw Error('Unexpected subtask status')
 
   if task.subtask.name == 'getParameterValues'
-    status = this.getParameterValues(task.subtask, methodResponse, cwmpResponse, deviceUpdates)
+    if methodResponse.faultcode?
+      # Ignore GetParameterValues errors. A workaround for the crappy Seewon devices.
+      status = this.getParameterValues(task.subtask, {parameterList : {}}, cwmpResponse, deviceUpdates)
+    else
+      status = this.getParameterValues(task.subtask, methodResponse, cwmpResponse, deviceUpdates)
     if status is STATUS_FINISHED
       return STATUS_FINISHED
-    else if status is not STATUS_STARTED
+    else if status isnt STATUS_STARTED
       throw Error('Unexpected subtask status')
 
   return STATUS_STARTED
