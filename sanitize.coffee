@@ -15,5 +15,9 @@ exports.sanitize = (path, value) ->
       extractFloat(value)
     when 'InternetGatewayDevice.WiMAX.Status.CINR2'
       extractFloat(value)
+    when 'InternetGatewayDevice.X_MTK_WiMAX_Param.CINR_level' # Seowon devices
+      extractFloat(value)
+    when 'InternetGatewayDevice.X_MTK_WiMAX_Param.RSSI_level' # Seowon devices
+      extractFloat(value)
     else
       undefined
