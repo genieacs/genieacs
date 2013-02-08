@@ -23,11 +23,20 @@ exports.arrayToHash = (arr) ->
 
 
 exports.getDeviceId = (deviceIdStruct) ->
+  # Percent escaping function. Escapes everything except alphanumerics and underscore
+  esc = (str) ->
+    str.replace(/[^A-Za-z0-9_]/g, (chr) ->
+      buf = new require('buffer').Buffer(chr)
+      rep = ''
+      rep += "%#{b.toString(16).toUpperCase()}" for b in buf
+      return rep
+    )
+
   # Guaranteeing globally unique id as defined in TR-069
   if deviceIdStruct['ProductClass']
-    return "#{deviceIdStruct['OUI']}-#{deviceIdStruct['ProductClass']}-#{deviceIdStruct['SerialNumber']}"
+    return "#{esc(deviceIdStruct['OUI'])}-#{esc(deviceIdStruct['ProductClass'])}-#{esc(deviceIdStruct['SerialNumber'])}"
 
-  return "#{deviceIdStruct['OUI']}-#{deviceIdStruct['SerialNumber']}"
+  return "#{esc(deviceIdStruct['OUI'])}-#{esc(deviceIdStruct['SerialNumber'])}"
 
 
 exports.extend = (obj, mixin) ->
