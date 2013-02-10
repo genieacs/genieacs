@@ -40,44 +40,8 @@ else
           stream.pipe(response)
         )
       )
-    else if request.method == 'PUT'
-      gridStore = null
-      metadata = {
-        FileType : request.headers.filetype,
-        SoftwareVersion : request.headers.softwareversion,
-        HardwareVersion : request.headers.hardwareversion,
-        Manufacturer : request.headers.manufacturer,
-      }
-
-      gs = new mongodb.GridStore(db, urlParts.pathname, 'w', {metadata : metadata})
-
-      request.pause()
-
-      gs.open((err, gs) ->
-        gridStore = gs
-        request.resume()
-      )
-
-      request.addListener('data', (chunk) ->
-        gridStore.write(chunk, (err, res) ->
-        )
-      )
-
-      request.addListener('end', () ->
-        gridStore.close((err) ->
-        )
-        response.writeHead(201)
-        response.end()
-      )
-    else if request.method == 'DELETE'
-      request.addListener('end', () ->
-        mongodb.GridStore.unlink(db, urlParts.pathname, (err) ->
-          response.writeHead(200)
-          response.end()
-        )
-      )
     else
-      response.writeHead(405, {'Allow': 'GET, PUT, DELETE'})
+      response.writeHead(405, {'Allow': 'GET'})
       response.end('405 Method Not Allowed')
   )
 

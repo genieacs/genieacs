@@ -9,6 +9,7 @@ mongodb = require 'mongodb'
 TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/tasks\/?$/
 TAGS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/tags\/([a-zA-Z0-9\-\_\%]+)\/?$/
 PRESETS_REGEX = /^\/presets\/([a-zA-Z0-9\-\_\%]+)\/?$/
+FILES_REGEX = /^\/files(\/[a-zA-Z0-9\-\_\%\ \.\/\(\)]+)\/?$/
 
 connectionRequest = (deviceId, callback) ->
   db.devicesCollection.findOne({_id : deviceId}, {'InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value' : 1}, (err, device)->
@@ -207,6 +208,34 @@ else
             response.end()
         else
           response.writeHead 405, {'Allow': 'GET'}
+          response.end('405 Method Not Allowed')
+      else if FILES_REGEX.test(urlParts.pathname)
+        filename = FILES_REGEX.exec(urlParts.pathname)[1]
+        if request.method == 'PUT'
+          metadata = {
+            SoftwareVersion : request.headers.softwareversion,
+            HardwareVersion : request.headers.hardwareversion,
+            Manufacturer : request.headers.manufacturer,
+          }
+
+          gs = new mongodb.GridStore(db.mongo.db, filename, 'w', {metadata : metadata})
+          gs.open((err, gs) ->
+            gs.write(request.getBody('binary'), (err, res) ->
+              gs.close((err) ->
+              )
+              response.writeHead(201)
+              response.end()
+            )
+          )
+        else if request.method == 'DELETE'
+          request.addListener('end', () ->
+            mongodb.GridStore.unlink(db.mongo.db, filename, (err) ->
+              response.writeHead(200)
+              response.end()
+            )
+          )
+        else
+          response.writeHead 405, {'Allow': 'PUT, DELETE'}
           response.end('405 Method Not Allowed')
       else
         response.writeHead 404

@@ -14,6 +14,11 @@ presetsCollection = null
 dbserver = new mongodb.Server(config.MONGODB_SOCKET, 0, {auto_reconnect: true})
 db = new mongodb.Db(config.DATABASE_NAME, dbserver, {native_parser:true, safe:true})
 
+exports.mongo = {
+  db : db,
+  server : dbserver
+}
+
 db.open( (err, db) ->
   db.collection('tasks', (err, collection) ->
     exports.tasksCollection = tasksCollection = collection
