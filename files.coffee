@@ -29,7 +29,7 @@ else
     urlParts = url.parse(request.url, true)
     if request.method == 'GET'
       request.addListener('end', () ->
-        gs = new mongodb.GridStore(db, urlParts.pathname, 'r', {})
+        gs = new mongodb.GridStore(db, urlParts.pathname.substring(1), 'r', {})
         gs.open((err, gs) ->
           if err
             response.writeHead(404)

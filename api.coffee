@@ -9,7 +9,7 @@ mongodb = require 'mongodb'
 TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/tasks\/?$/
 TAGS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/tags\/([a-zA-Z0-9\-\_\%]+)\/?$/
 PRESETS_REGEX = /^\/presets\/([a-zA-Z0-9\-\_\%]+)\/?$/
-FILES_REGEX = /^\/files(\/[a-zA-Z0-9\-\_\%\ \.\/\(\)]+)\/?$/
+FILES_REGEX = /^\/files\/([a-zA-Z0-9\-\_\%\ \.\/\(\)]+)\/?$/
 
 connectionRequest = (deviceId, callback) ->
   db.devicesCollection.findOne({_id : deviceId}, {'InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value' : 1}, (err, device)->
@@ -228,11 +228,9 @@ else
             )
           )
         else if request.method == 'DELETE'
-          request.addListener('end', () ->
-            mongodb.GridStore.unlink(db.mongo.db, filename, (err) ->
-              response.writeHead(200)
-              response.end()
-            )
+          mongodb.GridStore.unlink(db.mongo.db, filename, (err) ->
+            response.writeHead(200)
+            response.end()
           )
         else
           response.writeHead 405, {'Allow': 'PUT, DELETE'}
