@@ -2,12 +2,14 @@ config = require './config'
 common = require './common'
 util = require 'util'
 http = require 'http'
+https = require 'https'
 tr069 = require './tr-069'
 tasks = require './tasks'
 sanitize = require('./sanitize').sanitize
 db = require './db'
 presets = require './presets'
 mongodb = require 'mongodb'
+fs = require 'fs'
 
 
 applyConfigurations = (currentRequest, taskList) ->
@@ -106,7 +108,7 @@ runTask = (currentRequest, task, methodResponse) ->
         nextTask(currentRequest)
       )
     when tasks.STATUS_FAULT
-      util.log("#{currentRequest.deviceId}: Fault response for task #{taskId}")
+      util.log("#{currentRequest.deviceId}: Fault response for task #{task._id}")
       db.saveTask(task, (err) ->
         # Faulty task. No more work to do until task is deleted.
         res = tr069.response(null, cwmpResponse)
@@ -166,6 +168,94 @@ nextTask = (currentRequest) ->
       runTask(currentRequest, task, {})
   )
 
+listener = (httpRequest, httpResponse) ->
+  if httpRequest.method != 'POST'
+    #console.log '>>> 405 Method Not Allowed'
+    httpResponse.writeHead 405, {'Allow': 'POST'}
+    httpResponse.end('405 Method Not Allowed')
+    return
+
+  chunks = []
+  bytes = 0
+  cookies = {}
+
+  httpRequest.addListener 'data', (chunk) ->
+    chunks.push(chunk)
+    bytes += chunk.length
+
+  httpRequest.getBody = (encoding) ->
+    # Write all chunks into a Buffer
+    body = new Buffer(bytes)
+    offset = 0
+    chunks.forEach((chunk) ->
+      chunk.copy(body, offset, 0, chunk.length)
+      offset += chunk.length
+    )
+
+    #Return encoded (default to UTF8) string
+    return body.toString(encoding || 'utf8', 0, body.byteLength)
+
+  httpRequest.addListener 'end', () ->
+    currentRequest = {}
+    currentRequest.httpRequest = httpRequest
+    currentRequest.httpResponse = httpResponse
+
+    cwmpResponse = {}
+    cwmpRequest = tr069.request(httpRequest)
+
+    # get deviceId either from inform xml or cookie
+    if cwmpRequest.methodRequest? and cwmpRequest.methodRequest.type is 'Inform'
+      cookies.deviceId = currentRequest.deviceId = common.getDeviceId(cwmpRequest.methodRequest.deviceId)
+    else
+      currentRequest.deviceId = cwmpRequest.cookies.deviceId
+
+    if config.DEBUG_DEVICES[currentRequest.deviceId]
+      dump = "# REQUEST #{new Date(Date.now())}\n" + JSON.stringify(httpRequest.headers) + "\n#{httpRequest.getBody()}\n\n"
+      require('fs').appendFile("debug/#{currentRequest.deviceId}.dump", dump, (err) ->
+        throw new Error(err) if err
+      )
+
+    if cwmpRequest.methodRequest?
+      if cwmpRequest.methodRequest.type is 'Inform'
+        cwmpResponse.methodResponse = {type : 'InformResponse'}
+
+        if config.LOG_INFORMS
+          util.log("#{currentRequest.deviceId}: Inform (#{cwmpRequest.methodRequest.event}); retry count #{cwmpRequest.methodRequest.retryCount}")
+
+        updateDevice(currentRequest, {'inform' : true, 'parameterValues' : cwmpRequest.methodRequest.parameterList}, (err) ->
+          res = tr069.response(cwmpRequest.id, cwmpResponse, cookies)
+          writeResponse(currentRequest, res)
+        )
+      else if cwmpRequest.methodRequest.type is 'TransferComplete'
+        # do nothing
+        util.log("#{currentRequest.deviceId}: Transfer complete")
+        cwmpResponse.methodResponse = {type : 'TransferCompleteResponse'}
+        res = tr069.response(cwmpRequest.id, cwmpResponse, cookies)
+        writeResponse(currentRequest, res)
+      else
+        throw Error('ACS method not supported')
+    else if cwmpRequest.methodResponse?
+      taskId = cwmpRequest.id
+
+      db.getTask(taskId, (task) ->
+        if not task
+          nextTask(currentRequest)
+        else
+          runTask(currentRequest, task, cwmpRequest.methodResponse)
+      )
+    else if cwmpRequest.fault?
+      taskId = cwmpRequest.id
+
+      db.getTask(taskId, (task) ->
+        if not task
+          nextTask(currentRequest)
+        else
+          runTask(currentRequest, task, cwmpRequest.fault)
+      )
+    else
+      # cpe sent empty response. start sending acs requests
+      nextTask(currentRequest)
+
 
 cluster = require 'cluster'
 numCPUs = require('os').cpus().length
@@ -185,94 +275,14 @@ if cluster.isMaster
   for i in [1 .. numCPUs]
     cluster.fork()
 else
-  server = http.createServer (httpRequest, httpResponse) ->
-    if httpRequest.method != 'POST'
-      #console.log '>>> 405 Method Not Allowed'
-      httpResponse.writeHead 405, {'Allow': 'POST'}
-      httpResponse.end('405 Method Not Allowed')
-      return
+  options = {
+    key: fs.readFileSync('httpscert.key'),
+    cert: fs.readFileSync('httpscert.crt')
+  }
 
-    chunks = []
-    bytes = 0
-    cookies = {}
+  httpServer = http.createServer(listener)
+  httpsServer = https.createServer(options, listener)
 
-    httpRequest.addListener 'data', (chunk) ->
-      chunks.push(chunk)
-      bytes += chunk.length
-
-    httpRequest.getBody = (encoding) ->
-      # Write all chunks into a Buffer
-      body = new Buffer(bytes)
-      offset = 0
-      chunks.forEach((chunk) ->
-        chunk.copy(body, offset, 0, chunk.length)
-        offset += chunk.length
-      )
-
-      #Return encoded (default to UTF8) string
-      return body.toString(encoding || 'utf8', 0, body.byteLength)
-
-    httpRequest.addListener 'end', () ->
-      currentRequest = {}
-      currentRequest.httpRequest = httpRequest
-      currentRequest.httpResponse = httpResponse
-
-      cwmpResponse = {}
-      cwmpRequest = tr069.request(httpRequest)
-
-      # get deviceId either from inform xml or cookie
-      if cwmpRequest.methodRequest? and cwmpRequest.methodRequest.type is 'Inform'
-        cookies.deviceId = currentRequest.deviceId = common.getDeviceId(cwmpRequest.methodRequest.deviceId)
-      else
-        currentRequest.deviceId = cwmpRequest.cookies.deviceId
-
-      if config.DEBUG_DEVICES[currentRequest.deviceId]
-        dump = "# REQUEST #{new Date(Date.now())}\n" + JSON.stringify(httpRequest.headers) + "\n#{httpRequest.getBody()}\n\n"
-        require('fs').appendFile("debug/#{currentRequest.deviceId}.dump", dump, (err) ->
-          throw new Error(err) if err
-        )
-
-      if cwmpRequest.methodRequest?
-        if cwmpRequest.methodRequest.type is 'Inform'
-          cwmpResponse.methodResponse = {type : 'InformResponse'}
-
-          if config.LOG_INFORMS
-            util.log("#{currentRequest.deviceId}: Inform (#{cwmpRequest.methodRequest.event}); retry count #{cwmpRequest.methodRequest.retryCount}")
-
-          updateDevice(currentRequest, {'inform' : true, 'parameterValues' : cwmpRequest.methodRequest.parameterList}, (err) ->
-            res = tr069.response(cwmpRequest.id, cwmpResponse, cookies)
-            writeResponse(currentRequest, res)
-          )
-        else if cwmpRequest.methodRequest.type is 'TransferComplete'
-          # do nothing
-          util.log("#{currentRequest.deviceId}: Transfer complete")
-          cwmpResponse.methodResponse = {type : 'TransferCompleteResponse'}
-          res = tr069.response(cwmpRequest.id, cwmpResponse, cookies)
-          writeResponse(currentRequest, res)
-        else
-          throw Error('ACS method not supported')
-      else if cwmpRequest.methodResponse?
-        taskId = cwmpRequest.id
-
-        db.getTask(taskId, (task) ->
-          if not task
-            nextTask(currentRequest)
-          else
-            runTask(currentRequest, task, cwmpRequest.methodResponse)
-        )
-      else if cwmpRequest.fault?
-        taskId = cwmpRequest.id
-
-        db.getTask(taskId, (task) ->
-          if not task
-            nextTask(currentRequest)
-          else
-            runTask(currentRequest, task, cwmpRequest.fault)
-        )
-      else
-        # cpe sent empty response. start sending acs requests
-        nextTask(currentRequest)
-
-
-  server.listen config.ACS_PORT, config.ACS_INTERFACE
+  httpServer.listen(config.ACS_PORT, config.ACS_INTERFACE)
+  httpsServer.listen(config.ACS_HTTPS_PORT, config.ACS_HTTPS_INTERFACE)
   #console.log "Server listening on port #{config.ACS_PORT}"

@@ -1,6 +1,8 @@
 exports.DATABASE_NAME = 'genie'
 exports.ACS_PORT = 7547 # CWMP port as assigned by IANA
+exports.ACS_HTTPS_PORT = 7548
 exports.ACS_INTERFACE = '0.0.0.0'
+exports.ACS_HTTPS_INTERFACE = '0.0.0.0'
 exports.API_PORT = 7557
 exports.API_INTERFACE = '0.0.0.0'
 exports.FILES_PORT = 7567
