@@ -4,6 +4,7 @@ http = require 'http'
 url = require 'url'
 db = require './db'
 mongodb = require 'mongodb'
+querystring = require 'querystring'
 
 # regular expression objects
 TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/tasks\/?$/
@@ -56,6 +57,11 @@ watchTask = (taskId, timeout, callback) ->
   , 500)
 
 
+sanitizeTask = (device, task) ->
+  task.device = device
+  task.timestamp = mongodb.Timestamp()
+  return task
+
 cluster = require 'cluster'
 numCPUs = require('os').cpus().length
 
@@ -98,7 +104,7 @@ else
       body = request.getBody()
       urlParts = url.parse(request.url, true)
       if PRESETS_REGEX.test(urlParts.pathname)
-        presetName = PRESETS_REGEX.exec(urlParts.pathname)[1]
+        presetName = querystring.unescape(PRESETS_REGEX.exec(urlParts.pathname)[1])
         if request.method == 'PUT'
           preset = JSON.parse(body)
           preset._id = presetName
@@ -129,8 +135,8 @@ else
           response.end('405 Method Not Allowed')
       else if TAGS_REGEX.test(urlParts.pathname)
         r = TAGS_REGEX.exec(urlParts.pathname)
-        deviceId = r[1]
-        tag = r[2]
+        deviceId = querystring.unescape(r[1])
+        tag = querystring.unescape(r[2])
         if request.method == 'POST'
           db.devicesCollection.update({'_id' : deviceId}, {'$addToSet' : {'_tags' : tag}}, {safe: true}, (err) ->
             if err
@@ -154,12 +160,10 @@ else
           response.end('405 Method Not Allowed')
       else if TASKS_REGEX.test(urlParts.pathname)
         if request.method == 'POST'
-          deviceId = TASKS_REGEX.exec(urlParts.pathname)[1]
+          deviceId = querystring.unescape(TASKS_REGEX.exec(urlParts.pathname)[1])
           if body
             # queue given task
-            task = JSON.parse(body)
-            task.device = deviceId
-            task.timestamp = mongodb.Timestamp()
+            task = sanitizeTask(deviceId, JSON.parse(body))
 
             db.tasksCollection.save(task, (err) ->
               if err
@@ -210,7 +214,7 @@ else
           response.writeHead 405, {'Allow': 'GET'}
           response.end('405 Method Not Allowed')
       else if FILES_REGEX.test(urlParts.pathname)
-        filename = FILES_REGEX.exec(urlParts.pathname)[1]
+        filename = querystring.unescape(FILES_REGEX.exec(urlParts.pathname)[1])
         if request.method == 'PUT'
           metadata = {
             SoftwareVersion : request.headers.softwareversion,
