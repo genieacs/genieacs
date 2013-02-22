@@ -222,7 +222,7 @@ exports.response = (id, cwmpResponse, cookies = null) ->
   if cookies? and Object.keys(cookies).length > 0
     headers['Set-Cookie'] = cookiesToStr(cookies)
 
-  if cwmpResponse is null or Object.keys(cwmpResponse).length == 0
+  if not cwmpResponse? or Object.keys(cwmpResponse).length == 0
     #console.log '>>> EMPTY RESPONSE'
     # send empty response
     headers['Content-Length'] = 0

@@ -33,6 +33,10 @@ db.open( (err, db) ->
   db.collection('presets', (err, collection) ->
     exports.presetsCollection = presetsCollection = collection
   )
+
+  db.collection('fs.files', (err, collection) ->
+    exports.filesCollection = filesCollection = collection
+  )
 )
 
 

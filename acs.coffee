@@ -94,38 +94,37 @@ updateDevice = (currentRequest, actions, callback) ->
 
 
 runTask = (currentRequest, task, methodResponse) ->
-  cwmpResponse = {}
-  deviceUpdates = {}
-  status = tasks.task(task, methodResponse, cwmpResponse, deviceUpdates)
+  tasks.task(task, methodResponse, (err, status, cwmpResponse, deviceUpdates) ->
+    # TODO handle error
+    updateDevice(currentRequest, deviceUpdates)
 
-  updateDevice(currentRequest, deviceUpdates)
-
-  switch status
-    when tasks.STATUS_FINISHED
-      db.memcached.del(String(task._id))
-      db.tasksCollection.remove({'_id' : mongodb.ObjectID(String(task._id))}, {safe: true}, (err, removed) ->
-        util.log("#{currentRequest.deviceId}: Completed task #{task.name}(#{task._id})")
-        nextTask(currentRequest)
-      )
-    when tasks.STATUS_FAULT
-      util.log("#{currentRequest.deviceId}: Fault response for task #{task._id}")
-      db.saveTask(task, (err) ->
-        # Faulty task. No more work to do until task is deleted.
-        res = tr069.response(null, cwmpResponse)
-        writeResponse(currentRequest, res)
-      )
-    when tasks.STATUS_PENDING
-      db.saveTask(task, (err) ->
-        # task expects CPE confirmation later
-        nextTask(currentRequest)
-      )
-    when tasks.STATUS_STARTED
-      db.updateTask(task, (err) ->
-        res = tr069.response(task._id, cwmpResponse)
-        writeResponse(currentRequest, res)
-      )
-    else
-      throw Error('Unknown task status')
+    switch status
+      when tasks.STATUS_FINISHED
+        db.memcached.del(String(task._id))
+        db.tasksCollection.remove({'_id' : mongodb.ObjectID(String(task._id))}, {safe: true}, (err, removed) ->
+          util.log("#{currentRequest.deviceId}: Completed task #{task.name}(#{task._id})")
+          nextTask(currentRequest)
+        )
+      when tasks.STATUS_FAULT
+        util.log("#{currentRequest.deviceId}: Fault response for task #{task._id}")
+        db.saveTask(task, (err) ->
+          # Faulty task. No more work to do until task is deleted.
+          res = tr069.response(null, cwmpResponse)
+          writeResponse(currentRequest, res)
+        )
+      when tasks.STATUS_PENDING
+        db.saveTask(task, (err) ->
+          # task expects CPE confirmation later
+          nextTask(currentRequest)
+        )
+      when tasks.STATUS_STARTED
+        db.updateTask(task, (err) ->
+          res = tr069.response(task._id, cwmpResponse)
+          writeResponse(currentRequest, res)
+        )
+      else
+        throw Error('Unknown task status')
+  )
 
 
 nextTask = (currentRequest) ->

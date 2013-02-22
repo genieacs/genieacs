@@ -7,6 +7,7 @@ exports.API_PORT = 7557
 exports.API_INTERFACE = '0.0.0.0'
 exports.FILES_PORT = 7567
 exports.FILES_INTERFACE = '0.0.0.0'
+exports.FILES_IP = '172.240.21.2' # Used when sending download requests to devices
 exports.CACHE_DURATION = 60 # in seconds
 exports.PRESETS_CACHE_DURATION = 86400
 exports.PRESETS_TIME_PADDING = 1
