@@ -8,6 +8,7 @@ querystring = require 'querystring'
 
 # regular expression objects
 TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/tasks\/?$/
+TASK_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/tasks\/([a-zA-Z0-9\-\_\%]+)(\/[a-zA-Z_]*)?$/
 TAGS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/tags\/([a-zA-Z0-9\-\_\%]+)\/?$/
 PRESETS_REGEX = /^\/presets\/([a-zA-Z0-9\-\_\%]+)\/?$/
 FILES_REGEX = /^\/files\/([a-zA-Z0-9\-\_\%\ \.\/\(\)]+)\/?$/
@@ -211,8 +212,38 @@ else
             response.writeHead(400)
             response.end()
         else
-          response.writeHead 405, {'Allow': 'GET'}
+          response.writeHead 405, {'Allow': 'POST'}
           response.end('405 Method Not Allowed')
+      else if TASK_REGEX.test(urlParts.pathname)
+        r = TASK_REGEX.exec(urlParts.pathname)
+        deviceId = querystring.unescape(r[1])
+        taskId = mongodb.ObjectID(querystring.unescape(r[2]))
+        action = try querystring.unescape(r[3])
+        if not action? or action is '/'
+          if request.method == 'DELETE'
+            db.tasksCollection.remove({'_id' : taskId}, (err, removedCount) ->
+              if err
+                response.writeHead(500)
+                response.end(err)
+                return
+              response.writeHead(200)
+              response.end()
+            )
+          else
+            response.writeHead 405, {'Allow': 'PUT DELETE'}
+            response.end('405 Method Not Allowed')
+        else if action is '/retry'
+          if request.method == 'POST'
+            db.tasksCollection.update({_id : taskId}, {$unset : {fault : 1}}, (err, count) ->
+              response.writeHead(200)
+              response.end()
+            )
+          else
+            response.writeHead 405, {'Allow': 'POST'}
+            response.end('405 Method Not Allowed')
+        else
+          response.writeHead(404)
+          response.end()
       else if FILES_REGEX.test(urlParts.pathname)
         filename = querystring.unescape(FILES_REGEX.exec(urlParts.pathname)[1])
         if request.method == 'PUT'
