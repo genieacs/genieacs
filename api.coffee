@@ -7,8 +7,8 @@ mongodb = require 'mongodb'
 querystring = require 'querystring'
 
 # regular expression objects
-TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/tasks\/?$/
-TASK_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/tasks\/([a-zA-Z0-9\-\_\%]+)(\/[a-zA-Z_]*)?$/
+DEVICE_TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/tasks\/?$/
+TASKS_REGEX = /^\/tasks\/([a-zA-Z0-9\-\_\%]+)(\/[a-zA-Z_]*)?$/
 TAGS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/tags\/([a-zA-Z0-9\-\_\%]+)\/?$/
 PRESETS_REGEX = /^\/presets\/([a-zA-Z0-9\-\_\%]+)\/?$/
 FILES_REGEX = /^\/files\/([a-zA-Z0-9\-\_\%\ \.\/\(\)]+)\/?$/
@@ -159,9 +159,9 @@ else
         else
           response.writeHead 405, {'Allow': 'POST, DELETE'}
           response.end('405 Method Not Allowed')
-      else if TASKS_REGEX.test(urlParts.pathname)
+      else if DEVICE_TASKS_REGEX.test(urlParts.pathname)
         if request.method == 'POST'
-          deviceId = querystring.unescape(TASKS_REGEX.exec(urlParts.pathname)[1])
+          deviceId = querystring.unescape(DEVICE_TASKS_REGEX.exec(urlParts.pathname)[1])
           if body
             # queue given task
             task = sanitizeTask(deviceId, JSON.parse(body))
@@ -214,11 +214,10 @@ else
         else
           response.writeHead 405, {'Allow': 'POST'}
           response.end('405 Method Not Allowed')
-      else if TASK_REGEX.test(urlParts.pathname)
-        r = TASK_REGEX.exec(urlParts.pathname)
-        deviceId = querystring.unescape(r[1])
-        taskId = mongodb.ObjectID(querystring.unescape(r[2]))
-        action = try querystring.unescape(r[3])
+      else if TASKS_REGEX.test(urlParts.pathname)
+        r = TASKS_REGEX.exec(urlParts.pathname)
+        taskId = mongodb.ObjectID(querystring.unescape(r[1]))
+        action = try querystring.unescape(r[2])
         if not action? or action is '/'
           if request.method == 'DELETE'
             db.tasksCollection.remove({'_id' : taskId}, (err, removedCount) ->
