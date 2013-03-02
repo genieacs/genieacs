@@ -12,6 +12,7 @@ TASKS_REGEX = /^\/tasks\/([a-zA-Z0-9\-\_\%]+)(\/[a-zA-Z_]*)?$/
 TAGS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/tags\/([a-zA-Z0-9\-\_\%]+)\/?$/
 PRESETS_REGEX = /^\/presets\/([a-zA-Z0-9\-\_\%]+)\/?$/
 FILES_REGEX = /^\/files\/([a-zA-Z0-9\-\_\%\ \.\/\(\)]+)\/?$/
+PING_REGEX = /^\/ping\/([a-zA-Z0-9\-\_\.]+)\/?$/
 
 connectionRequest = (deviceId, callback) ->
   db.devicesCollection.findOne({_id : deviceId}, {'InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value' : 1}, (err, device)->
@@ -269,6 +270,16 @@ else
         else
           response.writeHead 405, {'Allow': 'PUT, DELETE'}
           response.end('405 Method Not Allowed')
+      else if PING_REGEX.test(urlParts.pathname)
+        host = querystring.unescape(PING_REGEX.exec(urlParts.pathname)[1])
+        require('child_process').exec("ping -w 1 -i 0.2 -c 3 #{host}", (err, stdout, stderr) ->
+          if err?
+            response.writeHead(404, {'Cache-Control' : 'no-cache'})
+            response.end()
+            return
+          response.writeHead(200, {'Content-Type' : 'text/plain', 'Cache-Control' : 'no-cache'})
+          response.end(stdout)
+        )
       else
         response.writeHead 404
         response.end('404 Not Found')
