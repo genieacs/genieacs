@@ -5,7 +5,7 @@ http = require 'http'
 https = require 'https'
 tr069 = require './tr-069'
 tasks = require './tasks'
-sanitize = require('./sanitize').sanitize
+normalize = require('./normalize').normalize
 db = require './db'
 presets = require './presets'
 mongodb = require 'mongodb'
@@ -45,18 +45,21 @@ updateDevice = (currentRequest, actions, callback) ->
 
   now = new Date(Date.now())
   updates = {}
+  deletes = {}
   if actions.inform
     updates['_last_inform'] = now
 
   if actions.parameterValues?
     for p in actions.parameterValues
-      v = sanitize(p[0], p[1])
+      origValue = p[1]
+      v = normalize(p[0], origValue)
+
       path = if common.endsWith(p[0], '.') then p[0] else "#{p[0]}."
-      if v is undefined
-        updates["#{path}_value"] = p[1]
+      if v == origValue
+        deletes["#{path}_orig"] = 1
       else
-        updates["#{path}_value"] = v
-        updates["#{path}_orig"] = p[1]
+        updates["#{path}_orig"] = origValue
+      updates["#{path}_value"] = v
       updates["#{path}_timestamp"] = now
 
   if actions.parameterNames?
@@ -68,7 +71,7 @@ updateDevice = (currentRequest, actions, callback) ->
       updates["#{path}_timestamp"] = now
 
   if Object.keys(updates).length > 0
-    db.devicesCollection.update({'_id' : currentRequest.deviceId}, {'$set' : updates}, {safe: true}, (err, count) ->
+    db.devicesCollection.update({'_id' : currentRequest.deviceId}, {'$set' : updates, '$unset' : deletes}, {safe: true}, (err, count) ->
       if (err)
         callback(err) if callback?
         return
