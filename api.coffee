@@ -5,6 +5,7 @@ url = require 'url'
 db = require './db'
 mongodb = require 'mongodb'
 querystring = require 'querystring'
+query = require './query'
 
 # regular expression objects
 DEVICE_TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/tasks\/?$/
@@ -13,6 +14,7 @@ TAGS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/tags\/([a-zA-Z0-9\-\_\%]+)\/?$/
 PRESETS_REGEX = /^\/presets\/([a-zA-Z0-9\-\_\%]+)\/?$/
 FILES_REGEX = /^\/files\/([a-zA-Z0-9\-\_\%\ \.\/\(\)]+)\/?$/
 PING_REGEX = /^\/ping\/([a-zA-Z0-9\-\_\.]+)\/?$/
+QUERY_REGEX = /^\/([a-zA-Z0-9_]+s)\/?$/
 
 connectionRequest = (deviceId, callback) ->
   db.devicesCollection.findOne({_id : deviceId}, {'InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value' : 1}, (err, device)->
@@ -280,6 +282,37 @@ else
           response.writeHead(200, {'Content-Type' : 'text/plain', 'Cache-Control' : 'no-cache'})
           response.end(stdout)
         )
+      else if QUERY_REGEX.test(urlParts.pathname)
+        collectionName = QUERY_REGEX.exec(urlParts.pathname)[1]
+        if request.method isnt 'GET'
+          response.writeHead 405, {'Allow' : 'GET'}
+          response.end('405 Method Not Allowed')
+          return
+        collection = db["#{collectionName}Collection"]
+        if not collection?
+          response.writeHead 404
+          response.end('404 Not Found')
+          return
+
+        if urlParts.query.query?
+          q = JSON.parse(querystring.unescape(urlParts.query.query))
+        else
+          q = {}
+        q = query.expand(q) if collectionName is 'devices'
+        cur = collection.find(q, {}, {batchSize : 50})
+        
+        cur.skip(parseInt(urlParts.query.skip)) if urlParts.query.skip?
+        cur.limit(parseInt(urlParts.query.limit)) if urlParts.query.limit?
+
+        response.writeHead(200, {'Content-Type' : 'application/json'})
+        response.write("[\n")
+        cur.each((err, item) ->
+          if item is null
+            response.end(']')
+          else
+            response.write(JSON.stringify(item) + ",\n")
+        )
+        return
       else
         response.writeHead 404
         response.end('404 Not Found')

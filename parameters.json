@@ -1,0 +1,21 @@
+{
+  "InternetGatewayDevice.WiMAX.Status.RSSI" : {
+    "alias" : "RSSI",
+    "type" : "float"
+  },
+  "InternetGatewayDevice.WiMAX.Status.CINR1" : {
+    "alias" : "CINR",
+    "type" : "float"
+  },
+  "InternetGatewayDevice.WiMAX.Status.CINR2" : {
+    "type" : "float"
+  },
+  "InternetGatewayDevice.X_MTK_WiMAX_Param.CINR_level" : {
+    "alias" : "CINR",
+    "type" : "float"
+  },
+  "InternetGatewayDevice.X_MTK_WiMAX_Param.RSSI_level" : {
+    "alias" : "RSSI",
+    "type" : "float"
+  }
+}

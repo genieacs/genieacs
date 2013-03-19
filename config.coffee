@@ -16,3 +16,15 @@ exports.MEMCACHED_SOCKET = '/tmp/memcached.sock'
 exports.WORKER_RESPAWN_TIME = 3000
 exports.LOG_INFORMS = false
 exports.DEBUG_DEVICES = {} # {'202BC1-BM632w-8KA8WA1151100043' : true}
+
+parameters = require './parameters'
+aliases = {}
+for k,v of parameters
+  a = v.alias
+  if a?
+    if not aliases[a]?
+      aliases[a] = []
+    aliases[a].push(k)
+
+exports.PARAMETERS = parameters
+exports.ALIASES = aliases
