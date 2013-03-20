@@ -28,7 +28,8 @@ this.init = (task, methodResponse, callback) ->
           if not common.endsWith(p[0], '.')
             parameterNames.push(p[0])
         task.subtask = {name : 'getParameterValues', parameterNames : parameterNames}
-        this.getParameterValues(task.subtask, {}, (err, status, cwmpResponse, deviceUpdates) ->
+        this.getParameterValues(task.subtask, {}, (err, status, cwmpResponse) ->
+          # ignore deviceUpdates returned by firt call to getParameterValues
           callback(err, status, cwmpResponse, deviceUpdates)
         )
       else if status is STATUS_STARTED
