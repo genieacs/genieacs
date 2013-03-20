@@ -28,6 +28,12 @@ applyConfigurations = (currentRequest, taskList) ->
 
 
 writeResponse = (currentRequest, res) ->
+  if res.headers['Content-Length'] == 0
+    # no more requests. terminate TCP connection
+    res.headers['Connection'] = 'close' if currentRequest.httpRequest.httpVersion == '1.1'
+  else
+    res.headers['Connection'] = 'Keep-Alive' if currentRequest.httpRequest.httpVersion == '1.0'
+    
   if config.DEBUG_DEVICES[currentRequest.deviceId]
     dump = "# RESPONSE #{new Date(Date.now())}\n" + JSON.stringify(res.headers) + "\n#{res.data}\n\n"
     fs = require('fs').appendFile("debug/#{currentRequest.deviceId}.dump", dump, (err) ->
