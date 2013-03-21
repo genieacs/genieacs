@@ -136,6 +136,12 @@ runTask = (currentRequest, task, methodResponse) ->
   )
 
 
+isTaskExpired = (task) ->
+  now = Date.now()
+  if task.expires and (now - task.timestamp.getTime()) > config.DEVICE_ONLINE_THRESHOLD
+    return true
+  return false
+
 nextTask = (currentRequest) ->
   cur = db.tasksCollection.find({'device' : currentRequest.deviceId}).sort(['timestamp']).limit(1)
   cur.nextObject( (err, task) ->
@@ -171,6 +177,10 @@ nextTask = (currentRequest) ->
       # last task was faulty. Do nothing until until task is deleted
       res = tr069.response(null, cwmpResponse)
       writeResponse(currentRequest, res)
+    else if isTaskExpired(task)
+      db.tasksCollection.remove({'_id' : mongodb.ObjectID(String(task._id))}, {safe: true}, (err, removed) ->
+        nextTask(currentRequest)
+      )
     else
       util.log("#{currentRequest.deviceId}: Started task #{task.name}(#{task._id})")
       runTask(currentRequest, task, {})

@@ -24,11 +24,8 @@ connectionRequest = (deviceId, callback) ->
     connectionRequestUrl = device.InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value
     # for testing
     #connectionRequestUrl = connectionRequestUrl.replace(/^(http:\/\/)([0-9\.]+)(\:[0-9]+\/[a-zA-Z0-9]+\/?$)/, '$1192.168.1.1$3')
-    request = http.request(connectionRequestUrl, (res) ->
-      res.setEncoding('utf8')
-      res.on('end', () ->
-        callback()
-      )
+    request = http.get(connectionRequestUrl, (res) ->
+      callback()
     )
 
     request.on('error', (err) ->
@@ -43,7 +40,6 @@ connectionRequest = (deviceId, callback) ->
         request.abort()
       )
     )
-    request.end()
   )
 
 watchTask = (taskId, timeout, callback) ->
@@ -63,7 +59,7 @@ watchTask = (taskId, timeout, callback) ->
 
 sanitizeTask = (device, task) ->
   task.device = device
-  task.timestamp = mongodb.Timestamp()
+  task.timestamp = new Date()
   return task
 
 cluster = require 'cluster'
@@ -169,26 +165,15 @@ else
             # queue given task
             task = sanitizeTask(deviceId, JSON.parse(body))
 
+            if task.uniqueKey?
+              db.tasksCollection.remove({device : deviceId, uniqueKey : task.uniqueKey}, (err, removed) ->
+              )
+
             db.tasksCollection.save(task, (err) ->
               if err
                 response.writeHead(500)
                 response.end(err)
                 return
-
-              watch = () ->
-                if urlParts.query.timeout?
-                  timeout = parseInt(urlParts.query.timeout)
-                  watchTask(task._id, timeout, (err) ->
-                    if err
-                      response.writeHead(202)
-                      response.end()
-                      return
-                    response.writeHead(200)
-                    response.end()
-                  )
-                else
-                  response.writeHead(202)
-                  response.end()
 
               if urlParts.query.connection_request?
                 connectionRequest(deviceId, (err) ->
@@ -196,10 +181,18 @@ else
                     response.writeHead(202)
                     response.end()
                   else
-                    watch()
+                    watchTask(task._id, config.DEVICE_ONLINE_THRESHOLD, (err) ->
+                      if err
+                        response.writeHead(202)
+                        response.end()
+                        return
+                      response.writeHead(200)
+                      response.end()
+                    )
                 )
               else
-                watch()
+                response.writeHead(202)
+                response.end()
             )
           else if urlParts.query.connection_request?
             # no task, send connection request only
@@ -236,7 +229,7 @@ else
             response.end('405 Method Not Allowed')
         else if action is '/retry'
           if request.method == 'POST'
-            db.tasksCollection.update({_id : taskId}, {$unset : {fault : 1}, $inc : {retries : 1}}, (err, count) ->
+            db.tasksCollection.update({_id : taskId}, {$unset : {fault : 1}, $inc : {retries : 1}, timestamp : new Date()}, (err, count) ->
               response.writeHead(200)
               response.end()
             )
