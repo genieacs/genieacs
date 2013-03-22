@@ -2,6 +2,7 @@ config = require './config'
 util = require 'util'
 http = require 'http'
 url = require 'url'
+common = require './common'
 db = require './db'
 mongodb = require 'mongodb'
 querystring = require 'querystring'
@@ -292,7 +293,18 @@ else
         else
           q = {}
         q = query.expand(q) if collectionName is 'devices'
-        cur = collection.find(q, {}, {batchSize : 50})
+
+        if urlParts.query.projection?
+          projection = {}
+          for p in urlParts.query.projection.split(',')
+            p = p.trim()
+            projection[p] = 1
+            if collectionName is 'devices'
+              for k,v of config.ALIASES
+                if k == p or common.startsWith(k, "#{p}.")
+                  projection[a] = 1 for a in v
+
+        cur = collection.find(q, projection, {batchSize : 50})
         
         cur.skip(parseInt(urlParts.query.skip)) if urlParts.query.skip?
         cur.limit(parseInt(urlParts.query.limit)) if urlParts.query.limit?

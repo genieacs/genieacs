@@ -15,6 +15,10 @@ exports.endsWith = (str, suffix) ->
   str.indexOf(suffix, str.length - suffix.length) isnt -1
 
 
+exports.startsWith = (str, prefix) ->
+  str.substring(0, prefix.length) == prefix
+
+
 exports.arrayToHash = (arr) ->
   hash = {}
   for i in arr
