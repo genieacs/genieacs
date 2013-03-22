@@ -1,21 +1,29 @@
 {
-  "InternetGatewayDevice.WiMAX.Status.RSSI" : {
-    "alias" : "RSSI",
-    "type" : "float"
-  },
-  "InternetGatewayDevice.WiMAX.Status.CINR1" : {
-    "alias" : "CINR",
-    "type" : "float"
-  },
-  "InternetGatewayDevice.WiMAX.Status.CINR2" : {
-    "type" : "float"
-  },
-  "InternetGatewayDevice.X_MTK_WiMAX_Param.CINR_level" : {
-    "alias" : "CINR",
-    "type" : "float"
-  },
-  "InternetGatewayDevice.X_MTK_WiMAX_Param.RSSI_level" : {
-    "alias" : "RSSI",
-    "type" : "float"
-  }
+  "_last_inform" : {"alias" : "summary.lastInform", "type" : "date"},
+  "InternetGatewayDevice.DeviceInfo.SerialNumber" : {"alias" : "summary.serialNumber"},
+  "InternetGatewayDevice.DeviceInfo.Manufacturer" : {"alias" : "summary.manufacturer"},
+  "InternetGatewayDevice.DeviceInfo.ProductClass" : {"alias" : "summary.productClass"},
+  "InternetGatewayDevice.DeviceInfo.ManufacturerOUI" : {"alias" : "summary.oui"},
+  "InternetGatewayDevice.DeviceInfo.HardwareVersion" : {"alias" : "summary.hardwareVersion"},
+  "InternetGatewayDevice.DeviceInfo.SoftwareVersion" : {"alias" : "summary.softwareVersion"},
+  "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.MACAddress" : {"alias" : "summary.mac", "type" : "mac"},
+  "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.ExternalIPAddress" : {"alias" : "summary.ip", "type" : "ip"},
+
+  "InternetGatewayDevice.WiMAX.Status.BSID" : {"alias" : "summary.bsid", "type" : "mac"},
+  "InternetGatewayDevice.X_CommunicationsInc_WiMAX_device_metrics.ServingBSID" : {"alias" : "summary.bsid", "type" : "mac"},
+  "InternetGatewayDevice.WANDevice.1.WiMAXInterfaceConfig.RadioModule.ServBSID" : {"alias" : "summary.bsid", "type" : "mac"},
+
+  "InternetGatewayDevice.WiMAX.Status.RSSI" : {"alias" : "summary.rssi", "type" : "float"},
+  "InternetGatewayDevice.X_MTK_WiMAX_Param.RSSI_level" : {"alias" : "summary.rssi", "type" : "float"},
+  "InternetGatewayDevice.X_CommunicationsInc_WiMAX_device_metrics.Statistics.DownlinkMeanRSSI" : {"alias" : "summary.rssi", "type" : "float"},
+
+  "InternetGatewayDevice.WiMAX.Status.CINR1" : {"alias" : "summary.cinr", "type" : "float"},
+  "InternetGatewayDevice.X_MTK_WiMAX_Param.CINR_level" : {"alias" : "summary.cinr", "type" : "float"},
+  "InternetGatewayDevice.X_CommunicationsInc_WiMAX_device_metrics.Statistics.DownlinkMeanCINR" : {"alias" : "summary.cinr", "type" : "float"},
+
+  "InternetGatewayDevice.WiMAX.Status.DLFEC" : {"alias" : "summary.downlinkModulation"},
+  "InternetGatewayDevice.X_CommunicationsInc_WiMAX_device_metrics.Statistics.PHYDLmcs" : {"alias" : "summary.downlinkModulation"},
+
+  "InternetGatewayDevice.WiMAX.Status.ULFEC" : {"alias" : "summary.uplinkModulation"},
+  "InternetGatewayDevice.X_CommunicationsInc_WiMAX_device_metrics.Statistics.PHYULmcs" : {"alias" : "summary.uplinkModulation"}
 }
