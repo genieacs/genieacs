@@ -63,6 +63,21 @@ sanitizeTask = (device, task) ->
   task.timestamp = new Date()
   return task
 
+
+addAliases = (device) ->
+  for k,v of config.ALIASES
+    for p in v
+      pp = p.split('.')
+      obj = device
+      for i in pp
+        if not obj[i]?
+          obj = null
+          break
+        obj = obj[i]
+
+      device[k] = obj if obj?
+
+
 cluster = require 'cluster'
 numCPUs = require('os').cpus().length
 
@@ -315,6 +330,7 @@ else
           if item is null
             response.end(']')
           else
+            addAliases(item) if collectionName is 'devices'
             response.write(JSON.stringify(item) + ",\n")
         )
         return
