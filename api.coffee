@@ -323,17 +323,19 @@ else
         
         cur.skip(parseInt(urlParts.query.skip)) if urlParts.query.skip?
         cur.limit(parseInt(urlParts.query.limit)) if urlParts.query.limit?
-
-        response.writeHead(200, {'Content-Type' : 'application/json'})
-        response.write("[\n")
-        cur.each((err, item) ->
-          if item is null
-            response.end(']')
-          else
-            addAliases(item) if collectionName is 'devices'
-            response.write(JSON.stringify(item) + ",\n")
+        cur.count((err, total) ->
+          response.writeHead(200, {'Content-Type' : 'application/json', 'total' : total})
+          response.write("[\n")
+          i = 0
+          cur.each((err, item) ->
+            if item is null
+              response.end("\n]")
+            else
+              response.write(",\n") if i++
+              addAliases(item) if collectionName is 'devices'
+              response.write(JSON.stringify(item))
+          )
         )
-        return
       else
         response.writeHead 404
         response.end('404 Not Found')
