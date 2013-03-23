@@ -45,7 +45,7 @@ normalizers.string = (input, normType) ->
 
 
 exports.normalize = (path, value, normType) ->
-  if path of config.PARAMETERS
+  if path of config.PARAMETERS and config.PARAMETERS[path].type?
     return normalizers[config.PARAMETERS[path].type](value)
   else
     return normalizers['default'](value, normType)
