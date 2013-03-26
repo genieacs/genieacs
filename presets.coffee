@@ -3,6 +3,7 @@ common = require './common'
 db = require './db'
 mongoQuery = require './mongo-query'
 mongodb = require 'mongodb'
+query = require './query'
 
 
 getPresets = (callback) ->
@@ -45,6 +46,7 @@ exports.assertPresets = (deviceId, presetsHash, callback) ->
     # only fetch relevant params
     projection = {}
     for p in presets
+      p.precondition = query.expand(p.precondition)
       mongoQuery.projection(p.precondition, projection)
 
       for c in p.configurations
