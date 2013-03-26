@@ -58,10 +58,36 @@ watchTask = (taskId, timeout, callback) ->
   , 500)
 
 
-sanitizeTask = (device, task) ->
-  task.device = device
+expandParam = (param) ->
+  params = [param]
+  for a,aa of config.ALIASES
+    if a == param or common.startsWith(a, "#{param}.")
+      for p in aa
+        params.push(p) if p[p.lastIndexOf('.') + 1] != '_'
+
+  return params
+
+
+sanitizeTask = (deviceId, task, callback) ->
+  task.device = deviceId
   task.timestamp = new Date()
-  return task
+  switch task.name
+    when 'getParameterValues'
+      projection = {}
+      for p in task.parameterNames
+        for pp in expandParam(p)
+          projection[pp] = 1
+      db.devicesCollection.findOne({_id : deviceId}, projection, (err, device) ->
+        parameterNames = []
+        for k of projection
+          if common.getParamValueFromPath(device, k)?
+            parameterNames.push(k)
+        task.parameterNames = parameterNames
+        callback(task)
+      )
+    else
+      # TODO implement setParameterValues
+      callback(task)
 
 
 addAliases = (device) ->
@@ -179,36 +205,35 @@ else
           deviceId = querystring.unescape(DEVICE_TASKS_REGEX.exec(urlParts.pathname)[1])
           if body
             # queue given task
-            task = sanitizeTask(deviceId, JSON.parse(body))
-
-            if task.uniqueKey?
-              db.tasksCollection.remove({device : deviceId, uniqueKey : task.uniqueKey}, (err, removed) ->
-              )
-
-            db.tasksCollection.save(task, (err) ->
-              if err
-                response.writeHead(500)
-                response.end(err)
-                return
-
-              if urlParts.query.connection_request?
-                connectionRequest(deviceId, (err) ->
-                  if err
-                    response.writeHead(202)
-                    response.end()
-                  else
-                    watchTask(task._id, config.DEVICE_ONLINE_THRESHOLD, (err) ->
-                      if err
-                        response.writeHead(202)
-                        response.end()
-                        return
-                      response.writeHead(200)
-                      response.end()
-                    )
+            sanitizeTask(deviceId, JSON.parse(body), (task) ->
+              if task.uniqueKey?
+                db.tasksCollection.remove({device : deviceId, uniqueKey : task.uniqueKey}, (err, removed) ->
                 )
-              else
-                response.writeHead(202)
-                response.end()
+              db.tasksCollection.save(task, (err) ->
+                if err
+                  response.writeHead(500)
+                  response.end(err)
+                  return
+
+                if urlParts.query.connection_request?
+                  connectionRequest(deviceId, (err) ->
+                    if err
+                      response.writeHead(202)
+                      response.end()
+                    else
+                      watchTask(task._id, config.DEVICE_ONLINE_THRESHOLD, (err) ->
+                        if err
+                          response.writeHead(202)
+                          response.end()
+                          return
+                        response.writeHead(200)
+                        response.end()
+                      )
+                  )
+                else
+                  response.writeHead(202)
+                  response.end()
+              )
             )
           else if urlParts.query.connection_request?
             # no task, send connection request only
