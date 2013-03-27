@@ -128,6 +128,18 @@ this.reboot = (task, methodResponse, callback) ->
     callback(null, STATUS_FINISHED)
 
 
+this.factoryReset = (task, methodResponse, callback) ->
+  if methodResponse.faultcode?
+    task.fault = methodResponse
+    callback(null, STATUS_FAULT)
+    return
+
+  if methodResponse.type isnt 'FactoryResetResponse'
+    callback(null, STATUS_STARTED, {methodRequest : {type : 'FactoryReset'}})
+  else
+    callback(null, STATUS_FINISHED)
+
+
 this.download = (task, methodResponse, callback) ->
   if methodResponse.faultcode?
     task.fault = methodResponse

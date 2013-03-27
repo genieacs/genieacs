@@ -133,6 +133,15 @@ cpeRebootResponse = (xml) ->
   {}
 
 
+cpeFactoryReset = (xml, methodRequest) ->
+  el = xml.node('cwmp:FactoryReset')
+  el.node('CommandKey').text(if methodRequest.commandKey then methodRequest.commandKey else '')
+
+
+cpeFactoryResetResponse = (xml, methodRequest) ->
+  {}
+
+
 cpeDownload = (xml, methodRequest) ->
   el = xml.node('cwmp:Download')
   el.node('CommandKey').text(methodRequest.commandKey or '')
@@ -200,6 +209,9 @@ exports.request = (httpRequest) ->
         when 'RebootResponse'
           cwmpRequest.methodResponse = cpeRebootResponse(methodElement)
           cwmpRequest.methodResponse.type = 'RebootResponse'
+        when 'FactoryResetResponse'
+          cwmpRequest.methodResponse = cpeFactoryResetResponse(methodElement)
+          cwmpRequest.methodResponse.type = 'FactoryResetResponse'
         when 'DownloadResponse'
           cwmpRequest.methodResponse = cpeDownloadResponse(methodElement)
           cwmpRequest.methodResponse.type = 'DownloadResponse'
@@ -255,6 +267,8 @@ exports.response = (id, cwmpResponse, cookies = null) ->
         cpeSetParameterValues(body, cwmpResponse.methodRequest)
       when 'Reboot'
         cpeReboot(body, cwmpResponse.methodRequest)
+      when 'FactoryReset'
+        cpeFactoryReset(body, cwmpResponse.methodRequest)
       when 'Download'
         cpeDownload(body, cwmpResponse.methodRequest)
       else
