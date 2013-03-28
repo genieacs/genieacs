@@ -6,12 +6,12 @@
   "InternetGatewayDevice.DeviceInfo.ManufacturerOUI" : {"alias" : "summary.oui"},
   "InternetGatewayDevice.DeviceInfo.HardwareVersion" : {"alias" : "summary.hardwareVersion"},
   "InternetGatewayDevice.DeviceInfo.SoftwareVersion" : {"alias" : "summary.softwareVersion"},
-  "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.MACAddress" : {"alias" : "summary.mac"},
+  "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.MACAddress" : {"alias" : "summary.mac", "type" : "mac"},
   "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.ExternalIPAddress" : {"alias" : "summary.ip"},
 
-  "InternetGatewayDevice.WiMAX.Status.BSID" : {"alias" : "summary.bsid"},
-  "InternetGatewayDevice.X_CommunicationsInc_WiMAX_device_metrics.ServingBSID" : {"alias" : "summary.bsid"},
-  "InternetGatewayDevice.WANDevice.1.WiMAXInterfaceConfig.RadioModule.ServBSID" : {"alias" : "summary.bsid"},
+  "InternetGatewayDevice.WiMAX.Status.BSID" : {"alias" : "summary.bsid", "type" : "mac"},
+  "InternetGatewayDevice.X_CommunicationsInc_WiMAX_device_metrics.ServingBSID" : {"alias" : "summary.bsid", "type" : "mac"},
+  "InternetGatewayDevice.WANDevice.1.WiMAXInterfaceConfig.RadioModule.ServBSID" : {"alias" : "summary.bsid", "type" : "mac"},
 
   "InternetGatewayDevice.WiMAX.Status.RSSI" : {"alias" : "summary.rssi", "type" : "float"},
   "InternetGatewayDevice.X_MTK_WiMAX_Param.RSSI_level" : {"alias" : "summary.rssi", "type" : "float"},
