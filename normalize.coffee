@@ -71,15 +71,37 @@ normalizers.string = (input, normType) ->
   input
 
 
+colonizeMac = (input) ->
+  if (i = input.indexOf(':')) != -1
+    i = if (i % 2) == 0 then 0 else 1
+    while i < input.length
+      if input[i-1] != ':' and input[i-2] != ':'
+        if input[i] != ':' and i != 0
+          input = input.substring(0, i) + ':' + input.substring(i)
+          ++i
+        ++i
+      ++ i
+    return input
+  else
+    return input.replace(/[0-9A-F]{1}(?!$)/g, '$&:?')
+
+
 normalizers.mac = (input, normType) ->
   if normType isnt 'query'
     return input
 
-  input = input.toUpperCase().replace(/[^0-9A-F]/g, '')
-  if input.length == 12
-    return input.substring(2).replace(/[0-9A-F]{2}(?!$)/g, '$&:')
+  input = input.trim().toUpperCase().replace(/[^0-9A-F\*\-\:]/g, '').replace(/[\-\:]/g, ':')
 
-  return {'$regex' : eval('/' + input.replace(/[0-9A-F]{1}(?!$)/g, '$&:?') + '/')}
+  if input.indexOf('*') != -1
+    input = (colonizeMac(a) for a in input.split('*')).join('*')
+    return stringToRegexp(input, false)
+
+  input = colonizeMac(input)
+
+  if input.length == 17
+    return input
+
+  return {'$regex' : eval('/' + input + '/')}
 
 
 exports.normalize = (path, value, normType) ->

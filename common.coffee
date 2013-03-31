@@ -5,6 +5,7 @@ NUMBER_TYPE = '[object Number]'
 STRING_TYPE = '[object String]'
 ARRAY_TYPE = '[object Array]'
 OBJECT_TYPE = '[object Object]'
+REGEXP_TYPE = '[object RegExp]'
 
 
 typeOf = (obj) ->
