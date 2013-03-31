@@ -28,17 +28,15 @@ else
   server = http.createServer((request, response) ->
     urlParts = url.parse(request.url, true)
     if request.method == 'GET'
-      request.addListener('end', () ->
-        gs = new mongodb.GridStore(db, urlParts.pathname.substring(1), 'r', {})
-        gs.open((err, gs) ->
-          if err
-            response.writeHead(404)
-            response.end()
-            return
-          stream = gs.stream(true)
-          response.writeHead(200)
-          stream.pipe(response)
-        )
+      gs = new mongodb.GridStore(db, urlParts.pathname.substring(1), 'r', {})
+      gs.open((err, gs) ->
+        if err
+          response.writeHead(404)
+          response.end()
+          return
+        stream = gs.stream(true)
+        response.writeHead(200)
+        stream.pipe(response)
       )
     else
       response.writeHead(405, {'Allow': 'GET'})
