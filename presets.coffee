@@ -71,15 +71,16 @@ exports.assertPresets = (deviceId, presetsHash, callback) ->
       getParameterValues = []
       setParameterValues = []
       for c in configurations
+        param = common.getParamValueFromPath(device, c.name)
+        continue if not param? # ignore parameters that don't exist
+
         switch c.type
           when 'value'
-            src = common.getParamValueFromPath(device, "#{c.name}._value")
-            if src isnt undefined # ignore parameters that don't exist
-              dst = common.matchType(src, c.value)
-              if src != dst
-                setParameterValues.push([c.name, dst])
+            dst = common.matchType(param._value, c.value)
+            if param._value != dst
+              setParameterValues.push([c.name, dst, param._type])
           when 'age'
-            timeDiff = (now - common.getParamValueFromPath(device, "#{c.name}._timestamp")) / 1000
+            timeDiff = (now - param._timestamp) / 1000
             if (c.age - timeDiff < config.PRESETS_TIME_PADDING)
               expiry = Math.min(expiry, c.age)
               getParameterValues.push(c.name)

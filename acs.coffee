@@ -67,6 +67,10 @@ updateDevice = (currentRequest, actions, callback) ->
         updates["#{path}_orig"] = origValue
       updates["#{path}_value"] = v
       updates["#{path}_timestamp"] = now
+      if p[2]?
+        updates["#{path}_type"] = p[2]
+      else
+        deletes["#{path}_type"] = 1
 
   if actions.parameterNames?
     for p in actions.parameterNames
@@ -144,7 +148,7 @@ isTaskExpired = (task) ->
 
 nextTask = (currentRequest) ->
   cur = db.tasksCollection.find({'device' : currentRequest.deviceId}).sort(['timestamp']).limit(1)
-  cur.nextObject( (err, task) ->
+  cur.nextObject((err, task) ->
     cwmpResponse = {}
 
     if not task

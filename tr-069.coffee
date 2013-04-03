@@ -56,7 +56,7 @@ parameterValueList = (xml) ->
           value = JSON.parse(value)
     catch err
       value = null
-    valueList.push([name, value])
+    valueList.push([name, value, valueType])
   return valueList
 
 
@@ -86,7 +86,9 @@ cpeSetParameterValues = (xml, methodRequest) ->
   for i in methodRequest.parameterList
     pvs = paramList.node('ParameterValueStruct')
     pvs.node('Name').text(i[0])
-    pvs.node('Value').text(i[1])
+    v = pvs.node('Value')
+    v.text(i[1])
+    v.attr({'xsi:type' : i[2]}) if i[2]?
   # Huawei CPEs need this element present otherwise won't respond
   el.node('ParameterKey').text(if methodRequest.parameterKey? then methodRequest.parameterKey else '')
 

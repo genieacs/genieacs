@@ -85,6 +85,22 @@ sanitizeTask = (deviceId, task, callback) ->
         task.parameterNames = parameterNames
         callback(task)
       )
+    when 'setParameterValues'
+      projection = {}
+      values = {}
+      for p in task.parameterValues
+        for pp in expandParam(p[0])
+          projection[pp] = 1
+          values[pp] = p[1]
+      db.devicesCollection.findOne({_id : deviceId}, projection, (err, device) ->
+        parameterValues = []
+        for k of projection
+          param = common.getParamValueFromPath(device, k)
+          if param?
+            parameterValues.push([k, values[k], param._type])
+        task.parameterValues = parameterValues
+        callback(task)
+      )
     else
       # TODO implement setParameterValues
       callback(task)
