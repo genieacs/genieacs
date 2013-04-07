@@ -361,6 +361,15 @@ else
                   projection[a] = 1 for a in v
 
         cur = collection.find(q, projection, {batchSize : 50})
+        if urlParts.query.sort?
+          s = JSON.parse(querystring.unescape(urlParts.query.sort))
+          sort = {}
+          for k,v of s
+            if config.ALIASES[k]?
+              sort[a] = v for a in config.ALIASES[k]
+            else
+              sort[k] = v
+          cur.sort(sort)
         
         cur.skip(parseInt(urlParts.query.skip)) if urlParts.query.skip?
         cur.limit(parseInt(urlParts.query.limit)) if urlParts.query.limit?
