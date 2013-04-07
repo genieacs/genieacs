@@ -25,5 +25,8 @@
   "InternetGatewayDevice.X_CommunicationsInc_WiMAX_device_metrics.Statistics.PHYDLmcs" : {"alias" : "summary.downlinkModulation"},
 
   "InternetGatewayDevice.WiMAX.Status.ULFEC" : {"alias" : "summary.uplinkModulation"},
-  "InternetGatewayDevice.X_CommunicationsInc_WiMAX_device_metrics.Statistics.PHYULmcs" : {"alias" : "summary.uplinkModulation"}
+  "InternetGatewayDevice.X_CommunicationsInc_WiMAX_device_metrics.Statistics.PHYULmcs" : {"alias" : "summary.uplinkModulation"},
+
+  "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID" : {"alias" : "summary.wlanSsid"},
+  "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.PreSharedKey.1.PreSharedKey" : {"alias" : "summary.wlanPsk"}
 }
