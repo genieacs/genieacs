@@ -33,7 +33,7 @@ writeResponse = (currentRequest, res) ->
     res.headers['Connection'] = 'close' if currentRequest.httpRequest.httpVersion == '1.1'
   else
     res.headers['Connection'] = 'Keep-Alive' if currentRequest.httpRequest.httpVersion == '1.0'
-    
+
   if config.DEBUG_DEVICES[currentRequest.deviceId]
     dump = "# RESPONSE #{new Date(Date.now())}\n" + JSON.stringify(res.headers) + "\n#{res.data}\n\n"
     fs = require('fs').appendFile("debug/#{currentRequest.deviceId}.dump", dump, (err) ->
@@ -52,8 +52,10 @@ updateDevice = (currentRequest, actions, callback) ->
   now = new Date(Date.now())
   updates = {}
   deletes = {}
-  if actions.inform
+  if actions.inform?
     updates['_last_inform'] = now
+    updates['_lastBoot'] = now if '1 BOOT' in actions.inform
+    updates['_lastBootstrap'] = now if '0 BOOTSTRAP' in actions.inform
 
   if actions.parameterValues?
     for p in actions.parameterValues
@@ -146,6 +148,7 @@ isTaskExpired = (task) ->
     return true
   return false
 
+
 nextTask = (currentRequest) ->
   cur = db.tasksCollection.find({'device' : currentRequest.deviceId}).sort(['timestamp']).limit(1)
   cur.nextObject((err, task) ->
@@ -189,6 +192,7 @@ nextTask = (currentRequest) ->
       util.log("#{currentRequest.deviceId}: Started task #{task.name}(#{task._id})")
       runTask(currentRequest, task, {})
   )
+
 
 listener = (httpRequest, httpResponse) ->
   if httpRequest.method != 'POST'
@@ -244,7 +248,7 @@ listener = (httpRequest, httpResponse) ->
         if config.LOG_INFORMS
           util.log("#{currentRequest.deviceId}: Inform (#{cwmpRequest.methodRequest.event}); retry count #{cwmpRequest.methodRequest.retryCount}")
 
-        updateDevice(currentRequest, {'inform' : true, 'parameterValues' : cwmpRequest.methodRequest.parameterList}, (err) ->
+        updateDevice(currentRequest, {'inform' : cwmpRequest.methodRequest.event, 'parameterValues' : cwmpRequest.methodRequest.parameterList}, (err) ->
           res = tr069.response(cwmpRequest.id, cwmpResponse, cookies)
           writeResponse(currentRequest, res)
         )
