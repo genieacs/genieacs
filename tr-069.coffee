@@ -97,6 +97,29 @@ cpeSetParameterValuesResponse = (xml) ->
   {status : JSON.parse(xml.get('Status').text())}
 
 
+cpeAddObject = (xml, methodRequest) ->
+  el = xml.node('cwmp:AddObject')
+  el.node('ObjectName').text(methodRequest.objectName)
+  el.node('ParameterKey').text(if methodRequest.parameterKey? then methodRequest.parameterKey else '')
+
+
+cpeAddObjectResponse = (xml) ->
+  {
+    instanceNumber : parseInt(xml.get('InstanceNumber').text()),
+    status : parseInt(xml.get('Status').text())
+  }
+
+
+cpeDeleteObject = (xml, methodRequest) ->
+  el = xml.node('cwmp:DeleteObject')
+  el.node('ObjectName').text(methodRequest.objectName)
+  el.node('ParameterKey').text(if methodRequest.parameterKey? then methodRequest.parameterKey else '')
+
+
+cpeDeleteObjectResponse = (xml) ->
+  {status : parseInt(xml.get('Status').text())}
+
+
 traverseXml = (xml) ->
   obj = {}
   for n in xml.childNodes()
@@ -208,6 +231,12 @@ exports.request = (httpRequest) ->
         when 'SetParameterValuesResponse'
           cwmpRequest.methodResponse = cpeSetParameterValuesResponse(methodElement)
           cwmpRequest.methodResponse.type = 'SetParameterValuesResponse'
+        when 'AddObjectResponse'
+          cwmpRequest.methodResponse = cpeAddObjectResponse(methodElement)
+          cwmpRequest.methodResponse.type = 'AddObjectResponse'
+        when 'DeleteObjectResponse'
+          cwmpRequest.methodResponse = cpeDeleteObjectResponse(methodElement)
+          cwmpRequest.methodResponse.type = 'DeleteObjectResponse'
         when 'RebootResponse'
           cwmpRequest.methodResponse = cpeRebootResponse(methodElement)
           cwmpRequest.methodResponse.type = 'RebootResponse'
@@ -267,6 +296,10 @@ exports.response = (id, cwmpResponse, cookies = null) ->
         cpeGetParameterValues(body, cwmpResponse.methodRequest)
       when 'SetParameterValues'
         cpeSetParameterValues(body, cwmpResponse.methodRequest)
+      when 'AddObject'
+        cpeAddObject(body, cwmpResponse.methodRequest)
+      when 'DeleteObject'
+        cpeDeleteObject(body, cwmpResponse.methodRequest)
       when 'Reboot'
         cpeReboot(body, cwmpResponse.methodRequest)
       when 'FactoryReset'

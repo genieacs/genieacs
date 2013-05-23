@@ -116,6 +116,84 @@ this.setParameterValues = (task, methodResponse, callback) ->
     callback(null, STATUS_STARTED, {methodRequest : {type : 'SetParameterValues', parameterList : values}}, deviceUpdates)
 
 
+this.addObject = (task, methodResponse, callback) ->
+  if methodResponse.faultcode?
+    task.fault = methodResponse
+    callback(null, STATUS_FAULT)
+    return
+
+  if not task.instanceNumber?
+    if methodResponse.type is 'AddObjectResponse'
+      task.instanceNumber = methodResponse.instanceNumber
+      task.subtask = {name : 'getParameterNames', parameterPath : "#{task.objectName}#{task.instanceNumber}.", nextLevel : false}
+      task.appliedParameterValues = []
+      task.parameterNames = []
+    else
+      callback(null, STATUS_STARTED, {methodRequest : {type : 'AddObject', objectName : task.objectName}})
+      return
+
+  allDeviceUpdates = {}
+
+  if task.subtask.name is 'getParameterNames'
+    this.getParameterNames(task.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) =>
+      common.extend(allDeviceUpdates, deviceUpdates)
+      if deviceUpdates and deviceUpdates.parameterNames
+        for p in deviceUpdates.parameterNames
+          task.parameterNames.push(p[0]) if not common.endsWith(p[0], '.')
+
+      if status is STATUS_FINISHED
+        task.subtask = {name : 'getParameterValues', parameterNames : task.parameterNames}
+      else if status is STATUS_STARTED
+        callback(err, STATUS_STARTED, cwmpResponse, allDeviceUpdates)
+      else
+        throw Error('Unexpected subtask status')
+    )
+
+  if task.subtask.name is 'getParameterValues'
+    this.getParameterValues(task.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) =>
+      common.extend(allDeviceUpdates, deviceUpdates)
+      if deviceUpdates and deviceUpdates.parameterValues
+        for p1 in deviceUpdates.parameterValues
+          for p2 in task.parameterValues
+            if common.endsWith(p1[0], ".#{p2[0]}")
+              t = if p2[2] then p2[2] else p1[2]
+              v = common.matchType(p1[1], p2[1])
+              # TODO only include if writable
+              task.appliedParameterValues.push([p1[0], v, t])
+
+      if methodResponse.faultcode?
+        # Ignore GetParameterValues errors. A workaround for the crappy Seewon devices.
+        methodResponse = {parameterList : {}}
+      if status is STATUS_FINISHED and task.appliedParameterValues.length > 0
+        task.subtask = {name : 'setParameterValues', parameterValues : task.appliedParameterValues}
+      else
+        callback(err, status, cwmpResponse, allDeviceUpdates)
+    )
+
+  if task.subtask.name is 'setParameterValues'
+    this.setParameterValues(task.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) =>
+      common.extend(allDeviceUpdates, deviceUpdates)
+      callback(err, status, cwmpResponse, allDeviceUpdates)
+    )
+
+
+this.deleteObject = (task, methodResponse, callback) ->
+  if methodResponse.faultcode?
+    task.fault = methodResponse
+    callback(null, STATUS_FAULT)
+    return
+
+  if methodResponse.type is 'DeleteObjectResponse'
+    # trim the last dot (.)
+    callback(null, STATUS_FINISHED, null, {deletedObjects : [task.objectName.slice(0, -1)]})
+  else
+    methodRequest = {
+      type : 'DeleteObject',
+      objectName : task.objectName
+    }
+    callback(null, STATUS_STARTED, {methodRequest : methodRequest})
+
+
 this.reboot = (task, methodResponse, callback) ->
   if methodResponse.faultcode?
     task.fault = methodResponse

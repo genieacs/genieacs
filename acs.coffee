@@ -74,6 +74,10 @@ updateDevice = (currentRequest, actions, callback) ->
       else
         deletes["#{path}_type"] = 1
 
+  if actions.deletedObjects?
+    for p in actions.deletedObjects
+      deletes[p] = 1
+
   if actions.parameterNames?
     for p in actions.parameterNames
       path = if common.endsWith(p[0], '.') then p[0] else "#{p[0]}."
@@ -82,7 +86,7 @@ updateDevice = (currentRequest, actions, callback) ->
       updates["#{path}_writable"] = p[1]
       updates["#{path}_timestamp"] = now
 
-  if Object.keys(updates).length > 0
+  if Object.keys(updates).length > 0 or Object.keys(deletes).length > 0
     db.devicesCollection.update({'_id' : currentRequest.deviceId}, {'$set' : updates, '$unset' : deletes}, {safe: true}, (err, count) ->
       if (err)
         callback(err) if callback?
