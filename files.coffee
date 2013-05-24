@@ -35,7 +35,7 @@ else
           response.end()
           return
         stream = gs.stream(true)
-        response.writeHead(200)
+        response.writeHead(200, {'Content-Type' : 'application/octet-stream', 'Content-Length' : gs.length})
         stream.pipe(response)
       )
     else
