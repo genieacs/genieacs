@@ -10,15 +10,14 @@ db = require './db'
 presets = require './presets'
 mongodb = require 'mongodb'
 fs = require 'fs'
+apiFunctions = require './api-functions'
 
 
 applyConfigurations = (currentRequest, taskList) ->
   if taskList.length
     util.log("#{currentRequest.deviceId}: Presets discrepancy found")
-    db.tasksCollection.save(taskList, (err) ->
-      for task in taskList
-        util.log("#{currentRequest.deviceId}: Added #{task.name} task #{task._id}")
-      task = taskList[0]
+    apiFunctions.insertTasks(taskList, (err, tasks) ->
+      task = tasks[0]
       util.log("#{currentRequest.deviceId}: Started task #{task.name}(#{task._id})")
       runTask(currentRequest, task, {})
     )
@@ -99,9 +98,16 @@ updateDevice = (currentRequest, actions, callback) ->
             callback(err) if callback?
             return
           
-          task = {device : currentRequest.deviceId, name : 'init', timestamp : mongodb.Timestamp()}
-          db.tasksCollection.save(task, (err) ->
-            util.log("#{currentRequest.deviceId}: Added init task #{task._id}")
+          task = {device : currentRequest.deviceId, name : 'init', timestamp : config.INIT_TIMESTAMP}
+          apiFunctions.insertTasks(task, (err, t) ->
+            callback(err) if callback?
+          )
+        )
+      else if updates['_lastBootstrap']?
+        # reinitialize on bootstrap event (e.g. firmware upgrade)
+        db.devicesCollection.update({'_id' : currentRequest.deviceId}, {'$unset' : 'InternetGatewayDevice'}, {safe: true}, (err, count) ->
+          task = {device : currentRequest.deviceId, name : 'init', timestamp : config.INIT_TIMESTAMP}
+          apiFunctions.insertTasks(task, (err) ->
             callback(err) if callback?
           )
         )

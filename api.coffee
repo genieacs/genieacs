@@ -7,6 +7,7 @@ db = require './db'
 mongodb = require 'mongodb'
 querystring = require 'querystring'
 query = require './query'
+apiFunctions = require './api-functions'
 
 # regular expression objects
 DEVICE_TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/tasks\/?$/
@@ -16,108 +17,6 @@ PRESETS_REGEX = /^\/presets\/([a-zA-Z0-9\-\_\%]+)\/?$/
 FILES_REGEX = /^\/files\/([a-zA-Z0-9\-\_\%\ \.\/\(\)]+)\/?$/
 PING_REGEX = /^\/ping\/([a-zA-Z0-9\-\_\.]+)\/?$/
 QUERY_REGEX = /^\/([a-zA-Z0-9_]+s)\/?$/
-
-connectionRequest = (deviceId, callback) ->
-  db.devicesCollection.findOne({_id : deviceId}, {'InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value' : 1}, (err, device)->
-    if err
-      callback(err)
-      return
-    connectionRequestUrl = device.InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value
-    # for testing
-    #connectionRequestUrl = connectionRequestUrl.replace(/^(http:\/\/)([0-9\.]+)(\:[0-9]+\/[a-zA-Z0-9]+\/?$)/, '$1192.168.1.1$3')
-    request = http.get(connectionRequestUrl, (res) ->
-      callback()
-    )
-
-    request.on('error', (err) ->
-      # error event when request is aborted
-      request.abort()
-      callback(err)
-    )
-
-    request.on('socket', (socket) ->
-      socket.setTimeout(2000)
-      socket.on('timeout', () ->
-        request.abort()
-      )
-    )
-  )
-
-watchTask = (taskId, timeout, callback) ->
-  setTimeout( () ->
-    db.tasksCollection.findOne({_id : taskId}, {'_id' : 1}, (err, task) ->
-      if task
-        timeout -= 500
-        if timeout < 0
-          callback('timeout')
-        else
-          watchTask(taskId, timeout, callback)
-      else
-        callback(err)
-    )
-  , 500)
-
-
-expandParam = (param) ->
-  params = [param]
-  for a,aa of config.ALIASES
-    if a == param or common.startsWith(a, "#{param}.")
-      for p in aa
-        params.push(p) if p[p.lastIndexOf('.') + 1] != '_'
-
-  return params
-
-
-sanitizeTask = (deviceId, task, callback) ->
-  task.device = deviceId
-  task.timestamp = new Date()
-  switch task.name
-    when 'getParameterValues'
-      projection = {}
-      for p in task.parameterNames
-        for pp in expandParam(p)
-          projection[pp] = 1
-      db.devicesCollection.findOne({_id : deviceId}, projection, (err, device) ->
-        parameterNames = []
-        for k of projection
-          if common.getParamValueFromPath(device, k)?
-            parameterNames.push(k)
-        task.parameterNames = parameterNames
-        callback(task)
-      )
-    when 'setParameterValues'
-      projection = {}
-      values = {}
-      for p in task.parameterValues
-        for pp in expandParam(p[0])
-          projection[pp] = 1
-          values[pp] = p[1]
-      db.devicesCollection.findOne({_id : deviceId}, projection, (err, device) ->
-        parameterValues = []
-        for k of projection
-          param = common.getParamValueFromPath(device, k)
-          if param?
-            parameterValues.push([k, values[k], param._type])
-        task.parameterValues = parameterValues
-        callback(task)
-      )
-    else
-      # TODO implement setParameterValues
-      callback(task)
-
-
-addAliases = (device) ->
-  for k,v of config.ALIASES
-    for p in v
-      pp = p.split('.')
-      obj = device
-      for i in pp
-        if not obj[i]?
-          obj = null
-          break
-        obj = obj[i]
-
-      device[k] = obj if obj?
 
 
 cluster = require 'cluster'
@@ -220,40 +119,36 @@ else
         if request.method == 'POST'
           deviceId = querystring.unescape(DEVICE_TASKS_REGEX.exec(urlParts.pathname)[1])
           if body
-            # queue given task
-            sanitizeTask(deviceId, JSON.parse(body), (task) ->
-              if task.uniqueKey?
-                db.tasksCollection.remove({device : deviceId, uniqueKey : task.uniqueKey}, (err, removed) ->
-                )
-              db.tasksCollection.save(task, (err) ->
-                if err
-                  response.writeHead(500)
-                  response.end(err)
-                  return
+            t = JSON.parse(body)
+            t.device = deviceId
+            apiFunctions.insertTasks(t, (err) ->
+              if err
+                response.writeHead(500)
+                response.end(err)
+                return
 
-                if urlParts.query.connection_request?
-                  connectionRequest(deviceId, (err) ->
-                    if err
-                      response.writeHead(202)
-                      response.end()
-                    else
-                      watchTask(task._id, config.DEVICE_ONLINE_THRESHOLD, (err) ->
-                        if err
-                          response.writeHead(202)
-                          response.end()
-                          return
-                        response.writeHead(200)
+              if urlParts.query.connection_request?
+                apiFunctions.connectionRequest(deviceId, (err) ->
+                  if err
+                    response.writeHead(202)
+                    response.end()
+                  else
+                    apiFunctions.watchTask(task._id, config.DEVICE_ONLINE_THRESHOLD, (err) ->
+                      if err
+                        response.writeHead(202)
                         response.end()
-                      )
-                  )
-                else
-                  response.writeHead(202)
-                  response.end()
-              )
+                        return
+                      response.writeHead(200)
+                      response.end()
+                    )
+                )
+              else
+                response.writeHead(202)
+                response.end()
             )
           else if urlParts.query.connection_request?
             # no task, send connection request only
-            connectionRequest(deviceId, (err) ->
+            apiFunctions.connectionRequest(deviceId, (err) ->
               if err
                 response.writeHead 504
                 response.end()
@@ -382,7 +277,7 @@ else
               response.end("\n]")
             else
               response.write(",\n") if i++
-              addAliases(item) if collectionName is 'devices'
+              apiFunctions.addAliases(item) if collectionName is 'devices'
               response.write(JSON.stringify(item))
           )
         )
