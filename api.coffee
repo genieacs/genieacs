@@ -67,6 +67,8 @@ else
           preset._id = presetName
 
           db.presetsCollection.save(preset, (err) ->
+            db.memcached.del('presets', (err, res) ->
+            )
             db.memcached.del('presets_hash', (err, res) ->
             )
             if err
@@ -78,6 +80,8 @@ else
           )
         else if request.method == 'DELETE'
           db.presetsCollection.remove({'_id' : presetName}, (err, removedCount) ->
+            db.memcached.del('presets', (err, res) ->
+            )
             db.memcached.del('presets_hash', (err, res) ->
             )
             if err
@@ -96,6 +100,8 @@ else
         tag = querystring.unescape(r[2])
         if request.method == 'POST'
           db.devicesCollection.update({'_id' : deviceId}, {'$addToSet' : {'_tags' : tag}}, {safe: true}, (err) ->
+            db.memcached.del("#{deviceId}_presets_hash", (err, res) ->
+            )
             if err
               response.writeHead(500)
               response.end(err)
@@ -105,6 +111,8 @@ else
           )
         else if request.method == 'DELETE'
           db.devicesCollection.update({'_id' : deviceId}, {'$pull' : {'_tags' : tag}}, {safe: true}, (err) ->
+            db.memcached.del("#{deviceId}_presets_hash", (err, res) ->
+            )
             if err
               response.writeHead(500)
               response.end(err)
@@ -119,9 +127,11 @@ else
         if request.method == 'POST'
           deviceId = querystring.unescape(DEVICE_TASKS_REGEX.exec(urlParts.pathname)[1])
           if body
-            t = JSON.parse(body)
-            t.device = deviceId
-            apiFunctions.insertTasks(t, (err) ->
+            task = JSON.parse(body)
+            task.device = deviceId
+            apiFunctions.insertTasks(task, (err) ->
+              db.memcached.del("#{deviceId}_presets_hash", (err, res) ->
+              )
               if err
                 response.writeHead(500)
                 response.end(err)
@@ -182,6 +192,7 @@ else
         else if action is '/retry'
           if request.method == 'POST'
             db.tasksCollection.update({_id : taskId}, {$unset : {fault : 1}, $inc : {retries : 1}, '$set' : {timestamp : new Date()}}, (err, count) ->
+              # TODO need to invalidate presets hash for the device
               response.writeHead(200)
               response.end()
             )
