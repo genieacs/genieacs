@@ -77,6 +77,10 @@ updateDevice = (currentRequest, actions, callback) ->
     for p in actions.deletedObjects
       deletes[p] = 1
 
+  if actions.instanceName?
+    for i in actions.instanceName
+      updates["#{i[0]}._name"] = i[1]
+
   if actions.parameterNames?
     for p in actions.parameterNames
       path = if common.endsWith(p[0], '.') then p[0] else "#{p[0]}."

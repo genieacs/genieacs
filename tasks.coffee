@@ -122,17 +122,18 @@ this.addObject = (task, methodResponse, callback) ->
     callback(null, STATUS_FAULT)
     return
 
+  allDeviceUpdates = {}
+
   if not task.instanceNumber?
     if methodResponse.type is 'AddObjectResponse'
       task.instanceNumber = methodResponse.instanceNumber
       task.subtask = {name : 'getParameterNames', parameterPath : "#{task.objectName}#{task.instanceNumber}.", nextLevel : false}
       task.appliedParameterValues = []
       task.parameterNames = []
+      allDeviceUpdates.instanceName = [["#{task.objectName}#{task.instanceNumber}", task.instanceName]] if task.instanceName?
     else
       callback(null, STATUS_STARTED, {methodRequest : {type : 'AddObject', objectName : task.objectName}})
       return
-
-  allDeviceUpdates = {}
 
   if task.subtask.name is 'getParameterNames'
     this.getParameterNames(task.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) =>
