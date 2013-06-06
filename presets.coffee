@@ -7,16 +7,29 @@ log = require('util').log
 
 
 getPresets = (callback) ->
-  db.memcached.get('presets', (err, res) ->
-    if res
-      callback(res)
+  db.memcached.get(['presets', 'objects'], (err, res) ->
+    presets = res.presets
+    objects = res.objects
+    if presets and objects
+      callback(presets, objects)
       return
 
-    db.presetsCollection.find().toArray((err, presets) ->
+    db.presetsCollection.find().toArray((err, p) ->
       throw new Error(err) if err
+      presets = p
 
       db.memcached.set('presets', presets, config.PRESETS_CACHE_DURATION)
-      callback(presets)
+      callback(presets, objects) if objects
+    )
+
+    db.objectsCollection.find().toArray((err, o) ->
+      throw new Error(err) if err
+      objects = {}
+      for i in o
+        objects[i._id] = i
+
+      db.memcached.set('objects', objects, config.PRESETS_CACHE_DURATION)
+      callback(presets, objects) if presets
     )
   )
 
@@ -26,8 +39,8 @@ getPresetsHash = (callback) ->
     if res
       callback(res)
     else
-      getPresets((presets) ->
-        hash = callback(calculatePresetsHash(presets))
+      getPresets((presets, objects) ->
+        hash = calculatePresetsHash(presets, objects)
         db.memcached.set('presets_hash', hash, config.PRESETS_CACHE_DURATION, (err, res) ->
           callback(hash)
         )
@@ -35,14 +48,23 @@ getPresetsHash = (callback) ->
   )
 
 
-calculatePresetsHash = (presets) ->
+calculatePresetsHash = (presets, objects) ->
   crypto = require('crypto')
-  hash = crypto.createHash('md5').update(JSON.stringify(presets)).digest('hex')
+  hash = crypto.createHash('md5').update(JSON.stringify(presets) + JSON.stringify(objects)).digest('hex')
   return hash
 
 
+matchObject = (object, param) ->
+  return false if not object._keys?
+  for k in object._keys
+    v = common.matchType(param[k]._value, object[k])
+    if param[k]._value != v
+      return false
+  return true
+
+
 exports.assertPresets = (deviceId, presetsHash, callback) ->
-  getPresets((presets) ->
+  getPresets((presets, objects) ->
     # only fetch relevant params
     projection = {}
     for p in presets
@@ -97,6 +119,39 @@ exports.assertPresets = (deviceId, presetsHash, callback) ->
             add_tags.push(c.tag) if not device['_tags']? or c.tag not in device['_tags']
           when 'delete_tag'
             delete_tags.push(c.tag) if device['_tags']? and c.tag in device['_tags']
+          when 'add_object'
+            instances = {}
+            for k,p of param
+              continue if k[0] == '_'
+              if p._name?
+                if p._name == c.object
+                  instances[k] = p
+              else if matchObject(objects[c.object], p)
+                u = {}
+                u["#{c.name}.#{k}._name"] = c.object
+                db.devicesCollection.update({'_id' : deviceId}, {'$set' : u}, {safe : false})
+                instances[k] = p
+
+            if Object.keys(instances).length > 0
+              for k,i of instances
+                for k2,j of objects[c.object]
+                  continue if k2[0] == '_'
+                  dst = common.matchType(param[k][k2]._value, j)
+                  if param[k][k2]._value != dst
+                    setParameterValues.push(["#{c.name}.#{k}.#{k2}", dst, param[k][k2]._value])
+            else
+              vals = []
+              for k2,j of objects[c.object]
+                vals.push([k2, j]) if k2[0] != '_'
+              taskList.push({device : deviceId, name : 'addObject', objectName : "#{c.name}.", parameterValues : vals, instanceName : c.object})
+          when 'delete_object'
+            for k,p of param
+              continue if k[0] == '_'
+              if p._name?
+                if p._name == c.object
+                  taskList.push({device : deviceId, name : 'deleteObject', objectName : "#{c.name}.#{k}."})
+              else if matchObject(objects[c.object], p)
+                taskList.push({device : deviceId, name : 'deleteObject', objectName : "#{c.name}.#{k}."})
           else
             throw new Error('Unknown configuration type')
 

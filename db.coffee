@@ -10,6 +10,7 @@ memcached = new Memcached(config.MEMCACHED_SOCKET)
 tasksCollection = null
 devicesCollection = null
 presetsCollection = null
+objectsCollection = null
 
 dbserver = new mongodb.Server(config.MONGODB_SOCKET, 0, {auto_reconnect: true})
 db = new mongodb.Db(config.DATABASE_NAME, dbserver, {native_parser:true, safe:true})
@@ -32,6 +33,10 @@ db.open( (err, db) ->
 
   db.collection('presets', (err, collection) ->
     exports.presetsCollection = presetsCollection = collection
+  )
+
+  db.collection('objects', (err, collection) ->
+    exports.objectsCollection = objectsCollection = collection
   )
 
   db.collection('fs.files', (err, collection) ->
