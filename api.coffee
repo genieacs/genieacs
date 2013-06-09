@@ -14,6 +14,7 @@ DEVICE_TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/tasks\/?$/
 TASKS_REGEX = /^\/tasks\/([a-zA-Z0-9\-\_\%]+)(\/[a-zA-Z_]*)?$/
 TAGS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/tags\/([a-zA-Z0-9\-\_\%]+)\/?$/
 PRESETS_REGEX = /^\/presets\/([a-zA-Z0-9\-\_\%]+)\/?$/
+OBJECTS_REGEX = /^\/objects\/([a-zA-Z0-9\-\_\%]+)\/?$/
 FILES_REGEX = /^\/files\/([a-zA-Z0-9\-\_\%\ \.\/\(\)]+)\/?$/
 PING_REGEX = /^\/ping\/([a-zA-Z0-9\-\_\.]+)\/?$/
 QUERY_REGEX = /^\/([a-zA-Z0-9_]+s)\/?$/
@@ -81,6 +82,40 @@ else
         else if request.method == 'DELETE'
           db.presetsCollection.remove({'_id' : presetName}, (err, removedCount) ->
             db.memcached.del('presets', (err, res) ->
+            )
+            db.memcached.del('presets_hash', (err, res) ->
+            )
+            if err
+              response.writeHead(500)
+              response.end(err)
+              return
+            response.writeHead(200)
+            response.end()
+          )
+        else
+          response.writeHead 405, {'Allow': 'PUT, DELETE'}
+          response.end('405 Method Not Allowed')
+      else if OBJECTS_REGEX.test(urlParts.pathname)
+        objectName = querystring.unescape(OBJECTS_REGEX.exec(urlParts.pathname)[1])
+        if request.method == 'PUT'
+          object = JSON.parse(body)
+          object._id = objectName
+
+          db.objectsCollection.save(object, (err) ->
+            db.memcached.del('objects', (err, res) ->
+            )
+            db.memcached.del('presets_hash', (err, res) ->
+            )
+            if err
+              response.writeHead(500)
+              response.end(err)
+              return
+            response.writeHead(200)
+            response.end()
+          )
+        else if request.method == 'DELETE'
+          db.objectsCollection.remove({'_id' : objectName}, (err, removedCount) ->
+            db.memcached.del('objects', (err, res) ->
             )
             db.memcached.del('presets_hash', (err, res) ->
             )
