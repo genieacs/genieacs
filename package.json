@@ -1,0 +1,33 @@
+{
+  "name": "genie",
+  "version": "0.9.0",
+  "description": "A blazing fast TR-069 auto configuration server (ACS) built with node.js and MongoDB",
+  "directories": {
+    "test": "test"
+  },
+  "dependencies": {
+    "libxmljs": "~0.7.1",
+    "memcached": "~0.2.2",
+    "mongodb": "~1.2.14"
+  },
+  "devDependencies": {
+    "coffee-script": "~1.6.2"
+  },
+  "scripts": {
+    "prepublish": "coffee -c *.coffee",
+    "test": "node test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zaidka/genie.git"
+  },
+  "keywords": [
+    "TR-069",
+    "CWMP",
+    "ACS"
+  ],
+  "author": "Zaid Abdulla",
+  "license": "MIT",
+  "readmeFilename": "README.md",
+  "gitHead": "af9ca0c2aede261efe09305e67ad2442940e1436"
+}
