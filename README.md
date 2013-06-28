@@ -1,4 +1,4 @@
-# genie
+# Genie ACS
 
 A blazing fast TR-069 auto configuration server (ACS) built with node.js and MongoDB.
 
