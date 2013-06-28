@@ -4,11 +4,11 @@ A blazing fast TR-069 auto configuration server (ACS) built with node.js and Mon
 
 ## Features
 
-* *Massively concurrent*: Can handle handreds of thousands of connected devices on a single server even with low inform interval.
+* *Massively concurrent*: Can handle hundreds of thousands of connected devices on a single server even with low inform interval.
 * *Preset-based configurations*: Predefine sets of configurations that devices will pick up and apply based on given preconditions.
-* *Tagging*: Use tags to group devices for more managable presets.
+* *Tagging*: Use tags to group devices for more manageable presets.
 * *Searching*: Query for devices on any parameter (supports all common operators including regular expressions).
-* *Parameter aliases*: Define aliases to unify paramter paths from different types of devices. Aliases behave like normal parameters (i.e. can query on it or set it's value).
+* *Parameter aliases*: Define aliases to unify parameter paths from different types of devices. Aliases behave like normal parameters (i.e. can query on it or set it's value).
 
 ## Requirements
 
