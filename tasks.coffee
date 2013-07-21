@@ -16,6 +16,53 @@ this.init = (task, methodResponse, callback) ->
     task.subtask = {name : 'getParameterNames', parameterPath : '', nextLevel : false}
 
   if task.subtask.name == 'getParameterNames'
+    if methodResponse.faultcode?  
+      task.fault = methodResponse
+      callback(null, STATUS_FAULT)
+      return
+
+    this.getParameterNames(task.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) =>
+      if status is STATUS_FINISHED
+        parameterNames = []
+        for p in deviceUpdates.parameterNames
+          if not common.endsWith(p[0], '.')
+            parameterNames.push(p[0])
+        task.subtask = {name : 'getParameterValues', parameterNames : parameterNames}
+        this.getParameterValues(task.subtask, {}, (err, status, cwmpResponse) ->
+          # ignore deviceUpdates returned by firt call to getParameterValues
+          callback(err, status, cwmpResponse, deviceUpdates)
+        )
+      else if status is STATUS_STARTED
+        callback(err, STATUS_STARTED, cwmpResponse, deviceUpdates)
+      else
+        throw Error('Unexpected subtask status')
+    )
+  else if task.subtask.name == 'getParameterValues'
+    if methodResponse.faultcode?
+      # Ignore GetParameterValues errors. A workaround for the crappy Seewon devices.
+      methodResponse = {parameterList : {}}
+    this.getParameterValues(task.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) ->
+      callback(err, status, cwmpResponse, deviceUpdates)
+    )
+  else
+    throw Error('Unexpected subtask name')
+
+
+this.refreshObject = (task, methodResponse, callback) ->
+  allDeviceUpdates = {}
+  if not methodResponse.type?
+    # task just run, delete old parameter
+    allDeviceUpdates.deletedObjects = [task.objectName]
+
+  if not task.subtask?
+    task.subtask = {name : 'getParameterNames', parameterPath : "#{task.objectName}.", nextLevel : false}
+
+  if methodResponse.faultcode?
+    task.fault = methodResponse
+    callback(null, STATUS_FAULT)
+    return
+
+  if task.subtask.name == 'getParameterNames'
     if methodResponse.faultcode?
       task.fault = methodResponse
       callback(null, STATUS_FAULT)
@@ -127,12 +174,12 @@ this.addObject = (task, methodResponse, callback) ->
   if not task.instanceNumber?
     if methodResponse.type is 'AddObjectResponse'
       task.instanceNumber = methodResponse.instanceNumber
-      task.subtask = {name : 'getParameterNames', parameterPath : "#{task.objectName}#{task.instanceNumber}.", nextLevel : false}
+      task.subtask = {name : 'getParameterNames', parameterPath : "#{task.objectName}.#{task.instanceNumber}.", nextLevel : false}
       task.appliedParameterValues = []
       task.parameterNames = []
-      allDeviceUpdates.instanceName = [["#{task.objectName}#{task.instanceNumber}", task.instanceName]] if task.instanceName?
+      allDeviceUpdates.instanceName = [["#{task.objectName}.#{task.instanceNumber}", task.instanceName]] if task.instanceName?
     else
-      callback(null, STATUS_STARTED, {methodRequest : {type : 'AddObject', objectName : task.objectName}})
+      callback(null, STATUS_STARTED, {methodRequest : {type : 'AddObject', objectName : "#{task.objectName}."}})
       return
 
   if task.subtask.name is 'getParameterNames'
@@ -185,12 +232,11 @@ this.deleteObject = (task, methodResponse, callback) ->
     return
 
   if methodResponse.type is 'DeleteObjectResponse'
-    # trim the last dot (.)
-    callback(null, STATUS_FINISHED, null, {deletedObjects : [task.objectName.slice(0, -1)]})
+    callback(null, STATUS_FINISHED, null, {deletedObjects : [task.objectName]})
   else
     methodRequest = {
       type : 'DeleteObject',
-      objectName : task.objectName
+      objectName : "#{task.objectName}."
     }
     callback(null, STATUS_STARTED, {methodRequest : methodRequest})
 

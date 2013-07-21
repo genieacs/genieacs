@@ -112,7 +112,10 @@ exports.assertPresets = (deviceId, presetsHash, callback) ->
             timeDiff = (now - param._timestamp) / 1000
             if (c.age - timeDiff < config.PRESETS_TIME_PADDING)
               expiry = Math.min(expiry, c.age)
-              getParameterValues.push(c.name)
+              if param._object or param._instance
+                taskList.push({device : deviceId, name : 'refreshObject', objectName : c.name})
+              else
+                getParameterValues.push(c.name)
             else
               expiry = Math.min(expiry, c.age - timeDiff)
           when 'add_tag'
@@ -143,15 +146,15 @@ exports.assertPresets = (deviceId, presetsHash, callback) ->
               vals = []
               for k2,j of objects[c.object]
                 vals.push([k2, j]) if k2[0] != '_'
-              taskList.push({device : deviceId, name : 'addObject', objectName : "#{c.name}.", parameterValues : vals, instanceName : c.object})
+              taskList.push({device : deviceId, name : 'addObject', objectName : c.name, parameterValues : vals, instanceName : c.object})
           when 'delete_object'
             for k,p of param
               continue if k[0] == '_'
               if p._name?
                 if p._name == c.object
-                  taskList.push({device : deviceId, name : 'deleteObject', objectName : "#{c.name}.#{k}."})
+                  taskList.push({device : deviceId, name : 'deleteObject', objectName : "#{c.name}.#{k}"})
               else if matchObject(objects[c.object], p)
-                taskList.push({device : deviceId, name : 'deleteObject', objectName : "#{c.name}.#{k}."})
+                taskList.push({device : deviceId, name : 'deleteObject', objectName : "#{c.name}.#{k}"})
           else
             throw new Error('Unknown configuration type')
 
