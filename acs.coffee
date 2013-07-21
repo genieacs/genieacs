@@ -12,6 +12,9 @@ mongodb = require 'mongodb'
 fs = require 'fs'
 apiFunctions = require './api-functions'
 
+OBJECT_REGEX = /\.$/
+INSTANCE_REGEX = /\.[\d]+\.$/
+
 
 applyConfigurations = (currentRequest, taskList) ->
   if taskList.length
@@ -83,9 +86,14 @@ updateDevice = (currentRequest, actions, callback) ->
 
   if actions.parameterNames?
     for p in actions.parameterNames
-      path = if common.endsWith(p[0], '.') then p[0] else "#{p[0]}."
-      if common.endsWith(p[0], '.')
-        updates["#{path}_object"] = true
+      if OBJECT_REGEX.test(p[0])
+        path = p[0]
+        if INSTANCE_REGEX.test(p[0])
+          updates["#{path}_instance"] = true
+        else
+          updates["#{path}_object"] = true
+      else
+        path = "#{p[0]}."
       updates["#{path}_writable"] = p[1]
       updates["#{path}_timestamp"] = now
 
