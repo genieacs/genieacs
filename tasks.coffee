@@ -134,7 +134,7 @@ this.getParameterNames = (task, methodResponse, callback) ->
           deviceUpdates.deletedObjects = [rootPath.slice(0, -1)]
 
       # some devices don't return the root object as described in the standard. add manually to update timestamp
-      deviceUpdates.parameterNames.push([task.parameterPath])
+      deviceUpdates.parameterNames.push([task.parameterPath]) if !!task.parameterPath
 
       callback(null, STATUS_FINISHED, null, deviceUpdates)
     )
