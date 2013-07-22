@@ -117,11 +117,9 @@ updateDevice = (currentRequest, actions, callback) ->
         )
       else if updates['_lastBootstrap']?
         # reinitialize on bootstrap event (e.g. firmware upgrade)
-        db.devicesCollection.update({'_id' : currentRequest.deviceId}, {'$unset' : 'InternetGatewayDevice'}, {safe: true}, (err, count) ->
-          task = {device : currentRequest.deviceId, name : 'init', timestamp : config.INIT_TIMESTAMP}
-          apiFunctions.insertTasks(task, (err) ->
-            callback(err) if callback?
-          )
+        task = {device : currentRequest.deviceId, name : 'init', timestamp : config.INIT_TIMESTAMP}
+        apiFunctions.insertTasks(task, (err) ->
+          callback(err) if callback?
         )
       else
         callback() if callback?

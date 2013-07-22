@@ -108,21 +108,25 @@ this.getParameterNames = (task, methodResponse, callback) ->
     deviceUpdates = {parameterNames : methodResponse.parameterList}
     path = if common.endsWith(task.parameterPath, '.') then task.parameterPath.slice(0, -1) else task.parameterPath
     projection = {}
-    projection[path] = 1
+    projection[path] = 1 if !!task.parameterPath
 
     # delete nonexisting params
     db.devicesCollection.findOne({_id : task.device}, projection, (err, device) ->
       if device
-        root = device
-        rootPath = ''
-        ps = path.split('.')
-        for p in ps
-          if root[p]?
-            root = root[p]
-            rootPath += "#{p}."
-          else
-            root = null
-            break
+        if !!task.parameterPath
+          root = device
+          rootPath = ''
+          ps = path.split('.')
+          for p in ps
+            if root[p]?
+              root = root[p]
+              rootPath += "#{p}."
+            else
+              root = null
+              break
+        else
+          root = device['InternetGatewayDevice']
+          rootPath = 'InternetGatewayDevice.'
 
         if root
           deviceUpdates.deletedObjects = []
