@@ -58,7 +58,7 @@ expandParam = (param) ->
 
 
 sanitizeTask = (task, callback) ->
-  task.timestamp = new Date()
+  task.timestamp = new Date() if not task.timestamp?
   switch task.name
     when 'getParameterValues'
       projection = {}
