@@ -94,7 +94,7 @@ updateDevice = (currentRequest, actions, callback) ->
           updates["#{path}_object"] = true
       else
         path = "#{p[0]}."
-      updates["#{path}_writable"] = p[1]
+      updates["#{path}_writable"] = p[1] if p[1]?
       updates["#{path}_timestamp"] = now
 
   if Object.keys(updates).length > 0 or Object.keys(deletes).length > 0

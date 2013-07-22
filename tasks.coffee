@@ -13,7 +13,7 @@ exports.STATUS_FINISHED = STATUS_FINISHED = 4
 
 this.init = (task, methodResponse, callback) ->
   if not task.subtask?
-    task.subtask = {name : 'getParameterNames', parameterPath : '', nextLevel : false}
+    task.subtask = {device : task.device, name : 'getParameterNames', parameterPath : '', nextLevel : false}
 
   if task.subtask.name == 'getParameterNames'
     if methodResponse.faultcode?  
@@ -49,13 +49,8 @@ this.init = (task, methodResponse, callback) ->
 
 
 this.refreshObject = (task, methodResponse, callback) ->
-  allDeviceUpdates = {}
-  if not methodResponse.type?
-    # task just run, delete old parameter
-    allDeviceUpdates.deletedObjects = [task.objectName]
-
   if not task.subtask?
-    task.subtask = {name : 'getParameterNames', parameterPath : "#{task.objectName}.", nextLevel : false}
+    task.subtask = {device : task.device, name : 'getParameterNames', parameterPath : "#{task.objectName}.", nextLevel : false}
 
   if methodResponse.faultcode?
     task.fault = methodResponse
@@ -63,11 +58,6 @@ this.refreshObject = (task, methodResponse, callback) ->
     return
 
   if task.subtask.name == 'getParameterNames'
-    if methodResponse.faultcode?
-      task.fault = methodResponse
-      callback(null, STATUS_FAULT)
-      return
-
     this.getParameterNames(task.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) =>
       if status is STATUS_FINISHED
         parameterNames = []
@@ -95,6 +85,19 @@ this.refreshObject = (task, methodResponse, callback) ->
     throw Error('Unexpected subtask name')
 
 
+findMissingParameters = (device, parameters, pathPrefix, missingList) ->
+  for k,v of device
+    continue if k[0] == '_'
+    p = pathPrefix + k
+    continue if parameters[p]
+
+    p += '.'
+    if parameters[p]
+      findMissingParameters(v, parameters, p, missingList)
+    else
+      missingList.push(p.slice(0, -1))
+
+
 this.getParameterNames = (task, methodResponse, callback) ->
   if methodResponse.faultcode?
     task.fault = methodResponse
@@ -102,7 +105,39 @@ this.getParameterNames = (task, methodResponse, callback) ->
     return
 
   if methodResponse.type is 'GetParameterNamesResponse'
-    callback(null, STATUS_FINISHED, null, {parameterNames : methodResponse.parameterList})
+    deviceUpdates = {parameterNames : methodResponse.parameterList}
+    path = if common.endsWith(task.parameterPath, '.') then task.parameterPath.slice(0, -1) else task.parameterPath
+    projection = {}
+    projection[path] = 1
+
+    # delete nonexisting params
+    db.devicesCollection.findOne({_id : task.device}, projection, (err, device) ->
+      if device
+        root = device
+        rootPath = ''
+        ps = path.split('.')
+        for p in ps
+          if root[p]?
+            root = root[p]
+            rootPath += "#{p}."
+          else
+            root = null
+            break
+
+        if root
+          deviceUpdates.deletedObjects = []
+          parameters = {}
+          # convert to object for better performance
+          parameters[p[0]] = 1 for p in methodResponse.parameterList
+          findMissingParameters(root, parameters, rootPath, deviceUpdates.deletedObjects)
+        else
+          deviceUpdates.deletedObjects = [rootPath.slice(0, -1)]
+
+      # some devices don't return the root object as described in the standard. add manually to update timestamp
+      deviceUpdates.parameterNames.push([task.parameterPath])
+
+      callback(null, STATUS_FINISHED, null, deviceUpdates)
+    )
   else
     methodRequest = {
       type : 'GetParameterNames',
@@ -174,7 +209,7 @@ this.addObject = (task, methodResponse, callback) ->
   if not task.instanceNumber?
     if methodResponse.type is 'AddObjectResponse'
       task.instanceNumber = methodResponse.instanceNumber
-      task.subtask = {name : 'getParameterNames', parameterPath : "#{task.objectName}.#{task.instanceNumber}.", nextLevel : false}
+      task.subtask = {device : task.device, name : 'getParameterNames', parameterPath : "#{task.objectName}.#{task.instanceNumber}.", nextLevel : false}
       task.appliedParameterValues = []
       task.parameterNames = []
       allDeviceUpdates.instanceName = [["#{task.objectName}.#{task.instanceNumber}", task.instanceName]] if task.instanceName?
