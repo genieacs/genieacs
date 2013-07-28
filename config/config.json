@@ -1,0 +1,16 @@
+{
+  "DATABASE_NAME" : "genie",
+  "MONGODB_SOCKET" : "/tmp/mongodb-27017.sock",
+  "MEMCACHED_SOCKET" : "/tmp/memcached.sock",
+  "ACS_INTERFACE" : "0.0.0.0",
+  "ACS_PORT" : 7547,
+  "ACS_HTTPS_INTERFACE" : "0.0.0.0",
+  "ACS_HTTPS_PORT" : 7548,
+  "API_INTERFACE" : "0.0.0.0",
+  "API_PORT" : 7557,
+  "FILES_INTERFACE" : "0.0.0.0",
+  "FILES_PORT" : 7567,
+  "FILES_IP" : "172.240.21.2",
+  "LOG_INFORMS" : false,
+  "DEBUG_DEVICES" : {}
+}

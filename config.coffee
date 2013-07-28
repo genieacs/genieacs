@@ -19,9 +19,15 @@ exports.LOG_INFORMS = false
 exports.DEBUG_DEVICES = {} # {'202BC1-BM632w-8KA8WA1151100043' : true}
 exports.DEVICE_ONLINE_THRESHOLD = 4000
 
-parameters = require './parameters'
+# load configuration
+c = require('./config/config')
+for k, v of c
+  exports[k] = v
+
+# load parameter aliases
+parameters = require('./config/parameters')
 aliases = {}
-for k,v of parameters
+for k, v of parameters
   a = v.alias
   if a?
     if not aliases[a]?
