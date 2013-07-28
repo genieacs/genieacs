@@ -14,7 +14,7 @@ exports.parseAuthHeader = (authHeader) ->
 
 
 exports.basic = (username, password) ->
-  "Basic #{new Buffer('Aladdin:open sesame').toString('base64')}"
+  "Basic #{new Buffer("#{username}:#{password}").toString('base64')}"
 
 
 exports.digest = (username, password, uri, httpMethod, body, authHeader) ->
