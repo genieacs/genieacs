@@ -36,3 +36,6 @@ for k, v of parameters
 
 exports.PARAMETERS = parameters
 exports.ALIASES = aliases
+
+# load authentication scripts
+exports.auth = require('./config/auth')

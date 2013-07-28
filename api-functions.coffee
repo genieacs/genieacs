@@ -3,24 +3,26 @@ db = require './db'
 http = require 'http'
 common = require './common'
 util = require 'util'
+URL = require 'url'
+auth = require './auth'
 
 
 connectionRequest = (deviceId, callback) ->
-  db.devicesCollection.findOne({_id : deviceId}, {'InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value' : 1}, (err, device)->
-    if err
-      callback(err)
-      return
-    connectionRequestUrl = device.InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value
-    # for testing
-    #connectionRequestUrl = connectionRequestUrl.replace(/^(http:\/\/)([0-9\.]+)(\:[0-9]+\/[a-zA-Z0-9]+\/?$)/, '$110.1.1.254$3')
-    request = http.get(connectionRequestUrl, (res) ->
-      callback()
+  conReq = (url, authString, callback) ->
+    if authString
+      url = URL.parse(url)
+      url.headers = {'Authorization' : authString}
+
+    request = http.get(url, (res) ->
+      if res.statusCode == 401
+        authHeader = auth.parseAuthHeader(res.headers['www-authenticate'])
+      callback(res.statusCode, authHeader)
     )
 
     request.on('error', (err) ->
       # error event when request is aborted
       request.abort()
-      callback(err)
+      callback(0)
     )
 
     request.on('socket', (socket) ->
@@ -28,6 +30,29 @@ connectionRequest = (deviceId, callback) ->
       socket.on('timeout', () ->
         request.abort()
       )
+    )
+
+  db.devicesCollection.findOne({_id : deviceId}, {'InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value' : 1}, (err, device)->
+    if err
+      callback(err)
+      return
+    connectionRequestUrl = device.InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value
+    # for testing
+    #connectionRequestUrl = connectionRequestUrl.replace(/^(http:\/\/)([0-9\.]+)(\:[0-9]+\/[a-zA-Z0-9]+\/?$)/, '$110.1.1.254$3')
+    conReq(connectionRequestUrl, null, (statusCode, authHeader) ->
+      if statusCode == 401
+        [username, password] = config.auth.connectionRequest(deviceId)
+        if authHeader.method is 'Basic'
+          authString = auth.basic(username, password)
+        else if authHeader.method is 'Digest'
+          uri = URL.parse(connectionRequestUrl)
+          authString = auth.digest(username, password, uri.path, 'GET', null, authHeader)
+
+        conReq(connectionRequestUrl, authString, (statusCode, authHeader) ->
+          callback()
+        )
+      else
+        callback()
     )
   )
 
