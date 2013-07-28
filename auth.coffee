@@ -5,11 +5,15 @@ exports.parseAuthHeader = (authHeader) ->
   res = {}
   i = authHeader.indexOf(' ')
   res['method'] = authHeader.slice(0, i)
-  options = authHeader.slice(i + 1).split(/\s*,\s*/)
-  
-  for o in options
-    v = o.split('=')
-    res[v[0]] = v[1].slice(1, -1)
+
+  options = authHeader.slice(i + 1)
+  regex = /([a-z]+)="([a-zA-Z0-9\/\.@\-,]+)"/g
+  while (r = regex.exec(options)) != null
+    res[r[1]] = r[2]
+
+  regex = /([a-z]+)=([a-zA-Z0-9\/\.@\-]+)/g
+  while (r = regex.exec(options)) != null
+    res[r[1]] = r[2]
   return res
 
 
@@ -41,8 +45,8 @@ exports.digest = (username, password, uri, httpMethod, body, authHeader) ->
   response = crypto.createHash('md5')
   response.update(ha1).update(':').update(authHeader.nonce)
 
-  if authHeader.qop?
-    response.update(':').update(nc).update(':').update(cnonce).update(':').update(authHeader.qop)
+  if qop?
+    response.update(':').update(nc).update(':').update(cnonce).update(':').update(qop)
   response.update(':').update(ha2)
   response = response.digest('hex')
 
