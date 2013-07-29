@@ -71,6 +71,7 @@ testExpressions = (obj, expressions, lop) ->
     else throw new Error('Unknown logical operator')
 
 
+# generate field projection from a query
 projection = (query, proj) ->
   for k,v of query
     if k.charAt(0) == '$' # this is a logical operator
@@ -79,6 +80,17 @@ projection = (query, proj) ->
     else
       proj[k] = 1
 
+# optimize projection by removing overlaps
+optimizeProjection = (obj) ->
+  keys = Object.keys(obj).sort()
+  for i in [1 ... keys.length]
+    a = keys[i-1]
+    b = keys[i]
+    if common.startsWith(b, a)
+      if b.charAt(a.length) == '.' or b.charAt(a.length - 1) == '.'
+        delete obj[b]
+
 
 exports.test = test
 exports.projection = projection
+exports.optimizeProjection = optimizeProjection

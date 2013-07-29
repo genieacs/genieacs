@@ -84,6 +84,7 @@ exports.assertPresets = (deviceId, presetsHash, callback) ->
           else
             throw new Error('Unknown configuration type')
 
+    mongoQuery.optimizeProjection(projection)
     db.devicesCollection.findOne({'_id' : deviceId}, projection, (err, device) ->
       devicePresets = []
       for p in presets
