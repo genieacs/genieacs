@@ -79,5 +79,6 @@ exports.NUMBER_TYPE = NUMBER_TYPE
 exports.STRING_TYPE = STRING_TYPE
 exports.ARRAY_TYPE = ARRAY_TYPE
 exports.OBJECT_TYPE = OBJECT_TYPE
+exports.REGEXP_TYPE = REGEXP_TYPE
 
 exports.typeOf = typeOf

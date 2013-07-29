@@ -9,10 +9,14 @@ test = (obj, query) ->
       value = common.getParamValueFromPath(obj, k)
 
       if common.typeOf(v) isnt common.OBJECT_TYPE
+        # TODO comparing array to regex, array to array, and object to object
         if common.typeOf(value) is common.ARRAY_TYPE
           res = value.indexOf(v) != -1
         else
-          res = v == value
+          if common.typeOf(v) is common.REGEXP_TYPE
+            res = v.test(value)
+          else
+            res = v == value
       else
         for k2,v2 of v
           switch k2
