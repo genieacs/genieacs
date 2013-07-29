@@ -176,7 +176,7 @@ exports.assertPresets = (deviceId, presetsHash, callback) ->
 
       if not presetsHash
         presetsHash = calculatePresetsHash(presets)
-        db.memcached.set('presets_hash', presetsHash, expiry - config.PRESETS_TIME_PADDING, (err, res) ->
+        db.memcached.set('presets_hash', presetsHash, config.PRESETS_CACHE_DURATION, (err, res) ->
         )
 
       db.memcached.set("#{deviceId}_presets_hash", presetsHash, expiry - config.PRESETS_TIME_PADDING, (err, res) ->
