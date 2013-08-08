@@ -16,6 +16,10 @@ OBJECT_REGEX = /\.$/
 INSTANCE_REGEX = /\.[\d]+\.$/
 
 
+# Used to reject new TR-069 sessions when under load
+holdUntil = Date.now()
+
+
 applyConfigurations = (currentRequest, taskList) ->
   if taskList.length
     util.log("#{currentRequest.deviceId}: Presets discrepancy found")
@@ -129,36 +133,44 @@ updateDevice = (currentRequest, actions, callback) ->
 
 
 runTask = (currentRequest, task, methodResponse) ->
+  timeDiff = process.hrtime()
   tasks.task(task, methodResponse, (err, status, cwmpResponse, deviceUpdates) ->
     # TODO handle error
-    updateDevice(currentRequest, deviceUpdates)
+    updateDevice(currentRequest, deviceUpdates, (err) ->
+      util.error(err) if err?
 
-    switch status
-      when tasks.STATUS_FINISHED
-        db.memcached.del(String(task._id))
-        db.tasksCollection.remove({'_id' : mongodb.ObjectID(String(task._id))}, {safe: true}, (err, removed) ->
-          util.log("#{currentRequest.deviceId}: Completed task #{task.name}(#{task._id})")
-          nextTask(currentRequest)
-        )
-      when tasks.STATUS_FAULT
-        util.log("#{currentRequest.deviceId}: Fault response for task #{task._id}")
-        db.saveTask(task, (err) ->
-          # Faulty task. No more work to do until task is deleted.
-          res = tr069.response(null, cwmpResponse)
-          writeResponse(currentRequest, res)
-        )
-      when tasks.STATUS_PENDING
-        db.saveTask(task, (err) ->
-          # task expects CPE confirmation later
-          nextTask(currentRequest)
-        )
-      when tasks.STATUS_STARTED
-        db.updateTask(task, (err) ->
-          res = tr069.response(task._id, cwmpResponse)
-          writeResponse(currentRequest, res)
-        )
-      else
-        throw Error('Unknown task status')
+      timeDiff = process.hrtime(timeDiff)[0] + 1
+      if timeDiff > 3 # in seconds
+        # Server under load. Hold new sessions temporarily.
+        holdUntil = Math.max(Date.now() + timeDiff * 2000, holdUntil)
+
+      switch status
+        when tasks.STATUS_FINISHED
+          db.memcached.del(String(task._id))
+          db.tasksCollection.remove({'_id' : mongodb.ObjectID(String(task._id))}, {safe: true}, (err, removed) ->
+            util.log("#{currentRequest.deviceId}: Completed task #{task.name}(#{task._id})")
+            nextTask(currentRequest)
+          )
+        when tasks.STATUS_FAULT
+          util.log("#{currentRequest.deviceId}: Fault response for task #{task._id}")
+          db.saveTask(task, (err) ->
+            # Faulty task. No more work to do until task is deleted.
+            res = tr069.response(null, cwmpResponse)
+            writeResponse(currentRequest, res)
+          )
+        when tasks.STATUS_PENDING
+          db.saveTask(task, (err) ->
+            # task expects CPE confirmation later
+            nextTask(currentRequest)
+          )
+        when tasks.STATUS_STARTED
+          db.updateTask(task, (err) ->
+            res = tr069.response(task._id, cwmpResponse)
+            writeResponse(currentRequest, res)
+          )
+        else
+          throw Error('Unknown task status')
+    )
   )
 
 
@@ -263,6 +275,12 @@ listener = (httpRequest, httpResponse) ->
 
     if cwmpRequest.methodRequest?
       if cwmpRequest.methodRequest.type is 'Inform'
+        if Date.now() < holdUntil
+          # Ask CPE to retry in 5 mins
+          res = {code : 503, headers : {'Content-Length' : 0, 'Retry-After' : 300}, data : ''}
+          writeResponse(currentRequest, res)
+          return
+
         cwmpResponse.methodResponse = {type : 'InformResponse'}
 
         if config.LOG_INFORMS
