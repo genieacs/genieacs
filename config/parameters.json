@@ -1,5 +1,7 @@
 {
-  "_last_inform" : {"alias" : "summary.lastInform", "type" : "date"},
+  "_lastInform" : {"alias" : "summary.lastInform", "type" : "date"},
+  "_lastBoot" : {"alias" : "summary.lastBoot", "type" : "date"},
+  "_lastBootstrap" : {"alias" : "summary.lastBootstrap", "type" : "date"},
   "InternetGatewayDevice.DeviceInfo.SerialNumber" : {"alias" : "summary.serialNumber"},
   "InternetGatewayDevice.DeviceInfo.Manufacturer" : {"alias" : "summary.manufacturer"},
   "InternetGatewayDevice.DeviceInfo.ProductClass" : {"alias" : "summary.productClass"},

@@ -59,7 +59,7 @@ updateDevice = (currentRequest, actions, callback) ->
   updates = {}
   deletes = {}
   if actions.inform?
-    updates['_last_inform'] = now
+    updates['_lastInform'] = now
     updates['_lastBoot'] = now if '1 BOOT' in actions.inform
     updates['_lastBootstrap'] = now if '0 BOOTSTRAP' in actions.inform
 
