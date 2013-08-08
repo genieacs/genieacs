@@ -46,9 +46,14 @@ db.open( (err, db) ->
 
 
 getTask = (taskId, callback) ->
-  memcached.get(taskId, (err, task) ->
+  # TODO using getMulti instead of get because of possible bug
+  # in node-memcached where it sometimes returns incorrect values
+  # when under heavy load. getMulti works fine.
+  tid = String(taskId)
+  memcached.getMulti([tid], (err, data) ->
+    task = data[tid]
     if not task?
-      tasksCollection.findOne({_id : mongodb.ObjectID(String(taskId))}, (err, task) ->
+      tasksCollection.findOne({_id : mongodb.ObjectID(tid)}, (err, task) ->
         callback(task)
       )
     else
