@@ -66,7 +66,7 @@ matchObject = (object, param) ->
 exports.assertPresets = (deviceId, presetsHash, callback) ->
   getPresets((presets, objects) ->
     # only fetch relevant params
-    projection = {}
+    projection = {_id : 1}
     for p in presets
       p.precondition = query.expand(p.precondition)
       mongoQuery.projection(p.precondition, projection)

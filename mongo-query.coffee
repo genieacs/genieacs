@@ -83,6 +83,7 @@ projection = (query, proj) ->
 # optimize projection by removing overlaps
 optimizeProjection = (obj) ->
   keys = Object.keys(obj).sort()
+  return if keys.length <= 1
   for i in [1 ... keys.length]
     a = keys[i-1]
     b = keys[i]
