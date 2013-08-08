@@ -1,5 +1,5 @@
 {
-  "DATABASE_NAME" : "genie",
+  "DATABASE_NAME" : "genieacs",
   "MONGODB_SOCKET" : "/tmp/mongodb-27017.sock",
   "MEMCACHED_SOCKET" : "/tmp/memcached.sock",
   "ACS_INTERFACE" : "0.0.0.0",
