@@ -309,6 +309,11 @@ listener = (httpRequest, httpResponse) ->
       )
     else if cwmpRequest.fault?
       taskId = cwmpRequest.id
+      if not taskId
+        # Fault not related to a task. return empty response.
+        res = tr069.response(null, {}, {})
+        writeResponse(currentRequest, res)
+        return
 
       db.getTask(taskId, (task) ->
         if not task

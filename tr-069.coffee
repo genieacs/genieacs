@@ -211,7 +211,10 @@ exports.request = (httpRequest) ->
       # some devices send invalid utf8 characters
       xml = libxmljs.parseXml httpRequest.getBody('binary')
 
-    cwmpRequest.id = xml.get('//soap-env:Envelope/soap-env:Header/cwmp:ID', NAMESPACES).text()
+    try
+      cwmpRequest.id = xml.get('//soap-env:Envelope/soap-env:Header/cwmp:ID', NAMESPACES).text()
+    catch err
+      cwmpRequest.id = null
 
     methodElement = xml.get('/soap-env:Envelope/soap-env:Body/cwmp:*', NAMESPACES)
     if methodElement?
