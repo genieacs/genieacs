@@ -12,15 +12,17 @@ devicesCollection = null
 presetsCollection = null
 objectsCollection = null
 
-dbserver = new mongodb.Server(config.MONGODB_SOCKET, 0, {auto_reconnect: true})
-db = new mongodb.Db(config.DATABASE_NAME, dbserver, {native_parser:true, safe:true})
-
-exports.mongo = {
-  db : db,
-  server : dbserver
+options = {
+  db : {
+    native_parser: true
+  }
+  server : {
+    auto_reconnect : true
+  }
 }
 
-db.open( (err, db) ->
+mongodb.MongoClient.connect("mongodb://#{config.MONGODB_SOCKET}/#{config.DATABASE_NAME}", options, (err, db) ->
+  exports.mongoDb = db
   db.collection('tasks', (err, collection) ->
     exports.tasksCollection = tasksCollection = collection
     collection.ensureIndex({device: 1, timestamp: 1}, (err) ->

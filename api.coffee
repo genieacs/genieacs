@@ -246,7 +246,7 @@ else
             Manufacturer : request.headers.manufacturer,
           }
 
-          gs = new mongodb.GridStore(db.mongo.db, filename, 'w', {metadata : metadata})
+          gs = new mongodb.GridStore(db.mongoDb, filename, 'w', {metadata : metadata})
           gs.open((err, gs) ->
             gs.write(request.getBody('binary'), (err, res) ->
               gs.close((err) ->
@@ -256,7 +256,7 @@ else
             )
           )
         else if request.method == 'DELETE'
-          mongodb.GridStore.unlink(db.mongo.db, filename, (err) ->
+          mongodb.GridStore.unlink(db.mongoDb, filename, (err) ->
             response.writeHead(200)
             response.end()
           )
