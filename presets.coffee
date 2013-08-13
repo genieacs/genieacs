@@ -55,7 +55,7 @@ calculatePresetsHash = (presets, objects) ->
 
 
 matchObject = (object, param) ->
-  return false if not object._keys?
+  return false if not object._keys? or object._keys.length == 0
   for k in object._keys
     v = common.matchType(param[k]._value, object[k])
     if param[k]._value != v
@@ -91,7 +91,7 @@ exports.assertPresets = (deviceId, presetsHash, callback) ->
         if mongoQuery.test(device, p.precondition)
           devicePresets.push(p)
 
-      configurations = accumulateConfigurations(devicePresets)
+      configurations = accumulateConfigurations(devicePresets, objects)
       now = Date.now()
       taskList = []
       expiry = config.PRESETS_CACHE_DURATION
@@ -186,7 +186,14 @@ exports.assertPresets = (deviceId, presetsHash, callback) ->
   )
 
 
-accumulateConfigurations = (presets) ->
+getObjectHash = (object) ->
+  return object._id if not object._keys? or object._keys.length == 0
+  hash = ''
+  for k in object._keys
+    hash += "#{k}=#{object[k]}"
+  return hash
+
+accumulateConfigurations = (presets, objects) ->
   maxWeights = {}
   configurations = {}
   for p in presets
@@ -195,7 +202,8 @@ accumulateConfigurations = (presets) ->
         when 'add_tag', 'delete_tag'
           "tag_#{c.tag}"
         when 'add_object', 'delete_object'
-          "object_#{c.object}_#{c.object}"
+          objectHash = getObjectHash(objects[c.object])
+          "object_#{c.name}_#{objectHash}"
         when 'firmware'
           'firmware'
         else
