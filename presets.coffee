@@ -175,7 +175,7 @@ exports.assertPresets = (deviceId, presetsHash, callback) ->
         taskList.push {device : deviceId, name : 'setParameterValues', parameterValues: setParameterValues, timestamp : new Date()}
 
       if not presetsHash
-        presetsHash = calculatePresetsHash(presets)
+        presetsHash = calculatePresetsHash(presets, objects)
         db.memcached.set('presets_hash', presetsHash, config.PRESETS_CACHE_DURATION, (err, res) ->
         )
 
