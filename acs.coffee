@@ -24,6 +24,7 @@ applyConfigurations = (currentRequest, taskList) ->
   if taskList.length
     util.log("#{currentRequest.deviceId}: Presets discrepancy found")
     apiFunctions.insertTasks(taskList, (err, tasks) ->
+      throw new Error(err) if err?
       task = tasks[0]
       util.log("#{currentRequest.deviceId}: Started task #{task.name}(#{task._id})")
       runTask(currentRequest, task, {})
@@ -43,7 +44,7 @@ writeResponse = (currentRequest, res) ->
   if config.DEBUG_DEVICES[currentRequest.deviceId]
     dump = "# RESPONSE #{new Date(Date.now())}\n" + JSON.stringify(res.headers) + "\n#{res.data}\n\n"
     fs = require('fs').appendFile("debug/#{currentRequest.deviceId}.dump", dump, (err) ->
-      throw new Error(err) if err
+      throw new Error(err) if err?
     )
 
   currentRequest.httpResponse.writeHead(res.code, res.headers)
@@ -102,14 +103,14 @@ updateDevice = (currentRequest, actions, callback) ->
       updates["#{path}_timestamp"] = now
 
   if Object.keys(updates).length > 0 or Object.keys(deletes).length > 0
-    db.devicesCollection.update({'_id' : currentRequest.deviceId}, {'$set' : updates, '$unset' : deletes}, {safe: true}, (err, count) ->
+    db.devicesCollection.update({'_id' : currentRequest.deviceId}, {'$set' : updates, '$unset' : deletes}, {}, (err, count) ->
       if (err)
         callback(err) if callback?
         return
 
       if count == 0
         util.log("#{currentRequest.deviceId}: New device detected")
-        db.devicesCollection.update({'_id' : currentRequest.deviceId}, {'$set' : updates}, {upsert: true, safe: true}, (err) ->
+        db.devicesCollection.update({'_id' : currentRequest.deviceId}, {'$set' : updates}, {upsert: true}, (err) ->
           if err?
             callback(err) if callback?
             return
@@ -135,9 +136,10 @@ updateDevice = (currentRequest, actions, callback) ->
 runTask = (currentRequest, task, methodResponse) ->
   timeDiff = process.hrtime()
   tasks.task(task, methodResponse, (err, status, cwmpResponse, deviceUpdates) ->
+    throw new Error(err) if err?
     # TODO handle error
     updateDevice(currentRequest, deviceUpdates, (err) ->
-      util.error(err) if err?
+      throw new Error(err) if err?
 
       timeDiff = process.hrtime(timeDiff)[0] + 1
       if timeDiff > 3 # in seconds
@@ -148,23 +150,27 @@ runTask = (currentRequest, task, methodResponse) ->
         when tasks.STATUS_FINISHED
           db.memcached.del(String(task._id))
           db.tasksCollection.remove({'_id' : mongodb.ObjectID(String(task._id))}, {safe: true}, (err, removed) ->
+            throw new Error(err) if err?
             util.log("#{currentRequest.deviceId}: Completed task #{task.name}(#{task._id})")
             nextTask(currentRequest)
           )
         when tasks.STATUS_FAULT
           util.log("#{currentRequest.deviceId}: Fault response for task #{task._id}")
           db.saveTask(task, (err) ->
+            throw new Error(err) if err?
             # Faulty task. No more work to do until task is deleted.
             res = tr069.response(null, cwmpResponse)
             writeResponse(currentRequest, res)
           )
         when tasks.STATUS_PENDING
           db.saveTask(task, (err) ->
+            throw new Error(err) if err?
             # task expects CPE confirmation later
             nextTask(currentRequest)
           )
         when tasks.STATUS_STARTED
           db.updateTask(task, (err) ->
+            throw new Error(err) if err?
             res = tr069.response(task._id, cwmpResponse)
             writeResponse(currentRequest, res)
           )
@@ -184,11 +190,13 @@ isTaskExpired = (task) ->
 nextTask = (currentRequest) ->
   cur = db.tasksCollection.find({'device' : currentRequest.deviceId}).sort(['timestamp']).limit(1)
   cur.nextObject((err, task) ->
+    throw new Error(err) if err?
     cwmpResponse = {}
 
     if not task
       # no more tasks, check presets discrepancy
       db.memcached.get(["#{currentRequest.deviceId}_presets_hash", 'presets_hash'], (err, results) ->
+        # ignore memcached errors
         presetsHash = results['presets_hash']
         devicePresetsHash = results["#{currentRequest.deviceId}_presets_hash"]
 
@@ -218,6 +226,7 @@ nextTask = (currentRequest) ->
       writeResponse(currentRequest, res)
     else if isTaskExpired(task)
       db.tasksCollection.remove({'_id' : mongodb.ObjectID(String(task._id))}, {safe: true}, (err, removed) ->
+        throw new Error(err) if err?
         nextTask(currentRequest)
       )
     else
@@ -287,6 +296,7 @@ listener = (httpRequest, httpResponse) ->
           util.log("#{currentRequest.deviceId}: Inform (#{cwmpRequest.methodRequest.event}); retry count #{cwmpRequest.methodRequest.retryCount}")
 
         updateDevice(currentRequest, {'inform' : cwmpRequest.methodRequest.event, 'parameterValues' : cwmpRequest.methodRequest.parameterList}, (err) ->
+          throw new Error(err) if err?
           res = tr069.response(cwmpRequest.id, cwmpResponse, cookies)
           writeResponse(currentRequest, res)
         )
@@ -330,6 +340,8 @@ cluster = require 'cluster'
 numCPUs = require('os').cpus().length
 
 if cluster.isMaster
+  db.memcached.flush(() ->
+  )
   cluster.on('listening', (worker, address) ->
     util.log("Worker #{worker.process.pid} listening to #{address.address}:#{address.port}")
   )

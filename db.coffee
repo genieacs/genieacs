@@ -14,7 +14,8 @@ objectsCollection = null
 
 options = {
   db : {
-    native_parser: true
+    w : 1
+    wtimeout : 60000
   }
   server : {
     auto_reconnect : true
@@ -24,24 +25,29 @@ options = {
 mongodb.MongoClient.connect("mongodb://#{config.MONGODB_SOCKET}/#{config.DATABASE_NAME}", options, (err, db) ->
   exports.mongoDb = db
   db.collection('tasks', (err, collection) ->
+    throw new Error(err) if err?
     exports.tasksCollection = tasksCollection = collection
     collection.ensureIndex({device: 1, timestamp: 1}, (err) ->
     )
   )
 
   db.collection('devices', (err, collection) ->
+    throw new Error(err) if err?
     exports.devicesCollection  = devicesCollection = collection
   )
 
   db.collection('presets', (err, collection) ->
+    throw new Error(err) if err?
     exports.presetsCollection = presetsCollection = collection
   )
 
   db.collection('objects', (err, collection) ->
+    throw new Error(err) if err?
     exports.objectsCollection = objectsCollection = collection
   )
 
   db.collection('fs.files', (err, collection) ->
+    throw new Error(err) if err?
     exports.filesCollection = filesCollection = collection
   )
 )
@@ -56,6 +62,8 @@ getTask = (taskId, callback) ->
     task = data[tid]
     if not task?
       tasksCollection.findOne({_id : mongodb.ObjectID(tid)}, (err, task) ->
+        # TODO use err parameter in callback
+        throw new Error(err) if err?
         callback(task)
       )
     else

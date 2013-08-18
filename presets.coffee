@@ -86,6 +86,7 @@ exports.assertPresets = (deviceId, presetsHash, callback) ->
 
     mongoQuery.optimizeProjection(projection)
     db.devicesCollection.findOne({'_id' : deviceId}, projection, (err, device) ->
+      throw new Error(err) if err?
       devicePresets = []
       for p in presets
         if mongoQuery.test(device, p.precondition)
@@ -133,7 +134,9 @@ exports.assertPresets = (deviceId, presetsHash, callback) ->
               else if matchObject(objects[c.object], p)
                 u = {}
                 u["#{c.name}.#{k}._name"] = c.object
-                db.devicesCollection.update({'_id' : deviceId}, {'$set' : u}, {safe : false})
+                db.devicesCollection.update({'_id' : deviceId}, {'$set' : u}, {}, (err, count) ->
+                  throw new Error(err) if err?
+                )
                 instances[k] = p
 
             if Object.keys(instances).length > 0
@@ -163,10 +166,14 @@ exports.assertPresets = (deviceId, presetsHash, callback) ->
         log("#{deviceId}: Updating tags")
 
       if delete_tags.length > 0
-        db.devicesCollection.update({'_id' : deviceId}, {'$pull' : {'_tags' : {'$in' : delete_tags}}}, {safe : false})
+        db.devicesCollection.update({'_id' : deviceId}, {'$pull' : {'_tags' : {'$in' : delete_tags}}}, {}, (err, count) ->
+          throw new Error(err) if err?
+        )
 
       if add_tags.length > 0
-        db.devicesCollection.update({'_id' : deviceId}, {'$addToSet' : {'_tags' : {'$each' : add_tags}}}, {safe : false})
+        db.devicesCollection.update({'_id' : deviceId}, {'$addToSet' : {'_tags' : {'$each' : add_tags}}}, {}, (err, count) ->
+          throw new Error(err) if err?
+        )
 
       if getParameterValues.length
         taskList.push {device : deviceId, name : 'getParameterValues', parameterNames: getParameterValues, timestamp : new Date()}
