@@ -118,12 +118,9 @@ this.getParameterNames = (task, methodResponse, callback) ->
           rootPath = ''
           ps = path.split('.')
           for p in ps
-            if root[p]?
-              root = root[p]
-              rootPath += "#{p}."
-            else
-              root = null
-              break
+            rootPath += "#{p}."
+            root = root[p]
+            break if not root?
         else
           root = device['InternetGatewayDevice']
           rootPath = 'InternetGatewayDevice.'
@@ -135,7 +132,9 @@ this.getParameterNames = (task, methodResponse, callback) ->
           parameters[p[0]] = 1 for p in methodResponse.parameterList
           findMissingParameters(root, parameters, rootPath, deviceUpdates.deletedObjects)
         else
-          deviceUpdates.deletedObjects = [rootPath.slice(0, -1)]
+          # avoid adding and deleting the same param
+          if rootPath isnt task.parameterPath
+            deviceUpdates.deletedObjects = [rootPath.slice(0, -1)]
 
       # some devices don't return the root object as described in the standard. add manually to update timestamp
       deviceUpdates.parameterNames.push([task.parameterPath]) if !!task.parameterPath
@@ -241,14 +240,16 @@ this.addObject = (task, methodResponse, callback) ->
       when 'getParameterValues'
         this.getParameterValues(task.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) =>
           common.extend(allDeviceUpdates, deviceUpdates)
-          if deviceUpdates and deviceUpdates.parameterValues
-            for p1 in deviceUpdates.parameterValues
-              for p2 in task.parameterValues
-                if common.endsWith(p1[0], ".#{p2[0]}")
-                  t = if p2[2] then p2[2] else p1[2]
-                  v = common.matchType(p1[1], p2[1])
-                  # TODO only include if writable
-                  task.appliedParameterValues.push([p1[0], v, t])
+          # if values are given, compare with default values
+          if task.parameterValues?
+            if deviceUpdates and deviceUpdates.parameterValues?
+              for p1 in deviceUpdates.parameterValues
+                for p2 in task.parameterValues
+                  if common.endsWith(p1[0], ".#{p2[0]}")
+                    t = if p2[2] then p2[2] else p1[2]
+                    v = common.matchType(p1[1], p2[1])
+                    # TODO only include if writable
+                    task.appliedParameterValues.push([p1[0], v, t])
 
           if methodResponse.faultcode?
             # Ignore GetParameterValues errors. A workaround for the crappy Seewon devices.
