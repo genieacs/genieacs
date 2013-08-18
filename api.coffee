@@ -275,8 +275,8 @@ else
         )
       else if QUERY_REGEX.test(urlParts.pathname)
         collectionName = QUERY_REGEX.exec(urlParts.pathname)[1]
-        if request.method isnt 'GET'
-          response.writeHead 405, {'Allow' : 'GET'}
+        if request.method not in ['GET', 'HEAD']
+          response.writeHead 405, {'Allow' : 'GET, HEAD'}
           response.end('405 Method Not Allowed')
           return
         collection = db["#{collectionName}Collection"]
@@ -316,6 +316,9 @@ else
         cur.limit(parseInt(urlParts.query.limit)) if urlParts.query.limit?
         cur.count((err, total) ->
           response.writeHead(200, {'Content-Type' : 'application/json', 'total' : total})
+          if request.method is 'HEAD'
+            response.end()
+            return
           response.write("[\n")
           i = 0
           cur.each((err, item) ->
