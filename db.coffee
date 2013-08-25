@@ -1,11 +1,7 @@
 config = require './config'
 mongodb = require 'mongodb'
 Memcached = require 'memcached'
-Memcached.config.maxExpiration = 86400
-Memcached.config.timeout = 1000
-Memcached.config.retries = 0
-Memcached.config.reconnect = 1000
-memcached = new Memcached(config.MEMCACHED_SOCKET)
+memcached = new Memcached(config.MEMCACHED_SOCKET, {maxExpiration : 86400, retries : 1})
 
 tasksCollection = null
 devicesCollection = null
