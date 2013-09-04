@@ -4,8 +4,11 @@ http = require 'http'
 url = require 'url'
 mongodb = require 'mongodb'
 
-dbserver = new mongodb.Server(config.MONGODB_SOCKET, 0, {auto_reconnect: true})
-db = new mongodb.Db(config.DATABASE_NAME, dbserver, {native_parser:true, safe:true})
+db = null
+mongodb.MongoClient.connect("mongodb://#{config.MONGODB_SOCKET}/#{config.DATABASE_NAME}", config.MONGODB_OPTIONS, (err, _db) ->
+  db = _db
+)
+
 
 cluster = require 'cluster'
 numCPUs = require('os').cpus().length

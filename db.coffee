@@ -8,17 +8,7 @@ devicesCollection = null
 presetsCollection = null
 objectsCollection = null
 
-options = {
-  db : {
-    w : 1
-    wtimeout : 60000
-  }
-  server : {
-    auto_reconnect : true
-  }
-}
-
-mongodb.MongoClient.connect("mongodb://#{config.MONGODB_SOCKET}/#{config.DATABASE_NAME}", options, (err, db) ->
+mongodb.MongoClient.connect("mongodb://#{config.MONGODB_SOCKET}/#{config.DATABASE_NAME}", config.MONGODB_OPTIONS, (err, db) ->
   exports.mongoDb = db
   db.collection('tasks', (err, collection) ->
     throw new Error(err) if err?

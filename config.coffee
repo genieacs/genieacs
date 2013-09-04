@@ -19,6 +19,16 @@ exports.LOG_INFORMS = false
 exports.DEBUG_DEVICES = {} # {'202BC1-BM632w-8KA8WA1151100043' : true}
 exports.DEVICE_ONLINE_THRESHOLD = 4000
 
+exports.MONGODB_OPTIONS = {
+  db : {
+    w : 1
+    wtimeout : 60000
+  }
+  server : {
+    auto_reconnect : true
+  }
+}
+
 # load configuration
 c = require('./config/config')
 for k, v of c
