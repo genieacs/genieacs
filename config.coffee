@@ -49,3 +49,5 @@ exports.ALIASES = aliases
 
 # load authentication scripts
 exports.auth = require('./config/auth')
+
+exports.CUSTOM_COMMANDS = require('./config/custom_commands')

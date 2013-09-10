@@ -102,6 +102,13 @@ updateDevice = (currentRequest, actions, callback) ->
       updates["#{path}_writable"] = p[1] if p[1]?
       updates["#{path}_timestamp"] = now
 
+  if actions.customCommands?
+    for p in actions.customCommands
+      commandName = p[0]
+      updates["_customCommands.#{commandName}._value"] = p[1]
+      updates["_customCommands.#{commandName}._timestamp"] = now
+      updates["_customCommands.#{commandName}._commands"] = p[2] if p[2]?
+
   if Object.keys(updates).length > 0 or Object.keys(deletes).length > 0
     db.devicesCollection.update({'_id' : currentRequest.deviceId}, {'$set' : updates, '$unset' : deletes}, {}, (err, count) ->
       if (err)

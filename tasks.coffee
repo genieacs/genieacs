@@ -2,6 +2,7 @@ config = require './config'
 common = require './common'
 db = require './db'
 mongodb = require 'mongodb'
+customCommands = require './customCommands'
 BATCH_SIZE = 16
 
 exports.STATUS_QUEUED = STATUS_QUEUED = 0
@@ -11,12 +12,25 @@ exports.STATUS_FAULT = STATUS_FAULT = 3
 exports.STATUS_FINISHED = STATUS_FINISHED = 4
 
 
+initCustomCommands = (deviceId, callback) ->
+  updates = {customCommands : []}
+  counter = 0
+  for k,v of config.CUSTOM_COMMANDS
+    if eval(v).test(deviceId)
+      ++counter
+      customCommands.execute(deviceId, "#{k} init", (err, value) ->
+        updates.customCommands.push([k, value, customCommands.getCommands(k)])
+        callback(updates) if --counter <= 0
+      )
+  callback(updates) if counter <= 0
+
+
 this.init = (task, methodResponse, callback) ->
   if not task.subtask?
     task.subtask = {device : task.device, name : 'getParameterNames', parameterPath : '', nextLevel : false}
 
   if task.subtask.name == 'getParameterNames'
-    if methodResponse.faultcode?  
+    if methodResponse.faultcode?
       task.fault = methodResponse
       callback(null, STATUS_FAULT)
       return
@@ -42,7 +56,13 @@ this.init = (task, methodResponse, callback) ->
       # Ignore GetParameterValues errors. A workaround for the crappy Seewon devices.
       methodResponse = {parameterList : {}}
     this.getParameterValues(task.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) ->
-      callback(err, status, cwmpResponse, deviceUpdates)
+      if status is STATUS_FINISHED
+        initCustomCommands(task.device, (updates) ->
+          common.extend(deviceUpdates, updates)
+          callback(err, status, cwmpResponse, deviceUpdates)
+        )
+      else
+        callback(err, status, cwmpResponse, deviceUpdates)
     )
   else
     throw Error('Unexpected subtask name')
@@ -333,6 +353,18 @@ this.download = (task, methodResponse, callback) ->
     )
   else
     callback(null, STATUS_FINISHED)
+
+
+this.customCommand = (task, methodResponse, callback) ->
+  # TODO implement timeout
+  customCommands.execute(task.device, task.command, (err, value) ->
+    if err?
+      task.fault = err
+      callback(null, STATUS_FAULT)
+    else
+      commandName = task.command.split(' ', 2)[0]
+      callback(null, STATUS_FINISHED, null, {customCommands : [[commandName, value]]})
+  )
 
 
 exports.task = (task, methodResponse, callback) ->
