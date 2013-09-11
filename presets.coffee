@@ -75,6 +75,9 @@ exports.assertPresets = (deviceId, presetsHash, callback) ->
         switch c.type
           when 'value', 'age'
             projection[c.name] = 1
+          when 'custom_command_value', 'custom_command_age'
+            # TODO only get individual commands
+            projection['_customCommands'] = 1
           when 'firmware'
             projection['InternetGatewayDevice.DeviceInfo.SoftwareVersion'] = 1
           when 'add_tag', 'delete_tag'
@@ -118,6 +121,23 @@ exports.assertPresets = (deviceId, presetsHash, callback) ->
                 taskList.push({device : deviceId, name : 'refreshObject', objectName : c.name})
               else
                 getParameterValues.push(c.name)
+            else
+              expiry = Math.min(expiry, c.age - timeDiff)
+          when 'custom_command_value'
+            [filename, commandName] = c.command.split(' ', 2)
+            command = common.getParamValueFromPath(device, "_customCommands.#{filename}")
+            continue if not command? or commandName not in command._commands
+            dst = common.matchType(command._value, c.value)
+            if command._value != dst
+              taskList.push({device : deviceId, name : 'customCommand', command : c.command})
+          when 'custom_command_age'
+            [filename, commandName] = c.command.split(' ', 2)
+            command = common.getParamValueFromPath(device, "_customCommands.#{filename}")
+            continue if not command? or commandName not in command._commands
+            timeDiff = (now - command._timestamp) / 1000
+            if (c.age - timeDiff < config.PRESETS_TIME_PADDING)
+              expiry = Math.min(expiry, c.age)
+              taskList.push({device : deviceId, name : 'customCommand', command : c.command})
             else
               expiry = Math.min(expiry, c.age - timeDiff)
           when 'add_tag'
@@ -199,6 +219,7 @@ getObjectHash = (object) ->
   for k in object._keys
     hash += "#{k}=#{object[k]}"
   return hash
+
 
 accumulateConfigurations = (presets, objects) ->
   maxWeights = {}
