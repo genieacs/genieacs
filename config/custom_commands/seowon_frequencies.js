@@ -1,7 +1,6 @@
 // Change frequency plans for Seowon devices.
 // Args format: 3532500 5000,3537500 5000,3542500 5000,3547500 5000,3552500 5000,3557500 5000,3505000 10000,3515000 10000,3525000 10000,3535000 10000,3545000 10000,3555000 10000
 var net = require('net');
-//var host = '192.168.1.1';
 var PORT = 23;
 var USERNAME = 'admin';
 var PASSWORD = 'admin';
@@ -9,16 +8,23 @@ var PASSWORD = 'admin';
 var FREQUENCIES_REGEX = /\s*([\d]+)\.\s*Frequency\s*:\s*([\d]+)\s\(KHz\),\s*Bandwidth\s*:\s*([\d\.]+)\s*\(MHz\)/gm
 
 var telnetConnect = function(host, callback) {
- var client = net.connect(PORT, host, function() {
+  var client = net.connect(PORT, host, function() {
     // enter username
-    telnetExecute(USERNAME, client, "Password: ", function(response) {
+    telnetExecute(USERNAME, client, "Password: ", function(err, response) {
+      if (err) return callback(err, client);
+      if (!timeout) return;
       // enter password
-      telnetExecute(PASSWORD, client, "MT7109> ", function(response) {
-        callback(client);
+      telnetExecute(PASSWORD, client, "MT7109> ", function(err, response) {
+        if (!timeout) return;
+        clearTimeout(timeout);
+        return callback(err, client);
       });
     });
   });
- return client;
+  var timeout = setTimeout(function() {
+    timeout = null;
+    return callback('timeout', client);
+  }, 2000);
 }
 
 var telnetExecute = function(command, connection, prompt, callback) {
@@ -27,15 +33,24 @@ var telnetExecute = function(command, connection, prompt, callback) {
   var listener = function(chunk) {
     response += chunk.toString();
     if (response.slice(0 - prompt.length) == prompt) {
+      if (!timeout) return;
+      clearTimeout(timeout);
       connection.removeListener('data', listener);
-      callback(response.slice(command.length, 0 - prompt.length));
+      return callback(null, response.slice(command.length, 0 - prompt.length));
     }
   };
 
   var end = function() {
+    if (!timeout) return;
+    clearTimeout(timeout);
     connection.removeListener('end', end);
-    callback(response.slice(command.length));
+    return callback(null, response.slice(command.length));
   };
+
+  var timeout = setTimeout(function() {
+    timeout = null;
+    return callback('timeout', response);
+  }, 2000);
 
   if (prompt)
     connection.on('data', listener);
@@ -73,35 +88,34 @@ var getDeviceIp = function(deviceId, callback) {
   db.devicesCollection.findOne({_id : deviceId}, {'InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value' : 1}, function(err, device) {
     var connectionRequestUrl = device.InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value;
     var url = URL.parse(connectionRequestUrl);
-    callback(url.hostname);
+    return callback(url.hostname);
   });
 };
 
 exports.init = function(deviceId, args, callback) {
-  exports.get(deviceId, args, callback);
+  return exports.get(deviceId, args, callback);
 };
 
 exports.get = function(deviceId, args, callback) {
   var currentFrequencies = [];
 
   getDeviceIp(deviceId, function(ip) {
-    var client = telnetConnect(ip, function() {
+    telnetConnect(ip, function(err, client) {
       // enter privileged mode
-      telnetExecute("enable", client, "MT7109# ", function(response) {
+      telnetExecute("enable", client, "MT7109# ", function(err, response) {
+        if (err) return callback(err);
         // show frequencies
-        telnetExecute("show wmx freq", client, "MT7109# ", function(response) {
+        telnetExecute("show wmx freq", client, "MT7109# ", function(err, response) {
+          if (err) return callback(err);
           while (f = FREQUENCIES_REGEX.exec(response)) {
             var frequency = parseInt(f[2]);
             var bandwidth = Math.floor(parseFloat(f[3]) * 1000);
             var freqStr = String(frequency) + ' ' + String(bandwidth);
             currentFrequencies.push(freqStr);
           }
-          // exist privileged mode
-          telnetExecute("exit", client, "MT7109> ", function(response) {
-            // log out
-            telnetExecute("logout", client, null, function(response) {
-              callback(null, currentFrequencies.join(','));
-            });
+          // log out
+          telnetExecute("logout", client, null, function(err, response) {
+            return callback(err, currentFrequencies.join(','));
           });
         });
       });
@@ -115,11 +129,13 @@ exports.set = function(deviceId, args, callback) {
   var delFrequencies = [];
 
   getDeviceIp(deviceId, function(ip) {
-    var client = telnetConnect(ip, function() {
+    telnetConnect(ip, function(err, client) {
       // enter privileged mode
-      telnetExecute("enable", client, "MT7109# ", function(response) {
+      telnetExecute("enable", client, "MT7109# ", function(err, response) {
+        if (err) return callback(err);
         // show frequencies
-        telnetExecute("show wmx freq", client, "MT7109# ", function(response) {
+        telnetExecute("show wmx freq", client, "MT7109# ", function(err, response) {
+          if (err) return callback(err);
           while (f = FREQUENCIES_REGEX.exec(response)) {
             var index = parseInt(f[1]);
             var frequency = parseInt(f[2]);
@@ -135,17 +151,15 @@ exports.set = function(deviceId, args, callback) {
             addFrequencies.push(newFrequencies[f]);
 
           if (addFrequencies.length == 0 && delFrequencies.length == 0) {
-            // exit privileged mode
-            telnetExecute("exit", client, "MT7109> ", function(response) {
-              // log out
-              telnetExecute("logout", client, null, function(response) {
-                callback(null, args);
-              });
+            // log out
+            telnetExecute("logout", client, null, function(err, response) {
+              return callback(err, args);
             });
             return;
           }
 
-          telnetExecute("wimax", client, "MT7109 (WiMax)# ", function(response) {
+          telnetExecute("wimax", client, "MT7109 (WiMax)# ", function(err, response) {
+            if (err) return callback(err);
             var add, del;
             del = function() {
               if (delFrequencies.length == 0) {
@@ -153,29 +167,26 @@ exports.set = function(deviceId, args, callback) {
                 return;
               }
               var i = delFrequencies.pop();
-              telnetExecute("wmx freq del " + i, client, "MT7109 (WiMax)# ", function(response) {
+              telnetExecute("wmx freq del " + i, client, "MT7109 (WiMax)# ", function(err, response) {
+                if (err) return callback(err);
                 del();
               });
             };
             add = function() {
               if (addFrequencies.length == 0) {
                 // commit
-                telnetExecute("commit", client, "MT7109 (WiMax)# ", function(response) {
-                  // exist wimax mode
-                  telnetExecute("exit", client, "MT7109# ", function(response) {
-                    // exit privileged mode
-                    telnetExecute("exit", client, "MT7109> ", function(response) {
-                      // log out
-                      telnetExecute("logout", client, null, function(response) {
-                        callback(null, args);
-                      });
-                    });
+                telnetExecute("commit", client, "MT7109 (WiMax)# ", function(err, response) {
+                  if (err) return callback(err);
+                  // log out
+                  telnetExecute("logout", client, null, function(err, response) {
+                    return callback(null, args);
                   });
                 });
                 return;
               }
               var i = addFrequencies.pop();
-              telnetExecute("wmx freq add " + i[0] + ' ' + i[1]/1000, client, "MT7109 (WiMax)# ", function(response) {
+              telnetExecute("wmx freq add " + i[0] + ' ' + i[1]/1000, client, "MT7109 (WiMax)# ", function(err, response) {
+                if (err) return callback(err);
                 add();
               });
             };
