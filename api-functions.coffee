@@ -9,11 +9,12 @@ auth = require './auth'
 
 connectionRequest = (deviceId, callback) ->
   conReq = (url, authString, callback) ->
-    if authString
-      url = URL.parse(url)
-      url.headers = {'Authorization' : authString}
+    options = URL.parse(url)
 
-    request = http.get(url, (res) ->
+    if authString
+      options.headers = {'Authorization' : authString}
+
+    request = http.get(options, (res) ->
       if res.statusCode == 401
         authHeader = auth.parseAuthHeader(res.headers['www-authenticate'])
       callback(res.statusCode, authHeader)

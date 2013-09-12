@@ -54,8 +54,9 @@ exports.digest = (username, password, uri, httpMethod, body, authHeader) ->
   authString += ",realm=\"#{authHeader.realm}\""
   authString += ",nonce=\"#{authHeader.nonce}\""
   authString += ",uri=\"#{uri}\""
-  authString += ",qop=\"#{qop}\""
-  authString += ",nc=\"#{nc}\""
+  authString += ",algorithm=#{authHeader.algorithm}" if authHeader.algorithm?
+  authString += ",qop=#{qop}"
+  authString += ",nc=#{nc}"
   authString += ",cnonce=\"#{cnonce}\""
   authString += ",response=\"#{response}\""
   authString += ",opaque=\"#{authHeader.opaque}\""
