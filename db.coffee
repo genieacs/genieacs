@@ -72,9 +72,14 @@ updateTask = (task, callback) ->
 
 
 saveTask = (task, callback) ->
-  task._id = mongodb.ObjectID(String(task._id))
+  # task ID can either be a string or a MongoDB ID
+  id = String(task._id)
+  task._id = mongodb.ObjectID(id)
   tasksCollection.save(task, (err) ->
-    callback(err)
+    throw new Error(err) if err
+    memcached.del(id, (err, res) ->
+      callback(err)
+    )
   )
 
 
