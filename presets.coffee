@@ -4,6 +4,7 @@ db = require './db'
 mongoQuery = require './mongo-query'
 query = require './query'
 log = require('util').log
+customCommands = require './custom-commands'
 
 
 getPresets = (callback) ->
@@ -65,6 +66,7 @@ matchObject = (object, param) ->
 
 exports.assertPresets = (deviceId, presetsHash, callback) ->
   getPresets((presets, objects) ->
+    deviceCustomCommands = customCommands.getDeviceCustomCommands(deviceId)
     # only fetch relevant params
     projection = {_id : 1}
     for p in presets
@@ -76,8 +78,9 @@ exports.assertPresets = (deviceId, presetsHash, callback) ->
           when 'value', 'age'
             projection[c.name] = 1
           when 'custom_command_value', 'custom_command_age'
-            # TODO only get individual commands
-            projection['_customCommands'] = 1
+            commandfile = c.command.split(' ', 1)
+            if commandfile of deviceCustomCommands
+              projection["_customCommands.#{c.command.split(' ', 1)}"] = 1
           when 'firmware'
             projection['InternetGatewayDevice.DeviceInfo.SoftwareVersion'] = 1
           when 'add_tag', 'delete_tag'
@@ -125,16 +128,16 @@ exports.assertPresets = (deviceId, presetsHash, callback) ->
               expiry = Math.min(expiry, c.age - timeDiff)
           when 'custom_command_value'
             [filename, commandName] = c.command.split(' ', 2)
-            command = common.getParamValueFromPath(device, "_customCommands.#{filename}")
-            continue if not command? or commandName not in command._commands
-            dst = common.matchType(command._value, c.value)
-            if command._value != dst
+            continue if not deviceCustomCommands[filename]? or commandName not in deviceCustomCommands[filename]
+            currentValue = try common.getParamValueFromPath(device, "_customCommands.#{filename}")._value catch then undefined
+            dst = common.matchType(currentValue, c.value)
+            if currentValue != dst
               taskList.push({device : deviceId, name : 'customCommand', command : c.command})
           when 'custom_command_age'
             [filename, commandName] = c.command.split(' ', 2)
+            continue if not deviceCustomCommands[filename]? or commandName not in deviceCustomCommands[filename]
             command = common.getParamValueFromPath(device, "_customCommands.#{filename}")
-            continue if not command? or commandName not in command._commands
-            timeDiff = (now - command._timestamp) / 1000
+            timeDiff = try (now - command._timestamp) / 1000 catch then 9999999
             if (c.age - timeDiff < config.PRESETS_TIME_PADDING)
               expiry = Math.min(expiry, c.age)
               taskList.push({device : deviceId, name : 'customCommand', command : c.command})

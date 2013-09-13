@@ -2,7 +2,7 @@ config = require './config'
 common = require './common'
 db = require './db'
 mongodb = require 'mongodb'
-customCommands = require './customCommands'
+customCommands = require './custom-commands'
 BATCH_SIZE = 16
 
 exports.STATUS_QUEUED = STATUS_QUEUED = 0
@@ -15,11 +15,11 @@ exports.STATUS_FINISHED = STATUS_FINISHED = 4
 initCustomCommands = (deviceId, callback) ->
   updates = {customCommands : []}
   counter = 0
-  for k,v of config.CUSTOM_COMMANDS
-    if eval(v).test(deviceId)
+  for k,v of customCommands.getDeviceCustomCommands(deviceId)
+    if 'init' in v
       ++counter
       customCommands.execute(deviceId, "#{k} init", (err, value) ->
-        updates.customCommands.push([k, value, customCommands.getCommands(k)])
+        updates.customCommands.push([k, value])
         callback(updates) if --counter <= 0
       )
   callback(updates) if counter <= 0
