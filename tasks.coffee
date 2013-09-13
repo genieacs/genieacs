@@ -7,9 +7,10 @@ BATCH_SIZE = 16
 
 exports.STATUS_QUEUED = STATUS_QUEUED = 0
 exports.STATUS_STARTED = STATUS_STARTED = 1
-exports.STATUS_PENDING = STATUS_PENDING = 2
-exports.STATUS_FAULT = STATUS_FAULT = 3
-exports.STATUS_FINISHED = STATUS_FINISHED = 4
+exports.STATUS_SAVE = STATUS_SAVE = 2
+exports.STATUS_PENDING = STATUS_PENDING = 3
+exports.STATUS_FAULT = STATUS_FAULT = 4
+exports.STATUS_FINISHED = STATUS_FINISHED = 5
 
 
 initCustomCommands = (deviceId, callback) ->
@@ -237,7 +238,8 @@ this.addObject = (task, methodResponse, callback) ->
       task.parameterNames = []
       allDeviceUpdates.instanceName = [["#{task.objectName}.#{task.instanceNumber}", task.instanceName]] if task.instanceName?
     else
-      callback(null, STATUS_STARTED, {methodRequest : {type : 'AddObject', objectName : "#{task.objectName}."}})
+      # Use STATUSS_SAVE to avoid adding object again in case of failure
+      callback(null, STATUS_SAVE, {methodRequest : {type : 'AddObject', objectName : "#{task.objectName}."}})
       return
 
   subtask = () =>

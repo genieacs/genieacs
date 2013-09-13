@@ -180,6 +180,12 @@ runTask = (currentRequest, task, methodResponse) ->
             res = tr069.response(task._id, cwmpResponse)
             writeResponse(currentRequest, res)
           )
+        when tasks.STATUS_SAVE
+          db.saveTask(task, (err) ->
+            throw new Error(err) if err?
+            res = tr069.response(task._id, cwmpResponse)
+            writeResponse(currentRequest, res)
+          )
         else
           throw Error('Unknown task status')
     )
