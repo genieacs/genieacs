@@ -75,10 +75,9 @@ saveTask = (task, callback) ->
   # task ID can either be a string or a MongoDB ID
   id = String(task._id)
   task._id = mongodb.ObjectID(id)
-  tasksCollection.save(task, (err) ->
-    throw new Error(err) if err
-    memcached.del(id, (err, res) ->
-      callback(err)
+  tasksCollection.save(task, (mongoErr) ->
+    memcached.del(id, (memcachedErr, res) ->
+      callback(mongoErr or memcachedErr)
     )
   )
 
