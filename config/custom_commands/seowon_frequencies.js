@@ -24,7 +24,7 @@ var telnetConnect = function(host, callback) {
   var timeout = setTimeout(function() {
     timeout = null;
     return callback('timeout', client);
-  }, 2000);
+  }, 4000);
 }
 
 var telnetExecute = function(command, connection, prompt, callback) {
