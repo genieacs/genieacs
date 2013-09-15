@@ -2,13 +2,28 @@ config = require './config'
 common = require './common'
 db = require './db'
 mongodb = require 'mongodb'
+customCommands = require './custom-commands'
 BATCH_SIZE = 16
 
 exports.STATUS_QUEUED = STATUS_QUEUED = 0
 exports.STATUS_STARTED = STATUS_STARTED = 1
-exports.STATUS_PENDING = STATUS_PENDING = 2
-exports.STATUS_FAULT = STATUS_FAULT = 3
-exports.STATUS_FINISHED = STATUS_FINISHED = 4
+exports.STATUS_SAVE = STATUS_SAVE = 2
+exports.STATUS_PENDING = STATUS_PENDING = 3
+exports.STATUS_FAULT = STATUS_FAULT = 4
+exports.STATUS_FINISHED = STATUS_FINISHED = 5
+
+
+initCustomCommands = (deviceId, callback) ->
+  updates = {customCommands : []}
+  counter = 0
+  for k,v of customCommands.getDeviceCustomCommands(deviceId)
+    if 'init' in v
+      ++counter
+      customCommands.execute(deviceId, "#{k} init", (err, value) ->
+        updates.customCommands.push([k, value])
+        callback(updates) if --counter <= 0
+      )
+  callback(updates) if counter <= 0
 
 
 this.init = (task, methodResponse, callback) ->
@@ -16,7 +31,7 @@ this.init = (task, methodResponse, callback) ->
     task.subtask = {device : task.device, name : 'getParameterNames', parameterPath : '', nextLevel : false}
 
   if task.subtask.name == 'getParameterNames'
-    if methodResponse.faultcode?  
+    if methodResponse.faultcode?
       task.fault = methodResponse
       callback(null, STATUS_FAULT)
       return
@@ -42,7 +57,13 @@ this.init = (task, methodResponse, callback) ->
       # Ignore GetParameterValues errors. A workaround for the crappy Seewon devices.
       methodResponse = {parameterList : {}}
     this.getParameterValues(task.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) ->
-      callback(err, status, cwmpResponse, deviceUpdates)
+      if status is STATUS_FINISHED
+        initCustomCommands(task.device, (updates) ->
+          common.extend(deviceUpdates, updates)
+          callback(err, status, cwmpResponse, deviceUpdates)
+        )
+      else
+        callback(err, status, cwmpResponse, deviceUpdates)
     )
   else
     throw Error('Unexpected subtask name')
@@ -241,7 +262,11 @@ this.addObject = (task, methodResponse, callback) ->
             task.subtask = {name : 'getParameterValues', parameterNames : task.parameterNames}
             subtask()
           else if status is STATUS_STARTED
-            callback(err, STATUS_STARTED, cwmpResponse, allDeviceUpdates)
+            if allDeviceUpdates.instanceName?
+              # Use STATUSS_SAVE to avoid adding duplicate object in case of error
+              callback(err, STATUS_SAVE, cwmpResponse, allDeviceUpdates)
+            else
+              callback(err, STATUS_STARTED, cwmpResponse, allDeviceUpdates)
           else
             throw Error('Unexpected subtask status')
         )
@@ -341,6 +366,18 @@ this.download = (task, methodResponse, callback) ->
     )
   else
     callback(null, STATUS_FINISHED)
+
+
+this.customCommand = (task, methodResponse, callback) ->
+  # TODO implement timeout
+  customCommands.execute(task.device, task.command, (err, value) ->
+    if err?
+      task.fault = err
+      callback(null, STATUS_FAULT)
+    else
+      commandName = task.command.split(' ', 2)[0]
+      callback(null, STATUS_FINISHED, null, {customCommands : [[commandName, value]]})
+  )
 
 
 exports.task = (task, methodResponse, callback) ->
