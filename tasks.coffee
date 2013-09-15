@@ -238,8 +238,7 @@ this.addObject = (task, methodResponse, callback) ->
       task.parameterNames = []
       allDeviceUpdates.instanceName = [["#{task.objectName}.#{task.instanceNumber}", task.instanceName]] if task.instanceName?
     else
-      # Use STATUSS_SAVE to avoid adding object again in case of failure
-      callback(null, STATUS_SAVE, {methodRequest : {type : 'AddObject', objectName : "#{task.objectName}."}})
+      callback(null, STATUS_STARTED, {methodRequest : {type : 'AddObject', objectName : "#{task.objectName}."}})
       return
 
   subtask = () =>
@@ -255,7 +254,11 @@ this.addObject = (task, methodResponse, callback) ->
             task.subtask = {name : 'getParameterValues', parameterNames : task.parameterNames}
             subtask()
           else if status is STATUS_STARTED
-            callback(err, STATUS_STARTED, cwmpResponse, allDeviceUpdates)
+            if allDeviceUpdates.instanceName?
+              # Use STATUSS_SAVE to avoid adding duplicate object in case of error
+              callback(err, STATUS_SAVE, cwmpResponse, allDeviceUpdates)
+            else
+              callback(err, STATUS_STARTED, cwmpResponse, allDeviceUpdates)
           else
             throw Error('Unexpected subtask status')
         )
