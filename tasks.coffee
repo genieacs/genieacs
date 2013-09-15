@@ -85,17 +85,29 @@ this.refreshObject = (task, methodResponse, callback) ->
     throw Error('Unexpected subtask name')
 
 
-findMissingParameters = (device, parameters, pathPrefix, missingList) ->
-  for k,v of device
-    continue if k[0] == '_'
-    p = pathPrefix + k
-    continue if parameters[p]
+findMissingParameters = (device, parameterList, prefix) ->
+  missingParameters = []
+  paths = {}
+  for param in parameterList
+    p = param[0]
+    paths[p] = true
+    i = p.indexOf('.')
+    while i != -1
+      paths[p[0...i]] = true
+      i = p.indexOf('.', i + 1)
 
-    p += '.'
-    if parameters[p]
-      findMissingParameters(v, parameters, p, missingList)
-    else
-      missingList.push(p.slice(0, -1))
+  recursive = (obj, prefix) ->
+    for k,v of obj
+      continue if k[0] == '_'
+      p = prefix + k
+
+      if paths[p]
+        recursive(v, "#{p}.")
+      else
+        missingParameters.push(p)
+
+  recursive(device, prefix)
+  return missingParameters
 
 
 this.getParameterNames = (task, methodResponse, callback) ->
@@ -126,11 +138,7 @@ this.getParameterNames = (task, methodResponse, callback) ->
           rootPath = 'InternetGatewayDevice.'
 
         if root
-          deviceUpdates.deletedObjects = []
-          parameters = {}
-          # convert to object for better performance
-          parameters[p[0]] = 1 for p in methodResponse.parameterList
-          findMissingParameters(root, parameters, rootPath, deviceUpdates.deletedObjects)
+          deviceUpdates.deletedObjects = findMissingParameters(root, methodResponse.parameterList, rootPath)
         else
           # avoid adding and deleting the same param
           if rootPath isnt task.parameterPath
