@@ -4,6 +4,7 @@ var net = require('net');
 var PORT = 23;
 var USERNAME = 'admin';
 var PASSWORD = 'admin';
+var TIMEOUT = 5000;
 
 var FREQUENCIES_REGEX = /\s*([\d]+)\.\s*Frequency\s*:\s*([\d]+)\s\(KHz\),\s*Bandwidth\s*:\s*([\d\.]+)\s*\(MHz\)/gm
 
@@ -11,46 +12,31 @@ var telnetConnect = function(host, callback) {
   var client = net.connect(PORT, host, function() {
     // enter username
     telnetExecute(USERNAME, client, "Password: ", function(err, response) {
-      if (err) return callback(err, client);
-      if (!timeout) return;
+      if (err) return callback(err);
       // enter password
       telnetExecute(PASSWORD, client, "MT7109> ", function(err, response) {
-        if (!timeout) return;
-        clearTimeout(timeout);
-        return callback(err, client);
+        return callback(err);
       });
     });
   });
-  var timeout = setTimeout(function() {
-    timeout = null;
-    return callback('timeout', client);
-  }, 4000);
+  return client;
 }
 
 var telnetExecute = function(command, connection, prompt, callback) {
-  command += "\n";
   var response = '';
+  command += "\n";
   var listener = function(chunk) {
     response += chunk.toString();
     if (response.slice(0 - prompt.length) == prompt) {
-      if (!timeout) return;
-      clearTimeout(timeout);
       connection.removeListener('data', listener);
       return callback(null, response.slice(command.length, 0 - prompt.length));
     }
   };
 
   var end = function() {
-    if (!timeout) return;
-    clearTimeout(timeout);
     connection.removeListener('end', end);
     return callback(null, response.slice(command.length));
   };
-
-  var timeout = setTimeout(function() {
-    timeout = null;
-    return callback('timeout', response);
-  }, 2000);
 
   if (prompt)
     connection.on('data', listener);
@@ -62,7 +48,7 @@ var telnetExecute = function(command, connection, prompt, callback) {
 }
 
 var parseFrequencies = function(frequenciesString) {
-  var a = frequenciesString.split(',')
+  var a = frequenciesString.split(',');
   var l = [];
   for (i in a) {
     var sp = a[i].trim().split(' ');
@@ -100,7 +86,7 @@ exports.get = function(deviceId, args, callback) {
   var currentFrequencies = [];
 
   getDeviceIp(deviceId, function(ip) {
-    telnetConnect(ip, function(err, client) {
+    var client = telnetConnect(ip, function(err) {
       // enter privileged mode
       telnetExecute("enable", client, "MT7109# ", function(err, response) {
         if (err) return callback(err);
@@ -115,10 +101,21 @@ exports.get = function(deviceId, args, callback) {
           }
           // log out
           telnetExecute("logout", client, null, function(err, response) {
+            client.end();
             return callback(err, currentFrequencies.join(','));
           });
         });
       });
+    });
+
+    client.on("error", function(err) {
+      client.destroy();
+      callback(err);
+    });
+
+    client.setTimeout(TIMEOUT, function() {
+      client.destroy();
+      callback("timeout");
     });
   });
 };
@@ -129,7 +126,7 @@ exports.set = function(deviceId, args, callback) {
   var delFrequencies = [];
 
   getDeviceIp(deviceId, function(ip) {
-    telnetConnect(ip, function(err, client) {
+    var client = telnetConnect(ip, function(err) {
       // enter privileged mode
       telnetExecute("enable", client, "MT7109# ", function(err, response) {
         if (err) return callback(err);
@@ -153,6 +150,7 @@ exports.set = function(deviceId, args, callback) {
           if (addFrequencies.length == 0 && delFrequencies.length == 0) {
             // log out
             telnetExecute("logout", client, null, function(err, response) {
+              client.end();
               return callback(err, args);
             });
             return;
@@ -179,6 +177,7 @@ exports.set = function(deviceId, args, callback) {
                   if (err) return callback(err);
                   // log out
                   telnetExecute("logout", client, null, function(err, response) {
+                    client.end();
                     return callback(null, args);
                   });
                 });
@@ -194,6 +193,16 @@ exports.set = function(deviceId, args, callback) {
           });
         });
       });
+    });
+
+    client.on("error", function(err) {
+      client.destroy();
+      callback(err);
+    });
+
+    client.setTimeout(TIMEOUT, function() {
+      client.destroy();
+      callback("timeout");
     });
   });
 };
