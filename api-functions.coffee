@@ -84,7 +84,7 @@ expandParam = (param) ->
 
 
 sanitizeTask = (task, callback) ->
-  task.timestamp = new Date(new Date(task.timestamp ? Date.now()))
+  task.timestamp = new Date(task.timestamp ? Date.now())
 
   switch task.name
     when 'getParameterValues'
