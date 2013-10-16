@@ -84,12 +84,15 @@ projection = (query, proj) ->
 optimizeProjection = (obj) ->
   keys = Object.keys(obj).sort()
   return if keys.length <= 1
-  for i in [1 ... keys.length]
+  i = 1
+  while i < keys.length
     a = keys[i-1]
     b = keys[i]
     if common.startsWith(b, a)
       if b.charAt(a.length) == '.' or b.charAt(a.length - 1) == '.'
         delete obj[b]
+        keys.splice(i--, 1)
+    ++ i
 
 
 exports.test = test
