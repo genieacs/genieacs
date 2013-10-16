@@ -7,49 +7,7 @@ log = require('util').log
 customCommands = require './custom-commands'
 
 
-getPresets = (callback) ->
-  db.memcached.get(['presets', 'objects'], (err, res) ->
-    presets = res.presets
-    objects = res.objects
-    if presets and objects
-      callback(presets, objects)
-      return
-
-    db.presetsCollection.find().toArray((err, p) ->
-      throw new Error(err) if err
-      presets = p
-
-      db.memcached.set('presets', presets, config.PRESETS_CACHE_DURATION)
-      callback(presets, objects) if objects
-    )
-
-    db.objectsCollection.find().toArray((err, o) ->
-      throw new Error(err) if err
-      objects = {}
-      for i in o
-        objects[i._id] = i
-
-      db.memcached.set('objects', objects, config.PRESETS_CACHE_DURATION)
-      callback(presets, objects) if presets
-    )
-  )
-
-
-getPresetsHash = (callback) ->
-  db.memcached('presets_hash', (err, res) ->
-    if res
-      callback(res)
-    else
-      getPresets((presets, objects) ->
-        hash = calculatePresetsHash(presets, objects)
-        db.memcached.set('presets_hash', hash, config.PRESETS_CACHE_DURATION, (err, res) ->
-          callback(hash)
-        )
-      )
-  )
-
-
-calculatePresetsHash = (presets, objects) ->
+exports.calculatePresetsHash = (presets, objects) ->
   crypto = require('crypto')
   hash = crypto.createHash('md5').update(JSON.stringify(presets) + JSON.stringify(objects)).digest('hex')
   return hash
@@ -64,156 +22,229 @@ matchObject = (object, param) ->
   return true
 
 
-exports.assertPresets = (deviceId, presetsHash, callback) ->
-  getPresets((presets, objects) ->
-    deviceCustomCommands = customCommands.getDeviceCustomCommands(deviceId)
-    # only fetch relevant params
-    projection = {_id : 1}
+exports.getDevicePreset = (deviceId, presets, objects, callback) ->
+  deviceCustomCommands = customCommands.getDeviceCustomCommands(deviceId)
+  # only fetch relevant params
+  projection = {_id : 1}
+  for p in presets
+    p.precondition = query.expand(p.precondition)
+    mongoQuery.projection(p.precondition, projection)
+
+    for c in p.configurations
+      switch c.type
+        when 'value', 'age'
+          projection[c.name] = 1
+        when 'custom_command_value', 'custom_command_age'
+          commandfile = c.command.split(' ', 1)
+          if commandfile of deviceCustomCommands
+            projection["_customCommands.#{c.command.split(' ', 1)}"] = 1
+        when 'software_version'
+          projection['InternetGatewayDevice.DeviceInfo.SoftwareVersion'] = 1
+        when 'add_tag', 'delete_tag'
+          projection['_tags'] = 1
+        when 'add_object', 'delete_object'
+          projection[c.name] = 1
+        else
+          throw new Error('Unknown configuration type')
+
+  mongoQuery.optimizeProjection(projection)
+
+  db.devicesCollection.findOne({'_id' : deviceId}, projection, (err, device) ->
+    throw err if err
+    devicePresets = []
     for p in presets
-      p.precondition = query.expand(p.precondition)
-      mongoQuery.projection(p.precondition, projection)
+      if mongoQuery.test(device, p.precondition)
+        devicePresets.push(p)
 
-      for c in p.configurations
-        switch c.type
-          when 'value', 'age'
-            projection[c.name] = 1
-          when 'custom_command_value', 'custom_command_age'
-            commandfile = c.command.split(' ', 1)
-            if commandfile of deviceCustomCommands
-              projection["_customCommands.#{c.command.split(' ', 1)}"] = 1
-          when 'firmware'
-            projection['InternetGatewayDevice.DeviceInfo.SoftwareVersion'] = 1
-          when 'add_tag', 'delete_tag'
-            projection['_tags'] = 1
-          when 'add_object', 'delete_object'
-            projection[c.name] = 1
+    configurations = accumulateConfigurations(devicePresets, objects)
+
+    getParamDetails = (device, path) ->
+      p = common.getParamValueFromPath(device, path)
+      return undefined if not p?
+      details = {}
+      for k,v of p
+        details[k] = v if k[0] == '_'
+      return details
+
+    devicePreset = {}
+    for c in configurations
+      switch c.type
+        when 'value'
+          devicePreset.parameters ?= {}
+          devicePreset.parameters[c.name] ?= {}
+          devicePreset.parameters[c.name].preset ?= {}
+          devicePreset.parameters[c.name].preset.value = c.value
+          devicePreset.parameters[c.name].current = getParamDetails(device, c.name)
+
+        when 'age'
+          devicePreset.parameters ?= {}
+          devicePreset.parameters[c.name] ?= {}
+          devicePreset.parameters[c.name].preset ?= {}
+          devicePreset.parameters[c.name].preset.expiry = parseInt(c.age)
+          devicePreset.parameters[c.name].current = getParamDetails(device, c.name)
+
+        when 'add_tag'
+          devicePreset.tags ?= {}
+          devicePreset.tags[c.tag] = 2 | c.tag in (device._tags ? [])
+
+        when 'delete_tag'
+          devicePreset.tags ?= {}
+          devicePreset.tags[c.tag] = 0 | c.tag in (device._tags ? [])
+
+        when 'add_object'
+          devicePreset.objects ?= {}
+          devicePreset.objects[c.name] ?= {}
+          devicePreset.objects[c.name][c.object] ?= {}
+          devicePreset.objects[c.name][c.object].preset = objects[c.object]
+          continue if not param = common.getParamValueFromPath(device, c.name)
+          devicePreset.objects[c.name][c.object].current ?= {}
+          for k,p of param
+            continue if k[0] == '_'
+            if p._name?
+              if p._name == c.object
+                devicePreset.objects[c.name][c.object].current[k] = p
+            else if matchObject(objects[c.object], p)
+              u = {}
+              u["#{c.name}.#{k}._name"] = c.object
+              db.devicesCollection.update({'_id' : deviceId}, {'$set' : u}, {}, (err, count) ->
+                throw err if err
+              )
+              devicePreset.objects[c.name][c.object].current[k] = p
+
+        when 'delete_object'
+          devicePreset.objects ?= {}
+          devicePreset.objects[c.name] ?= {}
+          devicePreset.objects[c.name][c.object] ?= {}
+          continue if not param = common.getParamValueFromPath(device, c.name)
+          devicePreset.objects[c.name][c.object].current ?= {}
+          for k,p of param
+            continue if k[0] == '_'
+            if p._name?
+              if p._name == c.object
+                devicePreset.objects[c.name][c.object].current[k] = p
+            else if matchObject(objects[c.object], p)
+              u = {}
+              u["#{c.name}.#{k}._name"] = c.object
+              db.devicesCollection.update({'_id' : deviceId}, {'$set' : u}, {}, (err, count) ->
+                throw err if err
+              )
+              devicePreset.objects[c.name][c.object].current[k] = p
+
+        when 'custom_command_value'
+          [filename, commandName] = c.command.split(' ', 2)
+          devicePreset.customCommands ?= {}
+          devicePreset.customCommands[filename] ?= {}
+          devicePreset.customCommands[filename].preset ?= {}
+          devicePreset.customCommands[filename].preset.value = c.value
+          devicePreset.customCommands[filename].preset.valueCommand = c.valueCommand
+          continue if not deviceCustomCommands[filename]? or commandName not in deviceCustomCommands[filename]
+          if cmd = common.getParamValueFromPath(device, "_customCommands.#{filename}")
+            devicePreset.customCommands[filename].current = cmd
           else
-            throw new Error('Unknown configuration type')
+            devicePreset.customCommands[filename].current ?= {}
 
-    mongoQuery.optimizeProjection(projection)
-    db.devicesCollection.findOne({'_id' : deviceId}, projection, (err, device) ->
-      throw new Error(err) if err?
-      devicePresets = []
-      for p in presets
-        if mongoQuery.test(device, p.precondition)
-          devicePresets.push(p)
-
-      configurations = accumulateConfigurations(devicePresets, objects)
-      now = Date.now()
-      taskList = []
-      expiry = config.PRESETS_CACHE_DURATION
-      getParameterValues = []
-      setParameterValues = []
-      add_tags = []
-      delete_tags = []
-      for c in configurations
-        param = if c.name? then common.getParamValueFromPath(device, c.name) else undefined
-
-        switch c.type
-          when 'value'
-            continue if not param? # ignore parameters that don't exist
-            dst = common.matchType(param._value, c.value)
-            if param._value != dst
-              setParameterValues.push([c.name, dst, param._type])
-          when 'age'
-            continue if not param? # ignore parameters that don't exist
-            timeDiff = (now - param._timestamp) / 1000
-            if (c.age - timeDiff < config.PRESETS_TIME_PADDING)
-              expiry = Math.min(expiry, c.age)
-              if param._object or param._instance
-                taskList.push({device : deviceId, name : 'refreshObject', objectName : c.name})
-              else
-                getParameterValues.push(c.name)
-            else
-              expiry = Math.min(expiry, c.age - timeDiff)
-          when 'custom_command_value'
-            [filename, commandName] = c.command.split(' ', 2)
-            continue if not deviceCustomCommands[filename]? or commandName not in deviceCustomCommands[filename]
-            currentValue = try common.getParamValueFromPath(device, "_customCommands.#{filename}")._value catch then undefined
-            dst = common.matchType(currentValue, c.value)
-            if currentValue != dst
-              taskList.push({device : deviceId, name : 'customCommand', command : c.command})
-          when 'custom_command_age'
-            [filename, commandName] = c.command.split(' ', 2)
-            continue if not deviceCustomCommands[filename]? or commandName not in deviceCustomCommands[filename]
-            command = common.getParamValueFromPath(device, "_customCommands.#{filename}")
-            timeDiff = try (now - command._timestamp) / 1000 catch then 9999999
-            if (c.age - timeDiff < config.PRESETS_TIME_PADDING)
-              expiry = Math.min(expiry, c.age)
-              taskList.push({device : deviceId, name : 'customCommand', command : c.command})
-            else
-              expiry = Math.min(expiry, c.age - timeDiff)
-          when 'add_tag'
-            add_tags.push(c.tag) if not device['_tags']? or c.tag not in device['_tags']
-          when 'delete_tag'
-            delete_tags.push(c.tag) if device['_tags']? and c.tag in device['_tags']
-          when 'add_object'
-            instances = {}
-            for k,p of param
-              continue if k[0] == '_'
-              if p._name?
-                if p._name == c.object
-                  instances[k] = p
-              else if matchObject(objects[c.object], p)
-                u = {}
-                u["#{c.name}.#{k}._name"] = c.object
-                db.devicesCollection.update({'_id' : deviceId}, {'$set' : u}, {}, (err, count) ->
-                  throw new Error(err) if err?
-                )
-                instances[k] = p
-
-            if Object.keys(instances).length > 0
-              for k,i of instances
-                for k2,j of objects[c.object]
-                  continue if k2[0] == '_'
-                  dst = common.matchType(param[k][k2]._value, j)
-                  if param[k][k2]._value != dst
-                    setParameterValues.push(["#{c.name}.#{k}.#{k2}", dst, param[k][k2]._value])
-            else
-              vals = []
-              for k2,j of objects[c.object]
-                vals.push([k2, j]) if k2[0] != '_'
-              taskList.push({device : deviceId, name : 'addObject', objectName : c.name, parameterValues : vals, instanceName : c.object})
-          when 'delete_object'
-            for k,p of param
-              continue if k[0] == '_'
-              if p._name?
-                if p._name == c.object
-                  taskList.push({device : deviceId, name : 'deleteObject', objectName : "#{c.name}.#{k}"})
-              else if matchObject(objects[c.object], p)
-                taskList.push({device : deviceId, name : 'deleteObject', objectName : "#{c.name}.#{k}"})
+        when 'custom_command_age'
+          [filename, commandName] = c.command.split(' ', 2)
+          devicePreset.customCommands ?= {}
+          devicePreset.customCommands[filename] ?= {}
+          devicePreset.customCommands[filename].preset ?= {}
+          devicePreset.customCommands[filename].preset.expiry = parseInt(c.expiry)
+          devicePreset.customCommands[filename].preset.expiryCommand = c.expiryCommand
+          continue if not deviceCustomCommands[filename]? or commandName not in deviceCustomCommands[filename]
+          if cmd = common.getParamValueFromPath(device, "_customCommands.#{filename}")
+            devicePreset.customCommands[filename].current = cmd
           else
-            throw new Error('Unknown configuration type')
+            devicePreset.customCommands[filename].current ?= {}
 
-      if add_tags.length + delete_tags.length > 0
-        log("#{deviceId}: Updating tags")
+        when 'software_version'
+          devicePreset.softwareVersion ?= {}
+          devicePreset.softwareVersion.preset = c.softwareVersion
+          devicePreset.softwareVersion.current = common.getParamValueFromPath(device, 'InternetGatewayDevice.DeviceInfo.SoftwareVersion')
 
-      if delete_tags.length > 0
-        db.devicesCollection.update({'_id' : deviceId}, {'$pull' : {'_tags' : {'$in' : delete_tags}}}, {}, (err, count) ->
-          throw new Error(err) if err?
-        )
+        else
+          throw new Error('Unknown configuration type')
 
-      if add_tags.length > 0
-        db.devicesCollection.update({'_id' : deviceId}, {'$addToSet' : {'_tags' : {'$each' : add_tags}}}, {}, (err, count) ->
-          throw new Error(err) if err?
-        )
-
-      if getParameterValues.length
-        taskList.push {device : deviceId, name : 'getParameterValues', parameterNames: getParameterValues, timestamp : new Date()}
-
-      if setParameterValues.length
-        taskList.push {device : deviceId, name : 'setParameterValues', parameterValues: setParameterValues, timestamp : new Date()}
-
-      if not presetsHash
-        presetsHash = calculatePresetsHash(presets, objects)
-        db.memcached.set('presets_hash', presetsHash, config.PRESETS_CACHE_DURATION, (err, res) ->
-        )
-
-      db.memcached.set("#{deviceId}_presets_hash", presetsHash, expiry - config.PRESETS_TIME_PADDING, (err, res) ->
-        callback(taskList)
-      )
-    )
+    callback(devicePreset)
   )
+
+
+exports.processDevicePreset = (deviceId, devicePreset, callback) ->
+  now = new Date()
+  expiry = config.PRESETS_CACHE_DURATION
+  getParameterValues = []
+  setParameterValues = []
+  addTags = []
+  deleteTags = []
+  taskList = []
+
+  # Parameters
+  for parameterPath, parameterDetails of devicePreset.parameters ? {}
+    continue if not parameterDetails.current?
+    expiry = Math.min(expiry, parameterDetails.preset.expiry) if parameterDetails.preset.expiry?
+    presetValue = parameterDetails.preset.value
+    currentValue = parameterDetails.current._value
+    if presetValue? and currentValue != (presetValue = common.matchType(currentValue, presetValue))
+      setParameterValues.push([parameterPath, presetValue, parameterDetails.current._type])
+    else if parameterDetails.preset.expiry?
+      diff = (now - (parameterDetails.current._timestamp ? 0)) / 1000
+      if diff >= expiry
+        if parameterDetails.current._value?
+          getParameterValues.push(parameterPath)
+        else
+          taskList.push({device : deviceId, name : 'refreshObject', objectName : parameterPath})
+      else
+        expiry = Math.min(expiry, diff)
+
+  # Objects
+  for parameterPath, object of devicePreset.objects ? {}
+    for objectName, objectDetails of object
+      continue if not objectDetails.current?
+      if objectDetails.preset?
+        if Object.keys(objectDetails.current) > 0
+          for i, obj of objectDetails.current
+            for paramName, paramDetails of obj
+              currentValue = paramDetails.value
+              presetValue = common.matchType(currentValue, objectDetails.preset[paramName]?.value)
+              if presetValue? and currentValue != presetValue
+                setParameterValues.push(["#{parameterPath}.#{i}.#{paramName}", presetValue, paramDetails.type])
+        else
+          vals = []
+          for k,v of allObjects[objectName]
+            vals.push([k, v]) if k[0] != '_'
+          taskList.push({device : deviceId, name : 'addObject', objectName : parameterPath, parameterValues : vals, instanceName : objectName})
+      else if Object.keys(objectDetails.current) > 0
+        for i, obj of objectDetails.current
+          taskList.push({device : deviceId, name : 'deleteObject', objectName : "#{parameterPath}.#{i}"})
+
+  # Tags
+  for tag, v of devicePreset.tags ? {}
+    if v == 1
+      deleteTags.push(tag)
+    else if v == 2
+      addTags.push(tag)
+
+  # Custom commands
+  for commandName, commandDetails of devicePreset.customCommands ? {}
+    continue if not commandDetails.current?
+    expiry = Math.min(expiry, commandDetails.preset.expiry) if commandDetails.preset.expiry?
+    currentValue = commandDetails.current._value
+    presetValue = common.matchType(currentValue, commandDetails.preset.value)
+    if commandDetails.preset.value? and currentValue != presetValue
+      taskList.push({device : deviceId, name : 'customCommand', command : commandDetails.preset.valueCommand})
+    else if commandDetails.preset.expiry?
+      diff = (now - (commandDetails.current._timestamp ? 0)) / 1000
+      if diff <= 0
+        taskList.push({device : deviceId, name : 'customCommand', command : commandDetails.preset.expiryCommand})
+      else
+        expiry = Math.min(expiry, diff)
+
+  if setParameterValues.length
+    taskList.push {device : deviceId, name : 'setParameterValues', parameterValues: setParameterValues, timestamp : now}
+
+  if getParameterValues.length
+    taskList.push {device : deviceId, name : 'getParameterValues', parameterNames: getParameterValues, timestamp : now}
+
+  callback(taskList, addTags, deleteTags, expiry)
 
 
 getObjectHash = (object) ->
@@ -235,8 +266,8 @@ accumulateConfigurations = (presets, objects) ->
         when 'add_object', 'delete_object'
           objectHash = getObjectHash(objects[c.object])
           "object_#{c.name}_#{objectHash}"
-        when 'firmware'
-          'firmware'
+        when 'software_version'
+          'software_version'
         else
           "#{c.type}_#{c.name}"
 

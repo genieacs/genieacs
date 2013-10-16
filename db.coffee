@@ -82,7 +82,36 @@ saveTask = (task, callback) ->
   )
 
 
+getPresets = (callback) ->
+  memcached.get(['presets', 'objects'], (err, res) ->
+    presets = res.presets
+    objects = res.objects
+    if presets and objects
+      callback(presets, objects)
+      return
+
+    presetsCollection.find().toArray((err, p) ->
+      throw err if err
+      presets = p
+
+      memcached.set('presets', presets, config.PRESETS_CACHE_DURATION)
+      callback(presets, objects) if objects
+    )
+
+    objectsCollection.find().toArray((err, o) ->
+      throw err if err
+      objects = {}
+      for i in o
+        objects[i._id] = i
+
+      memcached.set('objects', objects, config.PRESETS_CACHE_DURATION)
+      callback(presets, objects) if presets
+    )
+  )
+
+
 exports.memcached = memcached
 exports.getTask = getTask
 exports.updateTask = updateTask
 exports.saveTask = saveTask
+exports.getPresets = getPresets

@@ -199,6 +199,58 @@ isTaskExpired = (task) ->
   return false
 
 
+assertPresets = (currentRequest) ->
+  db.memcached.get(["#{currentRequest.deviceId}_presets_hash", 'presets_hash'], (err, results) ->
+    presetsHash = results['presets_hash']
+    devicePresetsHash = results["#{currentRequest.deviceId}_presets_hash"]
+    if devicePresetsHash? and devicePresetsHash == presetsHash
+      # no discrepancy, return empty response
+      res = tr069.response(null, {})
+      writeResponse(currentRequest, res)
+    else
+      db.getPresets((allPresets, allObjects) ->
+        if not presetsHash?
+          presetsHash = presets.calculatePresetsHash(allPresets, allObjects)
+          db.memcached.set('presets_hash', presetsHash, config.PRESETS_CACHE_DURATION, (err, res) ->
+          )
+
+        presets.getDevicePreset(currentRequest.deviceId, allPresets, allObjects, (devicePreset) ->
+          presets.processDevicePreset(currentRequest.deviceId, devicePreset, (taskList, addTags, deleteTags, expiry) ->
+            db.memcached.set("#{currentRequest.deviceId}_presets_hash", presetsHash, expiry - config.PRESETS_TIME_PADDING, (err, res) ->
+            )
+
+            if addTags.length + deleteTags.length + taskList.length
+              util.log("#{currentRequest.deviceId}: Presets discrepancy found")
+
+            if addTags.length + deleteTags.length
+              util.log("#{currentRequest.deviceId}: Updating tags +(#{addTags}) -(#{deleteTags})")
+
+            if deleteTags.length
+              db.devicesCollection.update({'_id' : currentRequest.deviceId}, {'$pull' : {'_tags' : {'$in' : deleteTags}}}, {}, (err, count) ->
+                throw err if err
+              )
+
+            if addTags.length
+              db.devicesCollection.update({'_id' : currentRequest.deviceId}, {'$addToSet' : {'_tags' : {'$each' : addTags}}}, {}, (err, count) ->
+                throw err if err
+              )
+
+            if taskList.length
+              apiFunctions.insertTasks(taskList, (err, taskList) ->
+                throw err if err
+                task = taskList[0]
+                util.log("#{currentRequest.deviceId}: Started task #{task.name}(#{task._id})")
+                runTask(currentRequest, task, {})
+              )
+            else
+              res = tr069.response(null, {}, {})
+              writeResponse(currentRequest, res)
+          )
+        )
+      )
+  )
+
+
 nextTask = (currentRequest) ->
   cur = db.tasksCollection.find({'device' : currentRequest.deviceId}).sort(['timestamp']).limit(1)
   cur.nextObject((err, task) ->
@@ -207,31 +259,7 @@ nextTask = (currentRequest) ->
 
     if not task
       # no more tasks, check presets discrepancy
-      db.memcached.get(["#{currentRequest.deviceId}_presets_hash", 'presets_hash'], (err, results) ->
-        # ignore memcached errors
-        presetsHash = results['presets_hash']
-        devicePresetsHash = results["#{currentRequest.deviceId}_presets_hash"]
-
-        if not devicePresetsHash or presetsHash != devicePresetsHash
-          presets.assertPresets(currentRequest.deviceId, presetsHash, (taskList) ->
-            applyConfigurations(currentRequest, taskList)
-          )
-        else if not presetsHash
-          presets.getPresetsHash((hash) ->
-            if hash != devicePresetsHash
-              presets.assertPresets(currentRequest.deviceId, presetsHash, (taskList) ->
-                applyConfigurations(currentRequest, taskList)
-              )
-            else
-              # no discrepancy, return empty response
-              res = tr069.response(null, cwmpResponse)
-              writeResponse(currentRequest, res)
-          )
-        else
-          # no discrepancy, return empty response
-          res = tr069.response(null, cwmpResponse)
-          writeResponse(currentRequest, res)
-      )
+      assertPresets(currentRequest)
     else if task.fault?
       # last task was faulty. Do nothing until until task is deleted
       res = tr069.response(null, cwmpResponse)
