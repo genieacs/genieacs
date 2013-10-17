@@ -358,7 +358,7 @@ this.download = (task, methodResponse, callback) ->
 
       methodRequest = {
         type : 'Download',
-        fileType : '1 Firmware Upgrade Image',
+        fileType : file.metadata?.FileType ? '1 Firmware Upgrade Image',
         fileSize : file.length,
         url : "http://#{config.FILES_IP}:#{config.FILES_PORT}/#{file.filename}"
       }

@@ -241,15 +241,18 @@ else
         filename = querystring.unescape(FILES_REGEX.exec(urlParts.pathname)[1])
         if request.method == 'PUT'
           metadata = {
-            SoftwareVersion : request.headers.softwareversion,
-            HardwareVersion : request.headers.hardwareversion,
+            FileType : request.headers.filetype,
             Manufacturer : request.headers.manufacturer,
+            ProductClass : request.headers.productclass,
+            SoftwareVersion : request.headers.softwareversion,
           }
 
           gs = new mongodb.GridStore(db.mongoDb, filename, 'w', {metadata : metadata})
           gs.open((err, gs) ->
             gs.write(request.getBody('binary'), (err, res) ->
+              throw err if err
               gs.close((err) ->
+                throw err if err
               )
               response.writeHead(201)
               response.end()
