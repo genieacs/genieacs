@@ -3,6 +3,7 @@ util = require 'util'
 http = require 'http'
 url = require 'url'
 mongodb = require 'mongodb'
+querystring = require 'querystring'
 
 db = null
 mongodb.MongoClient.connect("mongodb://#{config.MONGODB_SOCKET}/#{config.DATABASE_NAME}", config.MONGODB_OPTIONS, (err, _db) ->
@@ -31,7 +32,8 @@ else
   server = http.createServer((request, response) ->
     urlParts = url.parse(request.url, true)
     if request.method == 'GET'
-      gs = new mongodb.GridStore(db, urlParts.pathname.substring(1), 'r', {})
+      filename = querystring.unescape(urlParts.pathname.substring(1))
+      gs = new mongodb.GridStore(db, filename, 'r', {})
       gs.open((err, gs) ->
         if err
           response.writeHead(404)
