@@ -136,7 +136,7 @@ exports.getDevicePreset = (deviceId, presets, objects, callback) ->
           devicePreset.customCommands[filename] ?= {}
           devicePreset.customCommands[filename].preset ?= {}
           devicePreset.customCommands[filename].preset.value = c.value
-          devicePreset.customCommands[filename].preset.valueCommand = c.valueCommand
+          devicePreset.customCommands[filename].preset.valueCommand = c.command
           continue if not deviceCustomCommands[filename]? or commandName not in deviceCustomCommands[filename]
           if cmd = common.getParamValueFromPath(device, "_customCommands.#{filename}")
             devicePreset.customCommands[filename].current = cmd
@@ -149,7 +149,7 @@ exports.getDevicePreset = (deviceId, presets, objects, callback) ->
           devicePreset.customCommands[filename] ?= {}
           devicePreset.customCommands[filename].preset ?= {}
           devicePreset.customCommands[filename].preset.expiry = parseInt(c.expiry)
-          devicePreset.customCommands[filename].preset.expiryCommand = c.expiryCommand
+          devicePreset.customCommands[filename].preset.expiryCommand = c.command
           continue if not deviceCustomCommands[filename]? or commandName not in deviceCustomCommands[filename]
           if cmd = common.getParamValueFromPath(device, "_customCommands.#{filename}")
             devicePreset.customCommands[filename].current = cmd
@@ -158,7 +158,7 @@ exports.getDevicePreset = (deviceId, presets, objects, callback) ->
 
         when 'software_version'
           devicePreset.softwareVersion ?= {}
-          devicePreset.softwareVersion.preset = c.softwareVersion
+          devicePreset.softwareVersion.preset = c.software_version
           devicePreset.softwareVersion.current = common.getParamValueFromPath(device, 'InternetGatewayDevice.DeviceInfo.SoftwareVersion')
 
         else
@@ -209,7 +209,7 @@ exports.processDevicePreset = (deviceId, devicePreset, callback) ->
                 setParameterValues.push(["#{parameterPath}.#{i}.#{paramName}", presetValue, paramDetails.type])
         else
           vals = []
-          for k,v of allObjects[objectName]
+          for k,v of objectDetails.preset
             vals.push([k, v]) if k[0] != '_'
           taskList.push({device : deviceId, name : 'addObject', objectName : parameterPath, parameterValues : vals, instanceName : objectName})
       else if Object.keys(objectDetails.current) > 0
