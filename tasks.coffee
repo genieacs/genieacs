@@ -348,7 +348,7 @@ this.download = (task, methodResponse, callback) ->
     return
 
   if methodResponse.type isnt 'DownloadResponse'
-    db.filesCollection.findOne({_id : mongodb.ObjectID(task.file)}, (err, file) ->
+    db.filesCollection.findOne({_id : mongodb.ObjectID(String(task.file))}, (err, file) ->
       if not file?
         callback('File not found')
         return
@@ -360,7 +360,9 @@ this.download = (task, methodResponse, callback) ->
         type : 'Download',
         fileType : file.metadata?.FileType ? '1 Firmware Upgrade Image',
         fileSize : file.length,
-        url : "http://#{config.FILES_IP}:#{config.FILES_PORT}/#{file.filename}"
+        url : "http://#{config.FILES_IP}:#{config.FILES_PORT}/#{file.filename}",
+        successUrl : task.successUrl,
+        failureUrl : task.failureUrl
       }
       callback(null, STATUS_STARTED, {methodRequest : methodRequest})
     )

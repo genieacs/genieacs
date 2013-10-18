@@ -198,6 +198,17 @@ acsTransferCompleteResponse = (xml, methodRequest) ->
   xml.node('cwmp:TransferCompleteResponse').text('')
 
 
+acsRequestDownload = (xml) ->
+  # TODO FileTypeArg
+  {
+    fileType : xml.get('FileType').text()
+  }
+
+
+acsRequestDownloadResponse = (xml, methodRequest) ->
+  xml.node('cwmp:RequestDownloadResponse').text('')
+
+
 exports.request = (httpRequest) ->
   cwmpRequest = {cookies: {}}
   cwmpRequest.cookies = cookiesToObj(httpRequest.headers.cookie) if httpRequest.headers.cookie
@@ -225,6 +236,9 @@ exports.request = (httpRequest) ->
         when 'TransferComplete'
           cwmpRequest.methodRequest = acsTransferComplete(methodElement)
           cwmpRequest.methodRequest.type = 'TransferComplete'
+        when 'RequestDownload'
+          cwmpRequest.methodRequest = acsRequestDownload(methodElement)
+          cwmpRequest.methodRequest.type = 'RequestDownload'
         when 'GetParameterNamesResponse'
           cwmpRequest.methodResponse = cpeGetParameterNamesResponse(methodElement)
           cwmpRequest.methodResponse.type = 'GetParameterNamesResponse'
@@ -289,6 +303,8 @@ exports.response = (id, cwmpResponse, cookies = null) ->
         acsInformResponse(body)
       when 'TransferCompleteResponse'
         acsTransferCompleteResponse(body)
+      when 'RequestDownloadResponse'
+        acsRequestDownloadResponse(body)
       else
         throw Error("Unknown method response type #{cwmpResponse.methodResponse.type}")
   else if cwmpResponse.methodRequest?

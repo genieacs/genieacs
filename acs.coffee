@@ -346,6 +346,49 @@ listener = (httpRequest, httpResponse) ->
         cwmpResponse.methodResponse = {type : 'TransferCompleteResponse'}
         res = tr069.response(cwmpRequest.id, cwmpResponse, cookies)
         writeResponse(currentRequest, res)
+      else if cwmpRequest.methodRequest.type is 'RequestDownload'
+        fileType = cwmpRequest.methodRequest.fileType
+        util.log("#{currentRequest.deviceId}: RequestDownload (#{fileType})")
+        if fileType isnt '1 Firmware Upgrade Image'
+          # Only supporting firmware upgrade for now
+          cwmpResponse.methodResponse = {type : 'RequestDownloadResponse'}
+          res = tr069.response(cwmpRequest.id, cwmpResponse, cookies)
+          writeResponse(currentRequest, res)
+          return
+
+        db.getPresets((allPresets, allObjects) ->
+          presets.getDevicePreset(currentRequest.deviceId, allPresets, allObjects, (devicePreset) ->
+            presetSoftwareVersion = devicePreset.softwareVersion?.preset
+            currentSoftwareVersion = devicePreset.softwareVersion?.current._value
+            if presetSoftwareVersion? and presetSoftwareVersion != currentSoftwareVersion
+              projection = {
+                'InternetGatewayDevice.DeviceInfo.Manufacturer' : 1,
+                'InternetGatewayDevice.DeviceInfo.ProductClass' : 1,
+              }
+              db.devicesCollection.findOne({'_id' : currentRequest.deviceId}, projection, (err, device) ->
+                manufacturer = device.InternetGatewayDevice.DeviceInfo.Manufacturer._value
+                productClass = device.InternetGatewayDevice.DeviceInfo.ProductClass._value
+                db.filesCollection.findOne({'metadata.Manufacturer' : manufacturer, 'metadata.ProductClass' : productClass, 'metadata.SoftwareVersion' : presetSoftwareVersion}, {_id : 1}, (err, file) ->
+                  throw err if err
+                  task = {
+                    device : currentRequest.deviceId,
+                    name : 'download',
+                    file : file['_id']
+                  }
+                  apiFunctions.insertTasks(task, (err, tasks) ->
+                    throw err if err
+                    cwmpResponse.methodResponse = {type : 'RequestDownloadResponse'}
+                    res = tr069.response(cwmpRequest.id, cwmpResponse, cookies)
+                    writeResponse(currentRequest, res)
+                  )
+                )
+              )
+            else
+              cwmpResponse.methodResponse = {type : 'RequestDownloadResponse'}
+              res = tr069.response(cwmpRequest.id, cwmpResponse, cookies)
+              writeResponse(currentRequest, res)
+          )
+        )
       else
         throw Error('ACS method not supported')
     else if cwmpRequest.methodResponse?
