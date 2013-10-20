@@ -347,14 +347,15 @@ listener = (httpRequest, httpResponse) ->
         res = tr069.response(cwmpRequest.id, cwmpResponse, cookies)
         writeResponse(currentRequest, res)
       else if cwmpRequest.methodRequest.type is 'RequestDownload'
+        requestDownloadResponse = () ->
+          cwmpResponse.methodResponse = {type : 'RequestDownloadResponse'}
+          res = tr069.response(cwmpRequest.id, cwmpResponse, cookies)
+          writeResponse(currentRequest, res)
         fileType = cwmpRequest.methodRequest.fileType
         util.log("#{currentRequest.deviceId}: RequestDownload (#{fileType})")
         if fileType isnt '1 Firmware Upgrade Image'
           # Only supporting firmware upgrade for now
-          cwmpResponse.methodResponse = {type : 'RequestDownloadResponse'}
-          res = tr069.response(cwmpRequest.id, cwmpResponse, cookies)
-          writeResponse(currentRequest, res)
-          return
+          return requestDownloadResponse()
 
         db.getPresets((allPresets, allObjects) ->
           presets.getDevicePreset(currentRequest.deviceId, allPresets, allObjects, (devicePreset) ->
@@ -368,8 +369,12 @@ listener = (httpRequest, httpResponse) ->
               db.devicesCollection.findOne({'_id' : currentRequest.deviceId}, projection, (err, device) ->
                 manufacturer = device.InternetGatewayDevice.DeviceInfo.Manufacturer._value
                 productClass = device.InternetGatewayDevice.DeviceInfo.ProductClass._value
-                db.filesCollection.findOne({'metadata.Manufacturer' : manufacturer, 'metadata.ProductClass' : productClass, 'metadata.SoftwareVersion' : presetSoftwareVersion}, {_id : 1}, (err, file) ->
+                db.filesCollection.findOne({'metadata.FileType' : '1 Firmware Upgrade Image', 'metadata.Manufacturer' : manufacturer, 'metadata.ProductClass' : productClass, 'metadata.SoftwareVersion' : presetSoftwareVersion}, {_id : 1}, (err, file) ->
                   throw err if err
+                  if not file?
+                    util.error("#{currentRequest.deviceId}: Firmware image not found (#{presetSoftwareVersion})")
+                    return requestDownloadResponse()
+
                   task = {
                     device : currentRequest.deviceId,
                     name : 'download',
@@ -377,16 +382,12 @@ listener = (httpRequest, httpResponse) ->
                   }
                   apiFunctions.insertTasks(task, (err, tasks) ->
                     throw err if err
-                    cwmpResponse.methodResponse = {type : 'RequestDownloadResponse'}
-                    res = tr069.response(cwmpRequest.id, cwmpResponse, cookies)
-                    writeResponse(currentRequest, res)
+                    return requestDownloadResponse()
                   )
                 )
               )
             else
-              cwmpResponse.methodResponse = {type : 'RequestDownloadResponse'}
-              res = tr069.response(cwmpRequest.id, cwmpResponse, cookies)
-              writeResponse(currentRequest, res)
+              return requestDownloadResponse()
           )
         )
       else
