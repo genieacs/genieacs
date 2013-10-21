@@ -8,6 +8,7 @@ mongodb = require 'mongodb'
 querystring = require 'querystring'
 query = require './query'
 apiFunctions = require './api-functions'
+presets = require './presets'
 
 # regular expression objects
 DEVICE_TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/tasks\/?$/
@@ -18,6 +19,7 @@ OBJECTS_REGEX = /^\/objects\/([a-zA-Z0-9\-\_\%]+)\/?$/
 FILES_REGEX = /^\/files\/([a-zA-Z0-9\-\_\%\ \.\/\(\)]+)\/?$/
 PING_REGEX = /^\/ping\/([a-zA-Z0-9\-\_\.]+)\/?$/
 QUERY_REGEX = /^\/([a-zA-Z0-9_]+s)\/?$/
+DEVICE_PRESET_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/preset\/?$/
 
 
 cluster = require 'cluster'
@@ -206,6 +208,18 @@ else
             response.end()
         else
           response.writeHead 405, {'Allow': 'POST'}
+          response.end('405 Method Not Allowed')
+      else if DEVICE_PRESET_REGEX.test(urlParts.pathname)
+        deviceId = querystring.unescape(DEVICE_PRESET_REGEX.exec(urlParts.pathname)[1])
+        if request.method is 'GET'
+          db.getPresets((allPresets, allObjects) ->
+            presets.getDevicePreset(deviceId, allPresets, allObjects, (devicePreset) ->
+              response.writeHead(200, {'Content-Type' : 'application/json'})
+              response.end(JSON.stringify(devicePreset))
+            )
+          )
+        else
+          response.writeHead 405, {'Allow': 'GET'}
           response.end('405 Method Not Allowed')
       else if TASKS_REGEX.test(urlParts.pathname)
         r = TASKS_REGEX.exec(urlParts.pathname)
