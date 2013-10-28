@@ -85,6 +85,11 @@ expandParam = (param) ->
 
 sanitizeTask = (task, callback) ->
   task.timestamp = new Date(task.timestamp ? Date.now())
+  if task.expiry?
+    if common.typeOf(task.expiry) is common.DATE_TYPE or isNaN(task.expiry)
+      task.expiry = new Date(task.expiry)
+    else
+      task.expiry = new Date(task.timestamp.getTime() + +task.expiry * 1000)
 
   switch task.name
     when 'getParameterValues'

@@ -193,10 +193,7 @@ runTask = (currentRequest, task, methodResponse) ->
 
 
 isTaskExpired = (task) ->
-  now = Date.now()
-  if task.expires and (now - task.timestamp.getTime()) > config.DEVICE_ONLINE_THRESHOLD
-    return true
-  return false
+  task.expiry <= new Date()
 
 
 assertPresets = (currentRequest) ->
@@ -265,6 +262,7 @@ nextTask = (currentRequest) ->
       res = tr069.response(null, cwmpResponse)
       writeResponse(currentRequest, res)
     else if isTaskExpired(task)
+      util.log("#{currentRequest.deviceId}: Task is expired #{task.name}(#{task._id})")
       db.tasksCollection.remove({'_id' : mongodb.ObjectID(String(task._id))}, {safe: true}, (err, removed) ->
         throw new Error(err) if err?
         nextTask(currentRequest)

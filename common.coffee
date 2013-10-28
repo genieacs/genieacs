@@ -6,6 +6,7 @@ STRING_TYPE = '[object String]'
 ARRAY_TYPE = '[object Array]'
 OBJECT_TYPE = '[object Object]'
 REGEXP_TYPE = '[object RegExp]'
+DATE_TYPE = '[object Date]'
 
 
 typeOf = (obj) ->
