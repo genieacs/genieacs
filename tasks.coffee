@@ -5,12 +5,10 @@ mongodb = require 'mongodb'
 customCommands = require './custom-commands'
 BATCH_SIZE = 16
 
-exports.STATUS_QUEUED = STATUS_QUEUED = 0
-exports.STATUS_STARTED = STATUS_STARTED = 1
-exports.STATUS_SAVE = STATUS_SAVE = 2
-exports.STATUS_PENDING = STATUS_PENDING = 3
-exports.STATUS_FAULT = STATUS_FAULT = 4
-exports.STATUS_FINISHED = STATUS_FINISHED = 5
+exports.STATUS_OK = STATUS_OK = 1
+exports.STATUS_FAULT = STATUS_FAULT = 2
+exports.STATUS_COMPLETED = STATUS_COMPLETED = 4
+exports.STATUS_SAVE = STATUS_SAVE = 128 # not mutually exclusive with the rest
 
 
 initCustomCommands = (deviceId, callback) ->
@@ -27,37 +25,40 @@ initCustomCommands = (deviceId, callback) ->
 
 
 this.init = (task, methodResponse, callback) ->
-  if not task.subtask?
-    task.subtask = {device : task.device, name : 'getParameterNames', parameterPath : '', nextLevel : false}
+  task.session = {} if not task.session?
 
-  if task.subtask.name == 'getParameterNames'
+  if not task.session.subtask?
+    task.session.subtask = {device : task.device, name : 'getParameterNames', parameterPath : '', nextLevel : false}
+
+  if task.session.subtask.name is 'getParameterNames'
     if methodResponse.faultcode?
       task.fault = methodResponse
       callback(null, STATUS_FAULT)
       return
 
-    this.getParameterNames(task.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) =>
-      if status is STATUS_FINISHED
+    this.getParameterNames(task.session.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) =>
+      if status & STATUS_COMPLETED
         parameterNames = []
         for p in deviceUpdates.parameterNames
           if not common.endsWith(p[0], '.')
             parameterNames.push(p[0])
-        task.subtask = {name : 'getParameterValues', parameterNames : parameterNames}
-        this.getParameterValues(task.subtask, {}, (err, status, cwmpResponse) ->
+        task.session.subtask = {name : 'getParameterValues', parameterNames : parameterNames}
+        this.getParameterValues(task.session.subtask, {}, (err, status, cwmpResponse) ->
           # ignore deviceUpdates returned by firt call to getParameterValues
           callback(err, status, cwmpResponse, deviceUpdates)
         )
-      else if status is STATUS_STARTED
-        callback(err, STATUS_STARTED, cwmpResponse, deviceUpdates)
+      else if status & STATUS_OK
+        callback(err, STATUS_OK, cwmpResponse, deviceUpdates)
       else
         throw Error('Unexpected subtask status')
     )
-  else if task.subtask.name == 'getParameterValues'
+  else if task.session.subtask.name is 'getParameterValues'
     if methodResponse.faultcode?
       # Ignore GetParameterValues errors. A workaround for the crappy Seewon devices.
       methodResponse = {parameterList : {}}
-    this.getParameterValues(task.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) ->
-      if status is STATUS_FINISHED
+
+    this.getParameterValues(task.session.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) ->
+      if status & STATUS_COMPLETED
         initCustomCommands(task.device, (updates) ->
           common.extend(deviceUpdates, updates)
           callback(err, status, cwmpResponse, deviceUpdates)
@@ -70,36 +71,39 @@ this.init = (task, methodResponse, callback) ->
 
 
 this.refreshObject = (task, methodResponse, callback) ->
-  if not task.subtask?
-    task.subtask = {device : task.device, name : 'getParameterNames', parameterPath : "#{task.objectName}.", nextLevel : false}
+  task.session = {} if not task.session?
+
+  if not task.session.subtask?
+    task.session.subtask = {device : task.device, name : 'getParameterNames', parameterPath : "#{task.objectName}.", nextLevel : false}
 
   if methodResponse.faultcode?
     task.fault = methodResponse
     callback(null, STATUS_FAULT)
     return
 
-  if task.subtask.name == 'getParameterNames'
-    this.getParameterNames(task.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) =>
-      if status is STATUS_FINISHED
+  if task.session.subtask.name is 'getParameterNames'
+    this.getParameterNames(task.session.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) =>
+      if status & STATUS_COMPLETED
         parameterNames = []
         for p in deviceUpdates.parameterNames
           if not common.endsWith(p[0], '.')
             parameterNames.push(p[0])
-        task.subtask = {name : 'getParameterValues', parameterNames : parameterNames}
-        this.getParameterValues(task.subtask, {}, (err, status, cwmpResponse) ->
+        task.session.subtask = {name : 'getParameterValues', parameterNames : parameterNames}
+        this.getParameterValues(task.session.subtask, {}, (err, status, cwmpResponse) ->
           # ignore deviceUpdates returned by firt call to getParameterValues
           callback(err, status, cwmpResponse, deviceUpdates)
         )
-      else if status is STATUS_STARTED
-        callback(err, STATUS_STARTED, cwmpResponse, deviceUpdates)
+      else if status & STATUS_OK
+        callback(err, STATUS_OK, cwmpResponse, deviceUpdates)
       else
         throw Error('Unexpected subtask status')
     )
-  else if task.subtask.name == 'getParameterValues'
+  else if task.session.subtask.name is 'getParameterValues'
     if methodResponse.faultcode?
       # Ignore GetParameterValues errors. A workaround for the crappy Seewon devices.
       methodResponse = {parameterList : {}}
-    this.getParameterValues(task.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) ->
+
+    this.getParameterValues(task.session.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) ->
       callback(err, status, cwmpResponse, deviceUpdates)
     )
   else
@@ -168,7 +172,7 @@ this.getParameterNames = (task, methodResponse, callback) ->
       # some devices don't return the root object as described in the standard. add manually to update timestamp
       deviceUpdates.parameterNames.push([task.parameterPath]) if !!task.parameterPath
 
-      callback(null, STATUS_FINISHED, null, deviceUpdates)
+      callback(null, STATUS_COMPLETED, null, deviceUpdates)
     )
   else
     methodRequest = {
@@ -176,61 +180,67 @@ this.getParameterNames = (task, methodResponse, callback) ->
       parameterPath : task.parameterPath,
       nextLevel : if task.nextLevel? then task.nextLevel else false
     }
-    callback(null, STATUS_STARTED, {methodRequest : methodRequest})
+    callback(null, STATUS_OK, {methodRequest : methodRequest})
 
 
 this.getParameterValues = (task, methodResponse, callback) ->
+  task.session = {} if not task.session?
+
   if methodResponse.faultcode?
     task.fault = methodResponse
     callback(null, STATUS_FAULT)
     return
 
-  if not task.currentIndex?
-    task.currentIndex = 0
+  if not task.session.currentIndex?
+    task.session.currentIndex = 0
   else if methodResponse.parameterList?
-    task.currentIndex = task.nextIndex
+    task.session.currentIndex = task.session.nextIndex
 
-  task.nextIndex = Math.min(task.currentIndex + BATCH_SIZE, task.parameterNames.length)
-  names = task.parameterNames.slice(task.currentIndex, task.nextIndex)
+  task.session.nextIndex = Math.min(task.session.currentIndex + BATCH_SIZE, task.parameterNames.length)
+  names = task.parameterNames.slice(task.session.currentIndex, task.session.nextIndex)
 
   if methodResponse.type is 'GetParameterValuesResponse'
     deviceUpdates = {parameterValues : methodResponse.parameterList}
 
   if names.length == 0
-    callback(null, STATUS_FINISHED, null, deviceUpdates)
+    callback(null, STATUS_COMPLETED, null, deviceUpdates)
   else
     methodRequest = {
       type : 'GetParameterValues',
       parameterNames : names
     }
-    callback(null, STATUS_STARTED, {methodRequest : methodRequest}, deviceUpdates)
+    callback(null, STATUS_OK, {methodRequest : methodRequest}, deviceUpdates)
 
 
 this.setParameterValues = (task, methodResponse, callback) ->
+  task.session = {} if not task.session?
+
   if methodResponse.faultcode?
     task.fault = methodResponse
     callback(null, STATUS_FAULT)
     return
 
-  if not task.currentIndex?
-    task.currentIndex = 0
+  if not task.session.currentIndex?
+    task.session.currentIndex = 0
   else if methodResponse.type is 'SetParameterValuesResponse'
-    prevValues = task.parameterValues.slice(task.currentIndex, task.nextIndex)
-    task.currentIndex = task.nextIndex
+    prevValues = task.parameterValues.slice(task.session.currentIndex, task.session.nextIndex)
+    task.session.currentIndex = task.session.nextIndex
 
-  task.nextIndex = Math.min(task.currentIndex + BATCH_SIZE, task.parameterValues.length)
-  values = task.parameterValues.slice(task.currentIndex, task.nextIndex)
+  task.session.nextIndex = Math.min(task.session.currentIndex + BATCH_SIZE, task.parameterValues.length)
+  values = task.parameterValues.slice(task.session.currentIndex, task.session.nextIndex)
 
   if prevValues?
     deviceUpdates = {parameterValues : prevValues}
 
   if values.length == 0
-    callback(null, STATUS_FINISHED, null, deviceUpdates)
+    callback(null, STATUS_COMPLETED, null, deviceUpdates)
   else
-    callback(null, STATUS_STARTED, {methodRequest : {type : 'SetParameterValues', parameterList : values}}, deviceUpdates)
+    callback(null, STATUS_OK, {methodRequest : {type : 'SetParameterValues', parameterList : values}}, deviceUpdates)
 
 
 this.addObject = (task, methodResponse, callback) ->
+  task.session = {} if not task.session?
+
   if methodResponse.faultcode?
     task.fault = methodResponse
     callback(null, STATUS_FAULT)
@@ -238,40 +248,38 @@ this.addObject = (task, methodResponse, callback) ->
 
   allDeviceUpdates = {}
 
-  if not task.instanceNumber?
+  if not task.session.instanceNumber?
     if methodResponse.type is 'AddObjectResponse'
-      task.instanceNumber = methodResponse.instanceNumber
-      task.subtask = {device : task.device, name : 'getParameterNames', parameterPath : "#{task.objectName}.#{task.instanceNumber}.", nextLevel : false}
-      task.appliedParameterValues = []
-      task.parameterNames = []
-      allDeviceUpdates.instanceName = [["#{task.objectName}.#{task.instanceNumber}", task.instanceName]] if task.instanceName?
+      status_save = STATUS_SAVE
+      task.session.instanceNumber = methodResponse.instanceNumber
+      task.session.subtask = {device : task.device, name : 'getParameterNames', parameterPath : "#{task.objectName}.#{task.session.instanceNumber}.", nextLevel : false}
+      task.session.appliedParameterValues = []
+      task.session.parameterNames = []
+      allDeviceUpdates.instanceName = [["#{task.objectName}.#{task.session.instanceNumber}", task.instanceName]] if task.instanceName?
     else
-      callback(null, STATUS_STARTED, {methodRequest : {type : 'AddObject', objectName : "#{task.objectName}."}})
+      callback(null, STATUS_OK, {methodRequest : {type : 'AddObject', objectName : "#{task.objectName}."}})
       return
 
   subtask = () =>
-    switch task.subtask.name
+    switch task.session.subtask.name
       when 'getParameterNames'
-        this.getParameterNames(task.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) =>
+        this.getParameterNames(task.session.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) =>
           common.extend(allDeviceUpdates, deviceUpdates)
           if deviceUpdates and deviceUpdates.parameterNames
             for p in deviceUpdates.parameterNames
-              task.parameterNames.push(p[0]) if not common.endsWith(p[0], '.')
+              task.session.parameterNames.push(p[0]) if not common.endsWith(p[0], '.')
 
-          if status is STATUS_FINISHED
-            task.subtask = {name : 'getParameterValues', parameterNames : task.parameterNames}
+          if status & STATUS_COMPLETED
+            task.session.subtask = {name : 'getParameterValues', parameterNames : task.session.parameterNames}
             subtask()
-          else if status is STATUS_STARTED
-            if allDeviceUpdates.instanceName?
-              # Use STATUSS_SAVE to avoid adding duplicate object in case of error
-              callback(err, STATUS_SAVE, cwmpResponse, allDeviceUpdates)
-            else
-              callback(err, STATUS_STARTED, cwmpResponse, allDeviceUpdates)
+          else if status & STATUS_OK
+            # Use STATUS_SAVE to avoid adding duplicate object in case of error
+            callback(err, STATUS_OK | status_save, cwmpResponse, allDeviceUpdates)
           else
             throw Error('Unexpected subtask status')
         )
       when 'getParameterValues'
-        this.getParameterValues(task.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) =>
+        this.getParameterValues(task.session.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) =>
           common.extend(allDeviceUpdates, deviceUpdates)
           # if values are given, compare with default values
           if task.parameterValues?
@@ -282,19 +290,20 @@ this.addObject = (task, methodResponse, callback) ->
                     t = if p2[2] then p2[2] else p1[2]
                     v = common.matchType(p1[1], p2[1])
                     # TODO only include if writable
-                    task.appliedParameterValues.push([p1[0], v, t])
+                    task.session.appliedParameterValues.push([p1[0], v, t])
 
           if methodResponse.faultcode?
             # Ignore GetParameterValues errors. A workaround for the crappy Seewon devices.
             methodResponse = {parameterList : {}}
-          if status is STATUS_FINISHED and task.appliedParameterValues.length > 0
-            task.subtask = {name : 'setParameterValues', parameterValues : task.appliedParameterValues}
+
+          if status & STATUS_COMPLETED and task.session.appliedParameterValues.length > 0
+            task.session.subtask = {name : 'setParameterValues', parameterValues : task.session.appliedParameterValues}
             subtask()
           else
             callback(err, status, cwmpResponse, allDeviceUpdates)
         )
       when 'setParameterValues'
-        this.setParameterValues(task.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) =>
+        this.setParameterValues(task.session.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) =>
           common.extend(allDeviceUpdates, deviceUpdates)
           callback(err, status, cwmpResponse, allDeviceUpdates)
         )
@@ -308,13 +317,13 @@ this.deleteObject = (task, methodResponse, callback) ->
     return
 
   if methodResponse.type is 'DeleteObjectResponse'
-    callback(null, STATUS_FINISHED, null, {deletedObjects : [task.objectName]})
+    callback(null, STATUS_COMPLETED, null, {deletedObjects : [task.objectName]})
   else
     methodRequest = {
       type : 'DeleteObject',
       objectName : "#{task.objectName}."
     }
-    callback(null, STATUS_STARTED, {methodRequest : methodRequest})
+    callback(null, STATUS_OK, {methodRequest : methodRequest})
 
 
 this.reboot = (task, methodResponse, callback) ->
@@ -324,9 +333,9 @@ this.reboot = (task, methodResponse, callback) ->
     return
   
   if methodResponse.type isnt 'RebootResponse'
-    callback(null, STATUS_STARTED, {methodRequest : {type : 'Reboot'}})
+    callback(null, STATUS_OK, {methodRequest : {type : 'Reboot'}})
   else
-    callback(null, STATUS_FINISHED)
+    callback(null, STATUS_COMPLETED)
 
 
 this.factoryReset = (task, methodResponse, callback) ->
@@ -336,9 +345,9 @@ this.factoryReset = (task, methodResponse, callback) ->
     return
 
   if methodResponse.type isnt 'FactoryResetResponse'
-    callback(null, STATUS_STARTED, {methodRequest : {type : 'FactoryReset'}})
+    callback(null, STATUS_OK, {methodRequest : {type : 'FactoryReset'}})
   else
-    callback(null, STATUS_FINISHED)
+    callback(null, STATUS_COMPLETED)
 
 
 this.download = (task, methodResponse, callback) ->
@@ -364,10 +373,10 @@ this.download = (task, methodResponse, callback) ->
         successUrl : task.successUrl,
         failureUrl : task.failureUrl
       }
-      callback(null, STATUS_STARTED, {methodRequest : methodRequest})
+      callback(null, STATUS_OK, {methodRequest : methodRequest})
     )
   else
-    callback(null, STATUS_FINISHED)
+    callback(null, STATUS_COMPLETED)
 
 
 this.customCommand = (task, methodResponse, callback) ->
@@ -378,7 +387,7 @@ this.customCommand = (task, methodResponse, callback) ->
       callback(null, STATUS_FAULT)
     else
       commandName = task.command.split(' ', 2)[0]
-      callback(null, STATUS_FINISHED, null, {customCommands : [[commandName, value]]})
+      callback(null, STATUS_COMPLETED, null, {customCommands : [[commandName, value]]})
   )
 
 

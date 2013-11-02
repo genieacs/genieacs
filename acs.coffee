@@ -152,38 +152,41 @@ runTask = (currentRequest, task, methodResponse) ->
         # Server under load. Hold new sessions temporarily.
         holdUntil = Math.max(Date.now() + timeDiff * 2000, holdUntil)
 
-      switch status
-        when tasks.STATUS_FINISHED
-          db.memcached.del(String(task._id))
-          db.tasksCollection.remove({'_id' : mongodb.ObjectID(String(task._id))}, {safe: true}, (err, removed) ->
-            throw new Error(err) if err?
-            util.log("#{currentRequest.deviceId}: Completed task #{task.name}(#{task._id})")
-            nextTask(currentRequest)
+      save = status & tasks.STATUS_SAVE
+      switch status & ~tasks.STATUS_SAVE
+        when tasks.STATUS_OK
+          f = () ->
+            db.memcached.set(String(task._id), task, config.CACHE_DURATION, (err, res) ->
+              throw err if err
+              res = tr069.response(task._id, cwmpResponse)
+              writeResponse(currentRequest, res)
+            )
+
+          if save
+            db.tasksCollection.update({_id : mongodb.ObjectID(String(task._id))}, {$set : {session : task.session}}, (err) ->
+              throw err if err
+              f()
+            )
+          else
+            f()
+        when tasks.STATUS_COMPLETED
+          util.log("#{currentRequest.deviceId}: Completed task #{task.name}(#{task._id})")
+          db.tasksCollection.remove({'_id' : mongodb.ObjectID(String(task._id))}, (err, removed) ->
+            throw err if err
+            db.memcached.del(String(task._id), (err, res) ->
+              nextTask(currentRequest)
+            )
           )
         when tasks.STATUS_FAULT
           util.log("#{currentRequest.deviceId}: Fault response for task #{task._id}")
-          db.saveTask(task, (err) ->
-            throw new Error(err) if err?
+          taskUpdate = {fault : task.fault}
+          if save
+            taskUpdate.session = task.session
+
+          db.tasksCollection.update({_id : mongodb.ObjectID(String(task._id))}, {$set : taskUpdate}, (err) ->
+            throw err if err
             # Faulty task. No more work to do until task is deleted.
             res = tr069.response(null, cwmpResponse)
-            writeResponse(currentRequest, res)
-          )
-        when tasks.STATUS_PENDING
-          db.saveTask(task, (err) ->
-            throw new Error(err) if err?
-            # task expects CPE confirmation later
-            nextTask(currentRequest)
-          )
-        when tasks.STATUS_STARTED
-          db.updateTask(task, (err) ->
-            throw new Error(err) if err?
-            res = tr069.response(task._id, cwmpResponse)
-            writeResponse(currentRequest, res)
-          )
-        when tasks.STATUS_SAVE
-          db.saveTask(task, (err) ->
-            throw new Error(err) if err?
-            res = tr069.response(task._id, cwmpResponse)
             writeResponse(currentRequest, res)
           )
         else
