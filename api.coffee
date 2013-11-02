@@ -70,9 +70,8 @@ else
           preset._id = presetName
 
           db.presetsCollection.save(preset, (err) ->
-            db.memcached.del('presets', (err, res) ->
-            )
-            db.memcached.del('presets_hash', (err, res) ->
+            db.redisClient.del('presets', 'presets_hash', (err) ->
+              throw err if err
             )
             if err
               response.writeHead(500)
@@ -83,9 +82,8 @@ else
           )
         else if request.method == 'DELETE'
           db.presetsCollection.remove({'_id' : presetName}, (err, removedCount) ->
-            db.memcached.del('presets', (err, res) ->
-            )
-            db.memcached.del('presets_hash', (err, res) ->
+            db.redisClient.del('presets', 'presets_hash', (err) ->
+              throw err if err
             )
             if err
               response.writeHead(500)
@@ -104,9 +102,8 @@ else
           object._id = objectName
 
           db.objectsCollection.save(object, (err) ->
-            db.memcached.del('objects', (err, res) ->
-            )
-            db.memcached.del('presets_hash', (err, res) ->
+            db.redisClient.del('objects', 'presets_hash', (err) ->
+              throw err if err
             )
             if err
               response.writeHead(500)
@@ -117,9 +114,8 @@ else
           )
         else if request.method == 'DELETE'
           db.objectsCollection.remove({'_id' : objectName}, (err, removedCount) ->
-            db.memcached.del('objects', (err, res) ->
-            )
-            db.memcached.del('presets_hash', (err, res) ->
+            db.redisClient.del('objects', 'presets_hash', (err) ->
+              throw err if err
             )
             if err
               response.writeHead(500)
@@ -137,7 +133,8 @@ else
         tag = querystring.unescape(r[2])
         if request.method == 'POST'
           db.devicesCollection.update({'_id' : deviceId}, {'$addToSet' : {'_tags' : tag}}, {safe: true}, (err) ->
-            db.memcached.del("#{deviceId}_presets_hash", (err, res) ->
+            db.redisClient.del("#{deviceId}_presets_hash", (err) ->
+              throw err if err
             )
             if err
               response.writeHead(500)
@@ -148,7 +145,8 @@ else
           )
         else if request.method == 'DELETE'
           db.devicesCollection.update({'_id' : deviceId}, {'$pull' : {'_tags' : tag}}, {safe: true}, (err) ->
-            db.memcached.del("#{deviceId}_presets_hash", (err, res) ->
+            db.redisClient.del("#{deviceId}_presets_hash", (err) ->
+              throw err if err
             )
             if err
               response.writeHead(500)
@@ -167,7 +165,8 @@ else
             task = JSON.parse(body)
             task.device = deviceId
             apiFunctions.insertTasks(task, (err) ->
-              db.memcached.del("#{deviceId}_presets_hash", (err, res) ->
+              db.redisClient.del("#{deviceId}_presets_hash", (err) ->
+                throw err if err
               )
               if err
                 response.writeHead(500)

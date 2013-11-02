@@ -156,7 +156,7 @@ runTask = (currentRequest, task, methodResponse) ->
       switch status & ~tasks.STATUS_SAVE
         when tasks.STATUS_OK
           f = () ->
-            db.memcached.set(String(task._id), task, config.CACHE_DURATION, (err, res) ->
+            db.redisClient.setex(String(task._id), config.CACHE_DURATION, JSON.stringify(task), (err) ->
               throw err if err
               res = tr069.response(task._id, cwmpResponse)
               writeResponse(currentRequest, res)
@@ -173,7 +173,8 @@ runTask = (currentRequest, task, methodResponse) ->
           util.log("#{currentRequest.deviceId}: Completed task #{task.name}(#{task._id})")
           db.tasksCollection.remove({'_id' : mongodb.ObjectID(String(task._id))}, (err, removed) ->
             throw err if err
-            db.memcached.del(String(task._id), (err, res) ->
+            db.redisClient.del(String(task._id), (err, res) ->
+              throw err if err
               nextTask(currentRequest)
             )
           )
@@ -200,9 +201,10 @@ isTaskExpired = (task) ->
 
 
 assertPresets = (currentRequest) ->
-  db.memcached.get(["#{currentRequest.deviceId}_presets_hash", 'presets_hash'], (err, results) ->
-    presetsHash = results['presets_hash']
-    devicePresetsHash = results["#{currentRequest.deviceId}_presets_hash"]
+  db.redisClient.mget("#{currentRequest.deviceId}_presets_hash", 'presets_hash', (err, res) ->
+    throw err if err
+    devicePresetsHash = res[0]
+    presetsHash = res[1]
     if devicePresetsHash? and devicePresetsHash == presetsHash
       # no discrepancy, return empty response
       res = tr069.response(null, {})
@@ -211,12 +213,14 @@ assertPresets = (currentRequest) ->
       db.getPresets((allPresets, allObjects) ->
         if not presetsHash?
           presetsHash = presets.calculatePresetsHash(allPresets, allObjects)
-          db.memcached.set('presets_hash', presetsHash, config.PRESETS_CACHE_DURATION, (err, res) ->
+          db.redisClient.setex('presets_hash', config.PRESETS_CACHE_DURATION, presetsHash, (err, res) ->
+            throw err if err
           )
 
         presets.getDevicePreset(currentRequest.deviceId, allPresets, allObjects, (devicePreset) ->
           presets.processDevicePreset(currentRequest.deviceId, devicePreset, (taskList, addTags, deleteTags, expiry) ->
-            db.memcached.set("#{currentRequest.deviceId}_presets_hash", presetsHash, expiry - config.PRESETS_TIME_PADDING, (err, res) ->
+            db.redisClient.setex("#{currentRequest.deviceId}_presets_hash", expiry - config.PRESETS_TIME_PADDING, presetsHash, (err, res) ->
+              throw err if err
             )
 
             if addTags.length + deleteTags.length + taskList.length
@@ -396,7 +400,8 @@ listener = (httpRequest, httpResponse) ->
     else if cwmpRequest.methodResponse?
       taskId = cwmpRequest.id
 
-      db.getTask(taskId, (task) ->
+      db.getTask(taskId, (err, task) ->
+        throw err if err
         if not task
           nextTask(currentRequest)
         else
@@ -410,7 +415,8 @@ listener = (httpRequest, httpResponse) ->
         writeResponse(currentRequest, res)
         return
 
-      db.getTask(taskId, (task) ->
+      db.getTask(taskId, (err, task) ->
+        throw err if err
         if not task
           nextTask(currentRequest)
         else
@@ -425,8 +431,7 @@ cluster = require 'cluster'
 numCPUs = require('os').cpus().length
 
 if cluster.isMaster
-  db.memcached.flush(() ->
-  )
+  db.redisClient.flushdb()
   cluster.on('listening', (worker, address) ->
     util.log("Worker #{worker.process.pid} listening to #{address.address}:#{address.port}")
   )
