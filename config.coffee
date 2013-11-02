@@ -18,6 +18,7 @@ exports.WORKER_RESPAWN_TIME = 60000
 exports.LOG_INFORMS = false
 exports.DEBUG_DEVICES = {} # {'202BC1-BM632w-8KA8WA1151100043' : true}
 exports.DEVICE_ONLINE_THRESHOLD = 4000
+exports.RETRY_DELAY = 300
 
 exports.MONGODB_OPTIONS = {
   db : {

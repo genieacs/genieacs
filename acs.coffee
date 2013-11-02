@@ -179,16 +179,15 @@ runTask = (currentRequest, task, methodResponse) ->
             )
           )
         when tasks.STATUS_FAULT
-          util.log("#{currentRequest.deviceId}: Fault response for task #{task._id}")
-          taskUpdate = {fault : task.fault}
+          retryAfter = config.RETRY_DELAY * Math.pow(2, task.retries ? 0)
+          util.log("#{currentRequest.deviceId}: Fault response for task #{task._id}. Retrying after #{retryAfter} seconds.")
+          taskUpdate = {fault : task.fault, timestamp : new Date(Date.now() + retryAfter * 1000)}
           if save
             taskUpdate.session = task.session
 
-          db.tasksCollection.update({_id : mongodb.ObjectID(String(task._id))}, {$set : taskUpdate}, (err) ->
+          db.tasksCollection.update({_id : mongodb.ObjectID(String(task._id))}, {$set : taskUpdate, $inc : {retries : 1}}, (err) ->
             throw err if err
-            # Faulty task. No more work to do until task is deleted.
-            res = tr069.response(null, cwmpResponse)
-            writeResponse(currentRequest, res)
+            nextTask(currentRequest)
           )
         else
           throw Error('Unknown task status')
@@ -256,18 +255,15 @@ assertPresets = (currentRequest) ->
 
 
 nextTask = (currentRequest) ->
-  cur = db.tasksCollection.find({'device' : currentRequest.deviceId}).sort(['timestamp']).limit(1)
+  now = new Date()
+  cur = db.tasksCollection.find({'device' : currentRequest.deviceId, timestamp : {$lte : now}}).sort(['timestamp']).limit(1)
   cur.nextObject((err, task) ->
-    throw new Error(err) if err?
+    throw err if err
     cwmpResponse = {}
 
     if not task
       # no more tasks, check presets discrepancy
       assertPresets(currentRequest)
-    else if task.fault?
-      # last task was faulty. Do nothing until until task is deleted
-      res = tr069.response(null, cwmpResponse)
-      writeResponse(currentRequest, res)
     else if isTaskExpired(task)
       util.log("#{currentRequest.deviceId}: Task is expired #{task.name}(#{task._id})")
       db.tasksCollection.remove({'_id' : mongodb.ObjectID(String(task._id))}, {safe: true}, (err, removed) ->

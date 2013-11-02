@@ -239,7 +239,7 @@ else
             response.end('405 Method Not Allowed')
         else if action is '/retry'
           if request.method == 'POST'
-            db.tasksCollection.update({_id : taskId}, {$unset : {fault : 1}, $inc : {retries : 1}, '$set' : {timestamp : new Date()}}, (err, count) ->
+            db.tasksCollection.update({_id : taskId}, {$unset : {fault : 1}, $set : {timestamp : new Date()}}, (err, count) ->
               # TODO need to invalidate presets hash for the device
               response.writeHead(200)
               response.end()
