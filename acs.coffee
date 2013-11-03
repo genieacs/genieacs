@@ -278,7 +278,6 @@ nextTask = (currentRequest) ->
 
 listener = (httpRequest, httpResponse) ->
   if httpRequest.method != 'POST'
-    #console.log '>>> 405 Method Not Allowed'
     httpResponse.writeHead 405, {'Allow': 'POST'}
     httpResponse.end('405 Method Not Allowed')
     return
@@ -450,6 +449,8 @@ else
   httpServer = http.createServer(listener)
   httpsServer = https.createServer(options, listener)
 
-  httpServer.listen(config.ACS_PORT, config.ACS_INTERFACE)
-  httpsServer.listen(config.ACS_HTTPS_PORT, config.ACS_HTTPS_INTERFACE)
-  #console.log "Server listening on port #{config.ACS_PORT}"
+  # wait until DB connections are established
+  setTimeout(() ->
+    httpServer.listen(config.ACS_PORT, config.ACS_INTERFACE)
+    httpsServer.listen(config.ACS_HTTPS_PORT, config.ACS_HTTPS_INTERFACE)
+  , 1000)
