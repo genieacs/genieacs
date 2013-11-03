@@ -148,7 +148,7 @@ exports.getDevicePreset = (deviceId, presets, objects, callback) ->
           devicePreset.customCommands ?= {}
           devicePreset.customCommands[filename] ?= {}
           devicePreset.customCommands[filename].preset ?= {}
-          devicePreset.customCommands[filename].preset.expiry = parseInt(c.expiry)
+          devicePreset.customCommands[filename].preset.expiry = parseInt(c.age)
           devicePreset.customCommands[filename].preset.expiryCommand = c.command
           continue if not deviceCustomCommands[filename]? or commandName not in deviceCustomCommands[filename]
           if cmd = common.getParamValueFromPath(device, "_customCommands.#{filename}")
@@ -186,8 +186,8 @@ exports.processDevicePreset = (deviceId, devicePreset, callback) ->
     if presetValue? and currentValue != (presetValue = common.matchType(currentValue, presetValue))
       setParameterValues.push([parameterPath, presetValue, parameterDetails.current._type])
     else if parameterDetails.preset.expiry?
-      diff = (now - (parameterDetails.current._timestamp ? 0)) / 1000
-      if diff >= expiry
+      diff = parameterDetails.preset.expiry - (now - (parameterDetails.current._timestamp ? 0)) / 1000
+      if diff <= config.PRESETS_TIME_PADDING
         if parameterDetails.current._value?
           getParameterValues.push(parameterPath)
         else
@@ -232,8 +232,8 @@ exports.processDevicePreset = (deviceId, devicePreset, callback) ->
     if commandDetails.preset.value? and currentValue != presetValue
       taskList.push({device : deviceId, name : 'customCommand', command : commandDetails.preset.valueCommand})
     else if commandDetails.preset.expiry?
-      diff = (now - (commandDetails.current._timestamp ? 0)) / 1000
-      if diff <= 0
+      diff = commandDetails.preset.expiry - (now - (commandDetails.current._timestamp ? 0)) / 1000
+      if diff <= config.PRESETS_TIME_PADDING
         taskList.push({device : deviceId, name : 'customCommand', command : commandDetails.preset.expiryCommand})
       else
         expiry = Math.min(expiry, diff)

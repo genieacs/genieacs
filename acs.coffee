@@ -218,7 +218,7 @@ assertPresets = (currentRequest) ->
 
         presets.getDevicePreset(currentRequest.deviceId, allPresets, allObjects, (devicePreset) ->
           presets.processDevicePreset(currentRequest.deviceId, devicePreset, (taskList, addTags, deleteTags, expiry) ->
-            db.redisClient.setex("#{currentRequest.deviceId}_presets_hash", Math.ceil(expiry - config.PRESETS_TIME_PADDING), presetsHash, (err, res) ->
+            db.redisClient.setex("#{currentRequest.deviceId}_presets_hash", Math.floor(Math.max(1, expiry - config.PRESETS_TIME_PADDING)), presetsHash, (err, res) ->
               throw err if err
             )
 
