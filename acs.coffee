@@ -239,6 +239,7 @@ assertPresets = (currentRequest) ->
               )
 
             if taskList.length
+              t.expiry = expiry for t in taskList
               apiFunctions.insertTasks(taskList, (err, taskList) ->
                 throw err if err
                 task = taskList[0]
