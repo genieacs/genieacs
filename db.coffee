@@ -59,23 +59,25 @@ getPresets = (callback) ->
       callback(presets, objects)
       return
 
-    presetsCollection.find().toArray((err, p) ->
-      throw err if err
-      presets = p
+    if not presets
+      presetsCollection.find().toArray((err, p) ->
+        throw err if err
+        presets = p
 
-      redisClient.setex('presets', config.PRESETS_CACHE_DURATION, JSON.stringify(presets))
-      callback(presets, objects) if objects
-    )
+        redisClient.setex('presets', config.PRESETS_CACHE_DURATION, JSON.stringify(presets))
+        callback(presets, objects) if objects
+      )
 
-    objectsCollection.find().toArray((err, o) ->
-      throw err if err
-      objects = {}
-      for i in o
-        objects[i._id] = i
+    if not objects
+      objectsCollection.find().toArray((err, o) ->
+        throw err if err
+        objects = {}
+        for i in o
+          objects[i._id] = i
 
-      redisClient.setex('objects', config.PRESETS_CACHE_DURATION, JSON.stringify(objects))
-      callback(presets, objects) if presets
-    )
+        redisClient.setex('objects', config.PRESETS_CACHE_DURATION, JSON.stringify(objects))
+        callback(presets, objects) if presets
+      )
   )
 
 
