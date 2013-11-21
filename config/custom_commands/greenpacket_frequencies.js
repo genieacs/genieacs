@@ -119,6 +119,14 @@ var parsePairs = function(pairsString) {
 }
 
 exports.set = function(deviceId, args, callback) {
+  executeSet(deviceId, args, false, callback);
+};
+
+exports.dset = function(deviceId, args, callback) {
+  executeSet(deviceId, args, true, callback);
+};
+
+var executeSet = function(deviceId, args, dset, callback) {
   var tmp = args.split('-');
   var defaultBandwidth = tmp[0];
   var pairs = parsePairs(tmp[1]);
@@ -128,9 +136,11 @@ exports.set = function(deviceId, args, callback) {
   getDeviceIp(deviceId, function(ip) {
     var client = telnetConnect(ip, function(err) {
       //return callback(null, "ok");
-      telnetExecute("sncfg set WMX_FREQ_BANDWDITH_FL '" + defaultBandwidth + "-" + bandwidthsString + "'", client, "\n# ", function(err, response) {
+      var telnet_cmd = "sncfg set";
+      if (dset) telnet_cmd = "sncfg dset";
+      telnetExecute(telnet_cmd + " WMX_FREQ_BANDWDITH_FL '" + defaultBandwidth + "-" + bandwidthsString + "'", client, "\n# ", function(err, response) {
         if (err) return callback(err);
-        telnetExecute("sncfg set WMX_FREQ_LIST '" + frequenciesString + "'", client, "\n# ", function(err, response) {
+        telnetExecute(telnet_cmd + " WMX_FREQ_LIST '" + frequenciesString + "'", client, "\n# ", function(err, response) {
           if (err) return callback(err);
           telnetExecute("sncfg commit", client, "\n# ", function(err, response) {
             if (err) return callback(err);
