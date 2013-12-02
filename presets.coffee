@@ -22,12 +22,12 @@ matchObject = (object, param) ->
   return true
 
 
-exports.getDevicePreset = (deviceId, presets, objects, callback) ->
+exports.getDevicePreset = (deviceId, presets, objects, aliases, callback) ->
   deviceCustomCommands = customCommands.getDeviceCustomCommands(deviceId)
   # only fetch relevant params
   projection = {_id : 1}
   for p in presets
-    p.precondition = query.expand(p.precondition)
+    p.precondition = query.expand(p.precondition, aliases)
     mongoQuery.projection(p.precondition, projection)
 
     for c in p.configurations

@@ -1,6 +1,7 @@
 config = require './config'
 mongodb = require 'mongodb'
 redisClient = require('redis').createClient(config.REDIS_SOCKET)
+parameters = require './parameters'
 
 tasksCollection = null
 devicesCollection = null
@@ -98,13 +99,21 @@ getCached = (name, valueCallback, valueExpiry, callback) ->
   )
 
 
-getPresets = (callback) ->
-  redisClient.mget('presets', 'objects', (err, res) ->
+getAliases = (callback) ->
+  getCached('aliases', parameters.compileAliases, config.PRESETS_CACHE_DURATION, (err, res) ->
+    throw err if err
+    callback(res)
+  )
+
+
+getPresetsObjectsAliases = (callback) ->
+  redisClient.mget('presets', 'objects', 'aliases', (err, res) ->
     presets = JSON.parse(res[0])
     objects = JSON.parse(res[1])
-    if presets and objects
-      callback(presets, objects)
-      return
+    aliases = JSON.parse(res[2])
+
+    if presets and objects and aliases
+      return callback(presets, objects, aliases)
 
     if not presets
       getCached('presets', (callback) ->
@@ -114,7 +123,7 @@ getPresets = (callback) ->
       , config.PRESETS_CACHE_DURATION, (err, res) ->
         throw err if err
         presets = res
-        callback(presets, objects) if objects
+        callback(presets, objects, aliases) if objects and aliases
       )
 
     if not objects
@@ -128,11 +137,19 @@ getPresets = (callback) ->
       , config.PRESETS_CACHE_DURATION, (err, res) ->
         throw err if err
         objects = res
-        callback(presets, objects) if presets
+        callback(presets, objects, aliases) if presets and aliases
+      )
+
+    if not aliases
+      getCached('aliases', parameters.compileAliases, config.PRESETS_CACHE_DURATION, (err, res) ->
+        throw err if err
+        aliases = res
+        callback(presets, objects, aliases) if presets and objects
       )
   )
 
 
 exports.redisClient = redisClient
 exports.getTask = getTask
-exports.getPresets = getPresets
+exports.getPresetsObjectsAliases = getPresetsObjectsAliases
+exports.getAliases = getAliases

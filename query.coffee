@@ -1,4 +1,3 @@
-config = require './config'
 common = require './common'
 normalize = require './normalize'
 
@@ -40,10 +39,10 @@ expandValue = (param, value) ->
   return objs
 
 
-permute = (param, val) ->
+permute = (param, val, aliases) ->
   keys = []
-  if config.ALIASES[param]?
-    for p in config.ALIASES[param]
+  if aliases[param]?
+    for p in aliases[param]
       keys.push(p)
   else
     keys.push(param)
@@ -62,16 +61,16 @@ permute = (param, val) ->
   return conditions
 
 
-expand = (query) ->
+expand = (query, aliases) ->
   new_query = {}
   for k,v of query
     if k[0] == '$' # operator
       expressions = []
       for e in v
-        expressions.push(expand(e))
+        expressions.push(expand(e, aliases))
       new_query[k] = expressions
     else
-      conditions = permute(k, v)
+      conditions = permute(k, v, aliases)
       if conditions.length > 1
         if new_query['$and']?
           new_query['$and'].push({'$or' : conditions})

@@ -20,20 +20,6 @@ INSTANCE_REGEX = /\.[\d]+\.$/
 holdUntil = Date.now()
 
 
-applyConfigurations = (currentRequest, taskList) ->
-  if taskList.length
-    util.log("#{currentRequest.deviceId}: Presets discrepancy found")
-    apiFunctions.insertTasks(taskList, (err, tasks) ->
-      throw new Error(err) if err?
-      task = tasks[0]
-      util.log("#{currentRequest.deviceId}: Started task #{task.name}(#{task._id})")
-      runTask(currentRequest, task, {})
-    )
-  else
-    res = tr069.response(null, {}, {})
-    writeResponse(currentRequest, res)
-
-
 writeResponse = (currentRequest, res) ->
   if res.headers['Content-Length'] == 0
     # no more requests. terminate TCP connection
@@ -122,14 +108,14 @@ updateDevice = (currentRequest, actions, callback) ->
             return
           
           task = {device : currentRequest.deviceId, name : 'init', timestamp : config.INIT_TIMESTAMP}
-          apiFunctions.insertTasks(task, (err, t) ->
+          apiFunctions.insertTasks(task, {}, (err, t) ->
             callback(err) if callback?
           )
         )
       else if updates['_lastBootstrap']?
         # reinitialize on bootstrap event (e.g. firmware upgrade)
         task = {device : currentRequest.deviceId, name : 'init', timestamp : config.INIT_TIMESTAMP}
-        apiFunctions.insertTasks(task, (err) ->
+        apiFunctions.insertTasks(task, {}, (err) ->
           callback(err) if callback?
         )
       else
@@ -209,14 +195,14 @@ assertPresets = (currentRequest) ->
       res = tr069.response(null, {})
       writeResponse(currentRequest, res)
     else
-      db.getPresets((allPresets, allObjects) ->
+      db.getPresetsObjectsAliases((allPresets, allObjects, allAliases) ->
         if not presetsHash?
           presetsHash = presets.calculatePresetsHash(allPresets, allObjects)
           db.redisClient.setex('presets_hash', config.PRESETS_CACHE_DURATION, presetsHash, (err, res) ->
             throw err if err
           )
 
-        presets.getDevicePreset(currentRequest.deviceId, allPresets, allObjects, (devicePreset) ->
+        presets.getDevicePreset(currentRequest.deviceId, allPresets, allObjects, allAliases, (devicePreset) ->
           presets.processDevicePreset(currentRequest.deviceId, devicePreset, (taskList, addTags, deleteTags, expiry) ->
             db.redisClient.setex("#{currentRequest.deviceId}_presets_hash", Math.floor(Math.max(1, expiry - config.PRESETS_TIME_PADDING)), presetsHash, (err, res) ->
               throw err if err
@@ -240,7 +226,7 @@ assertPresets = (currentRequest) ->
 
             if taskList.length
               t.expiry = expiry for t in taskList
-              apiFunctions.insertTasks(taskList, (err, taskList) ->
+              apiFunctions.insertTasks(taskList, allAliases, (err, taskList) ->
                 throw err if err
                 task = taskList[0]
                 util.log("#{currentRequest.deviceId}: Started task #{task.name}(#{task._id})")
@@ -358,8 +344,8 @@ listener = (httpRequest, httpResponse) ->
           # Only supporting firmware upgrade for now
           return requestDownloadResponse()
 
-        db.getPresets((allPresets, allObjects) ->
-          presets.getDevicePreset(currentRequest.deviceId, allPresets, allObjects, (devicePreset) ->
+        db.getPresetsObjectsAliases((allPresets, allObjects, allAliases) ->
+          presets.getDevicePreset(currentRequest.deviceId, allPresets, allObjects, allAliases, (devicePreset) ->
             presetSoftwareVersion = devicePreset.softwareVersion?.preset
             currentSoftwareVersion = devicePreset.softwareVersion?.current._value
             if presetSoftwareVersion? and presetSoftwareVersion != currentSoftwareVersion
@@ -381,7 +367,7 @@ listener = (httpRequest, httpResponse) ->
                     name : 'download',
                     file : file['_id']
                   }
-                  apiFunctions.insertTasks(task, (err, tasks) ->
+                  apiFunctions.insertTasks(task, allAliases, (err, tasks) ->
                     throw err if err
                     return requestDownloadResponse()
                   )

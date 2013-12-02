@@ -164,33 +164,35 @@ else
           if body
             task = JSON.parse(body)
             task.device = deviceId
-            apiFunctions.insertTasks(task, (err) ->
-              db.redisClient.del("#{deviceId}_presets_hash", (err) ->
-                throw err if err
-              )
-              if err
-                response.writeHead(500)
-                response.end(err)
-                return
-
-              if urlParts.query.connection_request?
-                apiFunctions.connectionRequest(deviceId, (err) ->
-                  if err
-                    response.writeHead(202)
-                    response.end()
-                  else
-                    apiFunctions.watchTask(task._id, config.DEVICE_ONLINE_THRESHOLD, (err) ->
-                      if err
-                        response.writeHead(202)
-                        response.end()
-                        return
-                      response.writeHead(200)
-                      response.end()
-                    )
+            db.getAliases((aliases) ->
+              apiFunctions.insertTasks(task, aliases, (err) ->
+                db.redisClient.del("#{deviceId}_presets_hash", (err) ->
+                  throw err if err
                 )
-              else
-                response.writeHead(202)
-                response.end()
+                if err
+                  response.writeHead(500)
+                  response.end(err)
+                  return
+
+                if urlParts.query.connection_request?
+                  apiFunctions.connectionRequest(deviceId, (err) ->
+                    if err
+                      response.writeHead(202)
+                      response.end()
+                    else
+                      apiFunctions.watchTask(task._id, config.DEVICE_ONLINE_THRESHOLD, (err) ->
+                        if err
+                          response.writeHead(202)
+                          response.end()
+                          return
+                        response.writeHead(200)
+                        response.end()
+                      )
+                  )
+                else
+                  response.writeHead(202)
+                  response.end()
+              )
             )
           else if urlParts.query.connection_request?
             # no task, send connection request only
@@ -211,8 +213,8 @@ else
       else if DEVICE_PRESET_REGEX.test(urlParts.pathname)
         deviceId = querystring.unescape(DEVICE_PRESET_REGEX.exec(urlParts.pathname)[1])
         if request.method is 'GET'
-          db.getPresets((allPresets, allObjects) ->
-            presets.getDevicePreset(deviceId, allPresets, allObjects, (devicePreset) ->
+          db.getPresetsObjectsAliases((allPresets, allObjects, allAliases) ->
+            presets.getDevicePreset(deviceId, allPresets, allObjects, allAliases, (devicePreset) ->
               response.writeHead(200, {'Content-Type' : 'application/json'})
               response.end(JSON.stringify(devicePreset))
             )
@@ -301,51 +303,59 @@ else
           response.end('404 Not Found')
           return
 
-        if urlParts.query.query?
-          q = JSON.parse(querystring.unescape(urlParts.query.query))
-        else
-          q = {}
-        q = query.expand(q) if collectionName is 'devices'
+        func = (aliases) ->
+          if urlParts.query.query?
+            q = JSON.parse(querystring.unescape(urlParts.query.query))
+          else
+            q = {}
+          q = query.expand(q, aliases) if collectionName is 'devices'
 
-        if urlParts.query.projection?
-          projection = {}
-          for p in urlParts.query.projection.split(',')
-            p = p.trim()
-            projection[p] = 1
-            if collectionName is 'devices'
-              for k,v of config.ALIASES
-                if k == p or common.startsWith(k, "#{p}.")
-                  projection[a] = 1 for a in v
+          if urlParts.query.projection?
+            projection = {}
+            for p in urlParts.query.projection.split(',')
+              p = p.trim()
+              projection[p] = 1
+              if collectionName is 'devices'
+                for k,v of aliases
+                  if k == p or common.startsWith(k, "#{p}.")
+                    projection[a] = 1 for a in v
 
-        cur = collection.find(q, projection, {batchSize : 50})
-        if urlParts.query.sort?
-          s = JSON.parse(querystring.unescape(urlParts.query.sort))
-          sort = {}
-          for k,v of s
-            if config.ALIASES[k]?
-              sort[a] = v for a in config.ALIASES[k]
-            else
-              sort[k] = v
-          cur.sort(sort)
-        
-        cur.skip(parseInt(urlParts.query.skip)) if urlParts.query.skip?
-        cur.limit(parseInt(urlParts.query.limit)) if urlParts.query.limit?
-        cur.count((err, total) ->
-          response.writeHead(200, {'Content-Type' : 'application/json', 'total' : total})
-          if request.method is 'HEAD'
-            response.end()
-            return
-          response.write("[\n")
-          i = 0
-          cur.each((err, item) ->
-            if item is null
-              response.end("\n]")
-            else
-              response.write(",\n") if i++
-              apiFunctions.addAliases(item) if collectionName is 'devices'
-              response.write(JSON.stringify(item))
+          cur = collection.find(q, projection, {batchSize : 50})
+          if urlParts.query.sort?
+            s = JSON.parse(querystring.unescape(urlParts.query.sort))
+            sort = {}
+            for k,v of s
+              if aliases[k]?
+                sort[a] = v for a in aliases[k]
+              else
+                sort[k] = v
+            cur.sort(sort)
+
+          cur.skip(parseInt(urlParts.query.skip)) if urlParts.query.skip?
+          cur.limit(parseInt(urlParts.query.limit)) if urlParts.query.limit?
+          cur.count((err, total) ->
+            response.writeHead(200, {'Content-Type' : 'application/json', 'total' : total})
+            if request.method is 'HEAD'
+              response.end()
+              return
+            response.write("[\n")
+            i = 0
+            cur.each((err, item) ->
+              if item is null
+                response.end("\n]")
+              else
+                response.write(",\n") if i++
+                apiFunctions.addAliases(item, aliases) if collectionName is 'devices'
+                response.write(JSON.stringify(item))
+            )
           )
-        )
+
+        if collectionName is 'devices'
+          db.getAliases((aliases) ->
+            func(aliases)
+          )
+        else
+          func({})
       else
         response.writeHead 404
         response.end('404 Not Found')

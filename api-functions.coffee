@@ -73,9 +73,9 @@ watchTask = (taskId, timeout, callback) ->
   , 500)
 
 
-expandParam = (param) ->
+expandParam = (param, aliases) ->
   params = [param]
-  for a,aa of config.ALIASES
+  for a,aa of aliases
     if a == param or common.startsWith(a, "#{param}.")
       for p in aa
         params.push(p) if p[p.lastIndexOf('.') + 1] != '_'
@@ -83,7 +83,7 @@ expandParam = (param) ->
   return params
 
 
-sanitizeTask = (task, callback) ->
+sanitizeTask = (task, aliases, callback) ->
   task.timestamp = new Date(task.timestamp ? Date.now())
   if task.expiry?
     if common.typeOf(task.expiry) is common.DATE_TYPE or isNaN(task.expiry)
@@ -95,7 +95,7 @@ sanitizeTask = (task, callback) ->
     when 'getParameterValues'
       projection = {}
       for p in task.parameterNames
-        for pp in expandParam(p)
+        for pp in expandParam(p, aliases)
           projection[pp] = 1
       db.devicesCollection.findOne({_id : task.device}, projection, (err, device) ->
         parameterNames = []
@@ -109,7 +109,7 @@ sanitizeTask = (task, callback) ->
       projection = {}
       values = {}
       for p in task.parameterValues
-        for pp in expandParam(p[0])
+        for pp in expandParam(p[0], aliases)
           projection[pp] = 1
           values[pp] = p[1]
       db.devicesCollection.findOne({_id : task.device}, projection, (err, device) ->
@@ -126,8 +126,8 @@ sanitizeTask = (task, callback) ->
       callback(task)
 
 
-addAliases = (device) ->
-  for k,v of config.ALIASES
+addAliases = (device, aliases) ->
+  for k,v of aliases
     for p in v
       pp = p.split('.')
       obj = device
@@ -140,14 +140,14 @@ addAliases = (device) ->
       device[k] = obj if obj?
 
 
-insertTasks = (tasks, callback) ->
+insertTasks = (tasks, aliases, callback) ->
   if common.typeOf(tasks) isnt common.ARRAY_TYPE
     tasks = [tasks]
 
   counter = tasks.length
 
   for task in tasks
-    sanitizeTask(task, (t) ->
+    sanitizeTask(task, aliases, (t) ->
       if t.uniqueKey?
         db.tasksCollection.remove({device : t.device, uniqueKey : t.uniqueKey}, (err, removed) ->
         )

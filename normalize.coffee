@@ -1,5 +1,5 @@
-config = require './config'
 common = require './common'
+parameters = require './parameters'
 
 
 stringToRegexp = (input) ->
@@ -105,7 +105,5 @@ normalizers.mac = (input, normType) ->
 
 
 exports.normalize = (path, value, normType) ->
-  if path of config.PARAMETERS and config.PARAMETERS[path].type?
-    return normalizers[config.PARAMETERS[path].type](value, normType)
-  else
-    return normalizers['default'](value, normType)
+  type = parameters.getType(path) ? 'default'
+  normalizers[type](value, normType)
