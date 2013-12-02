@@ -119,6 +119,18 @@ var parsePairs = function(pairsString) {
 }
 
 exports.set = function(deviceId, args, callback) {
+  executeSet(deviceId, args, ['set'], callback);
+};
+
+exports.dset = function(deviceId, args, callback) {
+  executeSet(deviceId, args, ['dset'], callback);
+};
+
+exports.setdset = function(deviceId, args, callback) {
+  executeSet(deviceId, args, ['dset', 'set'], callback);
+};
+
+var executeSet = function(deviceId, args, method, callback) {
   var tmp = args.split('-');
   var defaultBandwidth = tmp[0];
   var pairs = parsePairs(tmp[1]);
@@ -127,19 +139,38 @@ exports.set = function(deviceId, args, callback) {
 
   getDeviceIp(deviceId, function(ip) {
     var client = telnetConnect(ip, function(err) {
-      //return callback(null, "ok");
-      telnetExecute("sncfg set WMX_FREQ_BANDWDITH_FL '" + defaultBandwidth + "-" + bandwidthsString + "'", client, "\n# ", function(err, response) {
+      var telnet_cmd = "sncfg " + method[0];
+      telnetExecute(telnet_cmd + " WMX_FREQ_BANDWDITH_FL '" + defaultBandwidth + "-" + bandwidthsString + "'", client, "\n# ", function(err, response) {
         if (err) return callback(err);
-        telnetExecute("sncfg set WMX_FREQ_LIST '" + frequenciesString + "'", client, "\n# ", function(err, response) {
+        telnetExecute(telnet_cmd + " WMX_FREQ_LIST '" + frequenciesString + "'", client, "\n# ", function(err, response) {
           if (err) return callback(err);
-          telnetExecute("sncfg commit", client, "\n# ", function(err, response) {
-            if (err) return callback(err);
-            // log out
-            telnetExecute("exit", client, null, function(err, response) {
-              client.end();
-              return callback(null, args);
+          if (method.length > 1) {
+            telnet_cmd = "sncfg " + method[1];
+            telnetExecute(telnet_cmd + " WMX_FREQ_BANDWDITH_FL '" + defaultBandwidth + "-" + bandwidthsString + "'", client, "\n# ", function(err, response) {
+              if (err) return callback(err);
+              telnetExecute(telnet_cmd + " WMX_FREQ_LIST '" + frequenciesString + "'", client, "\n# ", function(err, response) {
+                if (err) return callback(err);
+                telnetExecute("sncfg commit", client, "\n# ", function(err, response) {
+                  if (err) return callback(err);
+                  // log out
+                  telnetExecute("exit", client, null, function(err, response) {
+                    client.end();
+                    return callback(null, args);
+                  });
+                });
+              });
             });
-          });
+          }
+          else {
+            telnetExecute("sncfg commit", client, "\n# ", function(err, response) {
+            if (err) return callback(err);
+              // log out
+              telnetExecute("exit", client, null, function(err, response) {
+                client.end();
+                return callback(null, args);
+              });
+            });
+          }
         });
       });
     });
