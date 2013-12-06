@@ -35,18 +35,8 @@ c = require('./config/config')
 for k, v of c
   exports[k] = v
 
-# load parameter aliases
-parameters = require('./config/parameters')
-aliases = {}
-for k, v of parameters
-  a = v.alias
-  if a?
-    if not aliases[a]?
-      aliases[a] = []
-    aliases[a].push(k)
-
-exports.PARAMETERS = parameters
-exports.ALIASES = aliases
+# load parameter configurations
+exports.PARAMETERS = require('./config/parameters')
 
 # load authentication scripts
 exports.auth = require('./config/auth')
