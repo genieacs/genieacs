@@ -202,11 +202,13 @@ exports.processDevicePreset = (deviceId, devicePreset, callback) ->
       if objectDetails.preset?
         if Object.keys(objectDetails.current) > 0
           for i, obj of objectDetails.current
-            for paramName, paramDetails of obj
-              currentValue = paramDetails.value
-              presetValue = common.matchType(currentValue, objectDetails.preset[paramName]?.value)
-              if presetValue? and currentValue != presetValue
-                setParameterValues.push(["#{parameterPath}.#{i}.#{paramName}", presetValue, paramDetails.type])
+            for paramName, paramValue of objectDetails.preset
+              continue if paramName[0] == '_'
+              if obj[paramName]
+                currentValue = obj[paramName]._value
+                presetValue = common.matchType(currentValue, objectDetails.preset[paramName])
+                if currentValue != presetValue
+                  setParameterValues.push(["#{parameterPath}.#{i}.#{paramName}", presetValue, obj[paramName]._type])
         else
           vals = []
           for k,v of objectDetails.preset
