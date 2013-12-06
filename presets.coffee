@@ -200,7 +200,7 @@ exports.processDevicePreset = (deviceId, devicePreset, callback) ->
     for objectName, objectDetails of object
       continue if not objectDetails.current?
       if objectDetails.preset?
-        if Object.keys(objectDetails.current) > 0
+        if Object.keys(objectDetails.current).length > 0
           for i, obj of objectDetails.current
             for paramName, paramValue of objectDetails.preset
               continue if paramName[0] == '_'
@@ -214,7 +214,7 @@ exports.processDevicePreset = (deviceId, devicePreset, callback) ->
           for k,v of objectDetails.preset
             vals.push([k, v]) if k[0] != '_'
           taskList.push({device : deviceId, name : 'addObject', objectName : parameterPath, parameterValues : vals, instanceName : objectName})
-      else if Object.keys(objectDetails.current) > 0
+      else if Object.keys(objectDetails.current).length > 0
         for i, obj of objectDetails.current
           taskList.push({device : deviceId, name : 'deleteObject', objectName : "#{parameterPath}.#{i}"})
 

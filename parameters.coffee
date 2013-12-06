@@ -13,9 +13,9 @@ MAX_PARAMETERS = 52
 getLsb = (num) ->
   i = -1
   while num > 0
+    ++ i
     break if num & 1
     num >>= 1
-    ++ i
   return i
 
 
