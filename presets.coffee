@@ -16,6 +16,7 @@ exports.calculatePresetsHash = (presets, objects) ->
 matchObject = (object, param) ->
   return false if not object._keys? or object._keys.length == 0
   for k in object._keys
+    return false if not param[k]?
     v = common.matchType(param[k]._value, object[k])
     if param[k]._value != v
       return false
