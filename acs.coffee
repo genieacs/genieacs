@@ -11,6 +11,8 @@ presets = require './presets'
 mongodb = require 'mongodb'
 fs = require 'fs'
 apiFunctions = require './api-functions'
+customCommands = require './custom-commands'
+crypto = require 'crypto'
 
 OBJECT_REGEX = /\.$/
 INSTANCE_REGEX = /\.[\d]+\.$/
@@ -45,10 +47,6 @@ updateDevice = (currentRequest, actions, callback) ->
   now = new Date(Date.now())
   updates = {}
   deletes = {}
-  if actions.inform?
-    updates['_lastInform'] = now
-    updates['_lastBoot'] = now if '1 BOOT' in actions.inform
-    updates['_lastBootstrap'] = now if '0 BOOTSTRAP' in actions.inform
 
   if actions.parameterValues?
     for p in actions.parameterValues
@@ -94,35 +92,118 @@ updateDevice = (currentRequest, actions, callback) ->
       updates["_customCommands.#{commandName}._value"] = p[1]
       updates["_customCommands.#{commandName}._timestamp"] = now
 
+  if actions.set?
+    common.extend(updates, actions.set)
+
   if Object.keys(updates).length > 0 or Object.keys(deletes).length > 0
     db.devicesCollection.update({'_id' : currentRequest.deviceId}, {'$set' : updates, '$unset' : deletes}, {}, (err, count) ->
-      if (err)
-        callback(err) if callback?
-        return
-
-      if count == 0
-        util.log("#{currentRequest.deviceId}: New device detected")
-        db.devicesCollection.update({'_id' : currentRequest.deviceId}, {'$set' : updates}, {upsert: true}, (err) ->
-          if err?
-            callback(err) if callback?
-            return
-          
-          task = {device : currentRequest.deviceId, name : 'init', timestamp : config.INIT_TIMESTAMP}
-          apiFunctions.insertTasks(task, {}, (err, t) ->
-            callback(err) if callback?
-          )
-        )
-      else if updates['_lastBootstrap']?
-        # reinitialize on bootstrap event (e.g. firmware upgrade)
-        task = {device : currentRequest.deviceId, name : 'init', timestamp : config.INIT_TIMESTAMP}
-        apiFunctions.insertTasks(task, {}, (err) ->
-          callback(err) if callback?
-        )
-      else
-        callback() if callback?
+      callback?(err)
     )
   else
-    callback() if callback?
+    callback?()
+
+
+inform = (currentRequest, cwmpRequest) ->
+  # If overloaded, ask CPE to retry in 5 mins
+  if Date.now() < holdUntil
+    res = {code : 503, headers : {'Content-Length' : 0, 'Retry-After' : 300}, data : ''}
+    return writeResponse(currentRequest, res)
+
+  now = new Date(Date.now())
+
+  deviceId = common.getDeviceId(cwmpRequest.methodRequest.deviceId)
+  currentRequest.deviceId = deviceId
+  util.log("#{deviceId}: Inform (#{cwmpRequest.methodRequest.event}); retry count #{cwmpRequest.methodRequest.retryCount}") if config.LOG_INFORMS
+
+  parameterNames = (p[0] for p in cwmpRequest.methodRequest.parameterList)
+
+  informHash = crypto.createHash('md5').update(JSON.stringify(parameterNames)).update(JSON.stringify(config.CUSTOM_COMMANDS)).digest('hex')
+
+  actions = {parameterValues : cwmpRequest.methodRequest.parameterList, set : {}}
+  actions.set._lastInform = now
+  actions.set._lastBoot = now if '1 BOOT' in cwmpRequest.methodRequest.event
+  actions.set._lastBootstrap = lastBootstrap = now if '0 BOOTSTRAP' in cwmpRequest.methodRequest.event
+
+  db.redisClient.get("#{deviceId}_inform_hash", (err, res) ->
+    throw err if err
+
+    if not res?
+      db.redisClient.setex("#{deviceId}_inform_hash", config.PRESETS_CACHE_DURATION, informHash, (err, res) ->
+        throw err if err
+      )
+
+    updateAndRespond = () ->
+      updateDevice(currentRequest, actions, (err) ->
+        throw err if err
+        res = tr069.response(cwmpRequest.id, {methodResponse : {type : 'InformResponse'}}, {deviceId : deviceId})
+        writeResponse(currentRequest, res)
+      )
+
+    if res == informHash
+      return updateAndRespond()
+
+    # populate projection and parameterStructure
+    parameterStructure = {}
+    projection = {}
+    projection._customCommands = 1
+    projection._timestamp = 1
+    projection._lastBootstrap = 1
+    for param in parameterNames
+      ref = parameterStructure
+      path = ''
+      for p in param.split('.')
+        ref[p] ?= {_path : path}
+        ref = ref[p]
+        path += p + '.'
+        projection[path + '_timestamp'] = 1
+
+    db.devicesCollection.findOne({'_id' : deviceId}, projection, (err, device) ->
+      lastBootstrap ?= device?._lastBootstrap
+      _tasks = []
+
+      # For any parameters that aren't in the DB model, issue a refresh task
+      traverse = (reference, actual) ->
+        for k of reference
+          continue if k[0] == '_'
+          if not actual[k]?._timestamp? or actual[k]._timestamp > lastBootstrap
+            _tasks.push({device: deviceId, name : 'refreshObject', objectName : reference[k]._path})
+          else
+            traverse(reference[k], actual[k])
+
+      if device?
+        traverse(parameterStructure, device)
+
+        # Update custom commands if needed
+        deviceCustomCommands = {}
+        deviceCustomCommands[k] = v._timestamp for k,v of device._customCommands
+
+        for cmd in customCommands.getDeviceCustomCommandNames(deviceId)
+          if not (deviceCustomCommands[cmd]?._timestamp < lastBootstrap)
+            _tasks.push({device: deviceId, name: 'customCommand', command: "#{cmd} init"})
+          delete deviceCustomCommands[cmd]
+
+        for cmd of deviceCustomCommands
+          actions.deletedObjects ?= []
+          actions.deletedObjects.push("_customCommands.#{cmd}")
+
+        apiFunctions.insertTasks(_tasks, {}, () ->
+          updateAndRespond()
+        )
+      else
+        db.devicesCollection.insert({_id : deviceId, _registered : now}, (err) ->
+          throw err if err
+          util.log("#{deviceId}: New device registered")
+          _tasks.push({device: deviceId, name : 'refreshObject', objectName : ''})
+
+          for cmd in customCommands.getDeviceCustomCommandNames(deviceId)
+            _tasks.push({device: deviceId, name: 'customCommand', command: "#{cmd} init"})
+
+          apiFunctions.insertTasks(_tasks, {}, () ->
+            updateAndRespond()
+          )
+        )
+    )
+  )
 
 
 runTask = (currentRequest, task, methodResponse) ->
@@ -290,18 +371,14 @@ listener = (httpRequest, httpResponse) ->
     return body.toString(encoding || 'utf8', 0, body.byteLength)
 
   httpRequest.addListener 'end', () ->
-    currentRequest = {}
-    currentRequest.httpRequest = httpRequest
-    currentRequest.httpResponse = httpResponse
-
     cwmpResponse = {}
     cwmpRequest = tr069.request(httpRequest)
 
-    # get deviceId either from inform xml or cookie
-    if cwmpRequest.methodRequest? and cwmpRequest.methodRequest.type is 'Inform'
-      cookies.deviceId = currentRequest.deviceId = common.getDeviceId(cwmpRequest.methodRequest.deviceId)
-    else
-      currentRequest.deviceId = cwmpRequest.cookies.deviceId
+    currentRequest = {
+      httpRequest : httpRequest
+      httpResponse : httpResponse
+      deviceId : cwmpRequest.cookies?.deviceId
+    }
 
     if config.DEBUG_DEVICES[currentRequest.deviceId]
       dump = "# REQUEST #{new Date(Date.now())}\n" + JSON.stringify(httpRequest.headers) + "\n#{httpRequest.getBody()}\n\n"
@@ -311,22 +388,7 @@ listener = (httpRequest, httpResponse) ->
 
     if cwmpRequest.methodRequest?
       if cwmpRequest.methodRequest.type is 'Inform'
-        if Date.now() < holdUntil
-          # Ask CPE to retry in 5 mins
-          res = {code : 503, headers : {'Content-Length' : 0, 'Retry-After' : 300}, data : ''}
-          writeResponse(currentRequest, res)
-          return
-
-        cwmpResponse.methodResponse = {type : 'InformResponse'}
-
-        if config.LOG_INFORMS
-          util.log("#{currentRequest.deviceId}: Inform (#{cwmpRequest.methodRequest.event}); retry count #{cwmpRequest.methodRequest.retryCount}")
-
-        updateDevice(currentRequest, {'inform' : cwmpRequest.methodRequest.event, 'parameterValues' : cwmpRequest.methodRequest.parameterList}, (err) ->
-          throw new Error(err) if err?
-          res = tr069.response(cwmpRequest.id, cwmpResponse, cookies)
-          writeResponse(currentRequest, res)
-        )
+        inform(currentRequest, cwmpRequest)
       else if cwmpRequest.methodRequest.type is 'TransferComplete'
         # do nothing
         util.log("#{currentRequest.deviceId}: Transfer complete")

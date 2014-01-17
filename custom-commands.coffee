@@ -25,3 +25,11 @@ exports.getDeviceCustomCommands = (deviceId) ->
     if eval(v).test(deviceId)
       commands[k] = exports.getFileCommands(k)
   return commands
+
+
+exports.getDeviceCustomCommandNames = (deviceId) ->
+  commands = []
+  for k,v of config.CUSTOM_COMMANDS
+    if eval(v).test(deviceId)
+      commands.push(k)
+  return commands

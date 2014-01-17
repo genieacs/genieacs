@@ -1,4 +1,3 @@
-exports.INIT_TIMESTAMP = new Date(1983, 9, 16) # arbitrary date
 exports.DATABASE_NAME = 'genieacs'
 exports.ACS_PORT = 7547 # CWMP port as assigned by IANA
 exports.ACS_HTTPS_PORT = 7548

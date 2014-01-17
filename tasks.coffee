@@ -11,70 +11,13 @@ exports.STATUS_COMPLETED = STATUS_COMPLETED = 4
 exports.STATUS_SAVE = STATUS_SAVE = 128 # not mutually exclusive with the rest
 
 
-initCustomCommands = (deviceId, callback) ->
-  updates = {customCommands : []}
-  counter = 0
-  for k,v of customCommands.getDeviceCustomCommands(deviceId)
-    if 'init' in v
-      ++counter
-      customCommands.execute(deviceId, "#{k} init", (err, value) ->
-        updates.customCommands.push([k, value])
-        callback(updates) if --counter <= 0
-      )
-  callback(updates) if counter <= 0
-
-
-this.init = (task, methodResponse, callback) ->
-  task.session = {} if not task.session?
-
-  if not task.session.subtask?
-    task.session.subtask = {device : task.device, name : 'getParameterNames', parameterPath : '', nextLevel : false}
-
-  if task.session.subtask.name is 'getParameterNames'
-    if methodResponse.faultcode?
-      task.fault = methodResponse
-      callback(null, STATUS_FAULT)
-      return
-
-    this.getParameterNames(task.session.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) =>
-      if status & STATUS_COMPLETED
-        parameterNames = []
-        for p in deviceUpdates.parameterNames
-          if not common.endsWith(p[0], '.')
-            parameterNames.push(p[0])
-        task.session.subtask = {name : 'getParameterValues', parameterNames : parameterNames}
-        this.getParameterValues(task.session.subtask, {}, (err, status, cwmpResponse) ->
-          # ignore deviceUpdates returned by firt call to getParameterValues
-          callback(err, status, cwmpResponse, deviceUpdates)
-        )
-      else if status & STATUS_OK
-        callback(err, STATUS_OK, cwmpResponse, deviceUpdates)
-      else
-        throw Error('Unexpected subtask status')
-    )
-  else if task.session.subtask.name is 'getParameterValues'
-    if methodResponse.faultcode?
-      # Ignore GetParameterValues errors. A workaround for the crappy Seewon devices.
-      methodResponse = {parameterList : {}}
-
-    this.getParameterValues(task.session.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) ->
-      if status & STATUS_COMPLETED
-        initCustomCommands(task.device, (updates) ->
-          common.extend(deviceUpdates, updates)
-          callback(err, status, cwmpResponse, deviceUpdates)
-        )
-      else
-        callback(err, status, cwmpResponse, deviceUpdates)
-    )
-  else
-    throw Error('Unexpected subtask name')
-
-
 this.refreshObject = (task, methodResponse, callback) ->
   task.session = {} if not task.session?
 
   if not task.session.subtask?
-    task.session.subtask = {device : task.device, name : 'getParameterNames', parameterPath : "#{task.objectName}.", nextLevel : false}
+    path = task.objectName
+    path += '.' if path != '' and not common.endsWith(path, '.')
+    task.session.subtask = {device : task.device, name : 'getParameterNames', parameterPath : path, nextLevel : false}
 
   if methodResponse.faultcode?
     task.fault = methodResponse
@@ -142,6 +85,20 @@ this.getParameterNames = (task, methodResponse, callback) ->
     return
 
   if methodResponse.type is 'GetParameterNamesResponse'
+    # Make sure that for each parameters, all its parents are included
+    found = {}
+    for p in methodResponse.parameterList
+      param = p[0]
+      i = param.length
+      while (i = param.lastIndexOf('.', i-1)) > task.parameterPath.length
+        pp = param.slice(0, i + 1)
+        break if found[pp]?
+        found[pp] = 0
+      found[p[0]] = 1
+
+    for k, v of found
+      methodResponse.parameterList.push([k]) if v == 0
+
     deviceUpdates = {parameterNames : methodResponse.parameterList}
     path = if common.endsWith(task.parameterPath, '.') then task.parameterPath.slice(0, -1) else task.parameterPath
     projection = {}
@@ -150,17 +107,14 @@ this.getParameterNames = (task, methodResponse, callback) ->
     # delete nonexisting params
     db.devicesCollection.findOne({_id : task.device}, projection, (err, device) ->
       if device
+        root = device
+        rootPath = ''
         if !!task.parameterPath
-          root = device
-          rootPath = ''
           ps = path.split('.')
           for p in ps
             rootPath += "#{p}."
             root = root[p]
             break if not root?
-        else
-          root = device['InternetGatewayDevice']
-          rootPath = 'InternetGatewayDevice.'
 
         if root
           deviceUpdates.deletedObjects = findMissingParameters(root, methodResponse.parameterList, rootPath)
