@@ -13,6 +13,7 @@ fs = require 'fs'
 apiFunctions = require './api-functions'
 customCommands = require './custom-commands'
 crypto = require 'crypto'
+parameters = require './parameters'
 
 OBJECT_REGEX = /\.$/
 INSTANCE_REGEX = /\.[\d]+\.$/
@@ -74,7 +75,10 @@ updateDevice = (currentRequest, actions, callback) ->
       updates["#{i[0]}._name"] = i[1]
 
   if actions.parameterNames?
+    newAliases = [] # possible new aliased parameters
     for p in actions.parameterNames
+      newAliases.push(p[0]) if parameters.getAlias(p[0])?
+
       if OBJECT_REGEX.test(p[0])
         path = p[0]
         if INSTANCE_REGEX.test(p[0])
@@ -97,6 +101,16 @@ updateDevice = (currentRequest, actions, callback) ->
 
   if Object.keys(updates).length > 0 or Object.keys(deletes).length > 0
     db.devicesCollection.update({'_id' : currentRequest.deviceId}, {'$set' : updates, '$unset' : deletes}, {}, (err, count) ->
+      # Clear aliases cache if there's a new aliased parameter that has not been included in aliases cache
+      if newAliases?.length
+        db.getAliases((aliases) ->
+          for a in newAliases
+            if not aliases[a]?
+              db.redisClient.del('aliases', (err, res) ->
+                throw err if err
+              )
+              break
+        )
       callback?(err)
     )
   else

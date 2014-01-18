@@ -19,68 +19,69 @@ getLsb = (num) ->
   return i
 
 
-# compile types into data types optimized for quick lookup
-types = []
-stringSegments = {}
-regexSegments = {}
-paramRegex = {}
+createParameterAttributeFinder = (attributeName) ->
+  # compile attributes into data types optimized for quick lookup
+  attributes = []
+  stringSegments = {}
+  regexSegments = {}
+  paramRegex = {}
 
-for k, v of config.PARAMETERS
-  continue if not v.type?
-  typeIndex = types.push(v.type) - 1
-  throw new Error("There cannot be more than #{MAX_PARAMETERS} configured parameters") if typeIndex >= MAX_PARAMETERS
-  segmentIndex = 0
-  parts = k.match(PATH_REGEX)
-  for i in [0 ... parts.length]
-    part = parts[i]
-    positionHash = i + parts.length * MAX_PARAMETERS
+  for k, v of config.PARAMETERS
+    continue if not v[attributeName]?
+    attributeIndex = attributes.push(v[attributeName]) - 1
+    throw new Error("There cannot be more than #{MAX_PARAMETERS} configured parameters") if attributeIndex >= MAX_PARAMETERS
+    segmentIndex = 0
+    parts = k.match(PATH_REGEX)
+    for i in [0 ... parts.length]
+      part = parts[i]
+      positionHash = i + parts.length * MAX_PARAMETERS
 
-    if part[0] == '/' # this is a regex part
-      j = part.lastIndexOf('/')
-      regExp = new RegExp(part[1...j], part[j+1..])
-      regexSegments[positionHash] ?= 0
-      regexSegments[positionHash] |= Math.pow(2, typeIndex)
-      paramRegex[typeIndex] ?= {}
-      paramRegex[typeIndex][i] = regExp
-    else
-      stringSegments[positionHash] ?= {}
-      stringSegments[positionHash][part] ?= 0
-      stringSegments[positionHash][part] |= Math.pow(2, typeIndex)
+      if part[0] == '/' # this is a regex part
+        j = part.lastIndexOf('/')
+        regExp = new RegExp(part[1...j], part[j+1..])
+        regexSegments[positionHash] ?= 0
+        regexSegments[positionHash] |= Math.pow(2, attributeIndex)
+        paramRegex[attributeIndex] ?= {}
+        paramRegex[attributeIndex][i] = regExp
+      else
+        stringSegments[positionHash] ?= {}
+        stringSegments[positionHash][part] ?= 0
+        stringSegments[positionHash][part] |= Math.pow(2, attributeIndex)
 
+  # Finder function
+  return (param) ->
+    parts = param.split('.')
+    positionHash = parts.length * MAX_PARAMETERS
 
-getType = (param) ->
-  parts = param.split('.')
-  positionHash = parts.length * MAX_PARAMETERS
+    stringIndices = 0 | stringSegments[positionHash]?[parts[0]]
+    allIndices = stringIndices | regexSegments[positionHash]
 
-  stringIndices = 0 | stringSegments[positionHash]?[parts[0]]
-  allIndices = stringIndices | regexSegments[positionHash]
+    for i in [1...parts.length]
+      positionHash = i + parts.length * MAX_PARAMETERS
+      strIdx = stringSegments[positionHash]?[parts[i]]
+      rgxIdx = regexSegments[positionHash]
+      stringIndices &= strIdx
+      allIndices &= (strIdx | rgxIdx)
 
-  for i in [1...parts.length]
-    positionHash = i + parts.length * MAX_PARAMETERS
-    strIdx = stringSegments[positionHash]?[parts[i]]
-    rgxIdx = regexSegments[positionHash]
-    stringIndices &= strIdx
-    allIndices &= (strIdx | rgxIdx)
+    if stringIndices > 0
+      return attributes[getLsb(stringIndices)]
 
-  if stringIndices > 0
-    return types[getLsb(stringIndices)]
-  
-  typeIndex = 0
-  while allIndices > 0
-    if allIndices & 1
-      match = true
-      for i, r of paramRegex[typeIndex]
-        if not r.test(parts[i])
-          match = false
-          break
+    attributeIndex = 0
+    while allIndices > 0
+      if allIndices & 1
+        match = true
+        for i, r of paramRegex[attributeIndex]
+          if not r.test(parts[i])
+            match = false
+            break
 
-      if match
-        return types[typeIndex]
+        if match
+          return attributes[attributeIndex]
 
-    ++ typeIndex
-    allIndices >>= 1
+      ++ attributeIndex
+      allIndices >>= 1
 
-  return null
+    return null
 
 
 splitIds = (batches, callback) ->
@@ -175,5 +176,6 @@ compileAliases = (callback) ->
   )
 
 
-exports.getType = getType
+exports.getType = createParameterAttributeFinder('type')
+exports.getAlias = createParameterAttributeFinder('alias')
 exports.compileAliases = compileAliases
