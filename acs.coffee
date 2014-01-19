@@ -75,10 +75,8 @@ updateDevice = (currentRequest, actions, callback) ->
       updates["#{i[0]}._name"] = i[1]
 
   if actions.parameterNames?
-    newAliases = [] # possible new aliased parameters
+    newAliases = {} # possible new aliased parameters
     for p in actions.parameterNames
-      newAliases.push(p[0]) if parameters.getAlias(p[0])?
-
       if OBJECT_REGEX.test(p[0])
         path = p[0]
         if INSTANCE_REGEX.test(p[0])
@@ -89,6 +87,9 @@ updateDevice = (currentRequest, actions, callback) ->
         path = "#{p[0]}."
       updates["#{path}_writable"] = p[1] if p[1]?
       updates["#{path}_timestamp"] = now
+
+      # Add parameter (sans any dot suffix) if has an alias
+      newAliases[pp] = a if (a = parameters.getAlias(pp = path.slice(0, -1)))?
 
   if actions.customCommands?
     for p in actions.customCommands
@@ -108,8 +109,8 @@ updateDevice = (currentRequest, actions, callback) ->
           throw err if err
           return if not res?
           aliases = JSON.parse(res)
-          for a in newAliases
-            if not aliases[a]?
+          for p, a of newAliases
+            if not aliases[a]? or p not in aliases[a]
               db.redisClient.del('aliases', (err, res) ->
                 throw err if err
               )
