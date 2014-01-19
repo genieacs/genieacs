@@ -33,7 +33,7 @@ writeResponse = (currentRequest, res) ->
   if config.DEBUG_DEVICES[currentRequest.deviceId]
     dump = "# RESPONSE #{new Date(Date.now())}\n" + JSON.stringify(res.headers) + "\n#{res.data}\n\n"
     fs = require('fs').appendFile("debug/#{currentRequest.deviceId}.dump", dump, (err) ->
-      throw new Error(err) if err?
+      throw err if err
     )
 
   currentRequest.httpResponse.writeHead(res.code, res.headers)
@@ -101,9 +101,13 @@ updateDevice = (currentRequest, actions, callback) ->
 
   if Object.keys(updates).length > 0 or Object.keys(deletes).length > 0
     db.devicesCollection.update({'_id' : currentRequest.deviceId}, {'$set' : updates, '$unset' : deletes}, {}, (err, count) ->
+      throw err if err
       # Clear aliases cache if there's a new aliased parameter that has not been included in aliases cache
       if newAliases?.length
-        db.getAliases((aliases) ->
+        db.redisClient.get('aliases', (err, res) ->
+          throw err if err
+          return if not res?
+          aliases = JSON.parse(res)
           for a in newAliases
             if not aliases[a]?
               db.redisClient.del('aliases', (err, res) ->
@@ -172,6 +176,7 @@ inform = (currentRequest, cwmpRequest) ->
         projection[path + '_timestamp'] = 1
 
     db.devicesCollection.findOne({'_id' : deviceId}, projection, (err, device) ->
+      throw err if err
       lastBootstrap ?= device?._lastBootstrap
       _tasks = []
 
@@ -179,7 +184,7 @@ inform = (currentRequest, cwmpRequest) ->
       traverse = (reference, actual) ->
         for k of reference
           continue if k[0] == '_'
-          if not actual[k]?._timestamp? or actual[k]._timestamp > lastBootstrap
+          if not actual[k]?._timestamp? or actual[k]._timestamp < lastBootstrap
             _tasks.push({device: deviceId, name : 'refreshObject', objectName : reference[k]._path})
           else
             traverse(reference[k], actual[k])
@@ -223,10 +228,10 @@ inform = (currentRequest, cwmpRequest) ->
 runTask = (currentRequest, task, methodResponse) ->
   timeDiff = process.hrtime()
   tasks.task(task, methodResponse, (err, status, cwmpResponse, deviceUpdates) ->
-    throw new Error(err) if err?
+    throw err if err
     # TODO handle error
     updateDevice(currentRequest, deviceUpdates, (err) ->
-      throw new Error(err) if err?
+      throw err if err
 
       timeDiff = process.hrtime(timeDiff)[0] + 1
       if timeDiff > 3 # in seconds
@@ -271,7 +276,7 @@ runTask = (currentRequest, task, methodResponse) ->
             nextTask(currentRequest)
           )
         else
-          throw Error('Unknown task status')
+          throw new Error('Unknown task status')
     )
   )
 
@@ -349,7 +354,7 @@ nextTask = (currentRequest) ->
     else if isTaskExpired(task)
       util.log("#{currentRequest.deviceId}: Task is expired #{task.name}(#{task._id})")
       db.tasksCollection.remove({'_id' : mongodb.ObjectID(String(task._id))}, {safe: true}, (err, removed) ->
-        throw new Error(err) if err?
+        throw err if err
         nextTask(currentRequest)
       )
     else
@@ -397,7 +402,7 @@ listener = (httpRequest, httpResponse) ->
     if config.DEBUG_DEVICES[currentRequest.deviceId]
       dump = "# REQUEST #{new Date(Date.now())}\n" + JSON.stringify(httpRequest.headers) + "\n#{httpRequest.getBody()}\n\n"
       require('fs').appendFile("debug/#{currentRequest.deviceId}.dump", dump, (err) ->
-        throw new Error(err) if err
+        throw err if err
       )
 
     if cwmpRequest.methodRequest?
@@ -430,6 +435,7 @@ listener = (httpRequest, httpResponse) ->
                 'InternetGatewayDevice.DeviceInfo.ProductClass' : 1,
               }
               db.devicesCollection.findOne({'_id' : currentRequest.deviceId}, projection, (err, device) ->
+                throw err if err
                 manufacturer = device.InternetGatewayDevice.DeviceInfo.Manufacturer._value
                 productClass = device.InternetGatewayDevice.DeviceInfo.ProductClass._value
                 db.filesCollection.findOne({'metadata.FileType' : '1 Firmware Upgrade Image', 'metadata.Manufacturer' : manufacturer, 'metadata.ProductClass' : productClass, 'metadata.SoftwareVersion' : presetSoftwareVersion}, {_id : 1}, (err, file) ->
@@ -454,7 +460,7 @@ listener = (httpRequest, httpResponse) ->
           )
         )
       else
-        throw Error('ACS method not supported')
+        throw new Error('ACS method not supported')
     else if cwmpRequest.methodResponse?
       taskId = cwmpRequest.id
 
