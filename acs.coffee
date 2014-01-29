@@ -128,9 +128,7 @@ inform = (currentRequest, cwmpRequest) ->
 
   now = new Date(Date.now())
 
-  deviceId = common.getDeviceId(cwmpRequest.methodRequest.deviceId)
-  currentRequest.deviceId = deviceId
-  util.log("#{deviceId}: Inform (#{cwmpRequest.methodRequest.event}); retry count #{cwmpRequest.methodRequest.retryCount}") if config.LOG_INFORMS
+  util.log("#{currentRequest.deviceId}: Inform (#{cwmpRequest.methodRequest.event}); retry count #{cwmpRequest.methodRequest.retryCount}") if config.LOG_INFORMS
 
   parameterNames = (p[0] for p in cwmpRequest.methodRequest.parameterList)
 
@@ -141,18 +139,18 @@ inform = (currentRequest, cwmpRequest) ->
   actions.set._lastBoot = now if '1 BOOT' in cwmpRequest.methodRequest.event
   actions.set._lastBootstrap = lastBootstrap = now if '0 BOOTSTRAP' in cwmpRequest.methodRequest.event
 
-  db.redisClient.get("#{deviceId}_inform_hash", (err, res) ->
+  db.redisClient.get("#{currentRequest.deviceId}_inform_hash", (err, res) ->
     throw err if err
 
     if not res?
-      db.redisClient.setex("#{deviceId}_inform_hash", config.PRESETS_CACHE_DURATION, informHash, (err, res) ->
+      db.redisClient.setex("#{currentRequest.deviceId}_inform_hash", config.PRESETS_CACHE_DURATION, informHash, (err, res) ->
         throw err if err
       )
 
     updateAndRespond = () ->
       updateDevice(currentRequest, actions, (err) ->
         throw err if err
-        res = tr069.response(cwmpRequest.id, {methodResponse : {type : 'InformResponse'}}, {deviceId : deviceId})
+        res = tr069.response(cwmpRequest.id, {methodResponse : {type : 'InformResponse'}}, {deviceId : currentRequest.deviceId})
         writeResponse(currentRequest, res)
       )
 
@@ -174,7 +172,7 @@ inform = (currentRequest, cwmpRequest) ->
         path += p + '.'
         projection[path + '_timestamp'] = 1
 
-    db.devicesCollection.findOne({'_id' : deviceId}, projection, (err, device) ->
+    db.devicesCollection.findOne({'_id' : currentRequest.deviceId}, projection, (err, device) ->
       throw err if err
       lastBootstrap ?= device?._lastBootstrap
       _tasks = []
@@ -184,7 +182,7 @@ inform = (currentRequest, cwmpRequest) ->
         for k of reference
           continue if k[0] == '_'
           if not actual[k]?._timestamp? or actual[k]._timestamp < lastBootstrap
-            _tasks.push({device: deviceId, name : 'refreshObject', objectName : reference[k]._path})
+            _tasks.push({device: currentRequest.deviceId, name : 'refreshObject', objectName : reference[k]._path})
           else
             traverse(reference[k], actual[k])
 
@@ -195,9 +193,9 @@ inform = (currentRequest, cwmpRequest) ->
         deviceCustomCommands = {}
         deviceCustomCommands[k] = v._timestamp for k,v of device._customCommands
 
-        for cmd in customCommands.getDeviceCustomCommandNames(deviceId)
+        for cmd in customCommands.getDeviceCustomCommandNames(currentRequest.deviceId)
           if not (deviceCustomCommands[cmd]?._timestamp < lastBootstrap)
-            _tasks.push({device: deviceId, name: 'customCommand', command: "#{cmd} init"})
+            _tasks.push({device: currentRequest.deviceId, name: 'customCommand', command: "#{cmd} init"})
           delete deviceCustomCommands[cmd]
 
         for cmd of deviceCustomCommands
@@ -208,13 +206,13 @@ inform = (currentRequest, cwmpRequest) ->
           updateAndRespond()
         )
       else
-        db.devicesCollection.insert({_id : deviceId, _registered : now}, (err) ->
+        db.devicesCollection.insert({_id : currentRequest.deviceId, _registered : now}, (err) ->
           throw err if err
-          util.log("#{deviceId}: New device registered")
-          _tasks.push({device: deviceId, name : 'refreshObject', objectName : ''})
+          util.log("#{currentRequest.deviceId}: New device registered")
+          _tasks.push({device: currentRequest.deviceId, name : 'refreshObject', objectName : ''})
 
-          for cmd in customCommands.getDeviceCustomCommandNames(deviceId)
-            _tasks.push({device: deviceId, name: 'customCommand', command: "#{cmd} init"})
+          for cmd in customCommands.getDeviceCustomCommandNames(currentRequest.deviceId)
+            _tasks.push({device: currentRequest.deviceId, name: 'customCommand', command: "#{cmd} init"})
 
           apiFunctions.insertTasks(_tasks, {}, () ->
             updateAndRespond()
@@ -395,8 +393,12 @@ listener = (httpRequest, httpResponse) ->
     currentRequest = {
       httpRequest : httpRequest
       httpResponse : httpResponse
-      deviceId : cwmpRequest.cookies?.deviceId
     }
+
+    if cwmpRequest.methodRequest?.deviceId?
+      currentRequest.deviceId = common.getDeviceId(cwmpRequest.methodRequest.deviceId)
+    else
+      currentRequest.deviceId = cwmpRequest.cookies.deviceId
 
     if config.DEBUG_DEVICES[currentRequest.deviceId]
       dump = "# REQUEST #{new Date(Date.now())}\n" + JSON.stringify(httpRequest.headers) + "\n#{httpRequest.getBody()}\n\n"
