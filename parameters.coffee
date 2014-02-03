@@ -105,23 +105,30 @@ splitIds = (batches, callback) ->
 
 compileAliases = (callback) ->
   map = () ->
+    recurse = (partIndex, ref) ->
+      part = parts[partIndex]
+      res = []
+      if part.test?
+        for p of ref
+          if part.test(p)
+            if partIndex == parts.length - 1
+              res.push(p)
+            else
+              for r in recurse(partIndex + 1, ref[p])
+                res.push("#{p}.#{r}")
+      else
+        if ref[part]?
+          if partIndex == parts.length - 1
+            return [part]
+          else
+            for r in recurse(partIndex + 1, ref[part])
+              res.push("#{part}.#{r}")
+
+      return res
+
     for key, parts of keys
-      ref = this
-      path = ''
-      for part in parts
-        if part.test?
-          r = ref
-          ref = null
-          for p of r
-            if part.test(p)
-              path += ".#{p}"
-              ref = r[p]
-              break
-        else
-          path += ".#{part}"
-          ref = ref[part]
-        break if not ref
-      emit(path[1..], key) if ref
+      for alias in recurse(0, this)
+        emit(alias, key)
     return
 
   reduce = (k, v) ->
@@ -144,8 +151,7 @@ compileAliases = (callback) ->
         ar.push(p)
 
     if isStatic
-      if not aliases[alias]?
-        aliases[alias] = []
+      aliases[alias] ?= []
       aliases[alias].push(k)
     else
       keys[k] = ar
@@ -164,8 +170,7 @@ compileAliases = (callback) ->
       db.devicesCollection.mapReduce(map, reduce, options, (err, out) ->
         for o in out
           alias = config.PARAMETERS[o.value].alias
-          if not aliases[alias]?
-            aliases[alias] = []
+          aliases[alias] ?= []
           id = String(o._id)
           if id not in aliases[alias]
             aliases[alias].push(id)
@@ -173,6 +178,7 @@ compileAliases = (callback) ->
         if ++counter == batches.length
           callback(err, aliases, config.ALIASES_CACHE)
       )
+    return
   )
 
 
