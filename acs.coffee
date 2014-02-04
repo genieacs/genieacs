@@ -206,7 +206,11 @@ inform = (currentRequest, cwmpRequest) ->
           updateAndRespond()
         )
       else
-        db.devicesCollection.insert({_id : currentRequest.deviceId, _registered : now}, (err) ->
+        deviceIdDetails = {}
+        for k, v of cwmpRequest.methodRequest.deviceId
+          deviceIdDetails["_#{k}"] = v
+
+        db.devicesCollection.insert({_id : currentRequest.deviceId, _registered : now, _deviceId : deviceIdDetails}, (err) ->
           throw err if err
           util.log("#{currentRequest.deviceId}: New device registered")
           _tasks.push({device: currentRequest.deviceId, name : 'refreshObject', objectName : ''})
