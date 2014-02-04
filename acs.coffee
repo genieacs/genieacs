@@ -436,13 +436,13 @@ listener = (httpRequest, httpResponse) ->
             currentSoftwareVersion = devicePreset.softwareVersion?.current._value
             if presetSoftwareVersion? and presetSoftwareVersion != currentSoftwareVersion
               projection = {
-                'InternetGatewayDevice.DeviceInfo.Manufacturer' : 1,
-                'InternetGatewayDevice.DeviceInfo.ProductClass' : 1,
+                '_deviceId._Manufacturer' : 1,
+                '_deviceId._ProductClass' : 1,
               }
               db.devicesCollection.findOne({'_id' : currentRequest.deviceId}, projection, (err, device) ->
                 throw err if err
-                manufacturer = device.InternetGatewayDevice.DeviceInfo.Manufacturer._value
-                productClass = device.InternetGatewayDevice.DeviceInfo.ProductClass._value
+                manufacturer = device._deviceId._Manufacturer
+                productClass = device._deviceId._ProductClass
                 db.filesCollection.findOne({'metadata.fileType' : '1 Firmware Upgrade Image', 'metadata.manufacturer' : manufacturer, 'metadata.productClass' : productClass, 'metadata.version' : presetSoftwareVersion}, {_id : 1}, (err, file) ->
                   throw err if err
                   if not file?
