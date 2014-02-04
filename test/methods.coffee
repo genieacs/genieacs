@@ -14,7 +14,7 @@ exports.inform = (device, xmlOut, callback) ->
   inform = body.node('cwmp:Inform')
 
   deviceId = inform.node('DeviceId')
-  deviceId.node('Manfucturer', device['InternetGatewayDevice.DeviceInfo.Manufacturer'][1])
+  deviceId.node('Manufacturer', device['InternetGatewayDevice.DeviceInfo.Manufacturer'][1])
   deviceId.node('OUI', device['InternetGatewayDevice.DeviceInfo.ManufacturerOUI'][1])
   deviceId.node('ProductClass', device['InternetGatewayDevice.DeviceInfo.ProductClass'][1])
   deviceId.node('SerialNumber', device['InternetGatewayDevice.DeviceInfo.SerialNumber'][1])
