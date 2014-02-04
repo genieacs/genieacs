@@ -443,7 +443,7 @@ listener = (httpRequest, httpResponse) ->
                 throw err if err
                 manufacturer = device.InternetGatewayDevice.DeviceInfo.Manufacturer._value
                 productClass = device.InternetGatewayDevice.DeviceInfo.ProductClass._value
-                db.filesCollection.findOne({'metadata.FileType' : '1 Firmware Upgrade Image', 'metadata.Manufacturer' : manufacturer, 'metadata.ProductClass' : productClass, 'metadata.SoftwareVersion' : presetSoftwareVersion}, {_id : 1}, (err, file) ->
+                db.filesCollection.findOne({'metadata.fileType' : '1 Firmware Upgrade Image', 'metadata.manufacturer' : manufacturer, 'metadata.productClass' : productClass, 'metadata.version' : presetSoftwareVersion}, {_id : 1}, (err, file) ->
                   throw err if err
                   if not file?
                     util.error("#{currentRequest.deviceId}: Firmware image not found (#{presetSoftwareVersion})")

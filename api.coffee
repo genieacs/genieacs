@@ -256,10 +256,10 @@ else
         filename = querystring.unescape(FILES_REGEX.exec(urlParts.pathname)[1])
         if request.method == 'PUT'
           metadata = {
-            FileType : request.headers.filetype,
-            Manufacturer : request.headers.manufacturer,
-            ProductClass : request.headers.productclass,
-            SoftwareVersion : request.headers.softwareversion,
+            fileType : request.headers.filetype,
+            manufacturer : request.headers.manufacturer,
+            productClass : request.headers.productclass,
+            version : request.headers.version,
           }
 
           gs = new mongodb.GridStore(db.mongoDb, filename, 'w', {metadata : metadata})
