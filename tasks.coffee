@@ -43,8 +43,8 @@ this.refreshObject = (task, methodResponse, callback) ->
     )
   else if task.session.subtask.name is 'getParameterValues'
     if methodResponse.faultcode?
-      # Ignore GetParameterValues errors. A workaround for the crappy Seewon devices.
-      methodResponse = {parameterList : {}}
+      task.fault = methodResponse
+      return callback(null, STATUS_FAULT)
 
     this.getParameterValues(task.session.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) ->
       callback(err, status, cwmpResponse, deviceUpdates)
@@ -247,8 +247,8 @@ this.addObject = (task, methodResponse, callback) ->
                     task.session.appliedParameterValues.push([p1[0], v, t])
 
           if methodResponse.faultcode?
-            # Ignore GetParameterValues errors. A workaround for the crappy Seewon devices.
-            methodResponse = {parameterList : {}}
+            task.fault = methodResponse
+            return callback(null, STATUS_FAULT)
 
           if status & STATUS_COMPLETED and task.session.appliedParameterValues.length > 0
             task.session.subtask = {name : 'setParameterValues', parameterValues : task.session.appliedParameterValues}
@@ -321,9 +321,9 @@ this.download = (task, methodResponse, callback) ->
 
       methodRequest = {
         type : 'Download',
-        fileType : file.metadata?.FileType ? '1 Firmware Upgrade Image',
+        fileType : file.metadata.fileType,
         fileSize : file.length,
-        url : "http://#{config.FILES_IP}:#{config.FILES_PORT}/#{file.filename}",
+        url : "http://#{config.FILES_IP}:#{config.FILES_PORT}/#{encodeURIComponent(file.filename)}",
         successUrl : task.successUrl,
         failureUrl : task.failureUrl
       }
