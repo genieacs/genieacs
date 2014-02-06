@@ -305,7 +305,7 @@ else
 
         func = (aliases) ->
           if urlParts.query.query?
-            q = JSON.parse(querystring.unescape(urlParts.query.query))
+            q = JSON.parse(urlParts.query.query)
           else
             q = {}
           q = query.expand(q, aliases) if collectionName is 'devices'
@@ -322,7 +322,7 @@ else
 
           cur = collection.find(q, projection, {batchSize : 50})
           if urlParts.query.sort?
-            s = JSON.parse(querystring.unescape(urlParts.query.sort))
+            s = JSON.parse(urlParts.query.sort)
             sort = {}
             for k,v of s
               if aliases[k]?
