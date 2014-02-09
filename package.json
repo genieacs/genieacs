@@ -1,18 +1,18 @@
 {
   "name": "genieacs",
-  "version": "0.9.0",
-  "description": "A blazing fast TR-069 auto configuration server (ACS) built with node.js and MongoDB",
+  "version": "0.9.1",
+  "description": "A blazing fast TR-069 auto configuration server (ACS) built with Node.js, Redis, and MongoDB",
   "directories": {
     "test": "test"
   },
   "dependencies": {
     "libxmljs": "~0.8.1",
-    "redis": "~0.9.0",
+    "redis": "~0.10.0",
     "hiredis": "~0.1.15",
-    "mongodb": "~1.3.18"
+    "mongodb": "~1.3.23"
   },
   "devDependencies": {
-    "coffee-script": "~1.6.3"
+    "coffee-script": "~1.7.1"
   },
   "scripts": {
     "prepublish": "coffee -c *.coffee",
@@ -29,6 +29,5 @@
   ],
   "author": "Zaid Abdulla",
   "license": "MIT",
-  "readmeFilename": "README.md",
-  "gitHead": "af9ca0c2aede261efe09305e67ad2442940e1436"
+  "readmeFilename": "README.md"
 }
