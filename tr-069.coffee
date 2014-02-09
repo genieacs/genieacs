@@ -1,6 +1,6 @@
 libxmljs = require 'libxmljs'
 
-SERVER_NAME = 'Genie/0.1'
+SERVER_NAME = "GenieACS/#{require('./package.json').version}"
 
 NAMESPACES = {
   'soap-enc' : 'http://schemas.xmlsoap.org/soap/encoding/',
