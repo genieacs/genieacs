@@ -1,7 +1,7 @@
 {
   "DATABASE_NAME" : "genieacs",
   "MONGODB_SOCKET" : "/tmp/mongodb-27017.sock",
-  "REDIS_SOCKET" : "/tmp/redis.sock",
+  "REDIS_SOCKET" : "6379",
   "ACS_INTERFACE" : "0.0.0.0",
   "ACS_PORT" : 7547,
   "ACS_HTTPS_INTERFACE" : "0.0.0.0",
@@ -10,7 +10,7 @@
   "API_PORT" : 7557,
   "FILES_INTERFACE" : "0.0.0.0",
   "FILES_PORT" : 7567,
-  "FILES_IP" : "172.240.21.2",
-  "LOG_INFORMS" : false,
+  "FILES_IP" : "192.168.0.1",
+  "LOG_INFORMS" : true,
   "DEBUG_DEVICES" : {}
 }
