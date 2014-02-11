@@ -14,6 +14,7 @@
   "author": "Zaid Abdulla",
   "license": "AGPL3",
   "readmeFilename": "README.md",
+  "preferGlobal": true,
   "directories": {
     "test": "test",
     "bin": "bin"
@@ -32,8 +33,8 @@
   },
   "scripts": {
     "prepublish": "npm run compile",
-    "compile": "./node_modules/.bin/coffee -c *.coffee test/*.coffee tools/*.coffee",
-    "configure": "cp config/config-sample.json config/config.json; cp config/parameters-sample.json config/parameters.json; cp config/custom_commands-sample.json config/custom_commands.json; cp config/auth-sample.js config/auth.js",
+    "compile": "coffee -cb *.coffee test/*.coffee tools/*.coffee",
+    "configure": "cp ./config/config-sample.json ./config/config.json; cp ./config/parameters-sample.json ./config/parameters.json; cp ./config/custom_commands-sample.json ./config/custom_commands.json; cp ./config/auth-sample.js ./config/auth.js",
     "install": "npm run configure",
     "test": "node test"
   }
