@@ -13,9 +13,11 @@ GenieACS is a *blazing fast* TR-069 auto configuration server (ACS) built with N
 
 ## Getting started
 
-Install [Node.js](http://nodejs.org/), [Redis](http://redis.io/), and [MongoDB](http://www.mongodb.org/). Refer to the corresponding documentation for installation guides. Use NPM to install GenieACS and its dependencies by typing:
+Install [Node.js](http://nodejs.org/), [Redis](http://redis.io/), and [MongoDB](http://www.mongodb.org/). Refer to the corresponding documentation for installation guides. Then use NPM to install GenieACS by typing:
 
-    npm install genieacs
+    npm install -g genieacs
+
+You may need to modify the configuration files under "config" directory (in /lib/node_modules/genieacs/config) depending on your setup.
 
 Alternatively, you can use git to get the latest development version (not recommended for production use):
 
@@ -23,22 +25,28 @@ Alternatively, you can use git to get the latest development version (not recomm
     git clone https://github.com/zaidka/genieacs.git
     cd genieacs
     npm install
-
-System configuration files can be found under "config" directory. Copy the sample config files provided by removing the "-sample" suffix and modify as necessary.
+    npm run configure
+    npm run compile
 
 Finally, run the following in GNU Screen session or something similar:
 
-    node acs
+    genieacs-acs
 
 This is the service that the CPEs will communicate with. It listens to port 7547 by default (see config/config.json). Configure the ACS URL of your devices accordingly.
 
-    node api
+    genieacs-api
 
 This is the API module. It exposes the API on port 7557 by default. This is needed for the GUI front end to communicate with.
 
-    node files
+    genieacs-files
 
 This is the file server from which the CPEs will download firmware images and other types of files.
+
+You can use stream redirection to output to log files:
+
+    genieacs-acs >> /var/log/genieacs-acs.log 2>> /var/log/genieacs-acs-err.log
+    genieacs-api >> /var/log/genieacs-api.log 2>> /var/log/genieacs-api-err.log
+    genieacs-files >> /var/log/genieacs-files.log 2>> /var/log/genieacs-files-err.log
 
 For further details about installation and configuration, refer to the [wiki section](https://github.com/zaidka/genieacs/wiki).
 
