@@ -168,6 +168,10 @@ compileAliases = (callback) ->
       }
 
       db.devicesCollection.mapReduce(map, reduce, options, (err, out) ->
+        if err
+          callback?(err)
+          return callback = null
+
         for o in out
           alias = config.PARAMETERS[o.value].alias
           aliases[alias] ?= []
@@ -176,7 +180,7 @@ compileAliases = (callback) ->
             aliases[alias].push(id)
 
         if ++counter == batches.length
-          callback(err, aliases, config.ALIASES_CACHE)
+          callback?(null, aliases, config.ALIASES_CACHE)
       )
     return
   )
