@@ -37,7 +37,7 @@ if cluster.isMaster
     , config.WORKER_RESPAWN_TIME)
   )
 
-  for i in [1 .. numCPUs]
+  for [1 .. numCPUs]
     cluster.fork()
 else
   server = http.createServer (request, response) ->
