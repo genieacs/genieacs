@@ -62,8 +62,8 @@ parameterValueList = (xml) ->
 
 cpeGetParameterNames = (xml, methodRequest) ->
   el = xml.node('cwmp:GetParameterNames')
-  el.node('cwmp:ParameterPath').text(methodRequest.parameterPath)
-  el.node('cwmp:NextLevel').text(+methodRequest.nextLevel)
+  el.node('ParameterPath').text(methodRequest.parameterPath)
+  el.node('NextLevel').text(+methodRequest.nextLevel)
 
 
 cpeGetParameterNamesResponse = (xml) ->
@@ -71,7 +71,8 @@ cpeGetParameterNamesResponse = (xml) ->
 
 
 cpeGetParameterValues = (xml, methodRequest) ->
-  el = xml.node('cwmp:GetParameterValues').node('cwmp:ParameterNames')
+  el = xml.node('cwmp:GetParameterValues').node('ParameterNames')
+  el.attr({'soap-enc:arrayType' : "xsd:string[#{methodRequest.parameterNames.length}]"})
   for p in methodRequest.parameterNames
     el.node('xsd:string').text(p)
 
@@ -83,14 +84,14 @@ cpeGetParameterValuesResponse = (xml) ->
 cpeSetParameterValues = (xml, methodRequest) ->
   el = xml.node('cwmp:SetParameterValues')
   paramList = el.node('ParameterList')
+  paramList.attr({'soap-enc:arrayType' : "cwmp:ParameterValueStruct[#{methodRequest.parameterList.length}]"})
   for i in methodRequest.parameterList
     pvs = paramList.node('ParameterValueStruct')
     pvs.node('Name').text(i[0])
     v = pvs.node('Value')
     v.text(i[1])
     v.attr({'xsi:type' : i[2]}) if i[2]?
-  # Huawei CPEs need this element present otherwise won't respond
-  el.node('ParameterKey').text(if methodRequest.parameterKey? then methodRequest.parameterKey else '')
+  el.node('ParameterKey').text(methodRequest.parameterKey ? '')
 
 
 cpeSetParameterValuesResponse = (xml) ->
@@ -100,7 +101,7 @@ cpeSetParameterValuesResponse = (xml) ->
 cpeAddObject = (xml, methodRequest) ->
   el = xml.node('cwmp:AddObject')
   el.node('ObjectName').text(methodRequest.objectName)
-  el.node('ParameterKey').text(if methodRequest.parameterKey? then methodRequest.parameterKey else '')
+  el.node('ParameterKey').text(methodRequest.parameterKey ? '')
 
 
 cpeAddObjectResponse = (xml) ->
@@ -113,7 +114,7 @@ cpeAddObjectResponse = (xml) ->
 cpeDeleteObject = (xml, methodRequest) ->
   el = xml.node('cwmp:DeleteObject')
   el.node('ObjectName').text(methodRequest.objectName)
-  el.node('ParameterKey').text(if methodRequest.parameterKey? then methodRequest.parameterKey else '')
+  el.node('ParameterKey').text(methodRequest.parameterKey ? '')
 
 
 cpeDeleteObjectResponse = (xml) ->
@@ -150,8 +151,7 @@ acsInformResponse = (xml) ->
 
 cpeReboot = (xml, methodRequest) ->
   el = xml.node('cwmp:Reboot')
-  # Huawei CPEs need this element present otherwise won't respond
-  el.node('CommandKey').text(if methodRequest.commandKey then methodRequest.commandKey else '')
+  el.node('CommandKey').text(methodRequest.commandKey ? '')
 
 
 cpeRebootResponse = (xml) ->
@@ -160,7 +160,6 @@ cpeRebootResponse = (xml) ->
 
 cpeFactoryReset = (xml, methodRequest) ->
   el = xml.node('cwmp:FactoryReset')
-  el.node('CommandKey').text(if methodRequest.commandKey then methodRequest.commandKey else '')
 
 
 cpeFactoryResetResponse = (xml, methodRequest) ->
@@ -169,16 +168,16 @@ cpeFactoryResetResponse = (xml, methodRequest) ->
 
 cpeDownload = (xml, methodRequest) ->
   el = xml.node('cwmp:Download')
-  el.node('CommandKey').text(methodRequest.commandKey or '')
+  el.node('CommandKey').text(methodRequest.commandKey ? '')
   el.node('FileType').text(methodRequest.fileType)
   el.node('URL').text(methodRequest.url)
-  el.node('Username').text(methodRequest.username or '')
-  el.node('Password').text(methodRequest.password or '')
-  el.node('FileSize').text(methodRequest.fileSize or '0')
-  el.node('TargetFileName').text(methodRequest.TargetFileName or '')
-  el.node('DelaySeconds').text(methodRequest.delaySeconds or '0')
-  el.node('SuccessURL').text(methodRequest.successUrl or '')
-  el.node('FailureURL').text(methodRequest.failureUrl or '')
+  el.node('Username').text(methodRequest.username ? '')
+  el.node('Password').text(methodRequest.password ? '')
+  el.node('FileSize').text(methodRequest.fileSize ? '0')
+  el.node('TargetFileName').text(methodRequest.TargetFileName ? '')
+  el.node('DelaySeconds').text(methodRequest.delaySeconds ? '0')
+  el.node('SuccessURL').text(methodRequest.successUrl ? '')
+  el.node('FailureURL').text(methodRequest.failureUrl ? '')
 
 
 cpeDownloadResponse = (xml) ->

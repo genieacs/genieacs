@@ -45,8 +45,8 @@ exports.inform = (device, xmlOut, callback) ->
 
 exports.GetParameterNames = (device, xmlIn, xmlOut, callback) ->
   parameterNames = Object.keys(device).sort()
-  parameterPath = xmlIn.get('/soap-env:Envelope/soap-env:Body/cwmp:GetParameterNames/cwmp:ParameterPath', NAMESPACES).text()
-  nextLevel = !!eval(xmlIn.get('/soap-env:Envelope/soap-env:Body/cwmp:GetParameterNames/cwmp:NextLevel', NAMESPACES).text())
+  parameterPath = xmlIn.get('/soap-env:Envelope/soap-env:Body/cwmp:GetParameterNames/ParameterPath', NAMESPACES).text()
+  nextLevel = !!eval(xmlIn.get('/soap-env:Envelope/soap-env:Body/cwmp:GetParameterNames/NextLevel', NAMESPACES).text())
 
   parameterList = []
   if nextLevel
@@ -72,7 +72,7 @@ exports.GetParameterNames = (device, xmlIn, xmlOut, callback) ->
 
 
 exports.GetParameterValues = (device, xmlIn, xmlOut, callback) ->
-  parameterNames = xmlIn.find('/soap-env:Envelope/soap-env:Body/cwmp:GetParameterValues/cwmp:ParameterNames/*', NAMESPACES)
+  parameterNames = xmlIn.find('/soap-env:Envelope/soap-env:Body/cwmp:GetParameterValues/ParameterNames/*', NAMESPACES)
 
   parameterList = xmlOut.root().childNodes()[1].node('cwmp:GetParameterValuesResponse').node('ParameterList')
   parameterList.attr({'soap-enc:arrayType' : "cwmp:ParameterValueStruct[#{parameterNames.length}]"})
