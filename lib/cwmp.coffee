@@ -3,7 +3,7 @@ common = require './common'
 util = require 'util'
 http = require 'http'
 https = require 'https'
-tr069 = require './tr-069'
+soap = require './soap'
 tasks = require './tasks'
 normalize = require('./normalize').normalize
 db = require './db'
@@ -150,7 +150,7 @@ inform = (currentRequest, cwmpRequest) ->
     updateAndRespond = () ->
       updateDevice(currentRequest, actions, (err) ->
         throw err if err
-        res = tr069.response(cwmpRequest.id, {methodResponse : {type : 'InformResponse'}}, {deviceId : currentRequest.deviceId})
+        res = soap.response(cwmpRequest.id, {methodResponse : {type : 'InformResponse'}}, {deviceId : currentRequest.deviceId})
         writeResponse(currentRequest, res)
       )
 
@@ -245,7 +245,7 @@ runTask = (currentRequest, task, methodResponse) ->
           f = () ->
             db.redisClient.setex(String(task._id), config.CACHE_DURATION, JSON.stringify(task), (err) ->
               throw err if err
-              res = tr069.response(task._id, cwmpResponse)
+              res = soap.response(task._id, cwmpResponse)
               writeResponse(currentRequest, res)
             )
 
@@ -293,7 +293,7 @@ assertPresets = (currentRequest) ->
     presetsHash = res[1]
     if devicePresetsHash? and devicePresetsHash == presetsHash
       # no discrepancy, return empty response
-      res = tr069.response(null, {})
+      res = soap.response(null, {})
       writeResponse(currentRequest, res)
     else
       db.getPresetsObjectsAliases((allPresets, allObjects, allAliases) ->
@@ -334,7 +334,7 @@ assertPresets = (currentRequest) ->
                 runTask(currentRequest, task, {})
               )
             else
-              res = tr069.response(null, {}, {})
+              res = soap.response(null, {}, {})
               writeResponse(currentRequest, res)
           )
         )
@@ -392,7 +392,7 @@ listener = (httpRequest, httpResponse) ->
 
   httpRequest.addListener 'end', () ->
     cwmpResponse = {}
-    cwmpRequest = tr069.request(httpRequest)
+    cwmpRequest = soap.request(httpRequest)
 
     currentRequest = {
       httpRequest : httpRequest
@@ -417,12 +417,12 @@ listener = (httpRequest, httpResponse) ->
         # do nothing
         util.log("#{currentRequest.deviceId}: Transfer complete")
         cwmpResponse.methodResponse = {type : 'TransferCompleteResponse'}
-        res = tr069.response(cwmpRequest.id, cwmpResponse, cookies)
+        res = soap.response(cwmpRequest.id, cwmpResponse, cookies)
         writeResponse(currentRequest, res)
       else if cwmpRequest.methodRequest.type is 'RequestDownload'
         requestDownloadResponse = () ->
           cwmpResponse.methodResponse = {type : 'RequestDownloadResponse'}
-          res = tr069.response(cwmpRequest.id, cwmpResponse, cookies)
+          res = soap.response(cwmpRequest.id, cwmpResponse, cookies)
           writeResponse(currentRequest, res)
         fileType = cwmpRequest.methodRequest.fileType
         util.log("#{currentRequest.deviceId}: RequestDownload (#{fileType})")
@@ -480,7 +480,7 @@ listener = (httpRequest, httpResponse) ->
       taskId = cwmpRequest.id
       if not taskId
         # Fault not related to a task. return empty response.
-        res = tr069.response(null, {}, {})
+        res = soap.response(null, {}, {})
         writeResponse(currentRequest, res)
         return
 
@@ -516,8 +516,8 @@ if cluster.isMaster
     cluster.fork()
 else
   options = {
-    key: fs.readFileSync('httpscert.key'),
-    cert: fs.readFileSync('httpscert.crt')
+    key: fs.readFileSync('../config/httpscert.key'),
+    cert: fs.readFileSync('../config/httpscert.crt')
   }
 
   httpServer = http.createServer(listener)

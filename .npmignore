@@ -1,20 +1,14 @@
-*
-!*.js
+*~
+.npmignore
 
-config/*.js
+config/*
 !config/*-sample.*
+!config/custom_commands
 
-!tools/*
+debug/*
+!debug/.gitkeep
+
+lib/*.coffee
 tools/*.coffee
-
-!test/*
 test/*.coffee
 
-!bin/genieacs-acs
-!bin/genieacs-api
-!bin/genieacs-files
-
-!httpscert.key
-!httpscert.crt
-
-*~

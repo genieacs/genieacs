@@ -30,23 +30,23 @@ Alternatively, you can use git to get the latest development version (not recomm
 
 Finally, run the following in GNU Screen session or something similar:
 
-    genieacs-acs
+    genieacs-cwmp
 
 This is the service that the CPEs will communicate with. It listens to port 7547 by default (see config/config.json). Configure the ACS URL of your devices accordingly.
 
-    genieacs-api
+    genieacs-nbi
 
-This is the API module. It exposes the API on port 7557 by default. This is needed for the GUI front end to communicate with.
+This is the northbound interface module. It exposes a REST API on port 7557 by default. This is needed for the GUI front end to communicate with.
 
-    genieacs-files
+    genieacs-fs
 
 This is the file server from which the CPEs will download firmware images and other types of files.
 
 You can use stream redirection to output to log files:
 
-    genieacs-acs >> /var/log/genieacs-acs.log 2>> /var/log/genieacs-acs-err.log
-    genieacs-api >> /var/log/genieacs-api.log 2>> /var/log/genieacs-api-err.log
-    genieacs-files >> /var/log/genieacs-files.log 2>> /var/log/genieacs-files-err.log
+    genieacs-cwmp >> /var/log/genieacs-cwmp.log 2>> /var/log/genieacs-cwmp-err.log
+    genieacs-nbi >> /var/log/genieacs-nbi.log 2>> /var/log/genieacs-nbi-err.log
+    genieacs-fs >> /var/log/genieacs-fs.log 2>> /var/log/genieacs-fs-err.log
 
 For further details about installation and configuration, refer to the [wiki section](https://github.com/zaidka/genieacs/wiki).
 

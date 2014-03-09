@@ -1,4 +1,4 @@
-common = require '../common'
+common = require '../lib/common'
 
 NAMESPACES = {
   'soap-enc' : 'http://schemas.xmlsoap.org/soap/encoding/',

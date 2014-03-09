@@ -30,14 +30,15 @@ exports.MONGODB_OPTIONS = {
 }
 
 # load configuration
-c = require('./config/config')
+c = require('../config/config')
 for k, v of c
   exports[k] = v
 
 # load parameter configurations
-exports.PARAMETERS = require('./config/parameters')
+exports.PARAMETERS = require('../config/parameters')
 
 # load authentication scripts
-exports.auth = require('./config/auth')
+exports.auth = require('../config/auth')
 
-exports.CUSTOM_COMMANDS = require('./config/custom_commands')
+exports.CUSTOM_COMMANDS = require('../config/custom_commands')
+
