@@ -32,7 +32,7 @@ writeResponse = (currentRequest, res) ->
 
   if config.DEBUG_DEVICES[currentRequest.deviceId]
     dump = "# RESPONSE #{new Date(Date.now())}\n" + JSON.stringify(res.headers) + "\n#{res.data}\n\n"
-    fs = require('fs').appendFile("debug/#{currentRequest.deviceId}.dump", dump, (err) ->
+    fs = require('fs').appendFile("../debug/#{currentRequest.deviceId}.dump", dump, (err) ->
       throw err if err
     )
 
@@ -406,7 +406,7 @@ listener = (httpRequest, httpResponse) ->
 
     if config.DEBUG_DEVICES[currentRequest.deviceId]
       dump = "# REQUEST #{new Date(Date.now())}\n" + JSON.stringify(httpRequest.headers) + "\n#{httpRequest.getBody()}\n\n"
-      require('fs').appendFile("debug/#{currentRequest.deviceId}.dump", dump, (err) ->
+      require('fs').appendFile("../debug/#{currentRequest.deviceId}.dump", dump, (err) ->
         throw err if err
       )
 
