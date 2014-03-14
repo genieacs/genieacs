@@ -139,13 +139,8 @@ inform = (currentRequest, cwmpRequest) ->
   actions.set._lastBoot = now if '1 BOOT' in cwmpRequest.methodRequest.event
   actions.set._lastBootstrap = lastBootstrap = now if '0 BOOTSTRAP' in cwmpRequest.methodRequest.event
 
-  db.redisClient.get("#{currentRequest.deviceId}_inform_hash", (err, res) ->
+  db.redisClient.get("#{currentRequest.deviceId}_inform_hash", (err, oldInformHash) ->
     throw err if err
-
-    if not res?
-      db.redisClient.setex("#{currentRequest.deviceId}_inform_hash", config.PRESETS_CACHE_DURATION, informHash, (err, res) ->
-        throw err if err
-      )
 
     updateAndRespond = () ->
       updateDevice(currentRequest, actions, (err) ->
@@ -154,8 +149,12 @@ inform = (currentRequest, cwmpRequest) ->
         writeResponse(currentRequest, res)
       )
 
-    if res == informHash
+    if oldInformHash == informHash and not lastBootstrap?
       return updateAndRespond()
+
+    db.redisClient.setex("#{currentRequest.deviceId}_inform_hash", config.PRESETS_CACHE_DURATION, informHash, (err, res) ->
+      throw err if err
+    )
 
     # populate projection and parameterStructure
     parameterStructure = {}
@@ -201,6 +200,12 @@ inform = (currentRequest, cwmpRequest) ->
         for cmd of deviceCustomCommands
           actions.deletedObjects ?= []
           actions.deletedObjects.push("_customCommands.#{cmd}")
+
+        # clear presets hash if parameters are potentially modified
+        if _tasks.length > 0
+          db.redisClient.del("#{currentRequest.deviceId}_presets_hash", (err) ->
+            throw err if err
+          )
 
         apiFunctions.insertTasks(_tasks, {}, () ->
           updateAndRespond()
