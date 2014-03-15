@@ -8,8 +8,12 @@ auth = require './auth'
 
 
 connectionRequest = (deviceId, callback) ->
+  # ensure socket is reused in case of digest authentication
+  agent = new http.Agent({maxSockets : 1})
+
   conReq = (url, authString, callback) ->
     options = URL.parse(url)
+    options.agent = agent
 
     if authString
       options.headers = {'Authorization' : authString}
@@ -18,6 +22,8 @@ connectionRequest = (deviceId, callback) ->
       if res.statusCode == 401
         authHeader = auth.parseAuthHeader(res.headers['www-authenticate'])
       callback(res.statusCode, authHeader)
+      # don't need body, go ahead and emit events to free up the socket for possible reuse
+      res.resume()
     )
 
     request.on('error', (err) ->
