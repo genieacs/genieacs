@@ -7,13 +7,13 @@ exports.execute = (deviceId, command, callback) ->
   f = args.shift()
   c = args.shift()
 
-  file = require "./config/custom_commands/#{f}"
+  file = require "../config/custom_commands/#{f}"
   file[c](deviceId, args.join(' '), callback)
 
 
 exports.getFileCommands = (filename) ->
   commands = []
-  f = require("./config/custom_commands/#{filename}")
+  f = require("../config/custom_commands/#{filename}")
   for k,v of f
     commands.push(k)
   return commands
