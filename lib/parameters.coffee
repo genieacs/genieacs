@@ -85,10 +85,11 @@ createParameterAttributeFinder = (attributeName) ->
 
 
 splitIds = (batches, callback) ->
-  ids = [{}]
-  return callback(ids) if batches == 1
   db.devicesCollection.count((err, count) ->
-    return callback(ids) if count <= 1000
+    throw err if err
+    return callback(null) if count == 0
+    ids = [{}]
+    return callback(ids) if count <= 1000 or batches == 1
     batchSize = Math.floor(count / batches)
     for i in [1 ... batches]
       ids[i] = {}
@@ -158,6 +159,9 @@ compileAliases = (callback) ->
 
   counter = 0
   splitIds(4, (batches) ->
+    if not batches?
+      return callback(null, aliases, config.ALIASES_CACHE)
+
     for batch in batches
       options = {
         out : {inline : 1}
