@@ -137,7 +137,13 @@ inform = (currentRequest, cwmpRequest) ->
   actions = {parameterValues : cwmpRequest.methodRequest.parameterList, set : {}}
   actions.set._lastInform = now
   actions.set._lastBoot = now if '1 BOOT' in cwmpRequest.methodRequest.event
-  actions.set._lastBootstrap = lastBootstrap = now if '0 BOOTSTRAP' in cwmpRequest.methodRequest.event
+
+  if '0 BOOTSTRAP' in cwmpRequest.methodRequest.event
+    actions.set._lastBootstrap = lastBootstrap = now
+    # ignore all pending tasks
+    db.tasksCollection.remove({device : currentRequest.deviceId}, (err, removed) ->
+      throw err if err
+    )
 
   db.redisClient.get("#{currentRequest.deviceId}_inform_hash", (err, oldInformHash) ->
     throw err if err
