@@ -3,11 +3,41 @@ libxmljs = require 'libxmljs'
 SERVER_NAME = "GenieACS/#{require('../package.json').version}"
 
 NAMESPACES = {
-  'soap-enc' : 'http://schemas.xmlsoap.org/soap/encoding/',
-  'soap-env' : 'http://schemas.xmlsoap.org/soap/envelope/',
-  'xsd' : 'http://www.w3.org/2001/XMLSchema',
-  'xsi' : 'http://www.w3.org/2001/XMLSchema-instance',
-  'cwmp' : 'urn:dslforum-org:cwmp-1-0',
+  '1.0' : {
+    'soap-enc' : 'http://schemas.xmlsoap.org/soap/encoding/',
+    'soap-env' : 'http://schemas.xmlsoap.org/soap/envelope/',
+    'xsd' : 'http://www.w3.org/2001/XMLSchema',
+    'xsi' : 'http://www.w3.org/2001/XMLSchema-instance',
+    'cwmp' : 'urn:dslforum-org:cwmp-1-0'
+  },
+  '1.1' : {
+    'soap-enc' : 'http://schemas.xmlsoap.org/soap/encoding/',
+    'soap-env' : 'http://schemas.xmlsoap.org/soap/envelope/',
+    'xsd' : 'http://www.w3.org/2001/XMLSchema',
+    'xsi' : 'http://www.w3.org/2001/XMLSchema-instance',
+    'cwmp' : 'urn:dslforum-org:cwmp-1-1'
+  },
+  '1.2' : {
+    'soap-enc' : 'http://schemas.xmlsoap.org/soap/encoding/',
+    'soap-env' : 'http://schemas.xmlsoap.org/soap/envelope/',
+    'xsd' : 'http://www.w3.org/2001/XMLSchema',
+    'xsi' : 'http://www.w3.org/2001/XMLSchema-instance',
+    'cwmp' : 'urn:dslforum-org:cwmp-1-2'
+  },
+  '1.3' : {
+    'soap-enc' : 'http://schemas.xmlsoap.org/soap/encoding/',
+    'soap-env' : 'http://schemas.xmlsoap.org/soap/envelope/',
+    'xsd' : 'http://www.w3.org/2001/XMLSchema',
+    'xsi' : 'http://www.w3.org/2001/XMLSchema-instance',
+    'cwmp' : 'urn:dslforum-org:cwmp-1-2'
+  },
+  '1.4' : {
+    'soap-enc' : 'http://schemas.xmlsoap.org/soap/encoding/',
+    'soap-env' : 'http://schemas.xmlsoap.org/soap/envelope/',
+    'xsd' : 'http://www.w3.org/2001/XMLSchema',
+    'xsi' : 'http://www.w3.org/2001/XMLSchema-instance',
+    'cwmp' : 'urn:dslforum-org:cwmp-1-3'
+  }
 }
 
 
@@ -28,12 +58,12 @@ cookiesToStr = (obj) ->
 
 
 event = (xml) ->
-  e.text().trim() for e in xml.find('EventStruct/EventCode', NAMESPACES)
+  e.text().trim() for e in xml.find('EventStruct/EventCode')
 
 
 parameterInfoList = (xml) ->
   infoList = []
-  for e in xml.find('ParameterInfoStruct', NAMESPACES)
+  for e in xml.find('ParameterInfoStruct')
     name = e.get('Name').text().trim()
     writable = Boolean(JSON.parse(e.get('Writable').text()))
     infoList.push([name, writable])
@@ -42,7 +72,7 @@ parameterInfoList = (xml) ->
 
 parameterValueList = (xml) ->
   valueList = []
-  for e in xml.find('ParameterValueStruct', NAMESPACES)
+  for e in xml.find('ParameterValueStruct')
     valueType = e.get('Value').attr('type').value().trim()
     name = e.get('Name').text().trim()
     value = e.get('Value').text().trim()
@@ -211,6 +241,7 @@ acsRequestDownloadResponse = (xml, methodRequest) ->
 exports.request = (httpRequest) ->
   cwmpRequest = {cookies: {}}
   cwmpRequest.cookies = cookiesToObj(httpRequest.headers.cookie) if httpRequest.headers.cookie
+  cwmpRequest.cwmpVersion = cwmpRequest.cookies.cwmpVersion
 
   data = httpRequest.getBody()
 
@@ -221,12 +252,31 @@ exports.request = (httpRequest) ->
       # some devices send invalid utf8 characters
       xml = libxmljs.parseXml httpRequest.getBody('binary')
 
-    try
-      cwmpRequest.id = xml.get('//soap-env:Envelope/soap-env:Header/cwmp:ID', NAMESPACES).text()
-    catch err
-      cwmpRequest.id = null
+    if not cwmpRequest.cwmpVersion?
+      # cwmpVersion doesn't exist in cookies, thus it's an inform request
+      methodElement = xml.get('/soap-env:Envelope/soap-env:Body/*', NAMESPACES['1.0'])
+      switch methodElement.namespace().href()
+        when 'urn:dslforum-org:cwmp-1-0'
+          cwmpRequest.cwmpVersion = '1.0'
+        when 'urn:dslforum-org:cwmp-1-1'
+          cwmpRequest.cwmpVersion = '1.1'
+        when 'urn:dslforum-org:cwmp-1-2'
+          cwmpRequest.sessionTimeout = try xml.get('/soap-env:Envelope/soap-env:Header/cwmp:sessionTimeout', NAMESPACES['1.2']).text() catch then null
+          if cwmpRequest.sessionTimeout?
+            cwmpRequest.cwmpVersion = '1.3'
+          else
+            cwmpRequest.cwmpVersion = '1.2'
+        when 'urn:dslforum-org:cwmp-1-3'
+          cwmpRequest.cwmpVersion = '1.4'
+        else
+          throw new Error('Unrecognized CWMP version')
 
-    methodElement = xml.get('/soap-env:Envelope/soap-env:Body/cwmp:*', NAMESPACES)
+      cwmpRequest.sessionTimeout ?= try xml.get('/soap-env:Envelope/soap-env:Header/cwmp:sessionTimeout', NAMESPACES[cwmpRequest.cwmpVersion]).text() catch then null
+    else
+      methodElement = xml.get('/soap-env:Envelope/soap-env:Body/cwmp:*', NAMESPACES[cwmpRequest.cwmpVersion])
+
+    cwmpRequest.id = try xml.get('/soap-env:Envelope/soap-env:Header/cwmp:ID', NAMESPACES[cwmpRequest.cwmpVersion]).text() catch then null
+
     if methodElement?
       switch methodElement.name()
         when 'Inform'
@@ -265,40 +315,36 @@ exports.request = (httpRequest) ->
         else
           throw Error('8000 Method not supported ' + methodElement.name())
     else
-      faultElement = xml.get('/soap-env:Envelope/soap-env:Body/soap-env:Fault', NAMESPACES)
+      faultElement = xml.get('/soap-env:Envelope/soap-env:Body/soap-env:Fault', NAMESPACES[cwmpRequest.cwmpVersion])
       cwmpRequest.fault = fault(faultElement)
     
   return cwmpRequest
 
 
-exports.response = (id, cwmpResponse, cookies = null) ->
+createSoapEnv = (cwmpVersion) ->
+  xml = libxmljs.Document()
+  env = xml.node('soap-env:Envelope')
+  for prefix, url of NAMESPACES[cwmpVersion]
+    env.defineNamespace prefix, url
+  return env
+
+
+exports.response = (cwmpResponse) ->
   headers = {
     'Content-Type' : 'text/xml; charset="utf-8"',
     'Server' : SERVER_NAME,
     'SOAPServer' : SERVER_NAME,
   }
 
-  if cookies? and Object.keys(cookies).length > 0
-    headers['Set-Cookie'] = cookiesToStr(cookies)
-
-  if not cwmpResponse? or Object.keys(cwmpResponse).length == 0
-    #console.log '>>> EMPTY RESPONSE'
-    # send empty response
-    headers['Content-Length'] = 0
-    return {code: 204, headers: headers, data: ''}
-
-  xml = libxmljs.Document()
-  env = xml.node('soap-env:Envelope')
-  for prefix, url of NAMESPACES
-    env.defineNamespace prefix, url
-
-  header = env.node('soap-env:Header')
-  header.node('cwmp:ID').attr({'soap-env:mustUnderstand' : 1}).text(id)
-  body = env.node('soap-env:Body')
-
-  if cwmpResponse.methodResponse?
+  if cwmpResponse?.methodResponse?
+    env = createSoapEnv(cwmpResponse.cwmpVersion)
+    header = env.node('soap-env:Header')
+    header.node('cwmp:ID').attr({'soap-env:mustUnderstand' : 1}).text(cwmpResponse.id)
+    body = env.node('soap-env:Body')
     switch cwmpResponse.methodResponse.type
       when 'InformResponse'
+        cwmpResponse.cookies ?= {}
+        cwmpResponse.cookies.cwmpVersion = cwmpResponse.cwmpVersion
         acsInformResponse(body)
       when 'TransferCompleteResponse'
         acsTransferCompleteResponse(body)
@@ -306,7 +352,11 @@ exports.response = (id, cwmpResponse, cookies = null) ->
         acsRequestDownloadResponse(body)
       else
         throw Error("Unknown method response type #{cwmpResponse.methodResponse.type}")
-  else if cwmpResponse.methodRequest?
+  else if cwmpResponse?.methodRequest?
+    env = createSoapEnv(cwmpResponse.cwmpVersion)
+    header = env.node('soap-env:Header')
+    header.node('cwmp:ID').attr({'soap-env:mustUnderstand' : 1}).text(cwmpResponse.id)
+    body = env.node('soap-env:Body')
     switch cwmpResponse.methodRequest.type
       when 'GetParameterNames'
         cpeGetParameterNames(body, cwmpResponse.methodRequest)
@@ -326,10 +376,14 @@ exports.response = (id, cwmpResponse, cookies = null) ->
         cpeDownload(body, cwmpResponse.methodRequest)
       else
         throw Error("Unknown method request #{cwmpResponse.methodRequest.type}")
-  else
-    throw Error('Invalid response arguments')
   
-  data = xml.toString()
-  headers['Content-Length'] = data.length
+  if cwmpResponse?.cookies? and Object.keys(cwmpResponse.cookies).length > 0
+    headers['Set-Cookie'] = cookiesToStr(cwmpResponse.cookies)
 
-  return {code: 200, headers: headers, data: data}
+  if env?
+    data = env.doc().toString()
+    headers['Content-Length'] = data.length
+    return {code: 200, headers: headers, data: data}
+  else
+    headers['Content-Length'] = 0
+    return {code: 204, headers: headers, data: ''}

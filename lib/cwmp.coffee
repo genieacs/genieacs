@@ -151,7 +151,12 @@ inform = (currentRequest, cwmpRequest) ->
     updateAndRespond = () ->
       updateDevice(currentRequest, actions, (err) ->
         throw err if err
-        res = soap.response(cwmpRequest.id, {methodResponse : {type : 'InformResponse'}}, {deviceId : currentRequest.deviceId})
+        res = soap.response({
+          id : cwmpRequest.id,
+          methodResponse : {type : 'InformResponse'},
+          cwmpVersion : cwmpRequest.cwmpVersion,
+          cookies : {deviceId : currentRequest.deviceId}
+        })
         writeResponse(currentRequest, res)
       )
 
@@ -239,7 +244,7 @@ inform = (currentRequest, cwmpRequest) ->
 
 runTask = (currentRequest, task, methodResponse) ->
   timeDiff = process.hrtime()
-  tasks.task(task, methodResponse, (err, status, cwmpResponse, deviceUpdates) ->
+  tasks.task(task, methodResponse, (err, status, methodRequest, deviceUpdates) ->
     throw err if err
     # TODO handle error
     updateDevice(currentRequest, deviceUpdates, (err) ->
@@ -256,7 +261,11 @@ runTask = (currentRequest, task, methodResponse) ->
           f = () ->
             db.redisClient.setex(String(task._id), config.CACHE_DURATION, JSON.stringify(task), (err) ->
               throw err if err
-              res = soap.response(task._id, cwmpResponse)
+              res = soap.response({
+                id : task._id,
+                methodRequest : methodRequest,
+                cwmpVersion : currentRequest.cwmpVersion
+              })
               writeResponse(currentRequest, res)
             )
 
@@ -304,7 +313,7 @@ assertPresets = (currentRequest) ->
     presetsHash = res[1]
     if devicePresetsHash? and devicePresetsHash == presetsHash
       # no discrepancy, return empty response
-      res = soap.response(null, {})
+      res = soap.response(null)
       writeResponse(currentRequest, res)
     else
       db.getPresetsObjectsAliases((allPresets, allObjects, allAliases) ->
@@ -345,7 +354,7 @@ assertPresets = (currentRequest) ->
                 runTask(currentRequest, task, {})
               )
             else
-              res = soap.response(null, {}, {})
+              res = soap.response(null)
               writeResponse(currentRequest, res)
           )
         )
@@ -358,7 +367,6 @@ nextTask = (currentRequest) ->
   cur = db.tasksCollection.find({'device' : currentRequest.deviceId, timestamp : {$lte : now}}).sort(['timestamp']).limit(1)
   cur.nextObject((err, task) ->
     throw err if err
-    cwmpResponse = {}
 
     if not task
       # no more tasks, check presets discrepancy
@@ -402,12 +410,12 @@ listener = (httpRequest, httpResponse) ->
     return body.toString(encoding || 'utf8', 0, body.byteLength)
 
   httpRequest.addListener 'end', () ->
-    cwmpResponse = {}
     cwmpRequest = soap.request(httpRequest)
 
     currentRequest = {
       httpRequest : httpRequest
       httpResponse : httpResponse
+      cwmpVersion : cwmpRequest.cwmpVersion
     }
 
     if cwmpRequest.methodRequest?.deviceId?
@@ -427,13 +435,21 @@ listener = (httpRequest, httpResponse) ->
       else if cwmpRequest.methodRequest.type is 'TransferComplete'
         # do nothing
         util.log("#{currentRequest.deviceId}: Transfer complete")
-        cwmpResponse.methodResponse = {type : 'TransferCompleteResponse'}
-        res = soap.response(cwmpRequest.id, cwmpResponse, cookies)
+        res = soap.response({
+          id : cwmpRequest.id,
+          methodResponse : {type : 'TransferCompleteResponse'},
+          cwmpVersion : currentRequest.cwmpVersion,
+          cookies : cookies
+        })
         writeResponse(currentRequest, res)
       else if cwmpRequest.methodRequest.type is 'RequestDownload'
         requestDownloadResponse = () ->
-          cwmpResponse.methodResponse = {type : 'RequestDownloadResponse'}
-          res = soap.response(cwmpRequest.id, cwmpResponse, cookies)
+          res = soap.response({
+            id : cwmpRequest.id,
+            methodResponse : {type : 'RequestDownloadResponse'},
+            cwmpVersion : currentRequest.cwmpVersion,
+            cookies : cookies
+          })
           writeResponse(currentRequest, res)
         fileType = cwmpRequest.methodRequest.fileType
         util.log("#{currentRequest.deviceId}: RequestDownload (#{fileType})")
@@ -491,7 +507,7 @@ listener = (httpRequest, httpResponse) ->
       taskId = cwmpRequest.id
       if not taskId
         # Fault not related to a task. return empty response.
-        res = soap.response(null, {}, {})
+        res = soap.response(null)
         writeResponse(currentRequest, res)
         return
 

@@ -25,19 +25,19 @@ this.refreshObject = (task, methodResponse, callback) ->
     return
 
   if task.session.subtask.name is 'getParameterNames'
-    this.getParameterNames(task.session.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) =>
+    this.getParameterNames(task.session.subtask, methodResponse, (err, status, methodRequest, deviceUpdates) =>
       if status & STATUS_COMPLETED
         parameterNames = []
         for p in deviceUpdates.parameterNames
           if not common.endsWith(p[0], '.')
             parameterNames.push(p[0])
         task.session.subtask = {name : 'getParameterValues', parameterNames : parameterNames}
-        this.getParameterValues(task.session.subtask, {}, (err, status, cwmpResponse) ->
+        this.getParameterValues(task.session.subtask, {}, (err, status, methodRequest) ->
           # ignore deviceUpdates returned by firt call to getParameterValues
-          callback(err, status, cwmpResponse, deviceUpdates)
+          callback(err, status, methodRequest, deviceUpdates)
         )
       else if status & STATUS_OK
-        callback(err, STATUS_OK, cwmpResponse, deviceUpdates)
+        callback(err, STATUS_OK, methodRequest, deviceUpdates)
       else
         throw Error('Unexpected subtask status')
     )
@@ -46,8 +46,8 @@ this.refreshObject = (task, methodResponse, callback) ->
       task.fault = methodResponse
       return callback(null, STATUS_FAULT)
 
-    this.getParameterValues(task.session.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) ->
-      callback(err, status, cwmpResponse, deviceUpdates)
+    this.getParameterValues(task.session.subtask, methodResponse, (err, status, methodRequest, deviceUpdates) ->
+      callback(err, status, methodRequest, deviceUpdates)
     )
   else
     throw Error('Unexpected subtask name')
@@ -134,7 +134,7 @@ this.getParameterNames = (task, methodResponse, callback) ->
       parameterPath : task.parameterPath,
       nextLevel : if task.nextLevel? then task.nextLevel else false
     }
-    callback(null, STATUS_OK, {methodRequest : methodRequest})
+    callback(null, STATUS_OK, methodRequest)
 
 
 this.getParameterValues = (task, methodResponse, callback) ->
@@ -163,7 +163,7 @@ this.getParameterValues = (task, methodResponse, callback) ->
       type : 'GetParameterValues',
       parameterNames : names
     }
-    callback(null, STATUS_OK, {methodRequest : methodRequest}, deviceUpdates)
+    callback(null, STATUS_OK, methodRequest, deviceUpdates)
 
 
 this.setParameterValues = (task, methodResponse, callback) ->
@@ -189,7 +189,7 @@ this.setParameterValues = (task, methodResponse, callback) ->
   if values.length == 0
     callback(null, STATUS_COMPLETED, null, deviceUpdates)
   else
-    callback(null, STATUS_OK, {methodRequest : {type : 'SetParameterValues', parameterList : values}}, deviceUpdates)
+    callback(null, STATUS_OK, {type : 'SetParameterValues', parameterList : values}, deviceUpdates)
 
 
 this.addObject = (task, methodResponse, callback) ->
@@ -211,13 +211,13 @@ this.addObject = (task, methodResponse, callback) ->
       task.session.parameterNames = []
       allDeviceUpdates.instanceName = [["#{task.objectName}.#{task.session.instanceNumber}", task.instanceName]] if task.instanceName?
     else
-      callback(null, STATUS_OK, {methodRequest : {type : 'AddObject', objectName : "#{task.objectName}."}})
+      callback(null, STATUS_OK, {type : 'AddObject', objectName : "#{task.objectName}."})
       return
 
   subtask = () =>
     switch task.session.subtask.name
       when 'getParameterNames'
-        this.getParameterNames(task.session.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) =>
+        this.getParameterNames(task.session.subtask, methodResponse, (err, status, methodRequest, deviceUpdates) =>
           common.extend(allDeviceUpdates, deviceUpdates)
           if deviceUpdates and deviceUpdates.parameterNames
             for p in deviceUpdates.parameterNames
@@ -228,12 +228,12 @@ this.addObject = (task, methodResponse, callback) ->
             subtask()
           else if status & STATUS_OK
             # Use STATUS_SAVE to avoid adding duplicate object in case of error
-            callback(err, STATUS_OK | status_save, cwmpResponse, allDeviceUpdates)
+            callback(err, STATUS_OK | status_save, methodRequest, allDeviceUpdates)
           else
             throw Error('Unexpected subtask status')
         )
       when 'getParameterValues'
-        this.getParameterValues(task.session.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) =>
+        this.getParameterValues(task.session.subtask, methodResponse, (err, status, methodRequest, deviceUpdates) =>
           common.extend(allDeviceUpdates, deviceUpdates)
           # if values are given, compare with default values
           if task.parameterValues?
@@ -254,12 +254,12 @@ this.addObject = (task, methodResponse, callback) ->
             task.session.subtask = {name : 'setParameterValues', parameterValues : task.session.appliedParameterValues}
             subtask()
           else
-            callback(err, status, cwmpResponse, allDeviceUpdates)
+            callback(err, status, methodRequest, allDeviceUpdates)
         )
       when 'setParameterValues'
-        this.setParameterValues(task.session.subtask, methodResponse, (err, status, cwmpResponse, deviceUpdates) =>
+        this.setParameterValues(task.session.subtask, methodResponse, (err, status, methodRequest, deviceUpdates) =>
           common.extend(allDeviceUpdates, deviceUpdates)
-          callback(err, status, cwmpResponse, allDeviceUpdates)
+          callback(err, status, methodRequest, allDeviceUpdates)
         )
   subtask()
 
@@ -277,7 +277,7 @@ this.deleteObject = (task, methodResponse, callback) ->
       type : 'DeleteObject',
       objectName : "#{task.objectName}."
     }
-    callback(null, STATUS_OK, {methodRequest : methodRequest})
+    callback(null, STATUS_OK, methodRequest)
 
 
 this.reboot = (task, methodResponse, callback) ->
@@ -287,7 +287,7 @@ this.reboot = (task, methodResponse, callback) ->
     return
   
   if methodResponse.type isnt 'RebootResponse'
-    callback(null, STATUS_OK, {methodRequest : {type : 'Reboot'}})
+    callback(null, STATUS_OK, {type : 'Reboot'})
   else
     callback(null, STATUS_COMPLETED)
 
@@ -299,7 +299,7 @@ this.factoryReset = (task, methodResponse, callback) ->
     return
 
   if methodResponse.type isnt 'FactoryResetResponse'
-    callback(null, STATUS_OK, {methodRequest : {type : 'FactoryReset'}})
+    callback(null, STATUS_OK, {type : 'FactoryReset'})
   else
     callback(null, STATUS_COMPLETED)
 
@@ -327,7 +327,7 @@ this.download = (task, methodResponse, callback) ->
         successUrl : task.successUrl,
         failureUrl : task.failureUrl
       }
-      callback(null, STATUS_OK, {methodRequest : methodRequest})
+      callback(null, STATUS_OK, methodRequest)
     )
   else
     callback(null, STATUS_COMPLETED)
