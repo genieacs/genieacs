@@ -432,6 +432,15 @@ listener = (httpRequest, httpResponse) ->
     if cwmpRequest.methodRequest?
       if cwmpRequest.methodRequest.type is 'Inform'
         inform(currentRequest, cwmpRequest)
+      else if cwmpRequest.methodRequest.type is 'GetRPCMethods'
+        util.log("#{currentRequest.deviceId}: GetRPCMethods")
+        res = soap.response({
+          id : cwmpRequest.id,
+          methodResponse : {type : 'GetRPCMethodsResponse', methodList : ['Inform', 'GetRPCMethods', 'TransferComplete', 'RequestDownload']},
+          cwmpVersion : currentRequest.cwmpVersion,
+          cookies : cookies
+        })
+        writeResponse(currentRequest, res)
       else if cwmpRequest.methodRequest.type is 'TransferComplete'
         # do nothing
         util.log("#{currentRequest.deviceId}: Transfer complete")

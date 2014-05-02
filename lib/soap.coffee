@@ -151,34 +151,6 @@ cpeDeleteObjectResponse = (xml) ->
   {status : parseInt(xml.get('Status').text())}
 
 
-traverseXml = (xml) ->
-  obj = {}
-  for n in xml.childNodes()
-    if n.type() == 'element'
-      obj[n.name()] = traverseXml(n)
-
-  if Object.keys(obj).length == 0
-    xml.text()
-  else
-    obj
-
-fault = (xml) ->
-  return traverseXml(xml)
-
-
-acsInform = (xml) ->
-  {
-    parameterList : parameterValueList(xml.get('ParameterList')),
-    deviceId : traverseXml(xml.get('DeviceId')),
-    event : event(xml.get('Event')),
-    retryCount : JSON.parse(xml.get('RetryCount').text())
-  }
-
-
-acsInformResponse = (xml) ->
-  xml.node('cwmp:InformResponse').node('MaxEnvelopes').text(1)
-
-
 cpeReboot = (xml, methodRequest) ->
   el = xml.node('cwmp:Reboot')
   el.node('CommandKey').text(methodRequest.commandKey ? '')
@@ -214,6 +186,30 @@ cpeDownloadResponse = (xml) ->
   {status : JSON.parse(xml.get('Status').text())}
 
 
+acsInform = (xml) ->
+  {
+    parameterList : parameterValueList(xml.get('ParameterList')),
+    deviceId : traverseXml(xml.get('DeviceId')),
+    event : event(xml.get('Event')),
+    retryCount : JSON.parse(xml.get('RetryCount').text())
+  }
+
+
+acsInformResponse = (xml, methodResponse) ->
+  xml.node('cwmp:InformResponse').node('MaxEnvelopes').text(1)
+
+
+acsGetRPCMethods = (xml) ->
+  {}
+
+
+acsGetRPCMethodsResponse = (xml, methodResponse) ->
+  el = xml.node('cwmp:GetRPCMethodsResponse').node('MethodList')
+  el.attr({'soap-enc:arrayType' : "xsd:string[#{methodResponse.methodList.length}]"})
+  for m in methodResponse.methodList
+    el.node('xsd:string').text(m)
+
+
 acsTransferComplete = (xml) ->
   {
     commandKey : xml.get('CommandKey').text(),
@@ -223,7 +219,7 @@ acsTransferComplete = (xml) ->
   }
 
 
-acsTransferCompleteResponse = (xml, methodRequest) ->
+acsTransferCompleteResponse = (xml, methodResponse) ->
   xml.node('cwmp:TransferCompleteResponse').text('')
 
 
@@ -234,8 +230,24 @@ acsRequestDownload = (xml) ->
   }
 
 
-acsRequestDownloadResponse = (xml, methodRequest) ->
+acsRequestDownloadResponse = (xml, methodResponse) ->
   xml.node('cwmp:RequestDownloadResponse').text('')
+
+
+traverseXml = (xml) ->
+  obj = {}
+  for n in xml.childNodes()
+    if n.type() == 'element'
+      obj[n.name()] = traverseXml(n)
+
+  if Object.keys(obj).length == 0
+    xml.text()
+  else
+    obj
+
+
+fault = (xml) ->
+  return traverseXml(xml)
 
 
 exports.request = (httpRequest) ->
@@ -282,6 +294,9 @@ exports.request = (httpRequest) ->
         when 'Inform'
           cwmpRequest.methodRequest = acsInform(methodElement)
           cwmpRequest.methodRequest.type = 'Inform'
+        when 'GetRPCMethods'
+          cwmpRequest.methodRequest = acsGetRPCMethods(methodElement)
+          cwmpRequest.methodRequest.type = 'GetRPCMethods'
         when 'TransferComplete'
           cwmpRequest.methodRequest = acsTransferComplete(methodElement)
           cwmpRequest.methodRequest.type = 'TransferComplete'
@@ -345,11 +360,13 @@ exports.response = (cwmpResponse) ->
       when 'InformResponse'
         cwmpResponse.cookies ?= {}
         cwmpResponse.cookies.cwmpVersion = cwmpResponse.cwmpVersion
-        acsInformResponse(body)
+        acsInformResponse(body, cwmpResponse.methodResponse)
+      when 'GetRPCMethodsResponse'
+        acsGetRPCMethodsResponse(body, cwmpResponse.methodResponse)
       when 'TransferCompleteResponse'
-        acsTransferCompleteResponse(body)
+        acsTransferCompleteResponse(body, cwmpResponse.methodResponse)
       when 'RequestDownloadResponse'
-        acsRequestDownloadResponse(body)
+        acsRequestDownloadResponse(body, cwmpResponse.methodResponse)
       else
         throw Error("Unknown method response type #{cwmpResponse.methodResponse.type}")
   else if cwmpResponse?.methodRequest?
