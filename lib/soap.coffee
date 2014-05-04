@@ -257,7 +257,7 @@ exports.request = (httpRequest) ->
 
   data = httpRequest.getBody()
 
-  if +httpRequest.headers['Content-Length'] > 0 || data.length > 0
+  if data.length > 0
     try
       xml = libxmljs.parseXml data
     catch err
@@ -398,9 +398,6 @@ exports.response = (cwmpResponse) ->
     headers['Set-Cookie'] = cookiesToStr(cwmpResponse.cookies)
 
   if env?
-    data = env.doc().toString()
-    headers['Content-Length'] = data.length
-    return {code: 200, headers: headers, data: data}
+    return {code: 200, headers: headers, data: env.doc().toString()}
   else
-    headers['Content-Length'] = 0
     return {code: 204, headers: headers, data: ''}

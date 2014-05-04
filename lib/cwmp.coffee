@@ -14,6 +14,7 @@ apiFunctions = require './api-functions'
 customCommands = require './custom-commands'
 crypto = require 'crypto'
 parameters = require './parameters'
+zlib = require 'zlib'
 
 OBJECT_REGEX = /\.$/
 INSTANCE_REGEX = /\.[\d]+\.$/
@@ -24,20 +25,37 @@ holdUntil = Date.now()
 
 
 writeResponse = (currentRequest, res) ->
-  if res.headers['Content-Length'] == 0
+  data = new Buffer(res.data)
+  if data.length == 0
     # no more requests. terminate TCP connection
-    res.headers['Connection'] = 'close' if currentRequest.httpRequest.httpVersion == '1.1'
-  else
-    res.headers['Connection'] = 'Keep-Alive' if currentRequest.httpRequest.httpVersion == '1.0'
+    res.headers['Connection'] = 'close'
 
   if config.DEBUG_DEVICES[currentRequest.deviceId]
-    dump = "# RESPONSE #{new Date(Date.now())}\n" + JSON.stringify(res.headers) + "\n#{res.data}\n\n"
+    dump = "# RESPONSE #{new Date(Date.now())}\n" + JSON.stringify(res.headers) + "\n#{data}\n\n"
     fs = require('fs').appendFile("../debug/#{currentRequest.deviceId}.dump", dump, (err) ->
       throw err if err
     )
 
-  currentRequest.httpResponse.writeHead(res.code, res.headers)
-  currentRequest.httpResponse.end(res.data)
+  # respond using the same content-encoding as the request
+  if currentRequest.httpRequest.headers['content-encoding']? and data.length > 0
+    switch currentRequest.httpRequest.headers['content-encoding']
+      when 'gzip'
+        res.headers['Content-Encoding'] = 'gzip'
+        compress = zlib.gzip
+      when 'deflate'
+        res.headers['Content-Encoding'] = 'deflate'
+        compress = zlib.deflate
+
+  if compress?
+    compress(data, (err, data) ->
+      res.headers['Content-Length'] = data.length
+      currentRequest.httpResponse.writeHead(res.code, res.headers)
+      currentRequest.httpResponse.end(data)
+    )
+  else
+    res.headers['Content-Length'] = data.length
+    currentRequest.httpResponse.writeHead(res.code, res.headers)
+    currentRequest.httpResponse.end(data)
 
 
 updateDevice = (currentRequest, actions, callback) ->
@@ -123,7 +141,7 @@ updateDevice = (currentRequest, actions, callback) ->
 inform = (currentRequest, cwmpRequest) ->
   # If overloaded, ask CPE to retry in 5 mins
   if Date.now() < holdUntil
-    res = {code : 503, headers : {'Content-Length' : 0, 'Retry-After' : 300}, data : ''}
+    res = {code : 503, headers : {'Retry-After' : 300}, data : ''}
     return writeResponse(currentRequest, res)
 
   now = new Date(Date.now())
@@ -389,13 +407,27 @@ listener = (httpRequest, httpResponse) ->
     httpResponse.end('405 Method Not Allowed')
     return
 
+  if httpRequest.headers['content-encoding']?
+    switch httpRequest.headers['content-encoding']
+      when 'gzip'
+        stream = httpRequest.pipe(zlib.createGunzip())
+      when 'deflate'
+        stream = httpRequest.pipe(zlib.createInflate())
+      else
+        httpResponse.writeHead(415)
+        httpResponse.end('415 Unsupported Media Type')
+        return
+  else
+    stream = httpRequest
+
   chunks = []
   bytes = 0
   cookies = {}
 
-  httpRequest.addListener 'data', (chunk) ->
+  stream.on('data', (chunk) ->
     chunks.push(chunk)
     bytes += chunk.length
+  )
 
   httpRequest.getBody = (encoding) ->
     # Write all chunks into a Buffer
@@ -409,7 +441,7 @@ listener = (httpRequest, httpResponse) ->
     #Return encoded (default to UTF8) string
     return body.toString(encoding || 'utf8', 0, body.byteLength)
 
-  httpRequest.addListener 'end', () ->
+  stream.on('end', () ->
     cwmpRequest = soap.request(httpRequest)
 
     currentRequest = {
@@ -530,7 +562,7 @@ listener = (httpRequest, httpResponse) ->
     else
       # cpe sent empty response. start sending acs requests
       nextTask(currentRequest)
-
+  )
 
 cluster = require 'cluster'
 numCPUs = require('os').cpus().length
