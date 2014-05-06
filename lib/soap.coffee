@@ -41,20 +41,18 @@ NAMESPACES = {
 }
 
 
+# Separation by comma is important as some devices don't comform to standard
+COOKIE_REGEX = /\s*(.+?)\s*=\s*"?(.*?)"?\s*(,|;|$)/g
+
 cookiesToObj = (cookieLine) ->
   cookies = {}
-  for c in cookieLine.trim().split ','
-    nv = c.split '='
-    continue if nv.length < 2
-    cookies[nv[0].trim()] = nv[1].trim()
+  while match = COOKIE_REGEX.exec(cookieLine)
+    cookies[match[1]] = match[2]
   return cookies
 
 
 cookiesToStr = (obj) ->
-  l = []
-  for cn, cv of obj
-    l.push("#{cn}=#{cv}")
-  return l# + 'path=/'
+  "#{cn}=#{cv}" for cn, cv of obj
 
 
 event = (xml) ->
