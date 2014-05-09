@@ -107,7 +107,7 @@ cpeGetParameterValues = (xml, methodRequest) ->
   el = xml.node('cwmp:GetParameterValues').node('ParameterNames')
   el.attr({'soap-enc:arrayType' : "xsd:string[#{methodRequest.parameterNames.length}]"})
   for p in methodRequest.parameterNames
-    el.node('xsd:string').text(p)
+    el.node('string').text(p)
 
 
 cpeGetParameterValuesResponse = (xml) ->
@@ -210,7 +210,7 @@ acsGetRPCMethodsResponse = (xml, methodResponse) ->
   el = xml.node('cwmp:GetRPCMethodsResponse').node('MethodList')
   el.attr({'soap-enc:arrayType' : "xsd:string[#{methodResponse.methodList.length}]"})
   for m in methodResponse.methodList
-    el.node('xsd:string').text(m)
+    el.node('string').text(m)
 
 
 acsTransferComplete = (xml) ->
