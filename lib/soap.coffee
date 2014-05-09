@@ -42,17 +42,22 @@ NAMESPACES = {
 
 
 # Separation by comma is important as some devices don't comform to standard
-COOKIE_REGEX = /\s*(.+?)\s*=\s*"?(.*?)"?\s*(,|;|$)/g
+COOKIE_REGEX = /\s*([a-zA-Z0-9\-_]+?)\s*=\s*"?([a-zA-Z0-9\-_]*?)"?\s*(,|;|$)/g
+
+cookieEncode = (value) ->
+  new Buffer(value).toString('base64').replace(/\/|\+|\=/g, (c) -> if c is '/' then '_' else if c is '+' then '-' else '')
+
+cookieDecode = (encodedValue) ->
+  new Buffer(encodedValue, 'base64').toString()
 
 cookiesToObj = (cookieLine) ->
   cookies = {}
   while match = COOKIE_REGEX.exec(cookieLine)
-    cookies[match[1]] = match[2]
+    cookies[cookieDecode(match[1])] = cookieDecode(match[2])
   return cookies
 
-
 cookiesToStr = (obj) ->
-  "#{cn}=#{cv}" for cn, cv of obj
+  "#{cookieEncode(cn)}=#{cookieEncode(cv)}" for cn, cv of obj
 
 
 event = (xml) ->
