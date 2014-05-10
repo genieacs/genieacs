@@ -1,3 +1,4 @@
+config = require './config'
 libxmljs = require 'libxmljs'
 
 SERVER_NAME = "GenieACS/#{require('../package.json').version}"
@@ -39,6 +40,16 @@ NAMESPACES = {
     'cwmp' : 'urn:dslforum-org:cwmp-1-3'
   }
 }
+
+
+# Workaround for devices that don't use correct namespace declarations or prefixes
+if config.IGNORE_XML_NAMESPACES
+  libxmljs.Element.prototype.__find = libxmljs.Element.prototype.find
+  libxmljs.Element.prototype.find = (xpath, namespaces) ->
+    # Modify xpath queries to work regardless of element's namespace
+    p = xpath.replace(/([^\/:]+:)?([^\/]+)(\/|$)/g, '$2$3') \
+      .replace(/([a-zA-Z0-9_-]+)([^\/]*)(\/|$)/g, "*[local-name()='$1']$2$3")
+    libxmljs.Element.prototype.__find.call(this, p, namespaces)
 
 
 # Separation by comma is important as some devices don't comform to standard
