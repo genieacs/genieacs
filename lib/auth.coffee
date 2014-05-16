@@ -7,7 +7,7 @@ exports.parseAuthHeader = (authHeader) ->
   res['method'] = authHeader.slice(0, i)
 
   options = authHeader.slice(i + 1)
-  regex = /([a-z]+)="([a-zA-Z0-9\/\.@\-,=]+)"/g
+  regex = /([a-z]+)="([a-zA-Z0-9\/\.@\-,= ]+)"/g
   while (r = regex.exec(options)) != null
     res[r[1]] = r[2]
 
