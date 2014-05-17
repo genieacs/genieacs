@@ -64,8 +64,7 @@ updateDevice = (currentRequest, actions, callback) ->
     return
 
   now = new Date(Date.now())
-  updates = {}
-  deletes = {}
+  update = {'$set' : {}, '$unset' : {}}
 
   if actions.parameterValues?
     for p in actions.parameterValues
@@ -74,36 +73,36 @@ updateDevice = (currentRequest, actions, callback) ->
 
       path = if common.endsWith(p[0], '.') then p[0] else "#{p[0]}."
       if v == origValue
-        deletes["#{path}_orig"] = 1
+        update['$unset']["#{path}_orig"] = 1
       else
-        updates["#{path}_orig"] = origValue
-      updates["#{path}_value"] = v
-      updates["#{path}_timestamp"] = now
+        update['$set']["#{path}_orig"] = origValue
+      update['$set']["#{path}_value"] = v
+      update['$set']["#{path}_timestamp"] = now
       if p[2]?
-        updates["#{path}_type"] = p[2]
+        update['$set']["#{path}_type"] = p[2]
       else
-        deletes["#{path}_type"] = 1
+        update['$unset']["#{path}_type"] = 1
 
   if actions.deletedObjects?
     for p in actions.deletedObjects
-      deletes[p] = 1
+      update['$unset'][p] = 1
 
   if actions.instanceName?
     for i in actions.instanceName
-      updates["#{i[0]}._name"] = i[1]
+      update['$set']["#{i[0]}._name"] = i[1]
 
   if actions.parameterNames?
     for p in actions.parameterNames
       if OBJECT_REGEX.test(p[0])
         path = p[0]
         if INSTANCE_REGEX.test(p[0])
-          updates["#{path}_instance"] = true
+          update['$set']["#{path}_instance"] = true
         else
-          updates["#{path}_object"] = true
+          update['$set']["#{path}_object"] = true
       else
         path = "#{p[0]}."
-      updates["#{path}_writable"] = p[1] if p[1]?
-      updates["#{path}_timestamp"] = now
+      update['$set']["#{path}_writable"] = p[1] if p[1]?
+      update['$set']["#{path}_timestamp"] = now
 
       # Add parameter (sans any dot suffix) if has an alias
       if (a = parameters.getAlias(pp = path.slice(0, -1)))?
@@ -113,14 +112,17 @@ updateDevice = (currentRequest, actions, callback) ->
   if actions.customCommands?
     for p in actions.customCommands
       commandName = p[0]
-      updates["_customCommands.#{commandName}._value"] = p[1]
-      updates["_customCommands.#{commandName}._timestamp"] = now
+      update['$set']["_customCommands.#{commandName}._value"] = p[1]
+      update['$set']["_customCommands.#{commandName}._timestamp"] = now
 
   if actions.set?
-    common.extend(updates, actions.set)
+    common.extend(update['$set'], actions.set)
 
-  if Object.keys(updates).length > 0 or Object.keys(deletes).length > 0
-    db.devicesCollection.update({'_id' : currentRequest.deviceId}, {'$set' : updates, '$unset' : deletes}, {}, (err, count) ->
+  for k of update
+    delete update[k] if Object.keys(update[k]).length == 0
+
+  if Object.keys(update).length
+    db.devicesCollection.update({'_id' : currentRequest.deviceId}, update, {}, (err, count) ->
       throw err if err
       # Clear aliases cache if there's a new aliased parameter that has not been included in aliases cache
       if newAliases?

@@ -28,7 +28,11 @@ exports.getDevicePreset = (deviceId, presets, objects, aliases, callback) ->
   # only fetch relevant params
   projection = {_id : 1}
   for p in presets
-    p.precondition = query.expand(p.precondition, aliases)
+    if common.typeOf(p.precondition) is common.STRING_TYPE
+      p.precondition = query.expand(JSON.parse(p.precondition), aliases)
+    else
+      # Accept an object for backward compatiblity
+      p.precondition = query.expand(p.precondition ? {}, aliases)
     mongoQuery.projection(p.precondition, projection)
 
     for c in p.configurations
