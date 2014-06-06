@@ -26,9 +26,6 @@ holdUntil = Date.now()
 
 writeResponse = (currentRequest, res) ->
   data = new Buffer(res.data)
-  if data.length == 0
-    # no more requests. terminate TCP connection
-    res.headers['Connection'] = 'close'
 
   if config.DEBUG_DEVICES[currentRequest.deviceId]
     dump = "# RESPONSE #{new Date(Date.now())}\n" + JSON.stringify(res.headers) + "\n#{data}\n\n"
