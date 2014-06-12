@@ -303,7 +303,7 @@ exports.request = (httpRequest) ->
 
     cwmpRequest.id = try xml.get('/soap-env:Envelope/soap-env:Header/cwmp:ID', NAMESPACES[cwmpRequest.cwmpVersion]).text() catch then null
 
-    if methodElement?
+    if methodElement? and not (config.IGNORE_XML_NAMESPACES and methodElement.name() is 'Fault')
       switch methodElement.name()
         when 'Inform'
           cwmpRequest.methodRequest = acsInform(methodElement)
