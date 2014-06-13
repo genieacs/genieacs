@@ -48,7 +48,7 @@ else
       chunks.push(chunk)
       bytes += chunk.length
 
-    request.getBody = (encoding) ->
+    request.getBody = () ->
       # Write all chunks into a Buffer
       body = new Buffer(bytes)
       offset = 0
@@ -56,9 +56,7 @@ else
         chunk.copy(body, offset, 0, chunk.length)
         offset += chunk.length
       )
-
-      # Return encoded (default to UTF8) string
-      return body.toString(encoding || 'utf8', 0, body.byteLength)
+      return body
 
     request.addListener 'end', () ->
       body = request.getBody()
@@ -161,7 +159,7 @@ else
       else if DEVICE_TASKS_REGEX.test(urlParts.pathname)
         if request.method == 'POST'
           deviceId = querystring.unescape(DEVICE_TASKS_REGEX.exec(urlParts.pathname)[1])
-          if body
+          if body.length
             task = JSON.parse(body)
             task.device = deviceId
             db.getAliases((aliases) ->
@@ -264,7 +262,7 @@ else
 
           gs = new mongodb.GridStore(db.mongoDb, filename, 'w', {metadata : metadata})
           gs.open((err, gs) ->
-            gs.write(request.getBody('binary'), (err, res) ->
+            gs.write(body, (err, res) ->
               throw err if err
               gs.close((err) ->
                 throw err if err

@@ -272,11 +272,7 @@ exports.request = (httpRequest) ->
   data = httpRequest.getBody()
 
   if data.length > 0
-    try
-      xml = libxmljs.parseXml data
-    catch err
-      # some devices send invalid utf8 characters
-      xml = libxmljs.parseXml httpRequest.getBody('binary')
+    xml = libxmljs.parseXml(data, config.LIBXMLJS_OPTIONS)
 
     if not cwmpRequest.cwmpVersion?
       # cwmpVersion doesn't exist in cookies, thus it's an inform request
@@ -360,7 +356,6 @@ createSoapEnv = (cwmpVersion) ->
 
 exports.response = (cwmpResponse) ->
   headers = {
-    'Content-Type' : 'text/xml; charset="utf-8"',
     'Server' : SERVER_NAME,
     'SOAPServer' : SERVER_NAME,
   }
@@ -412,6 +407,7 @@ exports.response = (cwmpResponse) ->
     headers['Set-Cookie'] = cookiesToStr(cwmpResponse.cookies)
 
   if env?
-    return {code: 200, headers: headers, data: env.doc().toString()}
+    headers['Content-Type'] = 'text/xml; charset="utf-8"'
+    return {code: 200, headers: headers, data: new Buffer(env.doc().toString(false))}
   else
-    return {code: 204, headers: headers, data: ''}
+    return {code: 204, headers: headers, data: new Buffer(0)}

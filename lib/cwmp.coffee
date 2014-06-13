@@ -25,16 +25,14 @@ holdUntil = Date.now()
 
 
 writeResponse = (currentRequest, res) ->
-  data = new Buffer(res.data)
-
   if config.DEBUG_DEVICES[currentRequest.deviceId]
-    dump = "# RESPONSE #{new Date(Date.now())}\n" + JSON.stringify(res.headers) + "\n#{data}\n\n"
+    dump = "# RESPONSE #{new Date(Date.now())}\n" + JSON.stringify(res.headers) + "\n#{res.data}\n\n"
     fs = require('fs').appendFile("../debug/#{currentRequest.deviceId}.dump", dump, (err) ->
       throw err if err
     )
 
   # respond using the same content-encoding as the request
-  if currentRequest.httpRequest.headers['content-encoding']? and data.length > 0
+  if currentRequest.httpRequest.headers['content-encoding']? and res.data.length > 0
     switch currentRequest.httpRequest.headers['content-encoding']
       when 'gzip'
         res.headers['Content-Encoding'] = 'gzip'
@@ -44,15 +42,15 @@ writeResponse = (currentRequest, res) ->
         compress = zlib.deflate
 
   if compress?
-    compress(data, (err, data) ->
+    compress(res.data, (err, data) ->
       res.headers['Content-Length'] = data.length
       currentRequest.httpResponse.writeHead(res.code, res.headers)
       currentRequest.httpResponse.end(data)
     )
   else
-    res.headers['Content-Length'] = data.length
+    res.headers['Content-Length'] = res.data.length
     currentRequest.httpResponse.writeHead(res.code, res.headers)
-    currentRequest.httpResponse.end(data)
+    currentRequest.httpResponse.end(res.data)
 
 
 updateDevice = (currentRequest, actions, callback) ->
@@ -428,7 +426,7 @@ listener = (httpRequest, httpResponse) ->
     bytes += chunk.length
   )
 
-  httpRequest.getBody = (encoding) ->
+  httpRequest.getBody = () ->
     # Write all chunks into a Buffer
     body = new Buffer(bytes)
     offset = 0
@@ -436,9 +434,7 @@ listener = (httpRequest, httpResponse) ->
       chunk.copy(body, offset, 0, chunk.length)
       offset += chunk.length
     )
-
-    #Return encoded (default to UTF8) string
-    return body.toString(encoding || 'utf8', 0, body.byteLength)
+    return body
 
   stream.on('end', () ->
     cwmpRequest = soap.request(httpRequest)
