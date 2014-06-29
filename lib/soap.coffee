@@ -52,25 +52,6 @@ if config.IGNORE_XML_NAMESPACES
     libxmljs.Element.prototype.__find.call(this, p, namespaces)
 
 
-# Separation by comma is important as some devices don't comform to standard
-COOKIE_REGEX = /\s*([a-zA-Z0-9\-_]+?)\s*=\s*"?([a-zA-Z0-9\-_]*?)"?\s*(,|;|$)/g
-
-cookieEncode = (value) ->
-  new Buffer(value).toString('base64').replace(/\/|\+|\=/g, (c) -> if c is '/' then '_' else if c is '+' then '-' else '')
-
-cookieDecode = (encodedValue) ->
-  new Buffer(encodedValue, 'base64').toString()
-
-cookiesToObj = (cookieLine) ->
-  cookies = {}
-  while match = COOKIE_REGEX.exec(cookieLine)
-    cookies[cookieDecode(match[1])] = cookieDecode(match[2])
-  return cookies
-
-cookiesToStr = (obj) ->
-  "#{cookieEncode(cn)}=#{cookieEncode(cv)}" for cn, cv of obj
-
-
 event = (xml) ->
   e.text().trim() for e in xml.find('EventStruct/EventCode')
 
@@ -264,10 +245,8 @@ fault = (xml) ->
   return traverseXml(xml)
 
 
-exports.request = (httpRequest) ->
-  cwmpRequest = {cookies: {}}
-  cwmpRequest.cookies = cookiesToObj(httpRequest.headers.cookie) if httpRequest.headers.cookie
-  cwmpRequest.cwmpVersion = cwmpRequest.cookies.cwmpVersion
+exports.request = (httpRequest, cwmpVersion) ->
+  cwmpRequest = {cwmpVersion : cwmpVersion}
 
   data = httpRequest.getBody()
 
@@ -275,7 +254,7 @@ exports.request = (httpRequest) ->
     xml = libxmljs.parseXml(data, config.LIBXMLJS_OPTIONS)
 
     if not cwmpRequest.cwmpVersion?
-      # cwmpVersion doesn't exist in cookies, thus it's an inform request
+      # cwmpVersion not passed, thus it's an inform request
       methodElement = xml.get('/soap-env:Envelope/soap-env:Body/*', NAMESPACES['1.0'])
       switch methodElement.namespace().href()
         when 'urn:dslforum-org:cwmp-1-0'
@@ -367,8 +346,6 @@ exports.response = (cwmpResponse) ->
     body = env.node('soap-env:Body')
     switch cwmpResponse.methodResponse.type
       when 'InformResponse'
-        cwmpResponse.cookies ?= {}
-        cwmpResponse.cookies.cwmpVersion = cwmpResponse.cwmpVersion
         acsInformResponse(body, cwmpResponse.methodResponse)
       when 'GetRPCMethodsResponse'
         acsGetRPCMethodsResponse(body, cwmpResponse.methodResponse)
@@ -403,9 +380,6 @@ exports.response = (cwmpResponse) ->
       else
         throw Error("Unknown method request #{cwmpResponse.methodRequest.type}")
   
-  if cwmpResponse?.cookies? and Object.keys(cwmpResponse.cookies).length > 0
-    headers['Set-Cookie'] = cookiesToStr(cwmpResponse.cookies)
-
   if env?
     headers['Content-Type'] = 'text/xml; charset="utf-8"'
     return {code: 200, headers: headers, data: new Buffer(env.doc().toString(false))}

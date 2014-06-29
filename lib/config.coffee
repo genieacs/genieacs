@@ -20,6 +20,7 @@ exports.DEVICE_ONLINE_THRESHOLD = 4000
 exports.RETRY_DELAY = 300
 exports.IGNORE_XML_NAMESPACES = false # Traverse XML using element's local name only
 exports.LIBXMLJS_OPTIONS = {} # Options passed directly to libxmljs
+exports.SESSION_TIMEOUT = 30
 
 exports.MONGODB_OPTIONS = {
   db : {

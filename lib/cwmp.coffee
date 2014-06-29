@@ -25,9 +25,9 @@ holdUntil = Date.now()
 
 
 writeResponse = (currentRequest, res) ->
-  if config.DEBUG_DEVICES[currentRequest.deviceId]
+  if config.DEBUG_DEVICES[currentRequest.session.deviceId]
     dump = "# RESPONSE #{new Date(Date.now())}\n" + JSON.stringify(res.headers) + "\n#{res.data}\n\n"
-    fs = require('fs').appendFile("../debug/#{currentRequest.deviceId}.dump", dump, (err) ->
+    fs = require('fs').appendFile("../debug/#{currentRequest.session.deviceId}.dump", dump, (err) ->
       throw err if err
     )
 
@@ -51,6 +51,14 @@ writeResponse = (currentRequest, res) ->
     res.headers['Content-Length'] = res.data.length
     currentRequest.httpResponse.writeHead(res.code, res.headers)
     currentRequest.httpResponse.end(res.data)
+
+
+endSession = (currentRequest) ->
+  db.redisClient.del("session_#{currentRequest.sessionId}", (err, res) ->
+    throw err if err
+    res = soap.response(null)
+    writeResponse(currentRequest, res)
+  )
 
 
 updateDevice = (currentRequest, actions, callback) ->
@@ -117,7 +125,7 @@ updateDevice = (currentRequest, actions, callback) ->
     delete update[k] if Object.keys(update[k]).length == 0
 
   if Object.keys(update).length
-    db.devicesCollection.update({'_id' : currentRequest.deviceId}, update, {}, (err, count) ->
+    db.devicesCollection.update({'_id' : currentRequest.session.deviceId}, update, {}, (err, count) ->
       throw err if err
       # Clear aliases cache if there's a new aliased parameter that has not been included in aliases cache
       if newAliases?
@@ -143,7 +151,7 @@ inform = (currentRequest, cwmpRequest) ->
 
   now = new Date(Date.now())
 
-  util.log("#{currentRequest.deviceId}: Inform (#{cwmpRequest.methodRequest.event}); retry count #{cwmpRequest.methodRequest.retryCount}") if config.LOG_INFORMS
+  util.log("#{currentRequest.session.deviceId}: Inform (#{cwmpRequest.methodRequest.event}); retry count #{cwmpRequest.methodRequest.retryCount}") if config.LOG_INFORMS
 
   parameterNames = (p[0] for p in cwmpRequest.methodRequest.parameterList)
 
@@ -156,11 +164,11 @@ inform = (currentRequest, cwmpRequest) ->
   if '0 BOOTSTRAP' in cwmpRequest.methodRequest.event
     actions.set._lastBootstrap = lastBootstrap = now
     # ignore all pending tasks
-    db.tasksCollection.remove({device : currentRequest.deviceId}, (err, removed) ->
+    db.tasksCollection.remove({device : currentRequest.session.deviceId}, (err, removed) ->
       throw err if err
     )
 
-  db.redisClient.get("#{currentRequest.deviceId}_inform_hash", (err, oldInformHash) ->
+  db.redisClient.get("#{currentRequest.session.deviceId}_inform_hash", (err, oldInformHash) ->
     throw err if err
 
     updateAndRespond = () ->
@@ -169,16 +177,19 @@ inform = (currentRequest, cwmpRequest) ->
         res = soap.response({
           id : cwmpRequest.id,
           methodResponse : {type : 'InformResponse'},
-          cwmpVersion : cwmpRequest.cwmpVersion,
-          cookies : {deviceId : currentRequest.deviceId}
+          cwmpVersion : cwmpRequest.cwmpVersion
         })
+        res.headers['Set-Cookie'] = "session=#{currentRequest.sessionId}"
         writeResponse(currentRequest, res)
+        db.redisClient.setex("session_#{currentRequest.sessionId}", currentRequest.session.sessionTimeout, JSON.stringify(currentRequest.session), (err) ->
+          throw err if err
+        )
       )
 
     if oldInformHash == informHash and not lastBootstrap?
       return updateAndRespond()
 
-    db.redisClient.setex("#{currentRequest.deviceId}_inform_hash", config.PRESETS_CACHE_DURATION, informHash, (err, res) ->
+    db.redisClient.setex("#{currentRequest.session.deviceId}_inform_hash", config.PRESETS_CACHE_DURATION, informHash, (err, res) ->
       throw err if err
     )
 
@@ -197,7 +208,7 @@ inform = (currentRequest, cwmpRequest) ->
         path += p + '.'
         projection[path + '_timestamp'] = 1
 
-    db.devicesCollection.findOne({'_id' : currentRequest.deviceId}, projection, (err, device) ->
+    db.devicesCollection.findOne({'_id' : currentRequest.session.deviceId}, projection, (err, device) ->
       throw err if err
       lastBootstrap ?= device?._lastBootstrap
       _tasks = []
@@ -207,7 +218,7 @@ inform = (currentRequest, cwmpRequest) ->
         for k of reference
           continue if k[0] == '_'
           if not actual[k]?._timestamp? or actual[k]._timestamp < lastBootstrap
-            _tasks.push({device: currentRequest.deviceId, name : 'refreshObject', objectName : reference[k]._path})
+            _tasks.push({device: currentRequest.session.deviceId, name : 'refreshObject', objectName : reference[k]._path})
           else
             traverse(reference[k], actual[k])
 
@@ -218,9 +229,9 @@ inform = (currentRequest, cwmpRequest) ->
         deviceCustomCommands = {}
         deviceCustomCommands[k] = v._timestamp for k,v of device._customCommands
 
-        for cmd in customCommands.getDeviceCustomCommandNames(currentRequest.deviceId)
+        for cmd in customCommands.getDeviceCustomCommandNames(currentRequest.session.deviceId)
           if not (deviceCustomCommands[cmd]?._timestamp < lastBootstrap)
-            _tasks.push({device: currentRequest.deviceId, name: 'customCommand', command: "#{cmd} init"})
+            _tasks.push({device: currentRequest.session.deviceId, name: 'customCommand', command: "#{cmd} init"})
           delete deviceCustomCommands[cmd]
 
         for cmd of deviceCustomCommands
@@ -229,7 +240,7 @@ inform = (currentRequest, cwmpRequest) ->
 
         # clear presets hash if parameters are potentially modified
         if _tasks.length > 0
-          db.redisClient.del("#{currentRequest.deviceId}_presets_hash", (err) ->
+          db.redisClient.del("#{currentRequest.session.deviceId}_presets_hash", (err) ->
             throw err if err
           )
 
@@ -241,13 +252,13 @@ inform = (currentRequest, cwmpRequest) ->
         for k, v of cwmpRequest.methodRequest.deviceId
           deviceIdDetails["_#{k}"] = v
 
-        db.devicesCollection.insert({_id : currentRequest.deviceId, _registered : now, _deviceId : deviceIdDetails}, (err) ->
+        db.devicesCollection.insert({_id : currentRequest.session.deviceId, _registered : now, _deviceId : deviceIdDetails}, (err) ->
           throw err if err
-          util.log("#{currentRequest.deviceId}: New device registered")
-          _tasks.push({device: currentRequest.deviceId, name : 'refreshObject', objectName : ''})
+          util.log("#{currentRequest.session.deviceId}: New device registered")
+          _tasks.push({device: currentRequest.session.deviceId, name : 'refreshObject', objectName : ''})
 
-          for cmd in customCommands.getDeviceCustomCommandNames(currentRequest.deviceId)
-            _tasks.push({device: currentRequest.deviceId, name: 'customCommand', command: "#{cmd} init"})
+          for cmd in customCommands.getDeviceCustomCommandNames(currentRequest.session.deviceId)
+            _tasks.push({device: currentRequest.session.deviceId, name: 'customCommand', command: "#{cmd} init"})
 
           apiFunctions.insertTasks(_tasks, {}, () ->
             updateAndRespond()
@@ -279,9 +290,10 @@ runTask = (currentRequest, task, methodResponse) ->
               res = soap.response({
                 id : task._id,
                 methodRequest : methodRequest,
-                cwmpVersion : currentRequest.cwmpVersion
+                cwmpVersion : currentRequest.session.cwmpVersion
               })
               writeResponse(currentRequest, res)
+              updateSessionExpiry(currentRequest)
             )
 
           if save
@@ -292,7 +304,7 @@ runTask = (currentRequest, task, methodResponse) ->
           else
             f()
         when tasks.STATUS_COMPLETED
-          util.log("#{currentRequest.deviceId}: Completed task #{task.name}(#{task._id})")
+          util.log("#{currentRequest.session.deviceId}: Completed task #{task.name}(#{task._id})")
           db.tasksCollection.remove({'_id' : mongodb.ObjectID(String(task._id))}, (err, removed) ->
             throw err if err
             db.redisClient.del(String(task._id), (err, res) ->
@@ -302,7 +314,7 @@ runTask = (currentRequest, task, methodResponse) ->
           )
         when tasks.STATUS_FAULT
           retryAfter = config.RETRY_DELAY * Math.pow(2, task.retries ? 0)
-          util.log("#{currentRequest.deviceId}: Fault response for task #{task._id}. Retrying after #{retryAfter} seconds.")
+          util.log("#{currentRequest.session.deviceId}: Fault response for task #{task._id}. Retrying after #{retryAfter} seconds.")
           taskUpdate = {fault : task.fault, timestamp : new Date(Date.now() + retryAfter * 1000)}
           if save
             taskUpdate.session = task.session
@@ -322,14 +334,13 @@ isTaskExpired = (task) ->
 
 
 assertPresets = (currentRequest) ->
-  db.redisClient.mget("#{currentRequest.deviceId}_presets_hash", 'presets_hash', (err, res) ->
+  db.redisClient.mget("#{currentRequest.session.deviceId}_presets_hash", 'presets_hash', (err, res) ->
     throw err if err
     devicePresetsHash = res[0]
     presetsHash = res[1]
     if devicePresetsHash? and devicePresetsHash == presetsHash
-      # no discrepancy, return empty response
-      res = soap.response(null)
-      writeResponse(currentRequest, res)
+      # no discrepancy, end the session
+      endSession(currentRequest)
     else
       db.getPresetsObjectsAliases((allPresets, allObjects, allAliases) ->
         if not presetsHash?
@@ -338,25 +349,25 @@ assertPresets = (currentRequest) ->
             throw err if err
           )
 
-        presets.getDevicePreset(currentRequest.deviceId, allPresets, allObjects, allAliases, (devicePreset) ->
-          presets.processDevicePreset(currentRequest.deviceId, devicePreset, (taskList, addTags, deleteTags, expiry) ->
-            db.redisClient.setex("#{currentRequest.deviceId}_presets_hash", Math.floor(Math.max(1, expiry - config.PRESETS_TIME_PADDING)), presetsHash, (err, res) ->
+        presets.getDevicePreset(currentRequest.session.deviceId, allPresets, allObjects, allAliases, (devicePreset) ->
+          presets.processDevicePreset(currentRequest.session.deviceId, devicePreset, (taskList, addTags, deleteTags, expiry) ->
+            db.redisClient.setex("#{currentRequest.session.deviceId}_presets_hash", Math.floor(Math.max(1, expiry - config.PRESETS_TIME_PADDING)), presetsHash, (err, res) ->
               throw err if err
             )
 
             if addTags.length + deleteTags.length + taskList.length
-              util.log("#{currentRequest.deviceId}: Presets discrepancy found")
+              util.log("#{currentRequest.session.deviceId}: Presets discrepancy found")
 
             if addTags.length + deleteTags.length
-              util.log("#{currentRequest.deviceId}: Updating tags +(#{addTags}) -(#{deleteTags})")
+              util.log("#{currentRequest.session.deviceId}: Updating tags +(#{addTags}) -(#{deleteTags})")
 
             if deleteTags.length
-              db.devicesCollection.update({'_id' : currentRequest.deviceId}, {'$pull' : {'_tags' : {'$in' : deleteTags}}}, {}, (err, count) ->
+              db.devicesCollection.update({'_id' : currentRequest.session.deviceId}, {'$pull' : {'_tags' : {'$in' : deleteTags}}}, {}, (err, count) ->
                 throw err if err
               )
 
             if addTags.length
-              db.devicesCollection.update({'_id' : currentRequest.deviceId}, {'$addToSet' : {'_tags' : {'$each' : addTags}}}, {}, (err, count) ->
+              db.devicesCollection.update({'_id' : currentRequest.session.deviceId}, {'$addToSet' : {'_tags' : {'$each' : addTags}}}, {}, (err, count) ->
                 throw err if err
               )
 
@@ -365,12 +376,11 @@ assertPresets = (currentRequest) ->
               apiFunctions.insertTasks(taskList, allAliases, (err, taskList) ->
                 throw err if err
                 task = taskList[0]
-                util.log("#{currentRequest.deviceId}: Started task #{task.name}(#{task._id})")
+                util.log("#{currentRequest.session.deviceId}: Started task #{task.name}(#{task._id})")
                 runTask(currentRequest, task, {})
               )
             else
-              res = soap.response(null)
-              writeResponse(currentRequest, res)
+              endSession(currentRequest)
           )
         )
       )
@@ -379,7 +389,7 @@ assertPresets = (currentRequest) ->
 
 nextTask = (currentRequest) ->
   now = new Date()
-  cur = db.tasksCollection.find({'device' : currentRequest.deviceId, timestamp : {$lte : now}}).sort(['timestamp']).limit(1)
+  cur = db.tasksCollection.find({'device' : currentRequest.session.deviceId, timestamp : {$lte : now}}).sort(['timestamp']).limit(1)
   cur.nextObject((err, task) ->
     throw err if err
 
@@ -387,14 +397,39 @@ nextTask = (currentRequest) ->
       # no more tasks, check presets discrepancy
       assertPresets(currentRequest)
     else if isTaskExpired(task)
-      util.log("#{currentRequest.deviceId}: Task is expired #{task.name}(#{task._id})")
+      util.log("#{currentRequest.session.deviceId}: Task is expired #{task.name}(#{task._id})")
       db.tasksCollection.remove({'_id' : mongodb.ObjectID(String(task._id))}, {safe: true}, (err, removed) ->
         throw err if err
         nextTask(currentRequest)
       )
     else
-      util.log("#{currentRequest.deviceId}: Started task #{task.name}(#{task._id})")
+      util.log("#{currentRequest.session.deviceId}: Started task #{task.name}(#{task._id})")
       runTask(currentRequest, task, {})
+  )
+
+
+getSession = (httpRequest, callback) ->
+  # Separation by comma is important as some devices don't comform to standard
+  COOKIE_REGEX = /\s*([a-zA-Z0-9\-_]+?)\s*=\s*"?([a-zA-Z0-9\-_]*?)"?\s*(,|;|$)/g
+  while match = COOKIE_REGEX.exec(httpRequest.headers.cookie)
+    sessionId = match[2] if match[1] == 'session'
+
+  return callback() if not sessionId?
+
+  db.redisClient.get("session_#{sessionId}", (err, res) ->
+    throw err if err
+    return callback(sessionId, JSON.parse(res))
+  )
+
+
+updateSessionExpiry = (currentRequest) ->
+  db.redisClient.expire("session_#{currentRequest.sessionId}", currentRequest.session.sessionTimeout, (err, res) ->
+    throw err if err
+    if not res
+      # Resave session in the very rare case when session cache expires while processing request
+      db.redisClient.setex("session_#{currentRequest.sessionId}", currentRequest.session.sessionTimeout, JSON.stringify(currentRequest.session), (err) ->
+        throw err if err
+      )
   )
 
 
@@ -419,7 +454,6 @@ listener = (httpRequest, httpResponse) ->
 
   chunks = []
   bytes = 0
-  cookies = {}
 
   stream.on('data', (chunk) ->
     chunks.push(chunk)
@@ -437,126 +471,129 @@ listener = (httpRequest, httpResponse) ->
     return body
 
   stream.on('end', () ->
-    cwmpRequest = soap.request(httpRequest)
+    getSession(httpRequest, (sessionId, session) ->
+      cwmpRequest = soap.request(httpRequest, session?.cwmpVersion)
+      if not session?
+        session = {
+          deviceId : common.getDeviceId(cwmpRequest.methodRequest.deviceId),
+          cwmpVersion : cwmpRequest.cwmpVersion,
+          sessionTimeout : cwmpRequest.sessionTimeout ? config.SESSION_TIMEOUT
+        }
+        sessionId = crypto.randomBytes(8).toString('hex')
 
-    currentRequest = {
-      httpRequest : httpRequest
-      httpResponse : httpResponse
-      cwmpVersion : cwmpRequest.cwmpVersion
-    }
+      currentRequest = {
+        httpRequest : httpRequest,
+        httpResponse : httpResponse,
+        sessionId : sessionId,
+        session : session
+      }
 
-    if cwmpRequest.methodRequest?.deviceId?
-      currentRequest.deviceId = common.getDeviceId(cwmpRequest.methodRequest.deviceId)
-    else
-      currentRequest.deviceId = cwmpRequest.cookies.deviceId
+      if config.DEBUG_DEVICES[currentRequest.session.deviceId]
+        dump = "# REQUEST #{new Date(Date.now())}\n" + JSON.stringify(httpRequest.headers) + "\n#{httpRequest.getBody()}\n\n"
+        require('fs').appendFile("../debug/#{currentRequest.session.deviceId}.dump", dump, (err) ->
+          throw err if err
+        )
 
-    if config.DEBUG_DEVICES[currentRequest.deviceId]
-      dump = "# REQUEST #{new Date(Date.now())}\n" + JSON.stringify(httpRequest.headers) + "\n#{httpRequest.getBody()}\n\n"
-      require('fs').appendFile("../debug/#{currentRequest.deviceId}.dump", dump, (err) ->
-        throw err if err
-      )
-
-    if cwmpRequest.methodRequest?
-      if cwmpRequest.methodRequest.type is 'Inform'
-        inform(currentRequest, cwmpRequest)
-      else if cwmpRequest.methodRequest.type is 'GetRPCMethods'
-        util.log("#{currentRequest.deviceId}: GetRPCMethods")
-        res = soap.response({
-          id : cwmpRequest.id,
-          methodResponse : {type : 'GetRPCMethodsResponse', methodList : ['Inform', 'GetRPCMethods', 'TransferComplete', 'RequestDownload']},
-          cwmpVersion : currentRequest.cwmpVersion,
-          cookies : cookies
-        })
-        writeResponse(currentRequest, res)
-      else if cwmpRequest.methodRequest.type is 'TransferComplete'
-        # do nothing
-        util.log("#{currentRequest.deviceId}: Transfer complete")
-        res = soap.response({
-          id : cwmpRequest.id,
-          methodResponse : {type : 'TransferCompleteResponse'},
-          cwmpVersion : currentRequest.cwmpVersion,
-          cookies : cookies
-        })
-        writeResponse(currentRequest, res)
-      else if cwmpRequest.methodRequest.type is 'RequestDownload'
-        requestDownloadResponse = () ->
+      if cwmpRequest.methodRequest?
+        if cwmpRequest.methodRequest.type is 'Inform'
+          inform(currentRequest, cwmpRequest)
+        else if cwmpRequest.methodRequest.type is 'GetRPCMethods'
+          util.log("#{currentRequest.session.deviceId}: GetRPCMethods")
           res = soap.response({
             id : cwmpRequest.id,
-            methodResponse : {type : 'RequestDownloadResponse'},
-            cwmpVersion : currentRequest.cwmpVersion,
-            cookies : cookies
+            methodResponse : {type : 'GetRPCMethodsResponse', methodList : ['Inform', 'GetRPCMethods', 'TransferComplete', 'RequestDownload']},
+            cwmpVersion : currentRequest.session.cwmpVersion
           })
           writeResponse(currentRequest, res)
-        fileType = cwmpRequest.methodRequest.fileType
-        util.log("#{currentRequest.deviceId}: RequestDownload (#{fileType})")
-        if fileType isnt '1 Firmware Upgrade Image'
-          # Only supporting firmware upgrade for now
-          return requestDownloadResponse()
+          updateSessionExpiry(currentRequest)
+        else if cwmpRequest.methodRequest.type is 'TransferComplete'
+          # do nothing
+          util.log("#{currentRequest.session.deviceId}: Transfer complete")
+          res = soap.response({
+            id : cwmpRequest.id,
+            methodResponse : {type : 'TransferCompleteResponse'},
+            cwmpVersion : currentRequest.session.cwmpVersion
+          })
+          writeResponse(currentRequest, res)
+          updateSessionExpiry(currentRequest)
+        else if cwmpRequest.methodRequest.type is 'RequestDownload'
+          requestDownloadResponse = () ->
+            res = soap.response({
+              id : cwmpRequest.id,
+              methodResponse : {type : 'RequestDownloadResponse'},
+              cwmpVersion : currentRequest.session.cwmpVersion
+            })
+            writeResponse(currentRequest, res)
+            updateSessionExpiry(currentRequest)
+          fileType = cwmpRequest.methodRequest.fileType
+          util.log("#{currentRequest.session.deviceId}: RequestDownload (#{fileType})")
+          if fileType isnt '1 Firmware Upgrade Image'
+            # Only supporting firmware upgrade for now
+            return requestDownloadResponse()
 
-        db.getPresetsObjectsAliases((allPresets, allObjects, allAliases) ->
-          presets.getDevicePreset(currentRequest.deviceId, allPresets, allObjects, allAliases, (devicePreset) ->
-            presetSoftwareVersion = devicePreset.softwareVersion?.preset
-            currentSoftwareVersion = devicePreset.softwareVersion?.current._value
-            if presetSoftwareVersion? and presetSoftwareVersion != currentSoftwareVersion
-              projection = {
-                '_deviceId._Manufacturer' : 1,
-                '_deviceId._ProductClass' : 1,
-              }
-              db.devicesCollection.findOne({'_id' : currentRequest.deviceId}, projection, (err, device) ->
-                throw err if err
-                manufacturer = device._deviceId._Manufacturer
-                productClass = device._deviceId._ProductClass
-                db.filesCollection.findOne({'metadata.fileType' : '1 Firmware Upgrade Image', 'metadata.manufacturer' : manufacturer, 'metadata.productClass' : productClass, 'metadata.version' : presetSoftwareVersion}, {_id : 1}, (err, file) ->
+          db.getPresetsObjectsAliases((allPresets, allObjects, allAliases) ->
+            presets.getDevicePreset(currentRequest.session.deviceId, allPresets, allObjects, allAliases, (devicePreset) ->
+              presetSoftwareVersion = devicePreset.softwareVersion?.preset
+              currentSoftwareVersion = devicePreset.softwareVersion?.current._value
+              if presetSoftwareVersion? and presetSoftwareVersion != currentSoftwareVersion
+                projection = {
+                  '_deviceId._Manufacturer' : 1,
+                  '_deviceId._ProductClass' : 1,
+                }
+                db.devicesCollection.findOne({'_id' : currentRequest.session.deviceId}, projection, (err, device) ->
                   throw err if err
-                  if not file?
-                    util.error("#{currentRequest.deviceId}: Firmware image not found (#{presetSoftwareVersion})")
-                    return requestDownloadResponse()
-
-                  task = {
-                    device : currentRequest.deviceId,
-                    name : 'download',
-                    file : file['_id']
-                  }
-                  apiFunctions.insertTasks(task, allAliases, (err, tasks) ->
+                  manufacturer = device._deviceId._Manufacturer
+                  productClass = device._deviceId._ProductClass
+                  db.filesCollection.findOne({'metadata.fileType' : '1 Firmware Upgrade Image', 'metadata.manufacturer' : manufacturer, 'metadata.productClass' : productClass, 'metadata.version' : presetSoftwareVersion}, {_id : 1}, (err, file) ->
                     throw err if err
-                    return requestDownloadResponse()
+                    if not file?
+                      util.error("#{currentRequest.session.deviceId}: Firmware image not found (#{presetSoftwareVersion})")
+                      return requestDownloadResponse()
+
+                    task = {
+                      device : currentRequest.session.deviceId,
+                      name : 'download',
+                      file : file['_id']
+                    }
+                    apiFunctions.insertTasks(task, allAliases, (err, tasks) ->
+                      throw err if err
+                      return requestDownloadResponse()
+                    )
                   )
                 )
-              )
-            else
-              return requestDownloadResponse()
+              else
+                return requestDownloadResponse()
+            )
           )
+        else
+          throw new Error('ACS method not supported')
+      else if cwmpRequest.methodResponse?
+        taskId = cwmpRequest.id
+
+        db.getTask(taskId, (err, task) ->
+          throw err if err
+          if not task
+            nextTask(currentRequest)
+          else
+            runTask(currentRequest, task, cwmpRequest.methodResponse)
+        )
+      else if cwmpRequest.fault?
+        taskId = cwmpRequest.id
+        if not taskId
+          # Fault not related to a task. End the session.
+          return endSession(currentRequest)
+
+        db.getTask(taskId, (err, task) ->
+          throw err if err
+          if not task
+            nextTask(currentRequest)
+          else
+            runTask(currentRequest, task, cwmpRequest.fault)
         )
       else
-        throw new Error('ACS method not supported')
-    else if cwmpRequest.methodResponse?
-      taskId = cwmpRequest.id
-
-      db.getTask(taskId, (err, task) ->
-        throw err if err
-        if not task
-          nextTask(currentRequest)
-        else
-          runTask(currentRequest, task, cwmpRequest.methodResponse)
-      )
-    else if cwmpRequest.fault?
-      taskId = cwmpRequest.id
-      if not taskId
-        # Fault not related to a task. return empty response.
-        res = soap.response(null)
-        writeResponse(currentRequest, res)
-        return
-
-      db.getTask(taskId, (err, task) ->
-        throw err if err
-        if not task
-          nextTask(currentRequest)
-        else
-          runTask(currentRequest, task, cwmpRequest.fault)
-      )
-    else
-      # cpe sent empty response. start sending acs requests
-      nextTask(currentRequest)
+        # cpe sent empty response. start sending acs requests
+        nextTask(currentRequest)
+    )
   )
 
 cluster = require 'cluster'
