@@ -53,31 +53,6 @@ this.refreshObject = (task, methodResponse, callback) ->
     throw Error('Unexpected subtask name')
 
 
-findMissingParameters = (device, parameterList, prefix) ->
-  missingParameters = []
-  paths = {}
-  for param in parameterList
-    p = param[0]
-    paths[p] = true
-    i = p.indexOf('.')
-    while i != -1
-      paths[p[0...i]] = true
-      i = p.indexOf('.', i + 1)
-
-  recursive = (obj, prefix) ->
-    for k,v of obj
-      continue if k[0] == '_'
-      p = prefix + k
-
-      if paths[p]
-        recursive(v, "#{p}.")
-      else
-        missingParameters.push(p)
-
-  recursive(device, prefix)
-  return missingParameters
-
-
 this.getParameterNames = (task, methodResponse, callback) ->
   if methodResponse.faultcode?
     task.fault = methodResponse
@@ -99,42 +74,18 @@ this.getParameterNames = (task, methodResponse, callback) ->
     for k, v of found
       methodResponse.parameterList.push([k]) if v == 0
 
+    # Some devices don't return the root object as described in the standard. add manually to update timestamp
+    methodResponse.parameterList.push([task.parameterPath]) if !!task.parameterPath
+
     deviceUpdates = {parameterNames : methodResponse.parameterList}
-    path = if common.endsWith(task.parameterPath, '.') then task.parameterPath.slice(0, -1) else task.parameterPath
-    projection = {}
-    projection[path] = 1 if !!task.parameterPath
-
-    # delete nonexisting params
-    db.devicesCollection.findOne({_id : task.device}, projection, (err, device) ->
-      if device
-        root = device
-        rootPath = ''
-        if !!task.parameterPath
-          ps = path.split('.')
-          for p in ps
-            rootPath += "#{p}."
-            root = root[p]
-            break if not root?
-
-        if root
-          deviceUpdates.deletedObjects = findMissingParameters(root, methodResponse.parameterList, rootPath)
-        else
-          # avoid adding and deleting the same param
-          if rootPath isnt task.parameterPath
-            deviceUpdates.deletedObjects = [rootPath.slice(0, -1)]
-
-      # some devices don't return the root object as described in the standard. add manually to update timestamp
-      deviceUpdates.parameterNames.push([task.parameterPath]) if !!task.parameterPath
-
-      callback(null, STATUS_COMPLETED, null, deviceUpdates)
-    )
+    return callback(null, STATUS_COMPLETED, null, deviceUpdates)
   else
     methodRequest = {
       type : 'GetParameterNames',
       parameterPath : task.parameterPath,
       nextLevel : if task.nextLevel? then task.nextLevel else false
     }
-    callback(null, STATUS_OK, methodRequest)
+    return callback(null, STATUS_OK, methodRequest)
 
 
 this.getParameterValues = (task, methodResponse, callback) ->

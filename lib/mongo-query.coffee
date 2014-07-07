@@ -93,6 +93,7 @@ optimizeProjection = (obj) ->
         delete obj[b]
         keys.splice(i--, 1)
     ++ i
+  return
 
 
 exports.test = test

@@ -5,7 +5,6 @@ http = require 'http'
 https = require 'https'
 soap = require './soap'
 tasks = require './tasks'
-normalize = require('./normalize').normalize
 db = require './db'
 presets = require './presets'
 mongodb = require 'mongodb'
@@ -13,11 +12,8 @@ fs = require 'fs'
 apiFunctions = require './api-functions'
 customCommands = require './custom-commands'
 crypto = require 'crypto'
-parameters = require './parameters'
 zlib = require 'zlib'
-
-OBJECT_REGEX = /\.$/
-INSTANCE_REGEX = /\.[\d]+\.$/
+updateDevice = require './update-device'
 
 
 # Used to reject new TR-069 sessions when under load
@@ -61,88 +57,6 @@ endSession = (currentRequest) ->
   )
 
 
-updateDevice = (currentRequest, actions, callback) ->
-  if not actions?
-    callback() if callback?
-    return
-
-  now = new Date(Date.now())
-  update = {'$set' : {}, '$unset' : {}}
-
-  if actions.parameterValues?
-    for p in actions.parameterValues
-      origValue = p[1]
-      v = normalize(p[0], origValue)
-
-      path = if common.endsWith(p[0], '.') then p[0] else "#{p[0]}."
-      if v == origValue
-        update['$unset']["#{path}_orig"] = 1
-      else
-        update['$set']["#{path}_orig"] = origValue
-      update['$set']["#{path}_value"] = v
-      update['$set']["#{path}_timestamp"] = now
-      if p[2]?
-        update['$set']["#{path}_type"] = p[2]
-      else
-        update['$unset']["#{path}_type"] = 1
-
-  if actions.deletedObjects?
-    for p in actions.deletedObjects
-      update['$unset'][p] = 1
-
-  if actions.instanceName?
-    for i in actions.instanceName
-      update['$set']["#{i[0]}._name"] = i[1]
-
-  if actions.parameterNames?
-    for p in actions.parameterNames
-      if OBJECT_REGEX.test(p[0])
-        path = p[0]
-        if INSTANCE_REGEX.test(p[0])
-          update['$set']["#{path}_instance"] = true
-        else
-          update['$set']["#{path}_object"] = true
-      else
-        path = "#{p[0]}."
-      update['$set']["#{path}_writable"] = p[1] if p[1]?
-      update['$set']["#{path}_timestamp"] = now
-
-      # Add parameter (sans any dot suffix) if has an alias
-      if (a = parameters.getAlias(pp = path.slice(0, -1)))?
-        newAliases = {} if not newAliases?
-        newAliases[pp] = a
-
-  if actions.customCommands?
-    for p in actions.customCommands
-      commandName = p[0]
-      update['$set']["_customCommands.#{commandName}._value"] = p[1]
-      update['$set']["_customCommands.#{commandName}._timestamp"] = now
-
-  if actions.set?
-    common.extend(update['$set'], actions.set)
-
-  for k of update
-    delete update[k] if Object.keys(update[k]).length == 0
-
-  if Object.keys(update).length
-    db.devicesCollection.update({'_id' : currentRequest.session.deviceId}, update, {}, (err, count) ->
-      throw err if err
-      # Clear aliases cache if there's a new aliased parameter that has not been included in aliases cache
-      if newAliases?
-        db.getAliases((aliases) ->
-          for p, a of newAliases
-            if not aliases[a]? or p not in aliases[a]
-              db.redisClient.del('aliases', (err, res) ->
-                throw err if err
-              )
-              break
-        )
-      callback?(err)
-    )
-  else
-    callback?()
-
-
 inform = (currentRequest, cwmpRequest) ->
   # If overloaded, ask CPE to retry in 5 mins
   if Date.now() < holdUntil
@@ -172,7 +86,7 @@ inform = (currentRequest, cwmpRequest) ->
     throw err if err
 
     updateAndRespond = () ->
-      updateDevice(currentRequest, actions, (err) ->
+      updateDevice(currentRequest.session.deviceId, actions, (err) ->
         throw err if err
         res = soap.response({
           id : cwmpRequest.id,
@@ -273,7 +187,7 @@ runTask = (currentRequest, task, methodResponse) ->
   tasks.task(task, methodResponse, (err, status, methodRequest, deviceUpdates) ->
     throw err if err
     # TODO handle error
-    updateDevice(currentRequest, deviceUpdates, (err) ->
+    updateDevice(currentRequest.session.deviceId, deviceUpdates, (err) ->
       throw err if err
 
       timeDiff = process.hrtime(timeDiff)[0] + 1
