@@ -17,7 +17,7 @@ this.refreshObject = (task, methodResponse, callback) ->
   if not task.session.subtask?
     path = task.objectName
     path += '.' if path != '' and not common.endsWith(path, '.')
-    task.session.subtask = {device : task.device, name : 'getParameterNames', parameterPath : path, nextLevel : false}
+    task.session.subtask = {device : task.device, name : 'getParameterNames', parameterPath : path}
 
   if methodResponse.faultcode?
     task.fault = methodResponse
@@ -59,10 +59,36 @@ this.getParameterNames = (task, methodResponse, callback) ->
     callback(null, STATUS_FAULT)
     return
 
+  getParameterDepth = (param) ->
+    return 0 if !param
+    return (param[...-1] + '.').split('.').length - 1
+
   if methodResponse.type is 'GetParameterNamesResponse'
-    # Make sure that for each parameters, all its parents are included
+    task.session.parameterNames = task.session.parameterNames.concat(methodResponse.parameterList)
+    path = task.session.queue.pop()
+
+    # If parameter depth higher than the threshold, nextLevel was set to false
+    if not task.nextLevel? and getParameterDepth(path) < config.GET_PARAMETER_NAMES_DEPTH_THRESHOLD
+      for p in methodResponse.parameterList
+        task.session.queue.push(p[0]) if p[0][-1..] == '.'
+  else
+    task.session = {queue : [task.parameterPath], parameterNames : []}
+
+  if task.session.queue.length > 0
+    path = task.session.queue[-1..][0]
+    methodRequest = {
+      type : 'GetParameterNames',
+      parameterPath : path,
+      nextLevel : task.nextLevel ? getParameterDepth(path) < config.GET_PARAMETER_NAMES_DEPTH_THRESHOLD
+    }
+    return callback(null, STATUS_OK, methodRequest)
+  else
+    deviceUpdates = {parameterNames : task.session.parameterNames}
+
+    # Make sure that for each parameter, all its parents are explicitly included
     found = {}
-    for p in methodResponse.parameterList
+    found[task.parameterPath] = 0 if !!task.parameterPath
+    for p in deviceUpdates.parameterNames
       param = p[0]
       i = param.length
       while (i = param.lastIndexOf('.', i-1)) > task.parameterPath.length
@@ -72,20 +98,9 @@ this.getParameterNames = (task, methodResponse, callback) ->
       found[p[0]] = 1
 
     for k, v of found
-      methodResponse.parameterList.push([k]) if v == 0
+      deviceUpdates.parameterNames.push([k]) if v == 0
 
-    # Some devices don't return the root object as described in the standard. add manually to update timestamp
-    methodResponse.parameterList.push([task.parameterPath]) if !!task.parameterPath
-
-    deviceUpdates = {parameterNames : methodResponse.parameterList}
     return callback(null, STATUS_COMPLETED, null, deviceUpdates)
-  else
-    methodRequest = {
-      type : 'GetParameterNames',
-      parameterPath : task.parameterPath,
-      nextLevel : if task.nextLevel? then task.nextLevel else false
-    }
-    return callback(null, STATUS_OK, methodRequest)
 
 
 this.getParameterValues = (task, methodResponse, callback) ->
@@ -157,6 +172,7 @@ this.addObject = (task, methodResponse, callback) ->
     if methodResponse.type is 'AddObjectResponse'
       status_save = STATUS_SAVE
       task.session.instanceNumber = methodResponse.instanceNumber
+      # TODO Don't specify nextLevel explicity. Also consider using refreshObject instead.
       task.session.subtask = {device : task.device, name : 'getParameterNames', parameterPath : "#{task.objectName}.#{task.session.instanceNumber}.", nextLevel : false}
       task.session.appliedParameterValues = []
       task.session.parameterNames = []
