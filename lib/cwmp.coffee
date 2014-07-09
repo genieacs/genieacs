@@ -388,12 +388,17 @@ listener = (httpRequest, httpResponse) ->
     getSession(httpRequest, (sessionId, session) ->
       cwmpRequest = soap.request(httpRequest, session?.cwmpVersion)
       if not session?
+        if cwmpRequest.methodRequest?.type isnt 'Inform'
+          httpResponse.writeHead(400)
+          httpResponse.end('Session is expired')
+          return
         session = {
           deviceId : common.getDeviceId(cwmpRequest.methodRequest.deviceId),
           cwmpVersion : cwmpRequest.cwmpVersion,
           sessionTimeout : cwmpRequest.sessionTimeout ? config.SESSION_TIMEOUT
         }
         sessionId = crypto.randomBytes(8).toString('hex')
+        httpRequest.connection.setTimeout(session.sessionTimeout * 1000)
 
       currentRequest = {
         httpRequest : httpRequest,
