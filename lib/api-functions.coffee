@@ -11,6 +11,17 @@ connectionRequest = (deviceId, callback) ->
   # ensure socket is reused in case of digest authentication
   agent = new http.Agent({maxSockets : 1})
 
+  statusToError = (statusCode) ->
+    switch statusCode
+      when 200, 204
+        null
+      when 401
+        new Error('Incorrect connection request credentials')
+      when 0
+        new Error('Device is offline')
+      else
+        new Error("Unexpected response code from device: #{statusCode}")
+
   conReq = (url, authString, callback) ->
     options = URL.parse(url)
     options.agent = agent
@@ -19,7 +30,7 @@ connectionRequest = (deviceId, callback) ->
       options.headers = {'Authorization' : authString}
 
     request = http.get(options, (res) ->
-      if res.statusCode == 401
+      if res.statusCode == 401 and res.headers['www-authenticate']?
         authHeader = auth.parseAuthHeader(res.headers['www-authenticate'])
       callback(res.statusCode, authHeader)
       # don't need body, go ahead and emit events to free up the socket for possible reuse
@@ -56,10 +67,10 @@ connectionRequest = (deviceId, callback) ->
           authString = auth.digest(username, password, uri.path, 'GET', null, authHeader)
 
         conReq(connectionRequestUrl, authString, (statusCode, authHeader) ->
-          callback()
+          callback(statusToError(statusCode))
         )
       else
-        callback()
+        callback(statusToError(statusCode))
     )
   )
 
