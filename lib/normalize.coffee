@@ -20,6 +20,9 @@
 # THE SOFTWARE.
 ###
 
+# Credit to Netanel Rubin from Check Point Software Technologies for discovering
+# vulnerability caused by use of eval to generate regex from user input.
+
 common = require './common'
 parameters = require './parameters'
 
