@@ -30,20 +30,18 @@ stringToRegexp = (input) ->
 
   output = input.replace(/[\[\]\\\^\$\.\|\?\+\(\)]/, "\\$&")
   if output[0] == '*'
-    prefix = '/'
     output = output.replace(/^\*+/g, '')
   else
-    prefix = '/^'
+    output = '^' + output
 
   if output[output.length - 1] == '*'
-    suffix = '/'
     output = output.replace(/\*+$/g, '')
   else
-    suffix = '$/'
+    output = output + '$'
 
   output = output.replace(/[\*]/, '.*')
 
-  return eval(prefix + output + suffix)
+  return new RegExp(output)
 
 
 normalizers = {}
@@ -88,9 +86,9 @@ normalizers.date = (input, normType) ->
 
 normalizers.string = (input, normType) ->
   if normType is 'query'
-    if /^\/(.*?)\/(g?i?m?y?)$/.test(input)
-      return [{'$regex' : eval(input)}, input]
-  input
+    if (m = /^\/(.*?)\/(g?i?m?y?)$/.exec(input))
+      return [{'$regex' : new RegExp(m[1], m[2])}, input]
+  return input
 
 
 colonizeMac = (input) ->
@@ -123,7 +121,7 @@ normalizers.mac = (input, normType) ->
   if input.length == 17
     return input
 
-  return {'$regex' : eval('/' + input + '/')}
+  return {'$regex' : new RegExp(input)}
 
 
 exports.normalize = (path, value, normType) ->
