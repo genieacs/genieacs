@@ -39,6 +39,7 @@ exports.IGNORE_XML_NAMESPACES = false # Traverse XML using element's local name 
 exports.LIBXMLJS_OPTIONS = {} # Options passed directly to libxmljs
 exports.SESSION_TIMEOUT = 30
 exports.GET_PARAMETER_NAMES_DEPTH_THRESHOLD = 0
+exports.TASK_PARAMETERS_BATCH_SIZE = 32
 
 exports.MONGODB_OPTIONS = {
   db : {

@@ -43,7 +43,6 @@ common = require './common'
 db = require './db'
 mongodb = require 'mongodb'
 customCommands = require './custom-commands'
-BATCH_SIZE = 16
 
 exports.STATUS_OK = STATUS_OK = 1
 exports.STATUS_FAULT = STATUS_FAULT = 2
@@ -156,7 +155,7 @@ this.getParameterValues = (task, methodResponse, callback) ->
   else if methodResponse.parameterList?
     task.session.currentIndex = task.session.nextIndex
 
-  task.session.nextIndex = Math.min(task.session.currentIndex + BATCH_SIZE, task.parameterNames.length)
+  task.session.nextIndex = Math.min(task.session.currentIndex + config.TASK_PARAMETERS_BATCH_SIZE, task.parameterNames.length)
   names = task.parameterNames.slice(task.session.currentIndex, task.session.nextIndex)
 
   if methodResponse.type is 'GetParameterValuesResponse'
@@ -186,7 +185,7 @@ this.setParameterValues = (task, methodResponse, callback) ->
     prevValues = task.parameterValues.slice(task.session.currentIndex, task.session.nextIndex)
     task.session.currentIndex = task.session.nextIndex
 
-  task.session.nextIndex = Math.min(task.session.currentIndex + BATCH_SIZE, task.parameterValues.length)
+  task.session.nextIndex = Math.min(task.session.currentIndex + config.TASK_PARAMETERS_BATCH_SIZE, task.parameterValues.length)
   values = task.parameterValues.slice(task.session.currentIndex, task.session.nextIndex)
 
   if prevValues?
