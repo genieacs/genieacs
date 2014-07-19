@@ -306,9 +306,9 @@ else
               throw err if err
               gs.close((err) ->
                 throw err if err
+                response.writeHead(201)
+                response.end()
               )
-              response.writeHead(201)
-              response.end()
             )
           )
         else if request.method == 'DELETE'
