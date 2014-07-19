@@ -398,4 +398,7 @@ else
         response.writeHead 404
         response.end('404 Not Found')
 
-  server.listen config.API_PORT, config.API_INTERFACE
+  db.connect((err) ->
+    throw err if err
+    server.listen config.API_PORT, config.API_INTERFACE
+  )

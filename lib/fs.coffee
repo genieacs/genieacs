@@ -28,10 +28,6 @@ mongodb = require 'mongodb'
 querystring = require 'querystring'
 
 db = null
-mongodb.MongoClient.connect("mongodb://#{config.MONGODB_SOCKET}/#{config.DATABASE_NAME}", config.MONGODB_OPTIONS, (err, _db) ->
-  db = _db
-)
-
 
 cluster = require 'cluster'
 numCPUs = require('os').cpus().length
@@ -70,4 +66,8 @@ else
       response.end('405 Method Not Allowed')
   )
 
-  server.listen config.FILES_PORT, config.FILES_INTERFACE
+  mongodb.MongoClient.connect("mongodb://#{config.MONGODB_SOCKET}/#{config.DATABASE_NAME}", config.MONGODB_OPTIONS, (err, _db) ->
+    throw err if err
+    db = _db
+    server.listen config.FILES_PORT, config.FILES_INTERFACE
+  )

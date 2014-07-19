@@ -17,43 +17,71 @@
 
 config = require './config'
 mongodb = require 'mongodb'
-redisClient = require('redis').createClient(config.REDIS_SOCKET)
+redis = require('redis')
 parameters = require './parameters'
 
+redisClient = null
 tasksCollection = null
 devicesCollection = null
 presetsCollection = null
 objectsCollection = null
 
-mongodb.MongoClient.connect("mongodb://#{config.MONGODB_SOCKET}/#{config.DATABASE_NAME}", config.MONGODB_OPTIONS, (err, db) ->
-  exports.mongoDb = db
-  db.collection('tasks', (err, collection) ->
-    throw new Error(err) if err?
-    exports.tasksCollection = tasksCollection = collection
-    collection.ensureIndex({device: 1, timestamp: 1}, (err) ->
+
+connect = (callback) ->
+  callbackCounter = 6
+  mongodb.MongoClient.connect("mongodb://#{config.MONGODB_SOCKET}/#{config.DATABASE_NAME}", config.MONGODB_OPTIONS, (err, db) ->
+    return callback(err) if err
+    exports.mongoDb = db
+    db.collection('tasks', (err, collection) ->
+      exports.tasksCollection = tasksCollection = collection
+      collection?.ensureIndex({device: 1, timestamp: 1}, (err) ->
+      )
+
+      if --callbackCounter == 0 or err
+        callbackCounter = 0
+        return callback(err)
+    )
+
+    db.collection('devices', (err, collection) ->
+      exports.devicesCollection  = devicesCollection = collection
+      if --callbackCounter == 0 or err
+        callbackCounter = 0
+        return callback(err)
+    )
+
+    db.collection('presets', (err, collection) ->
+      exports.presetsCollection = presetsCollection = collection
+      if --callbackCounter == 0 or err
+        callbackCounter = 0
+        return callback(err)
+    )
+
+    db.collection('objects', (err, collection) ->
+      exports.objectsCollection = objectsCollection = collection
+      if --callbackCounter == 0 or err
+        callbackCounter = 0
+        return callback(err)
+    )
+
+    db.collection('fs.files', (err, collection) ->
+      exports.filesCollection = filesCollection = collection
+      if --callbackCounter == 0 or err
+        callbackCounter = 0
+        return callback(err)
+    )
+
+    exports.redisClient = redisClient = redis.createClient(config.REDIS_SOCKET)
+    redisClient.select(config.REDIS_DB, (err) ->
+      if --callbackCounter == 0 or err
+        callbackCounter = 0
+        return callback(err)
     )
   )
 
-  db.collection('devices', (err, collection) ->
-    throw new Error(err) if err?
-    exports.devicesCollection  = devicesCollection = collection
-  )
 
-  db.collection('presets', (err, collection) ->
-    throw new Error(err) if err?
-    exports.presetsCollection = presetsCollection = collection
-  )
-
-  db.collection('objects', (err, collection) ->
-    throw new Error(err) if err?
-    exports.objectsCollection = objectsCollection = collection
-  )
-
-  db.collection('fs.files', (err, collection) ->
-    throw new Error(err) if err?
-    exports.filesCollection = filesCollection = collection
-  )
-)
+disconnect = () ->
+  exports.mongoDb.close()
+  redisClient.quit()
 
 
 getTask = (taskId, callback) ->
@@ -166,7 +194,8 @@ getPresetsObjectsAliases = (callback) ->
   )
 
 
-exports.redisClient = redisClient
 exports.getTask = getTask
 exports.getPresetsObjectsAliases = getPresetsObjectsAliases
 exports.getAliases = getAliases
+exports.connect = connect
+exports.disconnect = disconnect

@@ -16,6 +16,7 @@
 ###
 
 exports.DATABASE_NAME = 'genieacs'
+exports.REDIS_DB = 0
 exports.ACS_PORT = 7547 # CWMP port as assigned by IANA
 exports.ACS_HTTPS_PORT = 7548
 exports.ACS_INTERFACE = '0.0.0.0'
