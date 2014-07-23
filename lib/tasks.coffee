@@ -65,12 +65,16 @@ this.refreshObject = (task, methodResponse, callback) ->
 
   if task.session.subtask.name is 'getParameterNames'
     this.getParameterNames(task.session.subtask, methodResponse, (err, status, methodRequest, deviceUpdates) =>
-      if status & STATUS_COMPLETED
-        parameterNames = []
+      task.session.parameterNames ?= []
+      if deviceUpdates?.parameterNames?
         for p in deviceUpdates.parameterNames
           if not common.endsWith(p[0], '.')
-            parameterNames.push(p[0])
-        task.session.subtask = {name : 'getParameterValues', parameterNames : parameterNames}
+            task.session.parameterNames.push(p[0])
+
+      if status & STATUS_COMPLETED
+        task.session.subtask = {name : 'getParameterValues', parameterNames : task.session.parameterNames}
+        delete task.session.parameterNames
+
         this.getParameterValues(task.session.subtask, {}, (err, status, methodRequest) ->
           # ignore deviceUpdates returned by firt call to getParameterValues
           callback(err, status, methodRequest, deviceUpdates)
@@ -78,7 +82,7 @@ this.refreshObject = (task, methodResponse, callback) ->
       else if status & STATUS_OK
         callback(err, STATUS_OK, methodRequest, deviceUpdates)
       else
-        throw Error('Unexpected subtask status')
+        throw new Error('Unexpected subtask status')
     )
   else if task.session.subtask.name is 'getParameterValues'
     if methodResponse.faultcode?
@@ -103,15 +107,31 @@ this.getParameterNames = (task, methodResponse, callback) ->
     return (param[...-1] + '.').split('.').length - 1
 
   if methodResponse.type is 'GetParameterNamesResponse'
-    task.session.parameterNames = task.session.parameterNames.concat(methodResponse.parameterList)
     path = task.session.queue.pop()
 
     # If parameter depth higher than the threshold, nextLevel was set to false
     if not task.nextLevel? and getParameterDepth(path) < config.GET_PARAMETER_NAMES_DEPTH_THRESHOLD
       for p in methodResponse.parameterList
         task.session.queue.push(p[0]) if p[0][-1..] == '.'
+
+    deviceUpdates = {parameterNames : methodResponse.parameterList}
+
+    # Make sure that for each parameter, all its parents are explicitly included
+    found = {}
+    found[path] = 0 if !!path
+    for p in deviceUpdates.parameterNames
+      param = p[0]
+      i = param.length
+      while (i = param.lastIndexOf('.', i-1)) > path.length
+        pp = param.slice(0, i + 1)
+        break if found[pp]?
+        found[pp] = 0
+      found[p[0]] = 1
+
+    for k, v of found
+      deviceUpdates.parameterNames.push([k]) if v == 0
   else
-    task.session = {queue : [task.parameterPath], parameterNames : []}
+    task.session = {queue : [task.parameterPath]}
 
   if task.session.queue.length > 0
     path = task.session.queue[-1..][0]
@@ -120,25 +140,8 @@ this.getParameterNames = (task, methodResponse, callback) ->
       parameterPath : path,
       nextLevel : task.nextLevel ? getParameterDepth(path) < config.GET_PARAMETER_NAMES_DEPTH_THRESHOLD
     }
-    return callback(null, STATUS_OK, methodRequest)
+    return callback(null, STATUS_OK, methodRequest, deviceUpdates)
   else
-    deviceUpdates = {parameterNames : task.session.parameterNames}
-
-    # Make sure that for each parameter, all its parents are explicitly included
-    found = {}
-    found[task.parameterPath] = 0 if !!task.parameterPath
-    for p in deviceUpdates.parameterNames
-      param = p[0]
-      i = param.length
-      while (i = param.lastIndexOf('.', i-1)) > task.parameterPath.length
-        pp = param.slice(0, i + 1)
-        break if found[pp]?
-        found[pp] = 0
-      found[p[0]] = 1
-
-    for k, v of found
-      deviceUpdates.parameterNames.push([k]) if v == 0
-
     return callback(null, STATUS_COMPLETED, null, deviceUpdates)
 
 

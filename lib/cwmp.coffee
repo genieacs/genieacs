@@ -111,13 +111,11 @@ inform = (currentRequest, cwmpRequest) ->
 
   informHash = crypto.createHash('md5').update(JSON.stringify(parameterNames)).update(JSON.stringify(config.CUSTOM_COMMANDS)).digest('hex')
 
-  actions = {parameterValues : cwmpRequest.methodRequest.parameterList, set : {}}
-  actions.set._lastInform = now
-  actions.set._lastBoot = now if '1 BOOT' in cwmpRequest.methodRequest.event
+  deviceUpdates = {parameterValues : cwmpRequest.methodRequest.parameterList, informEvents : cwmpRequest.methodRequest.event}
 
+  # Delete all pending tasks on bootstrap (e.g. factory reset)
   if '0 BOOTSTRAP' in cwmpRequest.methodRequest.event
-    actions.set._lastBootstrap = lastBootstrap = now
-    # ignore all pending tasks
+    lastBootstrap = now
     db.tasksCollection.remove({device : currentRequest.session.deviceId}, (err, removed) ->
       throw err if err
     )
@@ -126,17 +124,17 @@ inform = (currentRequest, cwmpRequest) ->
     throw err if err
 
     updateAndRespond = () ->
-      updateDevice(currentRequest.session.deviceId, actions, (err) ->
+      updateDevice.commitUpdates(currentRequest.session.deviceId, deviceUpdates, false, (err) ->
         throw err if err
-        res = soap.response({
-          id : cwmpRequest.id,
-          methodResponse : {type : 'InformResponse'},
-          cwmpVersion : cwmpRequest.cwmpVersion
-        })
-        res.headers['Set-Cookie'] = "session=#{currentRequest.sessionId}"
-        writeResponse(currentRequest, res)
         db.redisClient.setex("session_#{currentRequest.sessionId}", currentRequest.session.sessionTimeout, JSON.stringify(currentRequest.session), (err) ->
           throw err if err
+          res = soap.response({
+            id : cwmpRequest.id,
+            methodResponse : {type : 'InformResponse'},
+            cwmpVersion : cwmpRequest.cwmpVersion
+          })
+          res.headers['Set-Cookie'] = "session=#{currentRequest.sessionId}"
+          writeResponse(currentRequest, res)
         )
       )
 
@@ -189,8 +187,8 @@ inform = (currentRequest, cwmpRequest) ->
           delete deviceCustomCommands[cmd]
 
         for cmd of deviceCustomCommands
-          actions.deletedObjects ?= []
-          actions.deletedObjects.push("_customCommands.#{cmd}")
+          deviceUpdates.deletedObjects ?= []
+          deviceUpdates.deletedObjects.push("_customCommands.#{cmd}")
 
         # clear presets hash if parameters are potentially modified
         if _tasks.length > 0
@@ -227,7 +225,7 @@ runTask = (currentRequest, task, methodResponse) ->
   tasks.task(task, methodResponse, (err, status, methodRequest, deviceUpdates) ->
     throw err if err
     # TODO handle error
-    updateDevice(currentRequest.session.deviceId, deviceUpdates, (err) ->
+    updateDevice.queueUpdates(currentRequest.session.deviceId, deviceUpdates, (err) ->
       throw err if err
 
       timeDiff = process.hrtime(timeDiff)[0] + 1
@@ -251,19 +249,25 @@ runTask = (currentRequest, task, methodResponse) ->
             )
 
           if save
-            db.tasksCollection.update({_id : mongodb.ObjectID(String(task._id))}, {$set : {session : task.session}}, (err) ->
+            updateDevice.commitUpdates(currentRequest.session.deviceId, deviceUpdates, true, (err) ->
               throw err if err
-              f()
+              db.tasksCollection.update({_id : mongodb.ObjectID(String(task._id))}, {$set : {session : task.session}}, (err) ->
+                throw err if err
+                f()
+              )
             )
           else
             f()
         when tasks.STATUS_COMPLETED
           util.log("#{currentRequest.session.deviceId}: Completed task #{task.name}(#{task._id})")
-          db.tasksCollection.remove({'_id' : mongodb.ObjectID(String(task._id))}, (err, removed) ->
+          updateDevice.commitUpdates(currentRequest.session.deviceId, deviceUpdates, true, (err) ->
             throw err if err
-            db.redisClient.del(String(task._id), (err, res) ->
+            db.tasksCollection.remove({'_id' : mongodb.ObjectID(String(task._id))}, (err, removed) ->
               throw err if err
-              nextTask(currentRequest)
+              db.redisClient.del(String(task._id), (err, res) ->
+                throw err if err
+                nextTask(currentRequest)
+              )
             )
           )
         when tasks.STATUS_FAULT
@@ -358,7 +362,10 @@ nextTask = (currentRequest) ->
       )
     else
       util.log("#{currentRequest.session.deviceId}: Started task #{task.name}(#{task._id})")
-      runTask(currentRequest, task, {})
+      updateDevice.clearUpdatesQueue(currentRequest.session.deviceId, (err) ->
+        throw err if err
+        runTask(currentRequest, task, {})
+      )
   )
 
 
