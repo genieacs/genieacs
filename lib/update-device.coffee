@@ -116,7 +116,7 @@ commitUpdates = (deviceId, deviceUpdates, commitQueue, callback) ->
         update['$set']["_customCommands.#{commandName}._timestamp"] = now
 
   processBatches = (cb) ->
-    if not commitQueue?
+    if not commitQueue
       processBatch(deviceUpdates) if deviceUpdates?
       return cb()
 
