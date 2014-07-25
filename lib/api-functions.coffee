@@ -90,11 +90,21 @@ connectionRequest = (deviceId, callback) ->
       )
     )
 
-  db.devicesCollection.findOne({_id : deviceId}, {'InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value' : 1}, (err, device)->
+  proj = {
+    'Device.ManagementServer.ConnectionRequestURL._value' : 1,
+    'InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value' : 1
+  }
+
+  db.devicesCollection.findOne({_id : deviceId}, proj, (err, device)->
     if err
       callback(err)
       return
-    connectionRequestUrl = device.InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value
+
+    if device.Device? # TR-181 data model
+      connectionRequestUrl = device.Device.ManagementServer.ConnectionRequestURL._value
+    else # TR-098 data model
+      connectionRequestUrl = device.InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value
+
     # for testing
     #connectionRequestUrl = connectionRequestUrl.replace(/^(http:\/\/)([0-9\.]+)(\:[0-9]+\/[a-zA-Z0-9]+\/?$)/, '$110.1.1.254$3')
     conReq(connectionRequestUrl, null, (statusCode, authHeader) ->

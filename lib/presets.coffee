@@ -84,6 +84,7 @@ exports.getDevicePreset = (deviceId, presets, objects, aliases, callback) ->
           if commandfile of deviceCustomCommands
             projection["_customCommands.#{c.command.split(' ', 1)}"] = 1
         when 'software_version'
+          projection['Device.DeviceInfo.SoftwareVersion'] = 1
           projection['InternetGatewayDevice.DeviceInfo.SoftwareVersion'] = 1
         when 'add_tag', 'delete_tag'
           projection['_tags'] = 1
@@ -204,7 +205,10 @@ exports.getDevicePreset = (deviceId, presets, objects, aliases, callback) ->
         when 'software_version'
           devicePreset.softwareVersion ?= {}
           devicePreset.softwareVersion.preset = c.software_version
-          devicePreset.softwareVersion.current = common.getParamValueFromPath(device, 'InternetGatewayDevice.DeviceInfo.SoftwareVersion')
+          if device?.Device? # TR-181 data model
+            devicePreset.softwareVersion.current = common.getParamValueFromPath(device, 'Device.DeviceInfo.SoftwareVersion')
+          else # TR-098 data model
+            devicePreset.softwareVersion.current = common.getParamValueFromPath(device, 'InternetGatewayDevice.DeviceInfo.SoftwareVersion')
 
         else
           throw new Error('Unknown configuration type')
