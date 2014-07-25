@@ -69,7 +69,7 @@ var telnetExecute = function(command, connection, prompt, callback) {
 }
 
 var getDeviceIp = function(deviceId, callback) {
-  var db = require('../../db');
+  var db = require('../../lib/db');
   var URL = require('url');
 
   db.devicesCollection.findOne({_id : deviceId}, {'InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value' : 1}, function(err, device) {
