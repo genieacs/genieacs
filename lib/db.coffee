@@ -29,7 +29,7 @@ objectsCollection = null
 
 connect = (callback) ->
   callbackCounter = 6
-  mongodb.MongoClient.connect("mongodb://#{config.MONGODB_SOCKET}/#{config.DATABASE_NAME}", config.MONGODB_OPTIONS, (err, db) ->
+  mongodb.MongoClient.connect(config.MONGODB_CONNECTION_URL, {db:{w:1},server:{autoReconnect:true}}, (err, db) ->
     return callback(err) if err
     exports.mongoDb = db
     db.collection('tasks', (err, collection) ->

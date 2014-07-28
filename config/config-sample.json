@@ -1,6 +1,5 @@
 {
-  "DATABASE_NAME" : "genieacs",
-  "MONGODB_SOCKET" : "/tmp/mongodb-27017.sock",
+  "MONGODB_CONNECTION_URL" : "mongodb://localhost/genieacs",
   "REDIS_SOCKET" : "6379",
   "ACS_INTERFACE" : "0.0.0.0",
   "ACS_PORT" : 7547,

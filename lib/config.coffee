@@ -15,7 +15,7 @@
 # along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
 ###
 
-exports.DATABASE_NAME = 'genieacs'
+exports.MONGODB_CONNECTION_URL = 'mongodb://localhost/genieacs'
 exports.REDIS_DB = 0
 exports.ACS_PORT = 7547 # CWMP port as assigned by IANA
 exports.ACS_HTTPS_PORT = 7548
@@ -41,16 +41,6 @@ exports.LIBXMLJS_OPTIONS = {} # Options passed directly to libxmljs
 exports.SESSION_TIMEOUT = 30
 exports.GET_PARAMETER_NAMES_DEPTH_THRESHOLD = 0
 exports.TASK_PARAMETERS_BATCH_SIZE = 32
-
-exports.MONGODB_OPTIONS = {
-  db : {
-    w : 1
-    wtimeout : 60000
-  }
-  server : {
-    auto_reconnect : true
-  }
-}
 
 # load configuration
 c = require('../config/config')
