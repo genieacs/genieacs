@@ -2,9 +2,8 @@
 var path = require('path');
 var fs = require('fs');
 
-var dir = path.join(path.dirname(fs.realpathSync(__filename)), '../lib/');
-process.title = 'genieacs-fs';
+var dir = path.resolve(path.dirname(fs.realpathSync(__filename)), '..');
 process.chdir(dir);
 
-require(path.join(dir, './fs'));
-
+cluster = require(path.resolve(dir, 'lib/cluster'));
+cluster.start('fs');

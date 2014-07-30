@@ -70,7 +70,7 @@ connect = (callback) ->
         return callback(err)
     )
 
-    exports.redisClient = redisClient = redis.createClient(config.REDIS_SOCKET)
+    exports.redisClient = redisClient = redis.createClient(config.REDIS_PORT, config.REDIS_HOST)
     redisClient.select(config.REDIS_DB, (err) ->
       if --callbackCounter == 0 or err
         callbackCounter = 0

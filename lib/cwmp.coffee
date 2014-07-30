@@ -41,14 +41,11 @@
 config = require './config'
 common = require './common'
 util = require 'util'
-http = require 'http'
-https = require 'https'
 soap = require './soap'
 tasks = require './tasks'
 db = require './db'
 presets = require './presets'
 mongodb = require 'mongodb'
-fs = require 'fs'
 apiFunctions = require './api-functions'
 customCommands = require './custom-commands'
 crypto = require 'crypto'
@@ -61,9 +58,9 @@ holdUntil = Date.now()
 
 
 writeResponse = (currentRequest, res) ->
-  if config.DEBUG_DEVICES[currentRequest.session.deviceId]
+  if config.DEBUG
     dump = "# RESPONSE #{new Date(Date.now())}\n" + JSON.stringify(res.headers) + "\n#{res.data}\n\n"
-    fs = require('fs').appendFile("../debug/#{currentRequest.session.deviceId}.dump", dump, (err) ->
+    require('fs').appendFile("../debug/#{currentRequest.session.deviceId}.dump", dump, (err) ->
       throw err if err
     )
 
@@ -454,7 +451,7 @@ listener = (httpRequest, httpResponse) ->
         session : session
       }
 
-      if config.DEBUG_DEVICES[currentRequest.session.deviceId]
+      if config.DEBUG
         dump = "# REQUEST #{new Date(Date.now())}\n" + JSON.stringify(httpRequest.headers) + "\n#{httpRequest.getBody()}\n\n"
         require('fs').appendFile("../debug/#{currentRequest.session.deviceId}.dump", dump, (err) ->
           throw err if err
@@ -562,39 +559,5 @@ listener = (httpRequest, httpResponse) ->
     )
   )
 
-cluster = require 'cluster'
-numCPUs = require('os').cpus().length
 
-if cluster.isMaster
-  db.connect((err) ->
-    throw err if err
-    db.redisClient.flushdb()
-    db.disconnect()
-    cluster.on('listening', (worker, address) ->
-      util.log("Worker #{worker.process.pid} listening to #{address.address}:#{address.port}")
-    )
-
-    cluster.on('exit', (worker, code, signal) ->
-      util.log("Worker #{worker.process.pid} died (#{worker.process.exitCode})")
-      setTimeout(()->
-        cluster.fork()
-      , config.WORKER_RESPAWN_TIME)
-    )
-
-    for [1 .. numCPUs]
-      cluster.fork()
-  )
-else
-  options = {
-    key: fs.readFileSync('../config/httpscert.key'),
-    cert: fs.readFileSync('../config/httpscert.crt')
-  }
-
-  httpServer = http.createServer(listener)
-  httpsServer = https.createServer(options, listener)
-
-  db.connect((err) ->
-    throw err if err
-    httpServer.listen(config.ACS_PORT, config.ACS_INTERFACE)
-    httpsServer.listen(config.ACS_HTTPS_PORT, config.ACS_HTTPS_INTERFACE)
-  )
+exports.listener = listener
