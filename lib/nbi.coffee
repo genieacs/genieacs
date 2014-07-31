@@ -54,7 +54,7 @@ TASKS_REGEX = /^\/tasks\/([a-zA-Z0-9\-\_\%]+)(\/[a-zA-Z_]*)?$/
 TAGS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/tags\/([a-zA-Z0-9\-\_\%]+)\/?$/
 PRESETS_REGEX = /^\/presets\/([a-zA-Z0-9\-\_\%]+)\/?$/
 OBJECTS_REGEX = /^\/objects\/([a-zA-Z0-9\-\_\%]+)\/?$/
-FILES_REGEX = /^\/files\/([a-zA-Z0-9\-\_\%\ \.\/\(\)]+)\/?$/
+FILES_REGEX = /^\/files\/([a-zA-Z0-9\%\!\*\'\(\)\;\:\@\&\=\+\$\,\?\#\[\]\-\_\.\~]+)\/?$/
 PING_REGEX = /^\/ping\/([a-zA-Z0-9\-\_\.]+)\/?$/
 QUERY_REGEX = /^\/([a-zA-Z0-9_]+s)\/?$/
 DEVICE_PRESET_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/preset\/?$/
