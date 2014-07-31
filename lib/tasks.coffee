@@ -332,7 +332,7 @@ this.download = (task, methodResponse, callback) ->
         type : 'Download',
         fileType : file.metadata.fileType,
         fileSize : file.length,
-        url : "http://#{config.FILES_IP}:#{config.FILES_PORT}/#{encodeURIComponent(file.filename)}",
+        url : "http://#{config.FS_IP}:#{config.FS_PORT}/#{encodeURIComponent(file.filename)}",
         successUrl : task.successUrl,
         failureUrl : task.failureUrl
       }

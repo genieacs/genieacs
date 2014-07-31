@@ -9,7 +9,7 @@
   "NBI_PORT" : 7557,
   "FS_INTERFACE" : "0.0.0.0",
   "FS_PORT" : 7567,
-  "FILES_IP" : "192.168.0.1",
+  "FS_IP" : "192.168.0.1",
   "LOG_INFORMS" : true,
   "DEBUG" : false
 }

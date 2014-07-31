@@ -39,7 +39,7 @@ defaults = {
   FS_PORT : 7567,
   FS_INTERFACE : '0.0.0.0',
   FS_SSL : false,
-  FILES_IP : '192.168.0.1', # Used when sending download requests to devices
+  FS_IP : '192.168.0.1', # Used when sending download requests to devices
 
   CACHE_DURATION : 60, # in seconds
   PRESETS_CACHE_DURATION : 86400,

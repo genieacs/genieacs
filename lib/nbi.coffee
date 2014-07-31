@@ -275,7 +275,7 @@ listener = (request, response) ->
       if request.method == 'PUT'
         metadata = {
           fileType : request.headers.filetype,
-          manufacturer : request.headers.manufacturer,
+          oui : request.headers.oui,
           productClass : request.headers.productclass,
           version : request.headers.version,
         }

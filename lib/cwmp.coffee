@@ -437,7 +437,7 @@ listener = (httpRequest, httpResponse) ->
           httpResponse.end('Session is expired')
           return
         session = {
-          deviceId : common.getDeviceId(cwmpRequest.methodRequest.deviceId),
+          deviceId : common.generateDeviceId(cwmpRequest.methodRequest.deviceId),
           cwmpVersion : cwmpRequest.cwmpVersion,
           sessionTimeout : cwmpRequest.sessionTimeout ? config.SESSION_TIMEOUT
         }
@@ -499,29 +499,21 @@ listener = (httpRequest, httpResponse) ->
               presetSoftwareVersion = devicePreset.softwareVersion?.preset
               currentSoftwareVersion = devicePreset.softwareVersion?.current._value
               if presetSoftwareVersion? and presetSoftwareVersion != currentSoftwareVersion
-                projection = {
-                  '_deviceId._Manufacturer' : 1,
-                  '_deviceId._ProductClass' : 1,
-                }
-                db.devicesCollection.findOne({'_id' : currentRequest.session.deviceId}, projection, (err, device) ->
+                deviceIdStruct = common.parseDeviceId(currentRequest.session.deviceId)
+                db.filesCollection.findOne({'metadata.fileType' : '1 Firmware Upgrade Image', 'metadata.oui' : deviceIdStruct.oui, 'metadata.productClass' : deviceIdStruct.productClass, 'metadata.version' : presetSoftwareVersion}, {_id : 1}, (err, file) ->
                   throw err if err
-                  manufacturer = device._deviceId._Manufacturer
-                  productClass = device._deviceId._ProductClass
-                  db.filesCollection.findOne({'metadata.fileType' : '1 Firmware Upgrade Image', 'metadata.manufacturer' : manufacturer, 'metadata.productClass' : productClass, 'metadata.version' : presetSoftwareVersion}, {_id : 1}, (err, file) ->
-                    throw err if err
-                    if not file?
-                      util.error("#{currentRequest.session.deviceId}: Firmware image not found (#{presetSoftwareVersion})")
-                      return requestDownloadResponse()
+                  if not file?
+                    util.error("#{currentRequest.session.deviceId}: Firmware image not found (#{presetSoftwareVersion})")
+                    return requestDownloadResponse()
 
-                    task = {
-                      device : currentRequest.session.deviceId,
-                      name : 'download',
-                      file : file['_id']
-                    }
-                    apiFunctions.insertTasks(task, allAliases, (err, tasks) ->
-                      throw err if err
-                      return requestDownloadResponse()
-                    )
+                  task = {
+                    device : currentRequest.session.deviceId,
+                    name : 'download',
+                    file : file['_id']
+                  }
+                  apiFunctions.insertTasks(task, allAliases, (err, tasks) ->
+                    throw err if err
+                    return requestDownloadResponse()
                   )
                 )
               else

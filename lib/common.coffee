@@ -20,6 +20,9 @@
 # THE SOFTWARE.
 ###
 
+buffer = require 'buffer'
+querystring = require 'querystring'
+
 UNDEFINED_TYPE = '[object Undefined]'
 NULL_TYPE = '[object Null]'
 BOOLEAN_TYPE = '[object Boolean]'
@@ -50,11 +53,11 @@ exports.arrayToHash = (arr) ->
   return hash
 
 
-exports.getDeviceId = (deviceIdStruct) ->
+exports.generateDeviceId = (deviceIdStruct) ->
   # Percent escaping function. Escapes everything except alphanumerics and underscore
   esc = (str) ->
     str.replace(/[^A-Za-z0-9_]/g, (chr) ->
-      buf = new require('buffer').Buffer(chr)
+      buf = new buffer.Buffer(chr, 'utf8')
       rep = ''
       rep += "%#{b.toString(16).toUpperCase()}" for b in buf
       return rep
@@ -65,6 +68,17 @@ exports.getDeviceId = (deviceIdStruct) ->
     return "#{esc(deviceIdStruct['OUI'])}-#{esc(deviceIdStruct['ProductClass'])}-#{esc(deviceIdStruct['SerialNumber'])}"
 
   return "#{esc(deviceIdStruct['OUI'])}-#{esc(deviceIdStruct['SerialNumber'])}"
+
+
+exports.parseDeviceId = (deviceId) ->
+  parts = deviceId.split('-')
+  ret = {oui : querystring.unescape(parts[0])}
+  if parts.length == 3
+    ret.productClass = querystring.unescape(parts[1])
+    ret.serialNumber = querystring.unescape(parts[2])
+  else
+    ret.serialNumber = querystring.unescape(parts[1])
+  return ret
 
 
 exports.extend = (obj, mixin) ->
