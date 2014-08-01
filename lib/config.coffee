@@ -55,6 +55,28 @@ defaults = {
   TASK_PARAMETERS_BATCH_SIZE : 32
 }
 
+exports.LIBXMLJS_OPTIONS = {}
+
+
+setConfig = (name, value) ->
+  return true if exports[name]?
+
+  _value = null
+
+  if defaults[name]?
+    _value = common.matchType(defaults[name], value)
+  else if common.startsWith(name, 'XML_PARSE_')
+    n = name[10..].toLowerCase() # libxmljs' options are lower case
+    _value = common.matchType(true, value)
+    exports.LIBXMLJS_OPTIONS[n] = _value
+
+  if _value?
+    exports[name] = _value
+    # Save as environmnet variable to pass on to any child processes
+    process.env["GENIEACS_#{name}"] = _value
+
+  return _value?
+
 
 # Command line arguments
 exports.argv = []
@@ -65,10 +87,7 @@ while argv.length
     v = argv.shift()
     exports.argv[arg] = v
     n = arg[2..].toUpperCase().replace(/-/g, '_')
-    if defaults[n]?
-      exports[n] ?= common.matchType(defaults[n], v)
-      # Save as environmnet variables to pass on to any child processes
-      process.env["GENIEACS_#{n}"] = v
+    setConfig(n, v)
   else
     exports.argv.push(arg)
 
@@ -76,8 +95,7 @@ while argv.length
 # Environment variable
 for k, v of process.env
   k = k[9..] # remove "GENIEACS_" prefix
-  if defaults[k]?
-    exports[k] ?= common.matchType(defaults[k], v)
+  setConfig(k, v)
 
 
 # Find config dir
@@ -91,13 +109,12 @@ else
 
 # Configuration file
 for k, v of require(path.resolve(exports.CONFIG_DIR, 'config'))
-  if defaults[k]?
-    exports[k] ?= common.matchType(defaults[k], v)
+  setConfig(k, v)
 
 
 # Defaults
 for k, v of defaults
-  exports[k] ?= defaults[k]
+  setConfig(k, v)
 
 
 # load parameter configurations
