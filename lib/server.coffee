@@ -15,6 +15,9 @@
 # along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
 ###
 
+domain = require 'domain'
+util = require 'util'
+cluster = require 'cluster'
 config = require './config'
 db = require './db'
 
@@ -26,7 +29,40 @@ networkInterface = config["#{service.toUpperCase()}_INTERFACE"]
 port = config["#{service.toUpperCase()}_PORT"]
 useHttps = config["#{service.toUpperCase()}_SSL"]
 
-listener = require("./#{service}").listener
+serviceListener = require("./#{service}").listener
+
+server = null
+
+listener = (httpRequest, httpResponse) ->
+  d = domain.create()
+
+  d.on('error', (err) ->
+    util.error("#{new Date().toISOString()} - #{err.stack}\n")
+    try
+      killTimer = setTimeout(() ->
+        process.exit(1)
+      , 30000)
+
+      killTimer.unref()
+
+      cluster.worker?.disconnect()
+      server.close(() ->
+        db.disconnect()
+      )
+
+      httpResponse.writeHead(500, {'Connection' : 'close'})
+      httpResponse.end()
+    catch err2
+      util.error("#{new Date().toISOString()} - #{err2.stack}\n")
+  )
+
+  d.add(httpRequest)
+  d.add(httpResponse)
+
+  d.run(() ->
+    serviceListener(httpRequest, httpResponse)
+  )
+
 
 if useHttps
   path = require 'path'
