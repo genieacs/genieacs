@@ -18,64 +18,89 @@
 path = require 'path'
 common = require './common'
 
+options = {
+  CONFIG_DIR : {type : 'string', default : 'config'},
+  MONGODB_CONNECTION_URL : {type : 'string', default : 'mongodb://127.0.0.1/genieacs'},
+  REDIS_PORT : {type : 'int', default : 6379},
+  REDIS_HOST : {type : 'string', default : '127.0.0.1'},
+  REDIS_DB : {type : 'int', default : 0},
 
-defaults = {
-  CONFIG_DIR : './config',
+  CWMP_WORKER_PROCESSES : {type : 'int', default : 4},
+  CWMP_PORT : {type : 'int', default : 7547},
+  CWMP_INTERFACE : {type : 'string', default : '0.0.0.0'},
+  CWMP_SSL : {type : 'bool', default : false},
 
-  MONGODB_CONNECTION_URL : 'mongodb://127.0.0.1/genieacs',
-  REDIS_PORT : 6379,
-  REDIS_HOST : '127.0.0.1',
-  REDIS_DB : 0,
+  NBI_WORKER_PROCESSES : {type : 'int', default : 2},
+  NBI_PORT : {type : 'int', default : 7557},
+  NBI_INTERFACE : {type : 'string', default : '0.0.0.0'},
+  NBI_SSL : {type : 'bool', default : false},
 
-  CWMP_WORKER_PROCESSES : 4,
-  CWMP_PORT : 7547, # CWMP port as assigned by IANA
-  CWMP_INTERFACE : '0.0.0.0',
-  CWMP_SSL : false,
-  NBI_WORKER_PROCESSES : 2,
-  NBI_PORT : 7557,
-  NBI_INTERFACE : '0.0.0.0',
-  NBI_SSL : false,
-  FS_WORKER_PROCESSES : 2,
-  FS_PORT : 7567,
-  FS_INTERFACE : '0.0.0.0',
-  FS_SSL : false,
-  FS_IP : '192.168.0.1', # Used when sending download requests to devices
+  FS_WORKER_PROCESSES : {type : 'int', default : 2},
+  FS_PORT : {type : 'int', default : 7567},
+  FS_INTERFACE : {type : 'string', default : '0.0.0.0'},
+  FS_SSL : {type : 'bool', default : false},
+  FS_IP : {type : 'string', default : '192.168.0.1'},
 
-  CACHE_DURATION : 60, # in seconds
-  PRESETS_CACHE_DURATION : 86400,
-  PRESETS_TIME_PADDING : 1,
+  PRESETS_CACHE_DURATION : {type : 'int', default : 86400},
+  LOG_INFORMS : {type : 'bool', default : true},
+  DEBUG : {type : 'bool', default : false},
+  RETRY_DELAY : {type : 'int', default : 300},
+  IGNORE_XML_NAMESPACES : {type : 'bool', default : false},
+  SESSION_TIMEOUT : {type : 'int', default : 30},
+  GET_PARAMETER_NAMES_DEPTH_THRESHOLD : {type : 'int', default : 0},
+  TASK_PARAMETERS_BATCH_SIZE : {type : 'int', default : 32},
 
-  LOG_INFORMS : true,
-  DEBUG : false,
-  DEVICE_ONLINE_THRESHOLD : 4000,
-  RETRY_DELAY : 300,
-  IGNORE_XML_NAMESPACES : false, # Traverse XML using element's local name only
-  SESSION_TIMEOUT : 30,
-  GET_PARAMETER_NAMES_DEPTH_THRESHOLD : 0,
-  TASK_PARAMETERS_BATCH_SIZE : 32
+  # Libxml related configuration
+  XML_PARSE_RECOVER : {type : 'bool'},
+  XML_PARSE_NOENT : {type : 'bool'},
+  XML_PARSE_NOBLANKS : {type : 'bool'},
+  XML_PARSE_NSCLEAN : {type : 'bool'},
+  XML_PARSE_NOCDATA : {type : 'bool'},
+  XML_PARSE_IGNORE_ENC : {type : 'bool'},
+
+  # Should probably never be changed
+  PRESETS_TIME_PADDING : {type : 'int', default : 1},
+  DEVICE_ONLINE_THRESHOLD : {type : 'int', default : 4000}
 }
 
-exports.LIBXMLJS_OPTIONS = {}
+allConfig = {}
 
 
-setConfig = (name, value) ->
-  return true if exports[name]?
+setConfig = (name, value, commandLineArgument) ->
+  return true if allConfig[name]?
+
+  cast = (val, type) ->
+    switch type
+      when 'int'
+        Number(val)
+      when 'bool'
+        String(val).trim().toLowerCase() in ['true', 'on', 'yes', '1']
+      when 'string'
+        String(val)
+      else
+        null
 
   _value = null
 
-  if defaults[name]?
-    _value = common.matchType(defaults[name], value)
-  else if common.startsWith(name, 'XML_PARSE_')
-    n = name[10..].toLowerCase() # libxmljs' options are lower case
-    _value = common.matchType(true, value)
-    exports.LIBXMLJS_OPTIONS[n] = _value
+  for optionName, optionDetails of options
+    n = optionName
+    if commandLineArgument
+      n = n.toLowerCase().replace(/_/g, '-')
 
-  if _value?
-    exports[name] = _value
-    # Save as environmnet variable to pass on to any child processes
-    process.env["GENIEACS_#{name}"] = _value
+    if name == n
+      _value = cast(value, optionDetails.type)
+      n = optionName
+    else if common.startsWith(name, "#{n}-")
+      _value = cast(value, optionDetails.type)
+      n = "#{optionName}-#{name[optionName.length+1..]}"
 
-  return _value?
+    if _value?
+      allConfig[n] = _value
+      # Save as environmnet variable to pass on to any child processes
+      process.env[n] = _value
+      return true
+
+  return false
 
 
 # Command line arguments
@@ -86,41 +111,60 @@ while argv.length
   if arg[0] == '-'
     v = argv.shift()
     exports.argv[arg] = v
-    n = arg[2..].toUpperCase().replace(/-/g, '_')
-    setConfig(n, v)
+    setConfig(arg[2..], v, true)
   else
     exports.argv.push(arg)
 
 
 # Environment variable
 for k, v of process.env
+  continue if k.lastIndexOf('GENIEACS_', 0) != 0
   k = k[9..] # remove "GENIEACS_" prefix
   setConfig(k, v)
 
 
 # Find config dir
 if exports.argv['--config-dir']?
-  exports.CONFIG_DIR = exports.argv['--config-dir']
+  allConfig.CONFIG_DIR = exports.argv['--config-dir']
 else if process.env['GENIEACS_CONFIG_DIR']?
-  exports.CONFIG_DIR = process.env['GENIEACS_CONFIG_DIR']
+  allConfig.CONFIG_DIR = process.env['GENIEACS_CONFIG_DIR']
 else
-  exports.CONFIG_DIR = defaults.CONFIG_DIR
+  allConfig.CONFIG_DIR = options.CONFIG_DIR.default
 
 
 # Configuration file
-for k, v of require(path.resolve(exports.CONFIG_DIR, 'config'))
+for k, v of require(path.resolve(allConfig.CONFIG_DIR, 'config'))
   setConfig(k, v)
 
 
 # Defaults
-for k, v of defaults
-  setConfig(k, v)
+for k, v of options
+  setConfig(k, v.default) if v.default?
+
+
+get = (option, deviceId) ->
+  if deviceId?
+    name = "#{option}-#{deviceId}"
+    v = allConfig[name]
+    return v if v?
+    i = name.lastIndexOf('-')
+    v = allConfig[name[0...i]]
+    return v if v?
+    i = name.lastIndexOf('-', i-1)
+    v = allConfig[name[0...i]]
+    return v if v? or i == -1
+
+  return allConfig[option]
 
 
 # load parameter configurations
-exports.PARAMETERS = require(path.resolve(exports.CONFIG_DIR, 'parameters'))
+exports.PARAMETERS = require(path.resolve(allConfig.CONFIG_DIR, 'parameters'))
 
 # load authentication scripts
-exports.auth = require(path.resolve(exports.CONFIG_DIR, 'auth'))
+exports.auth = require(path.resolve(allConfig.CONFIG_DIR, 'auth'))
 
-exports.CUSTOM_COMMANDS = require(path.resolve(exports.CONFIG_DIR, 'custom_commands'))
+exports.CUSTOM_COMMANDS = require(path.resolve(allConfig.CONFIG_DIR, 'custom_commands'))
+
+exports.get = get
+
+exports.allConfig = allConfig

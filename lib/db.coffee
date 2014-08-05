@@ -52,7 +52,7 @@ flushRedis = (callback) ->
 
 connect = (callback) ->
   callbackCounter = 6
-  mongodb.MongoClient.connect(config.MONGODB_CONNECTION_URL, {db:{w:1},server:{autoReconnect:true}}, (err, db) ->
+  mongodb.MongoClient.connect(config.get('MONGODB_CONNECTION_URL'), {db:{w:1},server:{autoReconnect:true}}, (err, db) ->
     return callback(err) if err
     exports.mongoDb = db
     db.collection('tasks', (err, collection) ->
@@ -93,8 +93,8 @@ connect = (callback) ->
         return callback(err)
     )
 
-    exports.redisClient = redisClient = redis.createClient(config.REDIS_PORT, config.REDIS_HOST)
-    redisClient.select(config.REDIS_DB, (err) ->
+    exports.redisClient = redisClient = redis.createClient(config.get('REDIS_PORT'), config.get('REDIS_HOST'))
+    redisClient.select(config.get('REDIS_DB'), (err) ->
       if err
         callbackCounter = 0
         return callback(err)
@@ -174,7 +174,7 @@ getCached = (name, valueCallback, valueExpiry, callback) ->
 
 
 getAliases = (callback) ->
-  getCached('aliases', parameters.compileAliases, config.PRESETS_CACHE_DURATION, (err, res) ->
+  getCached('aliases', parameters.compileAliases, config.get('PRESETS_CACHE_DURATION'), (err, res) ->
     throw err if err
     callback(res)
   )
@@ -194,7 +194,7 @@ getPresetsObjectsAliases = (callback) ->
         presetsCollection.find().toArray((err, res) ->
           callback(err, res)
         )
-      , config.PRESETS_CACHE_DURATION, (err, res) ->
+      , config.get('PRESETS_CACHE_DURATION'), (err, res) ->
         throw err if err
         presets = res
         callback(presets, objects, aliases) if objects and aliases
@@ -208,14 +208,14 @@ getPresetsObjectsAliases = (callback) ->
           objs[r._id] = r for r in res
           callback(null, objs)
         )
-      , config.PRESETS_CACHE_DURATION, (err, res) ->
+      , config.get('PRESETS_CACHE_DURATION'), (err, res) ->
         throw err if err
         objects = res
         callback(presets, objects, aliases) if presets and aliases
       )
 
     if not aliases
-      getCached('aliases', parameters.compileAliases, config.PRESETS_CACHE_DURATION, (err, res) ->
+      getCached('aliases', parameters.compileAliases, config.get('PRESETS_CACHE_DURATION'), (err, res) ->
         throw err if err
         aliases = res
         callback(presets, objects, aliases) if presets and objects

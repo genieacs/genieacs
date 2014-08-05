@@ -218,8 +218,9 @@ exports.getDevicePreset = (deviceId, presets, objects, aliases, callback) ->
 
 
 exports.processDevicePreset = (deviceId, devicePreset, callback) ->
+  PRESETS_TIME_PADDING = config.get('PRESETS_TIME_PADDING')
   now = new Date()
-  expiry = config.PRESETS_CACHE_DURATION
+  expiry = config.get('PRESETS_CACHE_DURATION', deviceId)
   getParameterValues = []
   setParameterValues = []
   addTags = []
@@ -236,7 +237,7 @@ exports.processDevicePreset = (deviceId, devicePreset, callback) ->
       setParameterValues.push([parameterPath, presetValue, parameterDetails.current._type])
     else if parameterDetails.preset.expiry?
       diff = parameterDetails.preset.expiry - (now - (parameterDetails.current._timestamp ? 0)) / 1000
-      if diff <= config.PRESETS_TIME_PADDING
+      if diff <= PRESETS_TIME_PADDING
         if parameterDetails.current._value?
           getParameterValues.push(parameterPath)
         else
@@ -284,7 +285,7 @@ exports.processDevicePreset = (deviceId, devicePreset, callback) ->
       taskList.push({device : deviceId, name : 'customCommand', command : commandDetails.preset.valueCommand})
     else if commandDetails.preset.expiry?
       diff = commandDetails.preset.expiry - (now - (commandDetails.current._timestamp ? 0)) / 1000
-      if diff <= config.PRESETS_TIME_PADDING
+      if diff <= PRESETS_TIME_PADDING
         taskList.push({device : deviceId, name : 'customCommand', command : commandDetails.preset.expiryCommand})
       else
         expiry = Math.min(expiry, diff)

@@ -72,7 +72,7 @@ this.refreshObject = (task, methodResponse, callback) ->
             task.session.parameterNames.push(p[0])
 
       if status & STATUS_COMPLETED
-        task.session.subtask = {name : 'getParameterValues', parameterNames : task.session.parameterNames}
+        task.session.subtask = {device : task.device, name : 'getParameterValues', parameterNames : task.session.parameterNames}
         delete task.session.parameterNames
 
         this.getParameterValues(task.session.subtask, {}, (err, status, methodRequest) ->
@@ -102,6 +102,8 @@ this.getParameterNames = (task, methodResponse, callback) ->
     callback(null, STATUS_FAULT)
     return
 
+  GET_PARAMETER_NAMES_DEPTH_THRESHOLD = config.get('GET_PARAMETER_NAMES_DEPTH_THRESHOLD', task.device)
+
   getParameterDepth = (param) ->
     return 0 if !param
     return (param[...-1] + '.').split('.').length - 1
@@ -110,7 +112,7 @@ this.getParameterNames = (task, methodResponse, callback) ->
     path = task.session.queue.pop()
 
     # If parameter depth higher than the threshold, nextLevel was set to false
-    if not task.nextLevel? and getParameterDepth(path) < config.GET_PARAMETER_NAMES_DEPTH_THRESHOLD
+    if not task.nextLevel? and getParameterDepth(path) < GET_PARAMETER_NAMES_DEPTH_THRESHOLD
       for p in methodResponse.parameterList
         task.session.queue.push(p[0]) if p[0][-1..] == '.'
 
@@ -138,7 +140,7 @@ this.getParameterNames = (task, methodResponse, callback) ->
     methodRequest = {
       type : 'GetParameterNames',
       parameterPath : path,
-      nextLevel : task.nextLevel ? getParameterDepth(path) < config.GET_PARAMETER_NAMES_DEPTH_THRESHOLD
+      nextLevel : task.nextLevel ? getParameterDepth(path) < GET_PARAMETER_NAMES_DEPTH_THRESHOLD
     }
     return callback(null, STATUS_OK, methodRequest, deviceUpdates)
   else
@@ -158,7 +160,7 @@ this.getParameterValues = (task, methodResponse, callback) ->
   else if methodResponse.parameterList?
     task.session.currentIndex = task.session.nextIndex
 
-  task.session.nextIndex = Math.min(task.session.currentIndex + config.TASK_PARAMETERS_BATCH_SIZE, task.parameterNames.length)
+  task.session.nextIndex = Math.min(task.session.currentIndex + config.get('TASK_PARAMETERS_BATCH_SIZE', task.device), task.parameterNames.length)
   names = task.parameterNames.slice(task.session.currentIndex, task.session.nextIndex)
 
   if methodResponse.type is 'GetParameterValuesResponse'
@@ -188,7 +190,7 @@ this.setParameterValues = (task, methodResponse, callback) ->
     prevValues = task.parameterValues.slice(task.session.currentIndex, task.session.nextIndex)
     task.session.currentIndex = task.session.nextIndex
 
-  task.session.nextIndex = Math.min(task.session.currentIndex + config.TASK_PARAMETERS_BATCH_SIZE, task.parameterValues.length)
+  task.session.nextIndex = Math.min(task.session.currentIndex + config.get('TASK_PARAMETERS_BATCH_SIZE', task.device), task.parameterValues.length)
   values = task.parameterValues.slice(task.session.currentIndex, task.session.nextIndex)
 
   if prevValues?
@@ -233,7 +235,7 @@ this.addObject = (task, methodResponse, callback) ->
               task.session.parameterNames.push(p[0]) if not common.endsWith(p[0], '.')
 
           if status & STATUS_COMPLETED
-            task.session.subtask = {name : 'getParameterValues', parameterNames : task.session.parameterNames}
+            task.session.subtask = {device : task.device, name : 'getParameterValues', parameterNames : task.session.parameterNames}
             subtask()
           else if status & STATUS_OK
             # Use STATUS_SAVE to avoid adding duplicate object in case of error
@@ -260,7 +262,7 @@ this.addObject = (task, methodResponse, callback) ->
             return callback(null, STATUS_FAULT)
 
           if status & STATUS_COMPLETED and task.session.appliedParameterValues.length > 0
-            task.session.subtask = {name : 'setParameterValues', parameterValues : task.session.appliedParameterValues}
+            task.session.subtask = {device : task.device, name : 'setParameterValues', parameterValues : task.session.appliedParameterValues}
             subtask()
           else
             callback(err, status, methodRequest, allDeviceUpdates)
@@ -332,7 +334,7 @@ this.download = (task, methodResponse, callback) ->
         type : 'Download',
         fileType : file.metadata.fileType,
         fileSize : file.length,
-        url : "http://#{config.FS_IP}:#{config.FS_PORT}/#{encodeURIComponent(file.filename)}",
+        url : "http://#{config.get('FS_IP')}:#{config.get('FS_PORT')}/#{encodeURIComponent(file.filename)}",
         successUrl : task.successUrl,
         failureUrl : task.failureUrl
       }

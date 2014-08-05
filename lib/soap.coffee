@@ -81,9 +81,15 @@ NAMESPACES = {
   }
 }
 
+# Generate Libxmljs options
+LIBXMLJS_OPTIONS = {}
+for k, v of config.allConfig
+  if k.lastIndexOf('XML_PARSE_', 0) == 0
+    LIBXMLJS_OPTIONS[k] = v
+
 
 # Workaround for devices that don't use correct namespace declarations or prefixes
-if config.IGNORE_XML_NAMESPACES
+if config.get('IGNORE_XML_NAMESPACES')
   libxmljs.Element.prototype.__find = libxmljs.Element.prototype.find
   libxmljs.Element.prototype.find = (xpath, namespaces) ->
     # Modify xpath queries to work regardless of element's namespace
@@ -291,7 +297,7 @@ exports.request = (httpRequest, cwmpVersion) ->
   data = httpRequest.getBody()
 
   if data.length > 0
-    xml = libxmljs.parseXml(data, config.LIBXMLJS_OPTIONS)
+    xml = libxmljs.parseXml(data, LIBXMLJS_OPTIONS)
 
     if not cwmpRequest.cwmpVersion?
       # cwmpVersion not passed, thus it's an inform request
@@ -318,7 +324,7 @@ exports.request = (httpRequest, cwmpVersion) ->
 
     cwmpRequest.id = try xml.get('/soap-env:Envelope/soap-env:Header/cwmp:ID', NAMESPACES[cwmpRequest.cwmpVersion]).text() catch then null
 
-    if methodElement? and not (config.IGNORE_XML_NAMESPACES and methodElement.name() is 'Fault')
+    if methodElement? and not (config.get('IGNORE_XML_NAMESPACES') and methodElement.name() is 'Fault')
       switch methodElement.name()
         when 'Inform'
           cwmpRequest.methodRequest = acsInform(methodElement)

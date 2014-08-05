@@ -58,7 +58,7 @@ holdUntil = Date.now()
 
 
 writeResponse = (currentRequest, res) ->
-  if config.DEBUG
+  if config.get('DEBUG', currentRequest.session.deviceId)
     dump = "# RESPONSE #{new Date(Date.now())}\n" + JSON.stringify(res.headers) + "\n#{res.data}\n\n"
     require('fs').appendFile("../debug/#{currentRequest.session.deviceId}.dump", dump, (err) ->
       throw err if err
@@ -102,7 +102,8 @@ inform = (currentRequest, cwmpRequest) ->
 
   now = new Date(Date.now())
 
-  util.log("#{currentRequest.session.deviceId}: Inform (#{cwmpRequest.methodRequest.event}); retry count #{cwmpRequest.methodRequest.retryCount}") if config.LOG_INFORMS
+  if config.get('LOG_INFORMS', currentRequest.session.deviceId)
+    util.log("#{currentRequest.session.deviceId}: Inform (#{cwmpRequest.methodRequest.event}); retry count #{cwmpRequest.methodRequest.retryCount}")
 
   parameterNames = (p[0] for p in cwmpRequest.methodRequest.parameterList)
 
@@ -138,7 +139,7 @@ inform = (currentRequest, cwmpRequest) ->
     if oldInformHash == informHash and not lastBootstrap?
       return updateAndRespond()
 
-    db.redisClient.setex("#{currentRequest.session.deviceId}_inform_hash", config.PRESETS_CACHE_DURATION, informHash, (err, res) ->
+    db.redisClient.setex("#{currentRequest.session.deviceId}_inform_hash", config.get('PRESETS_CACHE_DURATION', currentRequest.session.deviceId), informHash, (err, res) ->
       throw err if err
     )
 
@@ -234,7 +235,7 @@ runTask = (currentRequest, task, methodResponse) ->
       switch status & ~tasks.STATUS_SAVE
         when tasks.STATUS_OK
           f = () ->
-            db.redisClient.setex(String(task._id), config.CACHE_DURATION, JSON.stringify(task), (err) ->
+            db.redisClient.setex(String(task._id), currentRequest.session.sessionTimeout, JSON.stringify(task), (err) ->
               throw err if err
               res = soap.response({
                 id : task._id,
@@ -268,7 +269,7 @@ runTask = (currentRequest, task, methodResponse) ->
             )
           )
         when tasks.STATUS_FAULT
-          retryAfter = config.RETRY_DELAY * Math.pow(2, task.retries ? 0)
+          retryAfter = config.get('RETRY_DELAY', currentRequest.session.deviceId) * Math.pow(2, task.retries ? 0)
           util.log("#{currentRequest.session.deviceId}: Fault response for task #{task._id}. Retrying after #{retryAfter} seconds.")
           taskUpdate = {fault : task.fault, timestamp : new Date(Date.now() + retryAfter * 1000)}
           if save
@@ -297,16 +298,17 @@ assertPresets = (currentRequest) ->
       # no discrepancy, end the session
       endSession(currentRequest)
     else
+      PRESETS_CACHE_DURATION = config.get('PRESETS_CACHE_DURATION', currentRequest.session.deviceId)
       db.getPresetsObjectsAliases((allPresets, allObjects, allAliases) ->
         if not presetsHash?
           presetsHash = presets.calculatePresetsHash(allPresets, allObjects)
-          db.redisClient.setex('presets_hash', config.PRESETS_CACHE_DURATION, presetsHash, (err, res) ->
+          db.redisClient.setex('presets_hash', PRESETS_CACHE_DURATION, presetsHash, (err, res) ->
             throw err if err
           )
 
         presets.getDevicePreset(currentRequest.session.deviceId, allPresets, allObjects, allAliases, (devicePreset) ->
           presets.processDevicePreset(currentRequest.session.deviceId, devicePreset, (taskList, addTags, deleteTags, expiry) ->
-            db.redisClient.setex("#{currentRequest.session.deviceId}_presets_hash", Math.floor(Math.max(1, expiry - config.PRESETS_TIME_PADDING)), presetsHash, (err, res) ->
+            db.redisClient.setex("#{currentRequest.session.deviceId}_presets_hash", Math.floor(Math.max(1, expiry - config.get('PRESETS_TIME_PADDING'))), presetsHash, (err, res) ->
               throw err if err
             )
 
@@ -436,12 +438,16 @@ listener = (httpRequest, httpResponse) ->
           httpResponse.writeHead(400)
           httpResponse.end('Session is expired')
           return
-        session = {
-          deviceId : common.generateDeviceId(cwmpRequest.methodRequest.deviceId),
-          cwmpVersion : cwmpRequest.cwmpVersion,
-          sessionTimeout : cwmpRequest.sessionTimeout ? config.SESSION_TIMEOUT
-        }
+
+        deviceId = common.generateDeviceId(cwmpRequest.methodRequest.deviceId)
         sessionId = crypto.randomBytes(8).toString('hex')
+
+        session = {
+          deviceId : deviceId,
+          cwmpVersion : cwmpRequest.cwmpVersion,
+          sessionTimeout : cwmpRequest.sessionTimeout ? config.get('SESSION_TIMEOUT', deviceId)
+        }
+
         httpRequest.connection.setTimeout(session.sessionTimeout * 1000)
 
       currentRequest = {
@@ -451,7 +457,7 @@ listener = (httpRequest, httpResponse) ->
         session : session
       }
 
-      if config.DEBUG
+      if config.get('DEBUG', currentRequest.session.deviceId)
         dump = "# REQUEST #{new Date(Date.now())}\n" + JSON.stringify(httpRequest.headers) + "\n#{httpRequest.getBody()}\n\n"
         require('fs').appendFile("../debug/#{currentRequest.session.deviceId}.dump", dump, (err) ->
           throw err if err

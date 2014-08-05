@@ -19,6 +19,11 @@ config = require './config'
 cluster = require 'cluster'
 util = require 'util'
 
+# Keep current configuration to pass that to workers as environment variables
+ENVIRONMENT_VARIABLES = {}
+for k, v of config.allConfig
+  ENVIRONMENT_VARIABLES["GENIEACS_#{k}"] = v
+
 
 cluster.on('listening', (worker, address) ->
   util.log("Worker #{worker.process.pid} listening to #{address.address}:#{address.port}")
@@ -26,12 +31,12 @@ cluster.on('listening', (worker, address) ->
 
 cluster.on('exit', (worker, code, signal) ->
   util.log("Worker #{worker.process.pid} died (#{worker.process.exitCode})")
-  cluster.fork()
+  cluster.fork(ENVIRONMENT_VARIABLES)
 )
 
 
 start = (service) ->
-  workerProcesses = config["#{service.toUpperCase()}_WORKER_PROCESSES"]
+  workerProcesses = config.get("#{service.toUpperCase()}_WORKER_PROCESSES")
 
   cluster.setupMaster({
       exec : 'lib/server',
@@ -39,7 +44,7 @@ start = (service) ->
   })
 
   for [0 ... workerProcesses]
-    cluster.fork()
+    cluster.fork(ENVIRONMENT_VARIABLES)
 
 
 exports.start = start

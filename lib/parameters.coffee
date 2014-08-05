@@ -177,7 +177,7 @@ compileAliases = (callback) ->
   counter = 0
   splitIds(4, (batches) ->
     if not batches?
-      return callback(null, aliases, config.ALIASES_CACHE)
+      return callback(null, aliases)
 
     for batch in batches
       options = {
@@ -201,7 +201,7 @@ compileAliases = (callback) ->
             aliases[alias].push(id)
 
         if ++counter == batches.length
-          callback?(null, aliases, config.ALIASES_CACHE)
+          callback?(null, aliases)
       )
     return
   )

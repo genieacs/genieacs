@@ -25,9 +25,9 @@ service = config.argv[0]
 if not service?
   throw new Error('Missing argument cwmp, fs, or nbi')
 
-networkInterface = config["#{service.toUpperCase()}_INTERFACE"]
-port = config["#{service.toUpperCase()}_PORT"]
-useHttps = config["#{service.toUpperCase()}_SSL"]
+networkInterface = config.get("#{service.toUpperCase()}_INTERFACE")
+port = config.get("#{service.toUpperCase()}_PORT")
+useHttps = config.get("#{service.toUpperCase()}_SSL")
 
 serviceListener = require("./#{service}").listener
 
@@ -67,8 +67,8 @@ listener = (httpRequest, httpResponse) ->
 if useHttps
   path = require 'path'
   fs = require 'fs'
-  httpsKey = path.resolve(config.CONFIG_DIR, "#{service}.key")
-  httpsCert = path.resolve(config.CONFIG_DIR, "#{service}.crt")
+  httpsKey = path.resolve(config.get('CONFIG_DIR'), "#{service}.key")
+  httpsCert = path.resolve(config.get('CONFIG_DIR'), "#{service}.crt")
   options = {
     key: fs.readFileSync(httpsKey),
     cert: fs.readFileSync(httpsCert)

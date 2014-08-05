@@ -198,7 +198,7 @@ listener = (request, response) ->
                     response.writeHead(202)
                     response.end()
                   else
-                    apiFunctions.watchTask(task._id, config.DEVICE_ONLINE_THRESHOLD, (err) ->
+                    apiFunctions.watchTask(task._id, config.get('DEVICE_ONLINE_THRESHOLD', deviceId), (err) ->
                       if err
                         response.writeHead(202)
                         response.end()
