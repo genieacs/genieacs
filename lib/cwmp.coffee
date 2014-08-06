@@ -131,7 +131,12 @@ inform = (currentRequest, cwmpRequest) ->
             methodResponse : {type : 'InformResponse'},
             cwmpVersion : cwmpRequest.cwmpVersion
           })
-          res.headers['Set-Cookie'] = "session=#{currentRequest.sessionId}"
+
+          if !!cookiesPath = config.get('COOKIES_PATH', currentRequest.session.deviceId)
+            res.headers['Set-Cookie'] = "session=#{currentRequest.sessionId}; Path=#{cookiesPath}"
+          else
+            res.headers['Set-Cookie'] = "session=#{currentRequest.sessionId}"
+
           writeResponse(currentRequest, res)
         )
       )
