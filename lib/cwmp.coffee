@@ -60,7 +60,7 @@ holdUntil = Date.now()
 writeResponse = (currentRequest, res) ->
   if config.get('DEBUG', currentRequest.session.deviceId)
     dump = "# RESPONSE #{new Date(Date.now())}\n" + JSON.stringify(res.headers) + "\n#{res.data}\n\n"
-    require('fs').appendFile("../debug/#{currentRequest.session.deviceId}.dump", dump, (err) ->
+    require('fs').appendFile("./debug/#{currentRequest.session.deviceId}.dump", dump, (err) ->
       throw err if err
     )
 
@@ -464,7 +464,7 @@ listener = (httpRequest, httpResponse) ->
 
       if config.get('DEBUG', currentRequest.session.deviceId)
         dump = "# REQUEST #{new Date(Date.now())}\n" + JSON.stringify(httpRequest.headers) + "\n#{httpRequest.getBody()}\n\n"
-        require('fs').appendFile("../debug/#{currentRequest.session.deviceId}.dump", dump, (err) ->
+        require('fs').appendFile("./debug/#{currentRequest.session.deviceId}.dump", dump, (err) ->
           throw err if err
         )
 
