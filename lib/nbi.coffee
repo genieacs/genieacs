@@ -58,6 +58,7 @@ FILES_REGEX = /^\/files\/([a-zA-Z0-9\%\!\*\'\(\)\;\:\@\&\=\+\$\,\?\#\[\]\-\_\.\~
 PING_REGEX = /^\/ping\/([a-zA-Z0-9\-\_\.]+)\/?$/
 QUERY_REGEX = /^\/([a-zA-Z0-9_]+s)\/?$/
 DEVICE_PRESET_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/preset\/?$/
+DELETE_DEVICE_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/?$/
 
 
 listener = (request, response) ->
@@ -308,6 +309,21 @@ listener = (request, response) ->
           return
         response.writeHead(200, {'Content-Type' : 'text/plain', 'Cache-Control' : 'no-cache'})
         response.end(stdout)
+      )
+    else if DELETE_DEVICE_REGEX.test(urlParts.pathname)
+      if request.method isnt 'DELETE'
+        response.writeHead(405, {'Allow' : 'DELETE'})
+        response.end('405 Method Not Allowed')
+        return
+
+      deviceId = DELETE_DEVICE_REGEX.exec(urlParts.pathname)[1]
+      apiFunctions.deleteDevice(deviceId, (err) ->
+        if err
+          response.writeHead(500)
+          response.end(err.message)
+          return
+        response.writeHead(200)
+        response.end()
       )
     else if QUERY_REGEX.test(urlParts.pathname)
       collectionName = QUERY_REGEX.exec(urlParts.pathname)[1]

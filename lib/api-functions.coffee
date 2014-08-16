@@ -230,8 +230,21 @@ insertTasks = (tasks, aliases, callback) ->
     )
 
 
+deleteDevice = (deviceId, callback) ->
+  db.tasksCollection.remove({'device' : deviceId}, (err, removed) ->
+    return callback(err) if err
+    db.devicesCollection.remove({'_id' : deviceId}, (err, removed) ->
+      return callback(err) if err
+      db.redisClient.del("#{deviceId}_presets_hash", "#{deviceId}_inform_hash", (err) ->
+        callback(err)
+      )
+    )
+  )
+
+
 exports.addAliases = addAliases
 exports.sanitizeTask = sanitizeTask
 exports.connectionRequest = connectionRequest
 exports.watchTask = watchTask
 exports.insertTasks = insertTasks
+exports.deleteDevice = deleteDevice
