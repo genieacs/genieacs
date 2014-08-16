@@ -20,10 +20,10 @@
     "bin": "bin"
   },
   "dependencies": {
-    "libxmljs": "~0.9.0",
-    "redis": "~0.10.1",
-    "hiredis": "~0.1.16",
-    "mongodb": "~1.4.4"
+    "libxmljs": "~0.11.0",
+    "redis": "~0.12.1",
+    "hiredis": "~0.1.17",
+    "mongodb": "~1.4.8"
   },
   "devDependencies": {
     "coffee-script": "~1.7.1"
