@@ -316,7 +316,7 @@ listener = (request, response) ->
         response.end('405 Method Not Allowed')
         return
 
-      deviceId = DELETE_DEVICE_REGEX.exec(urlParts.pathname)[1]
+      deviceId = querystring.unescape(DELETE_DEVICE_REGEX.exec(urlParts.pathname)[1])
       apiFunctions.deleteDevice(deviceId, (err) ->
         if err
           response.writeHead(500)
