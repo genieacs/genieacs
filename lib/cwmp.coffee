@@ -227,66 +227,64 @@ runTask = (currentRequest, task, methodResponse) ->
   timeDiff = process.hrtime()
   tasks.task(task, methodResponse, (err, status, methodRequest, deviceUpdates) ->
     throw err if err
-    # TODO handle error
-    updateDevice.queueUpdates(currentRequest.session.deviceId, deviceUpdates, (err) ->
-      throw err if err
 
-      timeDiff = process.hrtime(timeDiff)[0] + 1
-      if timeDiff > 3 # in seconds
-        # Server under load. Hold new sessions temporarily.
-        holdUntil = Math.max(Date.now() + timeDiff * 2000, holdUntil)
+    timeDiff = process.hrtime(timeDiff)[0] + 1
+    if timeDiff > 3 # in seconds
+      # Server under load. Hold new sessions temporarily.
+      holdUntil = Math.max(Date.now() + timeDiff * 2000, holdUntil)
 
-      save = status & tasks.STATUS_SAVE
-      switch status & ~tasks.STATUS_SAVE
-        when tasks.STATUS_OK
-          f = () ->
-            db.redisClient.setex(String(task._id), currentRequest.session.sessionTimeout, JSON.stringify(task), (err) ->
-              throw err if err
-              res = soap.response({
-                id : task._id,
-                methodRequest : methodRequest,
-                cwmpVersion : currentRequest.session.cwmpVersion
-              })
-              writeResponse(currentRequest, res)
-              updateSessionExpiry(currentRequest)
-            )
+    save = status & tasks.STATUS_SAVE
+    switch status & ~tasks.STATUS_SAVE
+      when tasks.STATUS_OK
+        f = () ->
+          db.redisClient.setex(String(task._id), currentRequest.session.sessionTimeout, JSON.stringify(task), (err) ->
+            throw err if err
+            res = soap.response({
+              id : task._id,
+              methodRequest : methodRequest,
+              cwmpVersion : currentRequest.session.cwmpVersion
+            })
+            writeResponse(currentRequest, res)
+            updateSessionExpiry(currentRequest)
+          )
 
-          if save
-            updateDevice.commitUpdates(currentRequest.session.deviceId, deviceUpdates, true, (err) ->
-              throw err if err
-              db.tasksCollection.update({_id : mongodb.ObjectID(String(task._id))}, {$set : {session : task.session}}, (err) ->
-                throw err if err
-                f()
-              )
-            )
-          else
-            f()
-        when tasks.STATUS_COMPLETED
-          util.log("#{currentRequest.session.deviceId}: Completed task #{task.name}(#{task._id})")
+        if save
           updateDevice.commitUpdates(currentRequest.session.deviceId, deviceUpdates, true, (err) ->
             throw err if err
-            db.tasksCollection.remove({'_id' : mongodb.ObjectID(String(task._id))}, (err, removed) ->
+            db.tasksCollection.update({_id : mongodb.ObjectID(String(task._id))}, {$set : {session : task.session}}, (err) ->
               throw err if err
-              db.redisClient.del(String(task._id), (err, res) ->
-                throw err if err
-                nextTask(currentRequest)
-              )
+              f()
             )
           )
-        when tasks.STATUS_FAULT
-          retryAfter = config.get('RETRY_DELAY', currentRequest.session.deviceId) * Math.pow(2, task.retries ? 0)
-          util.log("#{currentRequest.session.deviceId}: Fault response for task #{task._id}. Retrying after #{retryAfter} seconds.")
-          taskUpdate = {fault : task.fault, timestamp : new Date(Date.now() + retryAfter * 1000)}
-          if save
-            taskUpdate.session = task.session
-
-          db.tasksCollection.update({_id : mongodb.ObjectID(String(task._id))}, {$set : taskUpdate, $inc : {retries : 1}}, (err) ->
-            throw err if err
-            nextTask(currentRequest)
-          )
         else
-          throw new Error('Unknown task status')
-    )
+          updateDevice.queueUpdates(currentRequest.session.deviceId, deviceUpdates, (err) ->
+            f()
+          )
+      when tasks.STATUS_COMPLETED
+        util.log("#{currentRequest.session.deviceId}: Completed task #{task.name}(#{task._id})")
+        updateDevice.commitUpdates(currentRequest.session.deviceId, deviceUpdates, true, (err) ->
+          throw err if err
+          db.tasksCollection.remove({'_id' : mongodb.ObjectID(String(task._id))}, (err, removed) ->
+            throw err if err
+            db.redisClient.del(String(task._id), (err, res) ->
+              throw err if err
+              nextTask(currentRequest)
+            )
+          )
+        )
+      when tasks.STATUS_FAULT
+        retryAfter = config.get('RETRY_DELAY', currentRequest.session.deviceId) * Math.pow(2, task.retries ? 0)
+        util.log("#{currentRequest.session.deviceId}: Fault response for task #{task._id}. Retrying after #{retryAfter} seconds.")
+        taskUpdate = {fault : task.fault, timestamp : new Date(Date.now() + retryAfter * 1000)}
+        if save
+          taskUpdate.session = task.session
+
+        db.tasksCollection.update({_id : mongodb.ObjectID(String(task._id))}, {$set : taskUpdate, $inc : {retries : 1}}, (err) ->
+          throw err if err
+          nextTask(currentRequest)
+        )
+      else
+        throw new Error('Unknown task status')
   )
 
 
