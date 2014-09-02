@@ -232,7 +232,7 @@ acsInform = (xml) ->
     parameterList : parameterValueList(xml.get('ParameterList')),
     deviceId : traverseXml(xml.get('DeviceId')),
     event : event(xml.get('Event')),
-    retryCount : JSON.parse(xml.get('RetryCount').text())
+    retryCount : parseInt(xml.get('RetryCount').text())
   }
 
 
