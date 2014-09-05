@@ -187,7 +187,7 @@ commitUpdates = (deviceId, deviceUpdates, commitQueue, callback) ->
             if presentPaths[p]
               recursive(v, "#{p}.")
             else
-              update['$unset'][p] = 1
+              update['$unset'][p] = 2
 
         # Scan the DB object and remove parameters that no longer exists in device
         for path of projection
@@ -202,7 +202,7 @@ commitUpdates = (deviceId, deviceUpdates, commitQueue, callback) ->
             recursive(root, rootPath)
           else
             if not presentPaths[rootPath.slice(0, -1)]?
-              update['$unset'][rootPath.slice(0, -1)] = 1
+              update['$unset'][rootPath.slice(0, -1)] = 2
 
           # Remove unnecessary unset updates
           for k, v of update['$unset']
