@@ -54,11 +54,11 @@ You may now proceed with installing [GenieACS GUI front end](https://github.com/
 
 ## Support
 
-Documentation is still work in progress. Feel free to contact me if you require any assistance in installation, configuration, or using the APIs.
+Documentation is work in progress. Contact <support@genieacs.com> for any inquiry about installation, configuration, or using the API.
 
 You may submit bug reports or feature requests [here](https://github.com/zaidka/genieacs/issues).
 
-For commercial support options, please contact me.
+For commercial support options, please visit [genieacs.com](http://genieacs.com).
 
 ## Contributing
 
