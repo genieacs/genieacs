@@ -1,4 +1,5 @@
 # GenieACS
+[![Gitter](https://badges.gitter.im/Join Chat.svg)](https://gitter.im/zaidka/genieacs?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
 GenieACS is a *blazing fast* TR-069 auto configuration server (ACS) built with Node.js, Redis, and MongoDB. It's technology neutral and configurable to fit any service provider needs. This is the core back end component. Official front end GUI is available at https://github.com/zaidka/genieacs-gui.
 
