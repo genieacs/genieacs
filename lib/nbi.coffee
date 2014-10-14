@@ -196,21 +196,21 @@ listener = (request, response) ->
               if urlParts.query.connection_request?
                 apiFunctions.connectionRequest(deviceId, (err) ->
                   if err
-                    response.writeHead(202)
-                    response.end()
+                    response.writeHead(202, {'Content-Type' : 'application/json'})
+                    response.end(JSON.stringify(task))
                   else
                     apiFunctions.watchTask(task._id, config.get('DEVICE_ONLINE_THRESHOLD', deviceId), (err) ->
                       if err
-                        response.writeHead(202)
-                        response.end()
+                        response.writeHead(202, {'Content-Type' : 'application/json'})
+                        response.end(JSON.stringify(task))
                         return
-                      response.writeHead(200)
-                      response.end()
+                      response.writeHead(200, {'Content-Type' : 'application/json'})
+                      response.end(JSON.stringify(task))
                     )
                 )
               else
-                response.writeHead(202)
-                response.end()
+                response.writeHead(202, {'Content-Type' : 'application/json'})
+                response.end(JSON.stringify(task))
             )
           )
         else if urlParts.query.connection_request?
