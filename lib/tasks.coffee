@@ -76,7 +76,7 @@ this.refreshObject = (task, methodResponse, callback) ->
         delete task.session.parameterNames
 
         this.getParameterValues(task.session.subtask, {}, (err, status, methodRequest) ->
-          # ignore deviceUpdates returned by firt call to getParameterValues
+          # ignore deviceUpdates returned by first call to getParameterValues
           callback(err, status, methodRequest, deviceUpdates)
         )
       else if status & STATUS_OK
