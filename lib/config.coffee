@@ -31,7 +31,7 @@ options = {
   CWMP_SSL : {type : 'bool', default : false},
 
   NOTIFICATION_ENABLED : {type : 'bool', default : false},
-  NOTIFICATION_URL : {type : 'string', default : 'http://127.0.0.1/notify/%s?event=%s'},
+  NOTIFICATION_URL : {type : 'string', default : 'http://127.0.0.1/notify/%s'},
   NOTIFICATION_TYPES : {type : 'string', default : '0 BOOTSTRAP,1 BOOT,2 PERIODIC,3 SCHEDULED,4 VALUE CHANGE,5 KICKED,6 CONNECTION REQUEST,7 TRANSFER COMPLETE,8 DIAGNOSTICS COMPLETE,9 REQUEST DOWNLOAD,M Reboot'},
 
   NBI_WORKER_PROCESSES : {type : 'int', default : 2},
