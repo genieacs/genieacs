@@ -51,6 +51,8 @@ customCommands = require './custom-commands'
 crypto = require 'crypto'
 zlib = require 'zlib'
 updateDevice = require './update-device'
+request = require 'request'
+sprintf = require 'sprintf'
 
 
 # Used to reject new TR-069 sessions when under load
@@ -396,6 +398,29 @@ updateSessionExpiry = (currentRequest) ->
   )
 
 
+notify = (currentRequest, cwmpRequest) ->
+  desiredEvents = config.get('NOTIFICATION_TYPES', currentRequest.session.deviceId).split(',')
+  requestEvents = cwmpRequest.methodRequest.event
+
+  matchingEvents = (item for item in requestEvents when item in desiredEvents)
+
+  if matchingEvents.length
+    url = sprintf(config.get('NOTIFICATION_URL'), currentRequest.session.deviceId)
+
+    options = {
+      url: url,
+      method: 'POST',
+      'content-type': 'application/json'
+      body: JSON.stringify({request: cwmpRequest})
+    }
+    console.log(url)
+    request(options, (err, response, body) ->
+        util.log(body)
+        #util.log("#{currentRequest.session.deviceId}: Service Notification to #{url}")
+        return
+    )
+
+
 listener = (httpRequest, httpResponse) ->
   if httpRequest.method != 'POST'
     httpResponse.writeHead 405, {'Allow': 'POST'}
@@ -467,6 +492,9 @@ listener = (httpRequest, httpResponse) ->
         )
 
       if cwmpRequest.methodRequest?
+        if config.get('NOTIFICATION_ENABLED', currentRequest.session.deviceId)
+          notify(currentRequest, cwmpRequest)
+
         if cwmpRequest.methodRequest.type is 'Inform'
           inform(currentRequest, cwmpRequest)
         else if cwmpRequest.methodRequest.type is 'GetRPCMethods'
