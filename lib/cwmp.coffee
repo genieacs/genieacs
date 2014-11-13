@@ -413,12 +413,8 @@ notify = (currentRequest, cwmpRequest) ->
       'content-type': 'application/json'
       body: JSON.stringify({request: cwmpRequest})
     }
-    console.log(url)
-    request(options, (err, response, body) ->
-        util.log(body)
-        #util.log("#{currentRequest.session.deviceId}: Service Notification to #{url}")
-        return
-    )
+    util.log("#{currentRequest.session.deviceId}: Notifying server of event: #{matchingEvents}")
+    request(options)
 
 
 listener = (httpRequest, httpResponse) ->
