@@ -410,8 +410,10 @@ notify = (currentRequest, cwmpRequest) ->
     options = {
       url: url,
       method: 'POST',
-      'content-type': 'application/json'
-      body: JSON.stringify({request: cwmpRequest})
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(cwmpRequest)
     }
     util.log("#{currentRequest.session.deviceId}: Notifying server of event: #{matchingEvents}")
     request(options)
