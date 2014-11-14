@@ -43,6 +43,7 @@ common = require './common'
 db = require './db'
 mongodb = require 'mongodb'
 customCommands = require './custom-commands'
+url = require 'url'
 
 exports.STATUS_OK = STATUS_OK = 1
 exports.STATUS_FAULT = STATUS_FAULT = 2
@@ -330,11 +331,18 @@ this.download = (task, methodResponse, callback) ->
         callback(err)
         return
 
+      l = {
+        protocol : if config.get('FS_SSL') then 'https' else 'http',
+        hostname : config.get('FS_IP'),
+        port : config.get('FS_PORT'),
+        pathname : encodeURIComponent(file.filename)
+      }
+
       methodRequest = {
         type : 'Download',
         fileType : file.metadata.fileType,
         fileSize : file.length,
-        url : "http://#{config.get('FS_IP')}:#{config.get('FS_PORT')}/#{encodeURIComponent(file.filename)}",
+        url : url.format(l),
         successUrl : task.successUrl,
         failureUrl : task.failureUrl
       }
