@@ -244,7 +244,7 @@ listener = (request, response) ->
     else if TASKS_REGEX.test(urlParts.pathname)
       r = TASKS_REGEX.exec(urlParts.pathname)
       taskId = mongodb.ObjectID(querystring.unescape(r[1]))
-      action = try querystring.unescape(r[2])
+      action = r[2]
       if not action? or action is '/'
         if request.method == 'DELETE'
           db.tasksCollection.remove({'_id' : taskId}, (err, removedCount) ->
