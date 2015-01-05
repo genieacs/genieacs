@@ -20,7 +20,7 @@
     "bin": "bin"
   },
   "dependencies": {
-    "libxmljs": "~0.11.0",
+    "libxmljs": "0.11.0",
     "redis": "~0.12.1",
     "hiredis": "~0.1.17",
     "mongodb": "~1.4.8"
