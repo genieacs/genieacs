@@ -264,6 +264,9 @@ runTask = (currentRequest, task, methodResponse) ->
           )
       when tasks.STATUS_COMPLETED
         util.log("#{currentRequest.session.deviceId}: Completed task #{task.name}(#{task._id})")
+        console.log(deviceUpdates)
+        #notify(currentRequest, deviceUpdates)
+        
         updateDevice.commitUpdates(currentRequest.session.deviceId, deviceUpdates, true, (err) ->
           throw err if err
           db.tasksCollection.remove({'_id' : mongodb.ObjectID(String(task._id))}, (err, removed) ->
@@ -402,22 +405,24 @@ notify = (currentRequest, cwmpRequest) ->
   desiredEvents = config.get('NOTIFICATION_TYPES', currentRequest.session.deviceId).split(',')
   requestEvents = cwmpRequest.methodRequest.event
 
-  matchingEvents = (item for item in requestEvents when item in desiredEvents)
+  if requestEvents
+    matchingEvents = (item for item in requestEvents when item in desiredEvents)
 
-  if matchingEvents.length
-    url = sprintf(config.get('NOTIFICATION_URL'), currentRequest.session.deviceId)
+    if matchingEvents.length
+      url = sprintf(config.get('NOTIFICATION_URL'), encodeURIComponent(currentRequest.session.deviceId))
 
-    options = {
-      url: url,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(cwmpRequest)
-    }
-    util.log("#{currentRequest.session.deviceId}: Notifying server of event: #{matchingEvents}")
-    request(options)
-
+      options = {
+        url: url,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(cwmpRequest)
+      }
+      util.log("#{currentRequest.session.deviceId}: Notifying server of event: #{matchingEvents}")
+      request(options)
+  else
+    console.log(cwmpRequest.methodRequest)
 
 listener = (httpRequest, httpResponse) ->
   if httpRequest.method != 'POST'
