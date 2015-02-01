@@ -320,6 +320,9 @@ accumulateConfigurations = (presets, objects) ->
           "object_#{c.name}_#{objectHash}"
         when 'software_version'
           'software_version'
+        when 'custom_command_age', 'custom_command_value'
+          [filename, commandName] = c.command.split(' ', 2)
+          "#{c.type}_#{filename}_#{commandName}"
         else
           "#{c.type}_#{c.name}"
 
