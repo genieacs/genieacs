@@ -339,7 +339,12 @@ listener = (request, response) ->
 
       func = (aliases) ->
         if urlParts.query.query?
-          q = JSON.parse(urlParts.query.query)
+          try
+            q = JSON.parse(urlParts.query.query)
+          catch err
+            response.writeHead(400)
+            response.end(err.toString())
+            return
         else
           q = {}
         q = query.expand(q, aliases) if collectionName is 'devices'
