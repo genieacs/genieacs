@@ -82,8 +82,20 @@ exports.parseDeviceId = (deviceId) ->
 
 
 exports.extend = (obj, mixin) ->
-  obj[name] = method for name, method of mixin        
+  obj[name] = method for name, method of mixin
   obj
+
+
+exports.flattenObject = (object) ->
+  newObj = {}
+  f = (obj, prefix) ->
+    for k, v of obj
+      if typeof(v) is 'object'
+        f(v, "#{prefix}#{k}.")
+      else
+        newObj["#{prefix}#{k}"] = v
+  f(object, '')
+  return newObj
 
 
 exports.getParamValueFromPath = (obj, path) ->

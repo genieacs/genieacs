@@ -54,12 +54,21 @@ exports.calculatePresetsHash = (presets, objects) ->
 
 
 matchObject = (object, param) ->
-  return false if not object._keys? or object._keys.length == 0
-  for k in object._keys
-    return false if not param[k]?
-    v = common.matchType(param[k]._value, object[k])
-    if param[k]._value != v
+  flatObject = common.flattenObject(object)
+  if object._keys?.length
+    keys = object._keys
+  else
+    # Consider all parameters as keys if none are defined
+    keys = (k for k in Object.keys(flatObject) when k[0] != '_')
+
+  for k in keys
+    p = common.getParamValueFromPath(param, k)
+    return false if not p?
+    v = common.matchType(p._value, flatObject[k])
+
+    if p._value != common.matchType(p._value, flatObject[k])
       return false
+
   return true
 
 
@@ -250,18 +259,19 @@ exports.processDevicePreset = (deviceId, devicePreset, callback) ->
     for objectName, objectDetails of object
       continue if not objectDetails.current?
       if objectDetails.preset?
+        flatObject = common.flattenObject(objectDetails.preset)
         if Object.keys(objectDetails.current).length > 0
           for i, obj of objectDetails.current
-            for paramName, paramValue of objectDetails.preset
+            for paramName, paramValue of flatObject
               continue if paramName[0] == '_'
-              if obj[paramName]
-                currentValue = obj[paramName]._value
-                presetValue = common.matchType(currentValue, objectDetails.preset[paramName])
-                if currentValue != presetValue
-                  setParameterValues.push(["#{parameterPath}.#{i}.#{paramName}", presetValue, obj[paramName]._type])
+              currentValue = common.getParamValueFromPath(obj, paramName)
+              if currentValue?
+                presetValue = common.matchType(currentValue._value, flatObject[paramName])
+                if currentValue._value != presetValue
+                  setParameterValues.push(["#{parameterPath}.#{i}.#{paramName}", presetValue, currentValue._type])
         else
           vals = []
-          for k,v of objectDetails.preset
+          for k,v of flatObject
             vals.push([k, v]) if k[0] != '_'
           taskList.push({device : deviceId, name : 'addObject', objectName : parameterPath, parameterValues : vals, instanceName : objectName})
       else if Object.keys(objectDetails.current).length > 0
