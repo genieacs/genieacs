@@ -252,7 +252,7 @@ this.addObject = (task, methodResponse, callback) ->
             if deviceUpdates and deviceUpdates.parameterValues?
               for p1 in deviceUpdates.parameterValues
                 for p2 in task.parameterValues
-                  if common.endsWith(p1[0], ".#{p2[0]}")
+                  if p1[0] == "#{task.objectName}.#{task.session.instanceNumber}.#{p2[0]}"
                     t = if p2[2] then p2[2] else p1[2]
                     v = common.matchType(p1[1], p2[1])
                     # TODO only include if writable
