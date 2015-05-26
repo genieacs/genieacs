@@ -343,6 +343,7 @@ listener = (request, response) ->
         else
           q = {}
         q = query.expand(q, aliases) if collectionName is 'devices'
+        q = query.substituteObjectId(q) if collectionName is 'tasks'
 
         if urlParts.query.projection?
           projection = {}
