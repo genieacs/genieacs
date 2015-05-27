@@ -71,7 +71,8 @@ if useHttps
   httpsCert = path.resolve(config.get('CONFIG_DIR'), "#{service}.crt")
   options = {
     key: fs.readFileSync(httpsKey),
-    cert: fs.readFileSync(httpsCert)
+    cert: fs.readFileSync(httpsCert),
+    passphrase: config.get(service.toUpperCase()+'_PASSPHRASE')
   }
   server = require('https').createServer(options, listener)
 else
