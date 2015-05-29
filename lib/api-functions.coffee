@@ -117,6 +117,9 @@ connectionRequest = (deviceId, callback) ->
           authString = auth.digest(username, password, uri.path, 'GET', null, authHeader)
 
         conReq(connectionRequestUrl, authString, (statusCode, authHeader) ->
+          if statusCode == 0
+            # Workaround for some devices unexpectedly closing the connection
+            return conReq(connectionRequestUrl, authString, (statusCode) -> callback(statusToError(statusCode)))
           callback(statusToError(statusCode))
         )
       else
