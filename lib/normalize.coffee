@@ -27,7 +27,7 @@ common = require './common'
 parameters = require './parameters'
 
 
-stringToRegexp = (input) ->
+stringToRegexp = (input, flags) ->
   if (input.indexOf('*') == -1)
     return false
 
@@ -44,7 +44,7 @@ stringToRegexp = (input) ->
 
   output = output.replace(/[\*]/, '.*')
 
-  return new RegExp(output)
+  return new RegExp(output, flags)
 
 
 normalizers = {}
@@ -117,14 +117,14 @@ normalizers.mac = (input, normType) ->
 
   if input.indexOf('*') != -1
     input = (colonizeMac(a) for a in input.split('*')).join('*')
-    return stringToRegexp(input, false)
+    return stringToRegexp(input, 'i')
 
   input = colonizeMac(input)
 
   if input.length == 17
-    return input
+    return [input, input.toLowerCase()]
 
-  return {'$regex' : new RegExp(input)}
+  return {'$regex' : new RegExp(input, 'i')}
 
 
 exports.normalize = (path, value, normType) ->
