@@ -19,10 +19,10 @@ Install [Node.js](http://nodejs.org/), [Redis](http://redis.io/), and [MongoDB](
 
 You may need to modify the configuration files under "config" directory (in /lib/node_modules/genieacs/config) depending on your setup.
 
-Alternatively, you can use git to get the latest development version (not recommended for production use):
+Alternatively, you can install from source by cloning the git repository:
 
     cd /opt
-    git clone https://github.com/zaidka/genieacs.git
+    git clone https://github.com/zaidka/genieacs.git --branch v1.0
     cd genieacs
     npm install
     npm run configure
@@ -54,13 +54,12 @@ You may now proceed with installing [GenieACS GUI front end](https://github.com/
 
 ## Support
 
-Documentation is work in progress. Contact <support@genieacs.com> for any inquiry about installation, configuration, or using the API.
+The [Users mailing list](http://lists.genieacs.com) is a good place to get guidance and help from the community. Head on over and join the conversation! In addition, the [wiki](https://github.com/zaidka/genieacs/wiki) provides useful documentation and tips from GenieACS users.
 
-You may submit bug reports or feature requests [here](https://github.com/zaidka/genieacs/issues).
+You may submit bug reports or feature requests [here](https://github.com/zaidka/genieacs/issues). For device interoperability issues, please consult the mailing list first — it's likely that a workaround already exists.
 
-For commercial support options, please visit [genieacs.com](http://genieacs.com).
+For commercial support options and professional services, please visit [genieacs.com](https://genieacs.com).
 
 ## Contributing
 
 Contributions are welcome. Fork this repo and open a pull request and wait for feedback. You can also contribute by enhancing the documentation in the [wiki section](https://github.com/zaidka/genieacs/wiki).
-
