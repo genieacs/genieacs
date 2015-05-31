@@ -155,15 +155,7 @@ exports.getDevicePreset = (deviceId, presets, objects, aliases, callback) ->
           devicePreset.objects[c.name][c.object].current ?= {}
           for k,p of param
             continue if k[0] == '_'
-            if p._name?
-              if p._name == c.object
-                devicePreset.objects[c.name][c.object].current[k] = p
-            else if matchObject(objects[c.object], p)
-              u = {}
-              u["#{c.name}.#{k}._name"] = c.object
-              db.devicesCollection.update({'_id' : deviceId}, {'$set' : u}, {}, (err, count) ->
-                throw err if err
-              )
+            if matchObject(objects[c.object], p)
               devicePreset.objects[c.name][c.object].current[k] = p
 
         when 'delete_object'
@@ -174,15 +166,7 @@ exports.getDevicePreset = (deviceId, presets, objects, aliases, callback) ->
           devicePreset.objects[c.name][c.object].current ?= {}
           for k,p of param
             continue if k[0] == '_'
-            if p._name?
-              if p._name == c.object
-                devicePreset.objects[c.name][c.object].current[k] = p
-            else if matchObject(objects[c.object], p)
-              u = {}
-              u["#{c.name}.#{k}._name"] = c.object
-              db.devicesCollection.update({'_id' : deviceId}, {'$set' : u}, {}, (err, count) ->
-                throw err if err
-              )
+            if matchObject(objects[c.object], p)
               devicePreset.objects[c.name][c.object].current[k] = p
 
         when 'custom_command_value'
@@ -273,7 +257,7 @@ exports.processDevicePreset = (deviceId, devicePreset, callback) ->
           vals = []
           for k,v of flatObject
             vals.push([k, v]) if k[0] != '_'
-          taskList.push({device : deviceId, name : 'addObject', objectName : parameterPath, parameterValues : vals, instanceName : objectName})
+          taskList.push({device : deviceId, name : 'addObject', objectName : parameterPath, parameterValues : vals})
       else if Object.keys(objectDetails.current).length > 0
         for i, obj of objectDetails.current
           taskList.push({device : deviceId, name : 'deleteObject', objectName : "#{parameterPath}.#{i}"})

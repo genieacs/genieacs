@@ -221,7 +221,6 @@ this.addObject = (task, methodResponse, callback) ->
       task.session.subtask = {device : task.device, name : 'getParameterNames', parameterPath : "#{task.objectName}.#{task.session.instanceNumber}.", nextLevel : false}
       task.session.appliedParameterValues = []
       task.session.parameterNames = []
-      allDeviceUpdates.instanceName = [["#{task.objectName}.#{task.session.instanceNumber}", task.instanceName]] if task.instanceName?
     else
       callback(null, STATUS_OK, {type : 'AddObject', objectName : "#{task.objectName}."})
       return
@@ -297,7 +296,7 @@ this.reboot = (task, methodResponse, callback) ->
     task.fault = methodResponse
     callback(null, STATUS_FAULT)
     return
-  
+
   if methodResponse.type isnt 'RebootResponse'
     callback(null, STATUS_OK, {type : 'Reboot'})
   else

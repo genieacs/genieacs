@@ -75,10 +75,6 @@ commitUpdates = (deviceId, deviceUpdates, commitQueue, callback) ->
       for p in updatesBatch.deletedObjects
         update['$unset'][p] = 1
 
-    if updatesBatch.instanceName?
-      for i in updatesBatch.instanceName
-        update['$set']["#{i[0]}._name"] = i[1]
-
     if updatesBatch.parameterNames?
       presentPaths ?= {}
       projection ?= {}
