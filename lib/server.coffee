@@ -51,7 +51,7 @@ listener = (httpRequest, httpResponse) ->
       )
 
       httpResponse.writeHead(500, {'Connection' : 'close'})
-      httpResponse.end()
+      httpResponse.end("#{err.name}: #{err.message}")
     catch err2
       util.error("#{new Date().toISOString()} - #{err2.stack}\n")
   )

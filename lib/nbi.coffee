@@ -61,6 +61,10 @@ DEVICE_PRESET_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/preset\/?$/
 DELETE_DEVICE_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/?$/
 
 
+errorToString = (err) ->
+  "#{err.name}: #{err.message}"
+
+
 listener = (request, response) ->
   chunks = []
   bytes = 0
@@ -94,7 +98,7 @@ listener = (request, response) ->
           )
           if err
             response.writeHead(500)
-            response.end(err)
+            response.end(errorToString(err))
             return
           response.writeHead(200)
           response.end()
@@ -106,7 +110,7 @@ listener = (request, response) ->
           )
           if err
             response.writeHead(500)
-            response.end(err)
+            response.end(errorToString(err))
             return
           response.writeHead(200)
           response.end()
@@ -126,7 +130,7 @@ listener = (request, response) ->
           )
           if err
             response.writeHead(500)
-            response.end(err)
+            response.end(errorToString(err))
             return
           response.writeHead(200)
           response.end()
@@ -138,7 +142,7 @@ listener = (request, response) ->
           )
           if err
             response.writeHead(500)
-            response.end(err)
+            response.end(errorToString(err))
             return
           response.writeHead(200)
           response.end()
@@ -157,7 +161,7 @@ listener = (request, response) ->
           )
           if err
             response.writeHead(500)
-            response.end(err)
+            response.end(errorToString(err))
             return
           response.writeHead(200)
           response.end()
@@ -169,7 +173,7 @@ listener = (request, response) ->
           )
           if err
             response.writeHead(500)
-            response.end(err)
+            response.end(errorToString(err))
             return
           response.writeHead(200)
           response.end()
@@ -190,7 +194,7 @@ listener = (request, response) ->
               )
               if err
                 response.writeHead(500)
-                response.end(err)
+                response.end(errorToString(err))
                 return
 
               if urlParts.query.connection_request?
@@ -218,7 +222,7 @@ listener = (request, response) ->
           apiFunctions.connectionRequest(deviceId, (err) ->
             if err
               response.writeHead 504
-              response.end()
+              response.end(errorToString(err))
               return
             response.writeHead 200
             response.end()
@@ -250,7 +254,7 @@ listener = (request, response) ->
           db.tasksCollection.remove({'_id' : taskId}, (err, removedCount) ->
             if err
               response.writeHead(500)
-              response.end(err)
+              response.end(errorToString(err))
               return
             response.writeHead(200)
             response.end()
@@ -303,9 +307,9 @@ listener = (request, response) ->
     else if PING_REGEX.test(urlParts.pathname)
       host = querystring.unescape(PING_REGEX.exec(urlParts.pathname)[1])
       require('child_process').exec("ping -w 1 -i 0.2 -c 3 #{host}", (err, stdout, stderr) ->
-        if err?
+        if err
           response.writeHead(404, {'Cache-Control' : 'no-cache'})
-          response.end()
+          response.end(errorToString(err))
           return
         response.writeHead(200, {'Content-Type' : 'text/plain', 'Cache-Control' : 'no-cache'})
         response.end(stdout)
@@ -320,7 +324,7 @@ listener = (request, response) ->
       apiFunctions.deleteDevice(deviceId, (err) ->
         if err
           response.writeHead(500)
-          response.end(err.message)
+          response.end(errorToString(err))
           return
         response.writeHead(200)
         response.end()
@@ -343,7 +347,7 @@ listener = (request, response) ->
             q = JSON.parse(urlParts.query.query)
           catch err
             response.writeHead(400)
-            response.end(err.toString())
+            response.end(errorToString(err))
             return
         else
           q = {}
