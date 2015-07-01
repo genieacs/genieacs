@@ -134,7 +134,7 @@ watchTask = (taskId, timeout, callback) ->
       if task
         timeout -= 500
         if timeout < 0
-          callback('timeout')
+          callback(new Error('Timeout'))
         else
           watchTask(taskId, timeout, callback)
       else
