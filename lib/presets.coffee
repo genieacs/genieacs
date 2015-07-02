@@ -294,11 +294,19 @@ exports.processDevicePreset = (deviceId, devicePreset, callback) ->
 
 
 getObjectHash = (object) ->
-  return object._id if not object._keys? or object._keys.length == 0
-  hash = ''
-  for k in object._keys
-    hash += "#{k}=#{object[k]}"
-  return hash
+  if object._keys?.length
+    keys = object._keys
+  else
+    keys = (k for k in Object.keys(object) when k[0] != '_')
+
+  keys.sort()
+
+  hash = []
+  for k in keys
+    hash.push(k)
+    hash.push(common.getParamValueFromPath(object, k))
+
+  return JSON.stringify(hash)
 
 
 accumulateConfigurations = (presets, objects) ->
