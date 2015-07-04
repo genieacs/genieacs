@@ -173,7 +173,7 @@ inform = (currentRequest, cwmpRequest) ->
         for k of reference
           continue if k[0] == '_'
           if not actual[k]?._timestamp? or actual[k]._timestamp < lastBootstrap
-            _tasks.push({device: currentRequest.session.deviceId, name : 'refreshObject', objectName : reference[k]._path})
+            _tasks.push({device: currentRequest.session.deviceId, name : 'refreshObject', objectName : reference[k]._path, timestamp : now})
           else
             traverse(reference[k], actual[k])
 
@@ -186,7 +186,8 @@ inform = (currentRequest, cwmpRequest) ->
 
         for cmd in customCommands.getDeviceCustomCommandNames(currentRequest.session.deviceId)
           if not (deviceCustomCommands[cmd]?._timestamp < lastBootstrap)
-            _tasks.push({device: currentRequest.session.deviceId, name: 'customCommand', command: "#{cmd} init"})
+            # Increment timestamp by one millisecond to ensure it runs after any refresh task
+            _tasks.push({device: currentRequest.session.deviceId, name: 'customCommand', command: "#{cmd} init", timestamp: new Date(now.getTime() + 1)})
           delete deviceCustomCommands[cmd]
 
         for cmd of deviceCustomCommands
@@ -210,10 +211,11 @@ inform = (currentRequest, cwmpRequest) ->
         db.devicesCollection.insert({_id : currentRequest.session.deviceId, _registered : now, _deviceId : deviceIdDetails}, (err) ->
           throw err if err
           util.log("#{currentRequest.session.deviceId}: New device registered")
-          _tasks.push({device: currentRequest.session.deviceId, name : 'refreshObject', objectName : ''})
+          _tasks.push({device: currentRequest.session.deviceId, name : 'refreshObject', objectName : '', timestamp : now})
 
           for cmd in customCommands.getDeviceCustomCommandNames(currentRequest.session.deviceId)
-            _tasks.push({device: currentRequest.session.deviceId, name: 'customCommand', command: "#{cmd} init"})
+            # Increment timestamp by one millisecond to ensure it runs after any refresh task
+            _tasks.push({device: currentRequest.session.deviceId, name: 'customCommand', command: "#{cmd} init", timestamp: new Date(now.getTime() + 1)})
 
           apiFunctions.insertTasks(_tasks, {}, () ->
             updateAndRespond()
