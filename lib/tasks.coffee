@@ -354,8 +354,8 @@ this.download = (task, methodResponse, callback) ->
 this.customCommand = (task, methodResponse, callback) ->
   # TODO implement timeout
   customCommands.execute(task.device, task.command, (err, value) ->
-    if err?
-      task.fault = err
+    if err
+      task.fault = {name : err.name, message : err.message}
       callback(null, STATUS_FAULT)
     else
       commandName = task.command.split(' ', 2)[0]
