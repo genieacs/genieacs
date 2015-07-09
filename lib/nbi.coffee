@@ -200,16 +200,31 @@ listener = (request, response) ->
               if urlParts.query.connection_request?
                 apiFunctions.connectionRequest(deviceId, (err) ->
                   if err
-                    response.writeHead(202, {'Content-Type' : 'application/json'})
+                    response.writeHead(202, err.message, {'Content-Type' : 'application/json'})
                     response.end(JSON.stringify(task))
                   else
-                    apiFunctions.watchTask(task._id, config.get('DEVICE_ONLINE_THRESHOLD', deviceId), (err) ->
+                    apiFunctions.watchTask(task._id, config.get('DEVICE_ONLINE_THRESHOLD', deviceId), (err, status) ->
                       if err
-                        response.writeHead(202, {'Content-Type' : 'application/json'})
-                        response.end(JSON.stringify(task))
+                        response.writeHead(500)
+                        response.end(errorToString(err))
                         return
-                      response.writeHead(200, {'Content-Type' : 'application/json'})
-                      response.end(JSON.stringify(task))
+
+                      if status is 'timeout'
+                        response.writeHead(202, 'Task queued but not processed', {'Content-Type' : 'application/json'})
+                        response.end(JSON.stringify(task))
+                      else if status is 'fault'
+                        db.tasksCollection.findOne({_id : task._id}, (err, task) ->
+                          if err
+                            response.writeHead(500)
+                            response.end(errorToString(err))
+                            return
+
+                          response.writeHead(202, 'Task faulted', {'Content-Type' : 'application/json'})
+                          response.end(JSON.stringify(task))
+                        )
+                      else
+                        response.writeHead(200, {'Content-Type' : 'application/json'})
+                        response.end(JSON.stringify(task))
                     )
                 )
               else
