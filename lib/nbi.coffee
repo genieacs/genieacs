@@ -112,6 +112,12 @@ listener = (request, response) ->
             response.writeHead(500)
             response.end(errorToString(err))
             return
+
+          if removedCount == 0
+            response.writeHead(404)
+            response.end()
+            return
+
           response.writeHead(200)
           response.end()
         )
@@ -144,6 +150,12 @@ listener = (request, response) ->
             response.writeHead(500)
             response.end(errorToString(err))
             return
+
+          if removedCount == 0
+            response.writeHead(404)
+            response.end()
+            return
+
           response.writeHead(200)
           response.end()
         )
@@ -155,7 +167,7 @@ listener = (request, response) ->
       deviceId = querystring.unescape(r[1])
       tag = querystring.unescape(r[2])
       if request.method == 'POST'
-        db.devicesCollection.update({'_id' : deviceId}, {'$addToSet' : {'_tags' : tag}}, {safe: true}, (err) ->
+        db.devicesCollection.update({'_id' : deviceId}, {'$addToSet' : {'_tags' : tag}}, {safe: true}, (err, updatedCount) ->
           db.redisClient.del("#{deviceId}_presets_hash", (err) ->
             throw err if err
           )
@@ -163,11 +175,17 @@ listener = (request, response) ->
             response.writeHead(500)
             response.end(errorToString(err))
             return
+
+          if updatedCount == 0
+            response.writeHead(404)
+            response.end()
+            return
+
           response.writeHead(200)
           response.end()
         )
       else if request.method == 'DELETE'
-        db.devicesCollection.update({'_id' : deviceId}, {'$pull' : {'_tags' : tag}}, {safe: true}, (err) ->
+        db.devicesCollection.update({'_id' : deviceId}, {'$pull' : {'_tags' : tag}}, {safe: true}, (err, updatedCount) ->
           db.redisClient.del("#{deviceId}_presets_hash", (err) ->
             throw err if err
           )
@@ -175,6 +193,12 @@ listener = (request, response) ->
             response.writeHead(500)
             response.end(errorToString(err))
             return
+
+          if updatedCount == 0
+            response.writeHead(404)
+            response.end()
+            return
+
           response.writeHead(200)
           response.end()
         )
@@ -271,6 +295,12 @@ listener = (request, response) ->
               response.writeHead(500)
               response.end(errorToString(err))
               return
+
+            if removedCount == 0
+              response.writeHead(404)
+              response.end()
+              return
+
             response.writeHead(200)
             response.end()
           )
@@ -279,8 +309,14 @@ listener = (request, response) ->
           response.end('405 Method Not Allowed')
       else if action is '/retry'
         if request.method == 'POST'
-          db.tasksCollection.update({_id : taskId}, {$unset : {fault : 1}, $set : {timestamp : new Date()}}, (err, count) ->
+          db.tasksCollection.update({_id : taskId}, {$unset : {fault : 1}, $set : {timestamp : new Date()}}, (err, updatedCount) ->
             # TODO need to invalidate presets hash for the device
+            throw err if err
+            if updatedCount == 0
+              response.writeHead(404)
+              response.end()
+              return
+
             response.writeHead(200)
             response.end()
           )
