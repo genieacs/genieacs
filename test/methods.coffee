@@ -68,8 +68,8 @@ exports.GetParameterNames = (device, xmlIn, xmlOut, callback) ->
   parameterList = []
   if nextLevel
     for p in parameterNames
-      if common.startsWith(p, parameterPath) and p.length != parameterPath.length
-        i = p.indexOf('.', parameterPath.length)
+      if common.startsWith(p, parameterPath) and p.length > parameterPath.length + 1
+        i = p.indexOf('.', parameterPath.length + 1)
         if i == -1 or i == p.length - 1
           parameterList.push(p)
   else
