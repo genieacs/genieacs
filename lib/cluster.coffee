@@ -36,6 +36,7 @@ cluster.on('exit', (worker, code, signal) ->
 
 
 start = (service) ->
+  console.error('WARNING: This is a development branch of GenieACS. DO NOT use in production.')
   workerProcesses = config.get("#{service.toUpperCase()}_WORKER_PROCESSES")
 
   cluster.setupMaster({
