@@ -76,15 +76,15 @@ test = (obj, query) ->
             when '$regex'
               res = v2.test(value)
             when '$in'
-              throw new Error('Operator not supported')        
+              throw new Error('Operator not supported')
             when '$nin'
-              throw new Error('Operator not supported')        
+              throw new Error('Operator not supported')
             when '$all'
-              throw new Error('Operator not supported')        
+              throw new Error('Operator not supported')
             when '$exists'
-              throw new Error('Operator not supported')        
+              throw new Error('Operator not supported')
             else
-              throw new Error('Operator not supported')        
+              throw new Error('Operator not supported')
 
     if not res
       return false
@@ -123,7 +123,6 @@ projection = (query, proj) ->
 # optimize projection by removing overlaps
 optimizeProjection = (obj) ->
   keys = Object.keys(obj).sort()
-  return if keys.length <= 1
   i = 1
   while i < keys.length
     a = keys[i-1]
@@ -133,6 +132,11 @@ optimizeProjection = (obj) ->
         delete obj[b]
         keys.splice(i--, 1)
     ++ i
+
+  # Emtpy string implies fetch all
+  if keys[0] == ''
+    delete obj[k] for k in keys
+
   return
 
 

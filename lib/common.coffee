@@ -122,6 +122,13 @@ exports.matchType = (src, dst) ->
       dst
 
 
+exports.parentParameter = (parameter) ->
+  i = parameter.lastIndexOf('.', parameter.length - 2) # ignore any trailing dot
+  if i < 0
+    return if parameter == '' then null else ''
+  return parameter[0...i]
+
+
 exports.UNDEFINED_TYPE = UNDEFINED_TYPE
 exports.NULL_TYPE = NULL_TYPE
 exports.NUMBER_TYPE = NUMBER_TYPE
