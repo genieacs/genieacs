@@ -1,4 +1,5 @@
 {
+"InternetGatewayDevice." : [false],
 "InternetGatewayDevice.DeviceSummary" : [false, "InternetGatewayDevice:1.1[](Baseline:1, EthernetLAN:1, WiFiLAN:1, WIMAXWAN:1, Bridging:1, Time:1, IPPing:1", "xsd:string"],
 "InternetGatewayDevice.LANDeviceNumberOfEntries" : [false, "1", "xsd:unsignedInt"],
 "InternetGatewayDevice.WANDeviceNumberOfEntries" : [false, "1", "xsd:unsignedInt"],
