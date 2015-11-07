@@ -12,7 +12,7 @@
     "ACS"
   ],
   "author": "Zaid Abdulla",
-  "license": "AGPL3",
+  "license": "AGPL-3.0",
   "readmeFilename": "README.md",
   "preferGlobal": true,
   "directories": {
