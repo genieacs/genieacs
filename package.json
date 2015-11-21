@@ -1,6 +1,6 @@
 {
   "name": "genieacs",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "A blazing fast TR-069 auto configuration server (ACS) built with Node.js, Redis, and MongoDB",
   "repository": {
     "type": "git",
