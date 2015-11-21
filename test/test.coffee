@@ -91,7 +91,7 @@ sendRequest = (device,xml, callback) ->
 
       if response.headers['set-cookie']?
         # TODO set individual cookies
-        device['Cookies'] = [true, response.headers['set-cookie'], 'string']
+        device['Cookies'] = [true, response.headers['set-cookie'], 'xsd:string']
 
       callback(xml)
     )

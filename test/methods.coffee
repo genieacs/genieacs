@@ -112,7 +112,7 @@ exports.SetParameterValues = (device, xmlIn, xmlOut, callback) ->
     name = p.get('Name').text()
     value = p.get('Value')
     device[name][1] = value.text()
-    device[name][2] = value.attr('xsi:type')
+    device[name][2] = value.attr('type').value()
 
   responseNode = xmlOut.root().childNodes()[1].node('cwmp:SetParameterValuesResponse')
   responseNode.node('Status', '0')
