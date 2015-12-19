@@ -185,7 +185,7 @@ inform = (currentRequest, cwmpRequest) ->
         deviceCustomCommands[k] = v._timestamp for k,v of device._customCommands
 
         for cmd in customCommands.getDeviceCustomCommandNames(currentRequest.session.deviceId)
-          if not (deviceCustomCommands[cmd]?._timestamp < lastBootstrap)
+          if not deviceCustomCommands[cmd]? or deviceCustomCommands[cmd] < lastBootstrap
             # Increment timestamp by one millisecond to ensure it runs after any refresh task
             _tasks.push({device: currentRequest.session.deviceId, name: 'customCommand', command: "#{cmd} init", timestamp: new Date(now.getTime() + 1)})
           delete deviceCustomCommands[cmd]
