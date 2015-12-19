@@ -15,8 +15,17 @@
 # along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
 ###
 
+path = require 'path'
 config = require './config'
 common = require './common'
+
+
+FILES = {}
+getFile = (filename) ->
+  if filename not of FILES
+    FILES[filename] = require(path.resolve(config.get('CONFIG_DIR'), "custom_commands/#{filename}"))
+
+  return FILES[filename]
 
 
 exports.execute = (deviceId, command, callback) ->
@@ -24,13 +33,13 @@ exports.execute = (deviceId, command, callback) ->
   f = args.shift()
   c = args.shift()
 
-  file = require "../config/custom_commands/#{f}"
+  file = getFile(f)
   file[c](deviceId, args.join(' '), callback)
 
 
 exports.getFileCommands = (filename) ->
   commands = []
-  f = require("../config/custom_commands/#{filename}")
+  f = getFile(filename)
   for k,v of f
     commands.push(k)
   return commands
