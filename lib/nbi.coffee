@@ -385,9 +385,16 @@ listener = (request, response) ->
           sort = {}
           for k,v of s
             if aliases[k]?
-              sort[a] = v for a in aliases[k]
+              for a in aliases[k]
+                if a[a.lastIndexOf('.')+1] != '_' and collectionName is 'devices'
+                  sort["#{a}._value"] = v
+                else
+                  sort[a] = v
             else
-              sort[k] = v
+              if k[k.lastIndexOf('.') + 1] != '_' and collectionName is 'devices'
+                sort["#{k}._value"] = v
+              else
+                sort[k] = v
           cur.sort(sort)
 
         cur.skip(parseInt(urlParts.query.skip)) if urlParts.query.skip?
