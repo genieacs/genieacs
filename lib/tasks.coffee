@@ -322,31 +322,43 @@ this.download = (task, methodResponse, callback) ->
     return
 
   if methodResponse.type isnt 'DownloadResponse'
-    db.filesCollection.findOne({_id : mongodb.ObjectID(String(task.file))}, (err, file) ->
-      if not file?
-        callback('File not found')
-        return
-      else if err?
-        callback(err)
+    if task.url?
+        methodRequest = {
+          type : 'Download',
+          fileType : task.fileType or '1 Firmware Upgrade Image',
+          url : task.url,
+          username: task.username,
+          password: task.password,
+          successUrl : task.successUrl,
+          failureUrl : task.failureUrl
+        }
+        callback(null, STATUS_OK, methodRequest)
+    else
+      db.filesCollection.findOne({_id : mongodb.ObjectID(String(task.file))}, (err, file) ->
+        if not file?
+          callback('File not found')
+          return
+        else if err?
+          callback(err)
         return
 
-      l = {
-        protocol : if config.get('FS_SSL') then 'https' else 'http',
-        hostname : config.get('FS_IP'),
-        port : config.get('FS_PORT'),
-        pathname : encodeURIComponent(file.filename)
-      }
+        l = {
+          protocol : if config.get('FS_SSL') then 'https' else 'http',
+          hostname : config.get('FS_IP'),
+          port : config.get('FS_PORT'),
+          pathname : encodeURIComponent(file.filename)
+        }
 
-      methodRequest = {
-        type : 'Download',
-        fileType : file.metadata.fileType,
-        fileSize : file.length,
-        url : url.format(l),
-        successUrl : task.successUrl,
-        failureUrl : task.failureUrl
-      }
-      callback(null, STATUS_OK, methodRequest)
-    )
+        methodRequest = {
+          type : 'Download',
+          fileType : file.metadata.fileType,
+          fileSize : file.length,
+          url : url.format(l),
+          successUrl : task.successUrl,
+          failureUrl : task.failureUrl
+        }
+        callback(null, STATUS_OK, methodRequest)
+      )
   else
     callback(null, STATUS_COMPLETED)
 
