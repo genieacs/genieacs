@@ -334,6 +334,8 @@ listener = (request, response) ->
           oui : request.headers.oui,
           productClass : request.headers.productclass,
           version : request.headers.version,
+          username : request.headers.username,
+          password : request.headers.password
         }
 
         gs = new mongodb.GridStore(db.mongoDb, filename, 'w', {metadata : metadata})

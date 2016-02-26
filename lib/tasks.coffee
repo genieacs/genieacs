@@ -342,6 +342,8 @@ this.download = (task, methodResponse, callback) ->
         fileType : file.metadata.fileType,
         fileSize : file.length,
         url : url.format(l),
+        username : file.metadata.username,
+        password : file.metadata.password,
         successUrl : task.successUrl,
         failureUrl : task.failureUrl
       }
