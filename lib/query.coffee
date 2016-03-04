@@ -95,10 +95,12 @@ expand = (query, aliases) ->
     else
       conditions = permute(k, v, aliases)
       if conditions.length > 1
-        if new_query['$and']?
-          new_query['$and'].push({'$or' : conditions})
+        new_query['$and'] ?= []
+        if v?['$ne']?
+          for c in conditions
+            new_query['$and'].push(c)
         else
-          new_query['$and'] = [{'$or' : conditions}]
+          new_query['$and'].push({'$or' : conditions})
       else
         common.extend(new_query, conditions[0])
 
