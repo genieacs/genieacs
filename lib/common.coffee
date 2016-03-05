@@ -1,4 +1,22 @@
 ###
+# Copyright 2013-2016  Zaid Abdulla
+#
+# GenieACS is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# GenieACS is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
+#
+# This file incorporates work covered by the following copyright and
+# permission notice:
+#
 # Copyright 2013 Fanoos Telecom
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -122,6 +140,28 @@ exports.matchType = (src, dst) ->
       dst
 
 
+pathOverlap = (a, b, start) ->
+  if a.length == b.length
+    res = 3
+  else if a.length > b.length
+    res = 2
+  else
+    res = 1
+
+  for i in [(start ? 0)...Math.min(a.length, b.length)] by 1
+    if a[i]?
+      if not b[i]?
+        res &= 2
+      else if a[i] != b[i]
+        return 0
+    else if b[i]?
+      res &= 1
+
+    return 0 if not res
+
+  return res
+
+
 exports.UNDEFINED_TYPE = UNDEFINED_TYPE
 exports.NULL_TYPE = NULL_TYPE
 exports.NUMBER_TYPE = NUMBER_TYPE
@@ -131,3 +171,4 @@ exports.OBJECT_TYPE = OBJECT_TYPE
 exports.REGEXP_TYPE = REGEXP_TYPE
 
 exports.typeOf = typeOf
+exports.pathOverlap = pathOverlap
