@@ -162,6 +162,14 @@ pathOverlap = (a, b, start) ->
   return res
 
 
+parsePath = (path) ->
+  parts = if path == '' then [] else path.split('.')
+  for p, i in parts
+    parts[i] = null if p == '*'
+
+  return parts
+
+
 exports.UNDEFINED_TYPE = UNDEFINED_TYPE
 exports.NULL_TYPE = NULL_TYPE
 exports.NUMBER_TYPE = NUMBER_TYPE
@@ -172,3 +180,4 @@ exports.REGEXP_TYPE = REGEXP_TYPE
 
 exports.typeOf = typeOf
 exports.pathOverlap = pathOverlap
+exports.parsePath = parsePath
