@@ -164,8 +164,6 @@ exports.PARAMETERS = require(path.resolve(allConfig.CONFIG_DIR, 'parameters'))
 # load authentication scripts
 exports.auth = require(path.resolve(allConfig.CONFIG_DIR, 'auth'))
 
-exports.CUSTOM_COMMANDS = require(path.resolve(allConfig.CONFIG_DIR, 'custom_commands'))
-
 exports.get = get
 
 exports.allConfig = allConfig

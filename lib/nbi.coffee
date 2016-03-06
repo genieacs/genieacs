@@ -1,5 +1,5 @@
 ###
-# Copyright 2013, 2014  Zaid Abdulla
+# Copyright 2013-2016  Zaid Abdulla
 #
 # GenieACS is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -38,15 +38,15 @@
 # THE SOFTWARE.
 ###
 
-config = require './config'
 url = require 'url'
-common = require './common'
-db = require './db'
 mongodb = require 'mongodb'
 querystring = require 'querystring'
+
+config = require './config'
+common = require './common'
+db = require './db'
 query = require './query'
 apiFunctions = require './api-functions'
-presets = require './presets'
 
 # regular expression objects
 DEVICE_TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/tasks\/?$/
@@ -57,7 +57,6 @@ OBJECTS_REGEX = /^\/objects\/([a-zA-Z0-9\-\_\%]+)\/?$/
 FILES_REGEX = /^\/files\/([a-zA-Z0-9\%\!\*\'\(\)\;\:\@\&\=\+\$\,\?\#\[\]\-\_\.\~]+)\/?$/
 PING_REGEX = /^\/ping\/([a-zA-Z0-9\-\_\.]+)\/?$/
 QUERY_REGEX = /^\/([a-zA-Z0-9_]+s)\/?$/
-DEVICE_PRESET_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/preset\/?$/
 DELETE_DEVICE_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/?$/
 
 
@@ -247,18 +246,6 @@ listener = (request, response) ->
           response.end()
       else
         response.writeHead 405, {'Allow': 'POST'}
-        response.end('405 Method Not Allowed')
-    else if DEVICE_PRESET_REGEX.test(urlParts.pathname)
-      deviceId = querystring.unescape(DEVICE_PRESET_REGEX.exec(urlParts.pathname)[1])
-      if request.method is 'GET'
-        db.getPresetsObjectsAliases((allPresets, allObjects, allAliases) ->
-          presets.getDevicePreset(deviceId, allPresets, allObjects, allAliases, (devicePreset) ->
-            response.writeHead(200, {'Content-Type' : 'application/json'})
-            response.end(JSON.stringify(devicePreset))
-          )
-        )
-      else
-        response.writeHead 405, {'Allow': 'GET'}
         response.end('405 Method Not Allowed')
     else if TASKS_REGEX.test(urlParts.pathname)
       r = TASKS_REGEX.exec(urlParts.pathname)

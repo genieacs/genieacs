@@ -28,29 +28,6 @@ presetsCollection = null
 objectsCollection = null
 
 
-# Only flush redis DB if aliases or custom commands config has changed
-flushRedis = (callback) ->
-  redisClient.get('config_hash', (err, res) ->
-    return callback(err) if err
-
-    hash = require('crypto')
-      .createHash('md5')
-      .update(JSON.stringify(config.PARAMETERS))
-      .update(JSON.stringify(config.CUSTOM_COMMANDS))
-      .digest('hex')
-
-    if res == hash
-      return callback()
-
-    redisClient.flushdb((err) ->
-      return callback(err) if err
-      redisClient.set('config_hash', hash, (err, res) ->
-        return callback(err)
-      )
-    )
-  )
-
-
 connect = (callback) ->
   callbackCounter = 6
   mongodb.MongoClient.connect(config.get('MONGODB_CONNECTION_URL'), {db:{w:1},server:{autoReconnect:true}}, (err, db) ->
@@ -96,15 +73,9 @@ connect = (callback) ->
 
     exports.redisClient = redisClient = redis.createClient(config.get('REDIS_PORT'), config.get('REDIS_HOST'))
     redisClient.select(config.get('REDIS_DB'), (err) ->
-      if err
+      if --callbackCounter == 0 or err
         callbackCounter = 0
         return callback(err)
-
-      flushRedis((err) ->
-        if --callbackCounter == 0 or err
-          callbackCounter = 0
-          return callback(err)
-      )
     )
   )
 
