@@ -193,6 +193,24 @@ getPresetsObjectsAliases = (callback) ->
     if not presets
       getCached('presets', (callback) ->
         presetsCollection.find().toArray((err, res) ->
+          for r in res
+            r.precondition = JSON.parse(r.precondition)
+
+            # Generate provisions from the old configuration format
+            r.provisions = []
+            for c in r.configurations
+              switch c.type
+                when 'age'
+                  r.provisions.push(['refresh', c.name, c.age * -1000])
+                when 'value'
+                  r.provisions.push(['value', c.name, c.value])
+                when 'add_tag'
+                  r.provisions.push(['tag', c.tag, true])
+                when 'delete_tag'
+                  r.provisions.push(['tag', c.tag, false])
+                else
+                  throw new Error("Unknown configuration type #{c.type}")
+
           callback(err, res)
         )
       , config.get('PRESETS_CACHE_DURATION'), (err, res) ->
