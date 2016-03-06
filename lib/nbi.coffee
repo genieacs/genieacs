@@ -103,7 +103,7 @@ listener = (request, response) ->
           response.end()
         )
       else if request.method == 'DELETE'
-        db.presetsCollection.remove({'_id' : presetName}, (err, removedCount) ->
+        db.presetsCollection.remove({'_id' : presetName}, (err) ->
           db.redisClient.del('presets', 'presets_hash', (err) ->
             throw err if err
           )
@@ -135,7 +135,7 @@ listener = (request, response) ->
           response.end()
         )
       else if request.method == 'DELETE'
-        db.objectsCollection.remove({'_id' : objectName}, (err, removedCount) ->
+        db.objectsCollection.remove({'_id' : objectName}, (err) ->
           db.redisClient.del('objects', 'presets_hash', (err) ->
             throw err if err
           )
@@ -253,7 +253,7 @@ listener = (request, response) ->
       action = r[2]
       if not action? or action is '/'
         if request.method == 'DELETE'
-          db.tasksCollection.remove({'_id' : taskId}, (err, removedCount) ->
+          db.tasksCollection.remove({'_id' : taskId}, (err) ->
             if err
               response.writeHead(500)
               response.end(errorToString(err))
@@ -385,8 +385,8 @@ listener = (request, response) ->
           cur.sort(sort)
 
         cur.skip(parseInt(urlParts.query.skip)) if urlParts.query.skip?
-        cur.limit(parseInt(urlParts.query.limit)) if urlParts.query.limit?
-        cur.count((err, total) ->
+        cur.limit(limit = parseInt(urlParts.query.limit)) if urlParts.query.limit?
+        cur.count(false, (err, total) ->
           response.writeHead(200, {'Content-Type' : 'application/json', 'total' : total})
           if request.method is 'HEAD'
             response.end()
@@ -394,12 +394,15 @@ listener = (request, response) ->
           response.write("[\n")
           i = 0
           cur.each((err, item) ->
-            if item is null
-              response.end("\n]")
-            else
+            throw err if err
+
+            if item?
               response.write(",\n") if i++
               apiFunctions.addAliases(item, aliases) if collectionName is 'devices'
               response.write(JSON.stringify(item))
+
+            if not item? or (limit? and i >= limit)
+              response.end("\n]")
           )
         )
 

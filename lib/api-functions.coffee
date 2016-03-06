@@ -225,7 +225,7 @@ insertTasks = (tasks, aliases, callback) ->
   for task in tasks
     sanitizeTask(task, aliases, (t) ->
       if t.uniqueKey?
-        db.tasksCollection.remove({device : t.device, uniqueKey : t.uniqueKey}, (err, removed) ->
+        db.tasksCollection.remove({device : t.device, uniqueKey : t.uniqueKey}, (err) ->
         )
 
       --counter
@@ -238,9 +238,9 @@ insertTasks = (tasks, aliases, callback) ->
 
 
 deleteDevice = (deviceId, callback) ->
-  db.tasksCollection.remove({'device' : deviceId}, (err, removed) ->
+  db.tasksCollection.remove({'device' : deviceId}, (err) ->
     return callback(err) if err
-    db.devicesCollection.remove({'_id' : deviceId}, (err, removed) ->
+    db.devicesCollection.remove({'_id' : deviceId}, (err) ->
       return callback(err) if err
       db.redisClient.del("#{deviceId}_presets_hash", "#{deviceId}_inform_hash", (err) ->
         callback(err)

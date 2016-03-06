@@ -363,7 +363,7 @@ load = (id, callback) ->
 save = (sessionData, callback) ->
   sessionData.id ?= crypto.randomBytes(8).toString('hex')
 
-  db.redisClient.setex("session_#{sessionData.id}", sessionData.timeout, JSON.stringify(sessionData), (err) =>
+  db.redisClient.setex("session_#{sessionData.id}", sessionData.timeout, JSON.stringify(sessionData), (err) ->
      return callback(err, sessionData.id)
   )
   return

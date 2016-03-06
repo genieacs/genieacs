@@ -20,13 +20,13 @@
     "bin": "bin"
   },
   "dependencies": {
-    "libxmljs": "~0.11.0",
-    "redis": "~0.12.1",
-    "hiredis": "~0.1.17",
-    "mongodb": "~1.4.8"
+    "libxmljs": "^0.17.1",
+    "redis": "^2.4.2",
+    "hiredis": "^0.4.1",
+    "mongodb": "^2.1.7"
   },
   "devDependencies": {
-    "coffee-script": "~1.7.1"
+    "coffee-script": "^1.10.0"
   },
   "engines": {
     "node": ">=0.10.0 <0.12"

@@ -468,8 +468,8 @@ saveDevice = (deviceId, diff, isNew, callback) ->
 
   return callback() if Object.keys(update).length == 0
 
-  devicesCollection.update({'_id' : deviceId}, update, {upsert: isNew}, (err, count) =>
-    if not err and count != 1
+  devicesCollection.update({'_id' : deviceId}, update, {upsert: isNew}, (err, result) ->
+    if not err and result.result.n != 1
       return callback(new Error("Device #{deviceId} not found in database"))
 
     return callback(err)
