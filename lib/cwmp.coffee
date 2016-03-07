@@ -233,7 +233,7 @@ listener = (httpRequest, httpResponse) ->
 
         deviceId = common.generateDeviceId(cwmpRequest.methodRequest.deviceId)
         sessionData = session.init(deviceId, cwmpRequest.cwmpVersion, cwmpRequest.sessionTimeout ? config.get('SESSION_TIMEOUT', deviceId))
-        httpRequest.connection.setTimeout(session.timeout * 1000)
+        httpRequest.connection.setTimeout(sessionData.timeout * 1000)
 
       currentRequest = {
         httpRequest : httpRequest,
