@@ -335,12 +335,8 @@ this.download = (task, methodResponse, callback) ->
         callback(null, STATUS_OK, methodRequest)
     else
       db.filesCollection.findOne({_id : mongodb.ObjectID(String(task.file))}, (err, file) ->
-        if not file?
-          callback('File not found')
-          return
-        else if err?
-          callback(err)
-        return
+        if err or not file?
+          return callback(err or new Error('File not found'))
 
         l = {
           protocol : if config.get('FS_SSL') then 'https' else 'http',
