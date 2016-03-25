@@ -41,6 +41,7 @@
 url = require 'url'
 mongodb = require 'mongodb'
 querystring = require 'querystring'
+crypto = require 'crypto'
 
 config = require './config'
 common = require './common'
@@ -58,6 +59,7 @@ FILES_REGEX = /^\/files\/([a-zA-Z0-9\%\!\*\'\(\)\;\:\@\&\=\+\$\,\?\#\[\]\-\_\.\~
 PING_REGEX = /^\/ping\/([a-zA-Z0-9\-\_\.]+)\/?$/
 QUERY_REGEX = /^\/([a-zA-Z0-9_]+s)\/?$/
 DELETE_DEVICE_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/?$/
+SCRIPTS_REGEX = /^\/scripts\/([a-zA-Z0-9\-\_\%]+)\/?$/
 
 
 errorToString = (err) ->
@@ -137,6 +139,41 @@ listener = (request, response) ->
       else if request.method == 'DELETE'
         db.objectsCollection.remove({'_id' : objectName}, (err) ->
           db.redisClient.del('objects', 'presets_hash', (err) ->
+            throw err if err
+          )
+          if err
+            response.writeHead(500)
+            response.end(errorToString(err))
+            return
+          response.writeHead(200)
+          response.end()
+        )
+      else
+        response.writeHead 405, {'Allow': 'PUT, DELETE'}
+        response.end('405 Method Not Allowed')
+    else if SCRIPTS_REGEX.test(urlParts.pathname)
+      scriptName = querystring.unescape(SCRIPTS_REGEX.exec(urlParts.pathname)[1])
+      if request.method == 'PUT'
+        object = {
+          _id: scriptName
+          source: body.toString()
+          md5: crypto.createHash('md5').update(body).digest('hex')
+        }
+
+        db.scriptsCollection.save(object, (err) ->
+          db.redisClient.del('presets_hash', (err) ->
+            throw err if err
+          )
+          if err
+            response.writeHead(500)
+            response.end(errorToString(err))
+            return
+          response.writeHead(200)
+          response.end()
+        )
+      else if request.method == 'DELETE'
+        db.scriptsCollection.remove({'_id' : scriptName}, (err) ->
+          db.redisClient.del('presets_hash', (err) ->
             throw err if err
           )
           if err

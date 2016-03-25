@@ -26,10 +26,11 @@ tasksCollection = null
 devicesCollection = null
 presetsCollection = null
 objectsCollection = null
+scriptsCollection = null
 
 
 connect = (callback) ->
-  callbackCounter = 6
+  callbackCounter = 7
   mongodb.MongoClient.connect(config.get('MONGODB_CONNECTION_URL'), {db:{w:1},server:{autoReconnect:true}}, (err, db) ->
     return callback(err) if err
     exports.mongoDb = db
@@ -66,6 +67,13 @@ connect = (callback) ->
 
     db.collection('fs.files', (err, collection) ->
       exports.filesCollection = filesCollection = collection
+      if --callbackCounter == 0 or err
+        callbackCounter = 0
+        return callback(err)
+    )
+
+    db.collection('scripts', (err, collection) ->
+      exports.scriptsCollection = scriptsCollection = collection
       if --callbackCounter == 0 or err
         callbackCounter = 0
         return callback(err)

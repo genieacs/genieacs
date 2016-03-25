@@ -21,7 +21,8 @@ config = require './config'
 common = require './common'
 db = require './db'
 device = require './device'
-provisions = require './provisions'
+sandbox = require './sandbox'
+cache = require './cache'
 
 
 init = (deviceId, cwmpVersion, timeout) ->
@@ -35,8 +36,8 @@ init = (deviceId, cwmpVersion, timeout) ->
     deviceData : deviceData
     cwmpVersion : cwmpVersion
     timeout : timeout
-    presets : {}
-    rpcCount : 0
+    provisions: []
+    counter : [0, 0, 0] # rpc, revision, batch
   }
 
   return sessionData
@@ -65,26 +66,47 @@ loadParameters = (sessionData, toLoad, callback) ->
   )
 
 
-inform = (sessionData, rpcRequest, callback) ->
-  timestamp = sessionData.timestamp
-  device.set(sessionData.deviceData, ['DeviceID', 'Manufacturer'], 1, [timestamp, 1, timestamp, 0, timestamp, 0, timestamp, [rpcRequest.deviceId.Manufacturer, 'xsd:string']])
-  device.set(sessionData.deviceData, ['DeviceID', 'OUI'], 1, [timestamp, 1, timestamp, 0, timestamp, 0, timestamp, [rpcRequest.deviceId.OUI, 'xsd:string']])
-  device.set(sessionData.deviceData, ['DeviceID', 'ProductClass'], 1, [timestamp, 1, timestamp, 0, timestamp, 0, timestamp, [rpcRequest.deviceId.ProductClass, 'xsd:string']])
-  device.set(sessionData.deviceData, ['DeviceID', 'SerialNumber'], 1, [timestamp, 1, timestamp, 0, timestamp, 0, timestamp, [rpcRequest.deviceId.SerialNumber, 'xsd:string']])
+generateRpcId = (sessionData) ->
+  if sessionData.counter[0] > 255 or sessionData.counter[1] > 15 or sessionData.counter[2] > 15
+    throw new Error('Too many RPCs')
 
-  for p in rpcRequest.parameterList
+  return sessionData.counter[2].toString(16).slice(-1) +
+    sessionData.counter[1].toString(16).slice(-1) +
+    ('0' + sessionData.counter[0].toString(16)).slice(-2)
+
+
+inform = (sessionData, rpcReq, callback) ->
+  timestamp = sessionData.timestamp
+  device.set(sessionData.deviceData, ['DeviceID', 'Manufacturer'], 1, [timestamp, 1, timestamp, 0, timestamp, 0, timestamp, [rpcReq.deviceId.Manufacturer, 'xsd:string']])
+  device.set(sessionData.deviceData, ['DeviceID', 'OUI'], 1, [timestamp, 1, timestamp, 0, timestamp, 0, timestamp, [rpcReq.deviceId.OUI, 'xsd:string']])
+  device.set(sessionData.deviceData, ['DeviceID', 'ProductClass'], 1, [timestamp, 1, timestamp, 0, timestamp, 0, timestamp, [rpcReq.deviceId.ProductClass, 'xsd:string']])
+  device.set(sessionData.deviceData, ['DeviceID', 'SerialNumber'], 1, [timestamp, 1, timestamp, 0, timestamp, 0, timestamp, [rpcReq.deviceId.SerialNumber, 'xsd:string']])
+
+  for p in rpcReq.parameterList
     device.set(sessionData.deviceData, common.parsePath(p[0]), 1, [timestamp, 1, timestamp, 0, null, null, timestamp, p.slice(1)])
 
   device.set(sessionData.deviceData, ['Events', 'Inform'], 1, [timestamp, 1, timestamp, 0, timestamp, 0, timestamp, [timestamp, 'xsd:dateTime']])
 
-  for e in rpcRequest.event
+  for e in rpcReq.event
     device.set(sessionData.deviceData, ['Events', e.replace(' ', '_')], 1, [timestamp, 1, timestamp, 0, timestamp, 0, timestamp, [timestamp, 'xsd:dateTime']])
 
   return callback(null, {type : 'InformResponse'})
 
 
-addPreset = (sessionData, name, preset) ->
-  sessionData.presets[name] = preset
+addProvisions = (sessionData, provisions) ->
+  sessionData.provisions = sessionData.provisions.concat(provisions)
+  if sessionData.counter[1] > 0
+    sessionData.counter[2] += 1
+    sessionData.counter[1] = 0
+    sessionData.counter[0] = 0
+
+
+clearProvisions = (sessionData) ->
+  sessionData.provisions = []
+  if sessionData.counter[1] > 0
+    sessionData.counter[2] += 1
+    sessionData.counter[1] = 0
+    sessionData.counter[0] = 0
 
 
 generateRpcRequest = (sessionData, declarations, callback) ->
@@ -214,26 +236,26 @@ generateRpcRequest = (sessionData, declarations, callback) ->
       return
 
     if res.gpn?
-      rpcRequest = {
+      rpcReq = {
         type: 'GetParameterNames'
         parameterPath: res.gpn[0].join('.')
         nextLevel: true
       }
-      return callback(null, rpcRequest)
+      return callback(null, rpcReq)
 
     if res.gpv?
-      rpcRequest = {
+      rpcReq = {
         type: 'GetParameterValues'
         parameterNames: (p.join('.') for p in res.gpv.slice(0, config.get('TASK_PARAMETERS_BATCH_SIZE', sessionData.deviceId)))
       }
-      return callback(null, rpcRequest)
+      return callback(null, rpcReq)
 
     if res.spv?
-      rpcRequest = {
+      rpcReq = {
         type: 'SetParameterValues'
         parameterList: ([p[0].join('.'), p[1], p[2]] for p in res.spv.slice(0, config.get('TASK_PARAMETERS_BATCH_SIZE', sessionData.deviceId)))
       }
-      return callback(null, rpcRequest)
+      return callback(null, rpcReq)
 
     return cb()
 
@@ -263,74 +285,73 @@ generateRpcRequest = (sessionData, declarations, callback) ->
 
 
 rpcRequest = (sessionData, allDeclarations, callback) ->
-  presetNames = Object.keys(sessionData.presets)
-  presetNames.sort((a, b) ->
-    if sessionData.presets[a].weight == sessionData.presets[b].weight
-      return a > b
-    else
-      return sessionData.presets[a].weight - sessionData.presets[b].weight
-  )
-
   allDeclarations = allDeclarations?.slice() ? []
 
-  counter = 1
-  for presetName in presetNames
-    do (presetName) ->
-      for provision in sessionData.presets[presetName].provisions
-        ++ counter
-        provisions.processProvision(provision[0], provision[1..], (err, declarations) ->
-          if err
-            callback(err) if -- counter >= 0
-            counter = 0
-            return
+  nextRevision = false
 
-          allDeclarations = allDeclarations.concat(declarations)
+  cache.getScripts((err, presetsHash, scripts) ->
+    return callback(err) if err or presetsHash != sessionData.presetsHash
 
-          if -- counter == 0
-            generateRpcRequest(sessionData, allDeclarations, (err, rpcRequest) ->
-              sessionData.rpcRequest = rpcRequest
-              if err or not rpcRequest?
-                return callback(err)
+    for provision in sessionData.provisions
+      if not scripts[provision[0]]?
+        switch provision[0]
+          when 'refresh'
+            path = common.parsePath(provision[1])
+            for i in [path.length...16] by 1
+              path.length = i
+              allDeclarations.push([path.slice(), provision[2], null, null, null, null, null, provision[2]])
+          when 'value'
+            allDeclarations.push([[common.parsePath(provision[1]), provision[2], null, null, null, null, null, provision[2]]])
+          when 'tag'
+            allDeclarations.push([[['Tags', provision[1]], null, null, null, null, null, null, null, [provision[2], 'xsd:boolean']]])
+        continue
 
-              callback(err, sessionData.rpcCount++, rpcRequest)
-            )
-            return
-      )
+      nextRevision ||= sandbox.run(scripts[provision[0]].compiled, provision.slice(1), sessionData.deviceData, sessionData.counter[1], allDeclarations)
 
-  if -- counter == 0
-    generateRpcRequest(sessionData, allDeclarations, (err, rpcRequest) ->
-      sessionData.rpcRequest = rpcRequest
-      if err or not rpcRequest?
-        return callback(err)
+    generateRpcRequest(sessionData, allDeclarations, (err, rpcReq) ->
+      sessionData.rpcRequest = rpcReq
+      return callback(err) if err
 
-      callback(err, sessionData.rpcCount++, rpcRequest)
+      if not rpcReq?
+        if not nextRevision
+          return callback()
+        sessionData.counter[0] = 0
+        sessionData.counter[1] += 1
+        return rpcRequest(sessionData, null, callback)
+
+      callback(err, generateRpcId(sessionData), rpcReq)
     )
-    return
+  )
+  return
 
 
-rpcResponse = (sessionData, id, rpcResponse, callback) ->
-  # TODO verify ID
-  rpcRequest = sessionData.rpcRequest
+rpcResponse = (sessionData, id, rpcRes, callback) ->
+  if id != generateRpcId(sessionData)
+    return callback(new Error('Request ID not recognized'))
+
+  ++ sessionData.counter[0]
+
+  rpcReq = sessionData.rpcRequest
   sessionData.rpcRequest = null
 
   timestamp = sessionData.timestamp
 
-  switch rpcResponse.type
+  switch rpcRes.type
     when 'GetParameterValuesResponse'
-      return callback(new Error('Response type does not match request type')) if rpcRequest.type isnt 'GetParameterValues'
+      return callback(new Error('Response type does not match request type')) if rpcReq.type isnt 'GetParameterValues'
 
-      for p in rpcResponse.parameterList
+      for p in rpcRes.parameterList
         device.set(sessionData.deviceData, common.parsePath(p[0]), 1, [timestamp, 1, timestamp, 0, null, null, timestamp, p.slice(1)])
 
     when 'GetParameterNamesResponse'
-      return callback(new Error('Response type does not match request type')) if rpcRequest.type isnt 'GetParameterNames'
+      return callback(new Error('Response type does not match request type')) if rpcReq.type isnt 'GetParameterNames'
 
-      device.set(sessionData.deviceData, common.parsePath(rpcRequest.parameterPath).concat(null), 1, timestamp)
+      device.set(sessionData.deviceData, common.parsePath(rpcReq.parameterPath).concat(null), 1, timestamp)
 
-      for p in rpcResponse.parameterList
+      for p in rpcRes.parameterList
         if common.endsWith(p[0], '.')
           path = common.parsePath(p[0][0...-1])
-          if not rpcRequest.nextLevel
+          if not rpcReq.nextLevel
             device.set(sessionData.deviceData, path.conact(null), 1, timestamp)
 
           device.set(sessionData.deviceData, path, 1, [timestamp, 1, timestamp, 1, timestamp, if p[1] then 1 else 0])
@@ -338,9 +359,9 @@ rpcResponse = (sessionData, id, rpcResponse, callback) ->
           device.set(sessionData.deviceData, common.parsePath(p[0]), 1, [timestamp, 1, timestamp, 0, timestamp, if p[1] then 1 else 0])
 
     when 'SetParameterValuesResponse'
-      return callback(new Error('Response type does not match request type')) if rpcRequest.type isnt 'SetParameterValues'
+      return callback(new Error('Response type does not match request type')) if rpcReq.type isnt 'SetParameterValues'
 
-      for p in rpcRequest.parameterList
+      for p in rpcReq.parameterList
         device.set(sessionData.deviceData, common.parsePath(p[0]), 1, [timestamp, 1, timestamp, 0, timestamp, 1, timestamp, p.slice(1)])
 
     else
@@ -410,7 +431,8 @@ end = (sessionData, callback) ->
 
 exports.init = init
 exports.inform = inform
-exports.addPreset = addPreset
+exports.addProvisions = addProvisions
+exports.clearProvisions = clearProvisions
 exports.rpcRequest = rpcRequest
 exports.rpcResponse = rpcResponse
 exports.rpcFault = rpcFault

@@ -44,10 +44,10 @@ zlib = require 'zlib'
 config = require './config'
 common = require './common'
 soap = require './soap'
-db = require './db'
 session = require './session'
 query = require './query'
 device = require './device'
+cache = require './cache'
 
 
 writeResponse = (currentRequest, res) ->
@@ -104,7 +104,11 @@ inform = (currentRequest, cwmpRequest) ->
 
 
 applyPresets = (currentRequest) ->
-  db.getPresetsObjectsAliases((presets, objects, aliases) ->
+  cache.getPresets((err, presetsHash, presets) ->
+    throw err if err
+
+    currentRequest.sessionData.presetsHash = presetsHash
+
     parameters = {}
     for p in presets
       for a in Object.keys(query.queryProjection(p.precondition))
@@ -126,10 +130,12 @@ applyPresets = (currentRequest) ->
 
       for p in presets
         if query.test(parameters, p.precondition)
-          session.addPreset(currentRequest.sessionData, p._id, p)
+          session.addProvisions(currentRequest.sessionData, p.provisions)
 
       session.rpcRequest(currentRequest.sessionData, null, (err, id, rpcRequest) ->
         throw err if err
+        if not rpcRequest?
+          session.clearProvisions(currentRequest.sessionData)
         sendRpcRequest(currentRequest, id, rpcRequest)
       )
     )
@@ -140,6 +146,7 @@ nextRpc = (currentRequest) ->
   session.rpcRequest(currentRequest.sessionData, null, (err, id, rpcRequest) ->
     throw err if err
     if not rpcRequest?
+      session.clearProvisions(currentRequest.sessionData)
       return applyPresets(currentRequest)
 
     sendRpcRequest(currentRequest, id, rpcRequest)
