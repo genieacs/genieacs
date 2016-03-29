@@ -20,6 +20,7 @@
   "Device.WANDevice./^\\d+$/.WANConnectionDevice./^\\d+$/.WANPPPConnection./^\\d+$/.MACAddress" : {"alias" : "summary.mac", "type" : "mac"},
   "Device.WANDevice./^\\d+$/.WANConnectionDevice./^\\d+$/.WANPPPConnection./^\\d+$/.ExternalIPAddress" : {"alias" : "summary.ip"},
 
+  "InternetGatewayDevice.ManagementServer.ConnectionRequestURL": {"alias": "summary.connectionUrl"},
   "InternetGatewayDevice.LANDevice./^\\d+$/.WLANConfiguration./^\\d+$/.SSID" : {"alias" : "summary.wlanSsid"},
   "InternetGatewayDevice.LANDevice./^\\d+$/.WLANConfiguration./^\\d+$/.PreSharedKey.1.KeyPassphrase" : {"alias" : "summary.wlanPassphrase"},
   "Device.LANDevice./^\\d+$/.WLANConfiguration./^\\d+$/.SSID" : {"alias" : "summary.wlanSsid"},
