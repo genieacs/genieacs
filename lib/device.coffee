@@ -270,7 +270,7 @@ traverse = (deviceData, pattern, revision, callback) ->
 
     # Collect current properties
     if ref[0]?[0]?
-      for i in [revisionThreshold...Math.min(revision, ref[0][0].length)] by 1 when (rev = ref[0][0][i])?
+      for i in [revisionThreshold...Math.min(revision + 1, ref[0][0].length)] by 1 when (rev = ref[0][0][i])?
         for j in [0...rev.length] by 2 when rev[j]?
           if rev[j] >= timestampThreshold
             current[j] = rev[j]
