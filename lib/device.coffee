@@ -344,12 +344,12 @@ traverse = (deviceData, pattern, revision, callback) ->
 
 
 getPrerequisiteDeclarations = (declarations) ->
-  dec = [declarations[0]]
+  dec = [declarations[0], 1]
   for i in [1...declarations.length] by 2
     if declarations[i]?
       dec[i] = declarations[i]
     else if declarations[i + 1]?
-      dec[i] = 0
+      dec[i] = 1
   return [dec]
 
 
