@@ -98,7 +98,7 @@ init = () ->
 
 declare = (deviceData, path, declaration, now) ->
   wildcard = false
-  for i in [0...path.length] when not path[i]?
+  for i in [0...path.length] by 1 when not path[i]?
     wildcard = true
     break
 
@@ -137,7 +137,7 @@ declare = (deviceData, path, declaration, now) ->
 set = (deviceData, path, revision, properties) ->
   ++ revision # revisions start at layer 1
   wildcard = false
-  for i in [0...path.length] when not path[i]?
+  for i in [0...path.length] by 1 when not path[i]?
     wildcard = true
     break
 
@@ -343,6 +343,45 @@ traverse = (deviceData, pattern, revision, callback) ->
   return recursive(deviceData, [], [], 0, 1)
 
 
+collapse = (deviceData, revision, wildcard) ->
+  ref = deviceData
+
+  if ref[0]?
+    for depth, i in ref[0] when depth?.length > revision + 2
+      if i == 0 and not wildcard
+        depth[revision + 1] ?= []
+        for j in [revision + 2...depth.length] by 1 when depth[j]?
+          for k in [0...depth[j].length] by 2 when depth[j][k]?
+            depth[revision + 1][k] = depth[j][k]
+            depth[revision + 1][k + 1] = depth[j][k + 1]
+      else
+        for j in [revision + 2...depth.length] by 1 when depth[j]?
+          depth[revision + 1] = depth[j]
+
+      depth.length = revision + 2
+
+  for i in [1...ref.length] by 1 when ref[i]?
+    for k, v of ref[i]
+      collapse(v, revision, wildcard or i != 1)
+
+
+clearDeclarations = (deviceData, prefix) ->
+  ref = deviceData
+
+  if prefix?
+    for p in prefix
+      ref = ref[1]?[p]
+      return if not ref?
+
+  if ref[0]?
+    for depth in ref[0] when depth?
+      depth[0] = null
+
+  for i in [1...ref.length] by 1 when ref[i]?
+    for k, v of ref[i]
+      clearDeclarations(v)
+
+
 getPrerequisiteDeclarations = (declarations) ->
   dec = [declarations[0], 1]
   for i in [1...declarations.length] by 2
@@ -368,3 +407,6 @@ exports.getAll = getAll
 exports.declare = declare
 exports.set = set
 exports.traverse = traverse
+exports.collapse = collapse
+exports.clearDeclarations = clearDeclarations
+exports.sanitizeParameterValue = sanitizeParameterValue

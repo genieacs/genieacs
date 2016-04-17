@@ -38,9 +38,10 @@ sandbox.context.declare = (decs) ->
   if ++ sandbox.revision > sandbox.maxRevision + 1
     throw new Error('Declare function should not be called from within a try/catch block')
 
-  sandbox.declarations = decs
-
   if sandbox.revision == sandbox.maxRevision + 1
+    for k, v of decs
+      sandbox.declarations.push([common.parsePath(k)].concat(toIndexDeclaration(v)))
+
     throw new Declare()
 
   res = {}
@@ -98,24 +99,20 @@ toIndexDeclaration = (keyDeclaraiton) ->
   return indexDeclaraiton
 
 
-run = (script, args, deviceData, revision, declarations) ->
+run = (script, args, deviceData, startRevision, maxRevision) ->
   sandbox.deviceData = deviceData
   sandbox.args = args
-  sandbox.maxRevision = revision
-  sandbox.revision = 0
+  sandbox.revision = startRevision
+  sandbox.maxRevision = maxRevision
   sandbox.declarations = []
 
   try
-    script.runInNewContext(sandbox.context)
+    ret = script.runInNewContext(sandbox.context)
+    return {done: true, declarations: sandbox.declarations, returnValue: ret}
   catch err
     throw err if err not instanceof Declare
-    for k, v of sandbox.declarations
-      declarations.push([common.parsePath(k)].concat(toIndexDeclaration(v)))
-    return true
 
-  for k, v of sandbox.declarations
-    declarations.push([common.parsePath(k)].concat(toIndexDeclaration(v)))
-  return false
+    return {done: false, declarations: sandbox.declarations}
 
 
 exports.run = run

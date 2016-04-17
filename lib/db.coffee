@@ -26,11 +26,12 @@ tasksCollection = null
 devicesCollection = null
 presetsCollection = null
 objectsCollection = null
-scriptsCollection = null
+provisionsCollection = null
+virtualParametersCollection = null
 
 
 connect = (callback) ->
-  callbackCounter = 7
+  callbackCounter = 8
   mongodb.MongoClient.connect(config.get('MONGODB_CONNECTION_URL'), {db:{w:1},server:{autoReconnect:true}}, (err, db) ->
     return callback(err) if err
     exports.mongoDb = db
@@ -72,8 +73,15 @@ connect = (callback) ->
         return callback(err)
     )
 
-    db.collection('scripts', (err, collection) ->
-      exports.scriptsCollection = scriptsCollection = collection
+    db.collection('provisions', (err, collection) ->
+      exports.provisionsCollection = provisionsCollection = collection
+      if --callbackCounter == 0 or err
+        callbackCounter = 0
+        return callback(err)
+    )
+
+    db.collection('virtualParameters', (err, collection) ->
+      exports.virtualParametersCollection = virtualParametersCollection = collection
       if --callbackCounter == 0 or err
         callbackCounter = 0
         return callback(err)

@@ -41,7 +41,6 @@
 url = require 'url'
 mongodb = require 'mongodb'
 querystring = require 'querystring'
-crypto = require 'crypto'
 
 config = require './config'
 common = require './common'
@@ -59,7 +58,8 @@ FILES_REGEX = /^\/files\/([a-zA-Z0-9\%\!\*\'\(\)\;\:\@\&\=\+\$\,\?\#\[\]\-\_\.\~
 PING_REGEX = /^\/ping\/([a-zA-Z0-9\-\_\.]+)\/?$/
 QUERY_REGEX = /^\/([a-zA-Z0-9_]+s)\/?$/
 DELETE_DEVICE_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/?$/
-SCRIPTS_REGEX = /^\/scripts\/([a-zA-Z0-9\-\_\%]+)\/?$/
+PROVISIONS_REGEX = /^\/provisions\/([a-zA-Z0-9\-\_\%]+)\/?$/
+VIRTUAL_PARAMETERS_REGEX = /^\/virtual_parameters\/([a-zA-Z0-9\-\_\%]+)\/?$/
 
 
 errorToString = (err) ->
@@ -151,16 +151,15 @@ listener = (request, response) ->
       else
         response.writeHead 405, {'Allow': 'PUT, DELETE'}
         response.end('405 Method Not Allowed')
-    else if SCRIPTS_REGEX.test(urlParts.pathname)
-      scriptName = querystring.unescape(SCRIPTS_REGEX.exec(urlParts.pathname)[1])
+    else if PROVISIONS_REGEX.test(urlParts.pathname)
+      provisionName = querystring.unescape(PROVISIONS_REGEX.exec(urlParts.pathname)[1])
       if request.method == 'PUT'
         object = {
-          _id: scriptName
-          source: body.toString()
-          md5: crypto.createHash('md5').update(body).digest('hex')
+          _id: provisionName
+          script: body.toString()
         }
 
-        db.scriptsCollection.save(object, (err) ->
+        db.provisionsCollection.save(object, (err) ->
           db.redisClient.del('presets_hash', (err) ->
             throw err if err
           )
@@ -172,7 +171,41 @@ listener = (request, response) ->
           response.end()
         )
       else if request.method == 'DELETE'
-        db.scriptsCollection.remove({'_id' : scriptName}, (err) ->
+        db.provisionsCollection.remove({'_id' : provisionName}, (err) ->
+          db.redisClient.del('presets_hash', (err) ->
+            throw err if err
+          )
+          if err
+            response.writeHead(500)
+            response.end(errorToString(err))
+            return
+          response.writeHead(200)
+          response.end()
+        )
+      else
+        response.writeHead 405, {'Allow': 'PUT, DELETE'}
+        response.end('405 Method Not Allowed')
+    else if VIRTUAL_PARAMETERS_REGEX.test(urlParts.pathname)
+      virtualParameterName = querystring.unescape(VIRTUAL_PARAMETERS_REGEX.exec(urlParts.pathname)[1])
+      if request.method == 'PUT'
+        object = {
+          _id: virtualParameterName
+          script: body.toString()
+        }
+
+        db.virtualParametersCollection.save(object, (err) ->
+          db.redisClient.del('presets_hash', (err) ->
+            throw err if err
+          )
+          if err
+            response.writeHead(500)
+            response.end(errorToString(err))
+            return
+          response.writeHead(200)
+          response.end()
+        )
+      else if request.method == 'DELETE'
+        db.virtualParametersCollection.remove({'_id' : virtualParameterName}, (err) ->
           db.redisClient.del('presets_hash', (err) ->
             throw err if err
           )

@@ -25,7 +25,8 @@ REFRESH = 3000
 nextRefresh = 0
 hash = null
 presets = null
-scripts = null
+provisions = null
+virtualParameters = null
 
 
 UNLOCK_SCRIPT = 'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end'
@@ -55,18 +56,22 @@ lock = (lockName, ttl, callback) ->
 
 
 computeHash = () ->
-  # MD5 hash for presets and scripts for detecting changes
+  # MD5 hash for presets, provisions, virtual parameters for detecting changes
   h = crypto.createHash('md5')
   for p in presets
     h.update(JSON.stringify(p.name))
     h.update(JSON.stringify(p.precondition))
     h.update(JSON.stringify(p.provisions))
 
-  for s in Object.keys(scripts).sort()
-    h.update(JSON.stringify(s))
-    h.update(JSON.stringify(scripts[s].source))
+  keys = Object.keys(provisions).sort()
+  h.update(JSON.stringify(keys))
+  h.update(provisions[k].md5) for k in keys
 
-  return h.digest('hex')
+  keys = Object.keys(virtualParameters).sort()
+  h.update(JSON.stringify(keys))
+  h.update(virtualParameters[k].md5) for k in keys
+
+  hash = h.digest('hex')
 
 
 refresh = (callback) ->
@@ -79,7 +84,7 @@ refresh = (callback) ->
       return callback()
 
     lock('presets_hash_lock', 3000, (err, unlockOrExtend) ->
-      counter = 2
+      counter = 3
       db.presetsCollection.find().toArray((err, res) ->
         if err
           callback(err) if -- counter >= 0
@@ -98,25 +103,25 @@ refresh = (callback) ->
         for preset in res
           precondition = JSON.parse(preset.precondition)
 
-          provisions = preset.provisions or []
+          _provisions = preset.provisions or []
 
           # Generate provisions from the old configuration format
           for c in preset.configurations
             switch c.type
               when 'age'
-                provisions.push(['refresh', c.name, c.age * -1000])
+                _provisions.push(['refresh', c.name, c.age * -1000])
               when 'value'
-                provisions.push(['value', c.name, c.value])
+                _provisions.push(['value', c.name, c.value])
               when 'add_tag'
-                provisions.push(['tag', c.tag, true])
+                _provisions.push(['tag', c.tag, true])
               when 'delete_tag'
-                provisions.push(['tag', c.tag, false])
-              when 'script'
-                provisions.push([c.name].concat(c.args or []))
+                _provisions.push(['tag', c.tag, false])
+              when 'provision'
+                _provisions.push([c.name].concat(c.args or []))
               else
                 throw new Error("Unknown configuration type #{c.type}")
 
-          presets.push({name: preset._id, precondition: precondition, provisions: provisions})
+          presets.push({name: preset._id, precondition: precondition, provisions: _provisions})
 
         if -- counter == 0
           computeHash()
@@ -127,18 +132,38 @@ refresh = (callback) ->
           )
       )
 
-      db.scriptsCollection.find().toArray((err, res) ->
+      db.provisionsCollection.find().toArray((err, res) ->
         if err
           callback(err) if -- counter >= 0
           counter = 0
           return
 
-        scripts = {}
+        provisions = {}
         for r in res
-          scripts[r._id] = {}
-          scripts[r._id].source = r.source
-          scripts[r._id].md5 = r.md5
-          scripts[r._id].compiled = vm.Script(r.source, {filename: r._id, timeout: 50})
+          provisions[r._id] = {}
+          provisions[r._id].md5 = crypto.createHash('md5').update(r.script).digest('hex')
+          provisions[r._id].script = vm.Script(r.script, {filename: r._id, timeout: 50})
+
+        if -- counter == 0
+          computeHash()
+          db.redisClient.setex("presets_hash", 300, hash, (err) ->
+            unlockOrExtend(0)
+            nextRefresh = now + REFRESH
+            return callback()
+          )
+      )
+
+      db.virtualParametersCollection.find().toArray((err, res) ->
+        if err
+          callback(err) if -- counter >= 0
+          counter = 0
+          return
+
+        virtualParameters = {}
+        for r in res
+          virtualParameters[r._id] = {}
+          virtualParameters[r._id].md5 = crypto.createHash('md5').update(r.script).digest('hex')
+          virtualParameters[r._id].script = vm.Script(r.script, {filename: r._id, timeout: 50})
 
         if -- counter == 0
           computeHash()
@@ -162,14 +187,32 @@ getPresets = (callback) ->
   )
 
 
-getScripts = (callback) ->
+getProvisions = (callback) ->
   if Date.now() < nextRefresh
-    return callback(null, hash, scripts)
+    return callback(null, hash, provisions)
 
   refresh((err) ->
-    return callback(err, hash, scripts)
+    return callback(err, hash, provisions)
   )
 
 
+getVirtualParameters = (callback) ->
+  if Date.now() < nextRefresh
+    return callback(null, hash, virtualParameters)
+
+  refresh((err) ->
+    return callback(err, hash, virtualParameters)
+  )
+
+
+getProvisionsAndVirtualParameters = (callback) ->
+  if Date.now() < nextRefresh
+    return callback(null, hash, provisions, virtualParameters)
+
+  refresh((err) ->
+    return callback(err, hash, provisions, virtualParameters)
+  )
+
 exports.getPresets = getPresets
-exports.getScripts = getScripts
+exports.getProvisions = getProvisions
+exports.getProvisionsAndVirtualParameters = getProvisionsAndVirtualParameters
