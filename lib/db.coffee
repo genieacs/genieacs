@@ -394,7 +394,7 @@ fetchDevice = (id, timestamp, patterns, callback) ->
           if kk == '_SerialNumber'
             res.push([['DeviceID', 'SerialNumber'], timestamp, 1, timestamp, 0, timestamp, 0, timestamp, [vv, 'xsd:string']])
       else if common.typeOf(v) is common.OBJECT_TYPE
-        storeParams(v, [k], 0, projection == null)
+        storeParams(v, [k], device['_timestamp'] ? 0, projection == null)
 
     return callback(null, res)
   )
