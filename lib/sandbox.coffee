@@ -22,7 +22,7 @@ device = require './device'
 
 
 # Used for throwing to exit user script
-class Declare;
+class Exit;
 
 
 sandbox = {
@@ -31,8 +31,24 @@ sandbox = {
   revision: null
   maxRevision: null
   declarations: null
+  extensionsCache: null
+  extensions: null
   context: vm.createContext()
 }
+
+
+sandbox.context.ext = () ->
+  if sandbox.extensions?.length
+    throw new Error('Ext function should not be called from within a try/catch block')
+
+  extCall = (String(a) for a in arguments)
+  key = JSON.stringify(extCall)
+  if not sandbox.extensionsCache[sandbox.revision]?[key]?
+    sandbox.extensions = [extCall]
+    throw new Exit()
+
+  return sandbox.extensionsCache[sandbox.revision][key]
+
 
 sandbox.context.declare = (decs) ->
   if ++ sandbox.revision > sandbox.maxRevision + 1
@@ -42,7 +58,7 @@ sandbox.context.declare = (decs) ->
     for k, v of decs
       sandbox.declarations.push([common.parsePath(k)].concat(toIndexDeclaration(v)))
 
-    throw new Declare()
+    throw new Exit()
 
   res = {}
   for k, v of decs
@@ -99,20 +115,22 @@ toIndexDeclaration = (keyDeclaraiton) ->
   return indexDeclaraiton
 
 
-run = (script, args, deviceData, startRevision, maxRevision) ->
+run = (script, args, deviceData, extensionsCache, startRevision, maxRevision) ->
   sandbox.deviceData = deviceData
+  sandbox.extensionsCache = extensionsCache
   sandbox.args = args
   sandbox.revision = startRevision
   sandbox.maxRevision = maxRevision
   sandbox.declarations = []
+  sandbox.extensions = null
 
   try
     ret = script.runInNewContext(sandbox.context)
     return {done: true, declarations: sandbox.declarations, returnValue: ret}
   catch err
-    throw err if err not instanceof Declare
+    throw err if err not instanceof Exit
 
-    return {done: false, declarations: sandbox.declarations}
+    return {done: false, declarations: sandbox.declarations, extensions: sandbox.extensions}
 
 
 exports.run = run

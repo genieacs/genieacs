@@ -23,6 +23,7 @@ db = require './db'
 device = require './device'
 sandbox = require './sandbox'
 cache = require './cache'
+extensions = require './extensions'
 
 
 init = (deviceId, cwmpVersion, timeout) ->
@@ -40,6 +41,7 @@ init = (deviceId, cwmpVersion, timeout) ->
     revisions: [0]
     rpcCount: 0
     cycle: 0
+    extensionsCache: []
   }
 
   return sessionData
@@ -100,6 +102,7 @@ addProvisions = (sessionData, provisions) ->
     sessionData.rpcCount = 0
     sessionData.revisions = [0]
     device.collapse(sessionData.deviceData, 1)
+    sessionData.extensionsCache.length = 0
 
 
 clearProvisions = (sessionData) ->
@@ -109,6 +112,7 @@ clearProvisions = (sessionData) ->
     sessionData.rpcCount = 0
     sessionData.revisions = [0]
     device.collapse(sessionData.deviceData, 1)
+    sessionData.extensionsCache.length = 0
 
 
 generateRpcRequest = (sessionData) ->
@@ -334,6 +338,28 @@ commitVirtualParameter = (sessionData, parameterDeclaration, revision, update) -
   device.set(sessionData.deviceData, parameterDeclaration[0], revision, v)
 
 
+runExtensions = (sessionData, revision, _extensions, callback) ->
+  sessionData.extensionsCache[revision] ?= {}
+  obj = {}
+  for e in _extensions
+    obj[JSON.stringify(e)] = e
+
+  counter = 1
+  for k, v of obj
+    ++ counter
+    do (k, v) ->
+      extensions.run(v, (err, res) ->
+        sessionData.extensionsCache[revision][k] = res
+
+        if -- counter == 0 or err
+          counter = 0
+          return callback(err)
+      )
+
+  if -- counter == 0
+    return callback()
+
+
 rpcRequest = (sessionData, declarations, callback) ->
   allDeclarations = declarations?.slice() ? []
 
@@ -341,6 +367,7 @@ rpcRequest = (sessionData, declarations, callback) ->
     return callback(err) if err or presetsHash != sessionData.presetsHash
 
     done = true
+    _extensions = []
     for provision in sessionData.provisions
       if not provisions[provision[0]]?
         switch provision[0]
@@ -355,12 +382,21 @@ rpcRequest = (sessionData, declarations, callback) ->
             allDeclarations.push([[['Tags', provision[1]], null, null, null, null, null, null, null, [provision[2], 'xsd:boolean']]])
         continue
 
-      ret = sandbox.run(provisions[provision[0]].script, provision.slice(1), sessionData.deviceData, 0, sessionData.revisions[0] >> 1)
+      ret = sandbox.run(provisions[provision[0]].script, provision.slice(1), sessionData.deviceData, sessionData.extensionsCache, 0, sessionData.revisions[0] >> 1)
+      if ret.extensions?.length
+        _extensions = _extensions.concat(ret.extensions)
       done &&= ret.done
       allDeclarations = allDeclarations.concat(ret.declarations)
 
     if done and (not allDeclarations?.length or sessionData.revisions[0] > 1)
       return callback()
+
+    if _extensions.length
+      runExtensions(sessionData, (sessionData.revisions[0] >> 1), _extensions, (err) ->
+        return callback(err) if err
+        return rpcRequest(sessionData, declarations, callback)
+      )
+      return
 
     doVirtualParameters = (iter, virtualParameterDeclarations, cb) ->
       if not virtualParameterDeclarations?
@@ -371,15 +407,26 @@ rpcRequest = (sessionData, declarations, callback) ->
       sessionData.revisions[iter] ?= 0
       decs = []
       virtualParameterUpdates = []
+      _extensions = []
+      lastRevision = sessionData.revisions.reduce((a, b) -> (a >> 1) + (b >> 1))
+      firstRevision = lastRevision - (sessionData.revisions[sessionData.revisions.length - 1] >> 1)
       for vpd, i in virtualParameterDeclarations
         vpName = vpd[0][1]
         continue if not virtualParameters[vpName]?
-        lastRevision = sessionData.revisions.reduce((a, b) -> (a >> 1) + (b >> 1))
-        firstRevision = lastRevision - (sessionData.revisions[sessionData.revisions.length - 1] >> 1)
-        ret = sandbox.run(virtualParameters[vpName].script, [vpd.slice(1)], sessionData.deviceData, firstRevision, lastRevision)
+        ret = sandbox.run(virtualParameters[vpName].script, [vpd.slice(1)], sessionData.deviceData, sessionData.extensionsCache, firstRevision, lastRevision)
+        if ret.extensions?.length
+          _extensions = _extensions.concat(ret.extensions)
+
         decs = decs.concat(ret.declarations)
         if ret.done
           virtualParameterUpdates.push(ret.returnValue)
+
+      if _extensions.length
+        runExtensions(sessionData, lastRevision, _extensions, (err) ->
+          return callback(err) if err
+          return doVirtualParameters(iter, virtualParameterDeclarations, cb)
+        )
+        return
 
       if virtualParameterUpdates.length == virtualParameterDeclarations.length
         rev = sessionData.revisions.reduce((a, b) -> (a >> 1) + (b >> 1))
@@ -392,6 +439,8 @@ rpcRequest = (sessionData, declarations, callback) ->
         sessionData.revisions.length = iter
         rev = sessionData.revisions.reduce((a, b) -> (a >> 1) + (b >> 1))
         device.collapse(sessionData.deviceData, rev + 1)
+        if sessionData.extensionsCache.length > rev + 1
+          sessionData.extensionsCache.length = rev + 1
         return cb(true)
 
       applyDeclarations(iter, decs, () ->
