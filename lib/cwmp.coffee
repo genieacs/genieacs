@@ -40,6 +40,7 @@
 
 util = require 'util'
 zlib = require 'zlib'
+mongodb = require 'mongodb'
 
 config = require './config'
 common = require './common'
@@ -48,6 +49,7 @@ session = require './session'
 query = require './query'
 device = require './device'
 cache = require './cache'
+db = require './db'
 
 
 writeResponse = (currentRequest, res) ->
@@ -145,11 +147,51 @@ applyPresets = (currentRequest) ->
 nextRpc = (currentRequest) ->
   session.rpcRequest(currentRequest.sessionData, null, (err, id, rpcRequest) ->
     throw err if err
-    if not rpcRequest?
-      session.clearProvisions(currentRequest.sessionData)
+    if rpcRequest?
+      return sendRpcRequest(currentRequest, id, rpcRequest)
+
+    doneTasks = null
+    for p in currentRequest.sessionData.provisions when p[0] == '_task'
+      doneTasks ?= []
+      doneTasks.push(mongodb.ObjectID(p[1]))
+
+    session.clearProvisions(currentRequest.sessionData)
+
+    # No need to query for pending tasks if there was none in previous cycle
+    if not doneTasks? and currentRequest.sessionData.provisions?.length
       return applyPresets(currentRequest)
 
-    sendRpcRequest(currentRequest, id, rpcRequest)
+    nextTask = () ->
+      cur = db.tasksCollection.find({'device' : currentRequest.sessionData.deviceId, timestamp : {$lte : new Date(currentRequest.sessionData.timestamp)}}).sort(['timestamp']).limit(1)
+      cur.nextObject((err, task) ->
+        if not task?
+          return applyPresets(currentRequest)
+
+        switch task.name
+          when 'getParameterValues'
+            session.addProvisions(currentRequest.sessionData, [['_task', task._id, 'getParameterValues'].concat(task.parameterNames)])
+          when 'setParameterValues'
+            t = ['_task', task._id, 'setParameterValues']
+            for p in task.parameterValues
+              t.push(p[0])
+              t.push(p[1])
+              t.push(p[2] ? '')
+            session.addProvisions(currentRequest.sessionData, [t])
+          when 'refreshObject'
+            session.addProvisions(currentRequest.sessionData, [['_task', task._id, 'refreshObject', task.objectName]])
+          else
+            throw new Error('Task name not recognized')
+
+        return nextRpc(currentRequest)
+      )
+
+    if not doneTasks?
+      return nextTask()
+
+    db.tasksCollection.remove({'_id' : {'$in' : doneTasks}}, (err, res) ->
+      throw err if err
+      return nextTask()
+    )
   )
 
 

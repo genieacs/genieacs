@@ -364,7 +364,7 @@ rpcRequest = (sessionData, declarations, callback) ->
   allDeclarations = declarations?.slice() ? []
 
   cache.getProvisionsAndVirtualParameters((err, presetsHash, provisions, virtualParameters) ->
-    return callback(err) if err or presetsHash != sessionData.presetsHash
+    return callback(err) if err or (sessionData.presetsHash? and sessionData.presetsHash != presetsHash)
 
     done = true
     _extensions = []
@@ -380,6 +380,21 @@ rpcRequest = (sessionData, declarations, callback) ->
             allDeclarations.push([common.parsePath(provision[1]), 1, null, null, null, null, null, 1, [provision[2]]])
           when 'tag'
             allDeclarations.push([[['Tags', provision[1]], null, null, null, null, null, null, null, [provision[2], 'xsd:boolean']]])
+          when '_task'
+            # A special provision for tasks compatibility
+            switch provision[2]
+              when 'getParameterValues'
+                for i in [3...provision.length] by 1
+                  allDeclarations.push([common.parsePath(provision[i]), 1, null, null, null, null, null, sessionData.timestamp])
+              when 'setParameterValues'
+                for i in [3...provision.length] by 3
+                  v = if provision[i + 2] then [provision[i + 1], provision[i + 2]] else [provision[i + 1]]
+                  allDeclarations.push([common.parsePath(provision[i]), 1, null, null, null, null, null, 1, v])
+              when 'refreshObject'
+                path = common.parsePath(provision[3])
+                for i in [path.length...16] by 1
+                  path.length = i
+                  allDeclarations.push([path.slice(), sessionData.timestamp, null, 1, null, 1, null, sessionData.timestamp])
         continue
 
       ret = sandbox.run(provisions[provision[0]].script, provision.slice(1), sessionData.deviceData, sessionData.extensionsCache, 0, sessionData.revisions[0] >> 1)
