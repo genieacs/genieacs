@@ -150,11 +150,11 @@ generateRpcRequest = (sessionData) ->
         r.exist = true
 
       if declaration[2] > current[2]
-        r.writable = true
+        r.object = true
         r.exist = false
 
       if declaration[4] > current[4]
-        r.object = true
+        r.writable = true
         r.exist = false
 
       if declaration[6] > current[6]
@@ -164,7 +164,7 @@ generateRpcRequest = (sessionData) ->
           r.object = false
           r.exist = false
           gpn = false
-        else if not current[3]?
+        else if not current[2] > 0
           r.object = true
 
       if declaration[7]? and current[7]?
@@ -255,6 +255,11 @@ loadDeclarations = (sessionData, virtualParameters, callback) ->
       for d, j in descendantLoad when d
         toLoad.push(path.concat(descendantTimestamps[j][0][path.length] ? null))
 
+    if declaration[7]? and not current[4]?
+      # Need writable attribute when declaring a value
+      toLoad.push(path)
+      return
+
     for i in [0...declaration.length] by 2
       if declaration[i]? and not current[i]?
         toLoad.push(path)
@@ -343,7 +348,7 @@ rpcRequest = (sessionData, declarations, callback) ->
             path = common.parsePath(provision[1])
             for i in [path.length...16] by 1
               path.length = i
-              allDeclarations.push([path.slice(), provision[2], null, null, null, null, null, provision[2]])
+              allDeclarations.push([path.slice(), provision[2], null, 1, null, 1, null, provision[2]])
           when 'value'
             allDeclarations.push([[common.parsePath(provision[1]), provision[2], null, null, null, null, null, provision[2]]])
           when 'tag'
@@ -400,7 +405,8 @@ rpcRequest = (sessionData, declarations, callback) ->
             device.declare(sessionData.deviceData, d[0], d.slice(1), sessionData.timestamp)
       else
         for declaration in decs
-          params = device.getAll(sessionData.deviceData, declaration[0], sessionData.revisions[iter] >> 1)
+          params = device.getAll(sessionData.deviceData, declaration[0], (sessionData.revisions[iter] >> 1) + 1)
+          # TODO move setting tags elsewhere
           if declaration[0][0] == 'Tags' and declaration[0].length == 2
             if not declaration[0][1]?
               continue if declaration[8][0]
