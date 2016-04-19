@@ -87,7 +87,7 @@ sanitizeParameterValue = (parameterValue) ->
           throw new Error("Parameter value type \"#{parameterValue[1]}\" not recognized.")
 
         # Ensure consistency after serialization
-        parameterValue[0] = JSON.parse(JSON.stringify(parameter[0]))
+        parameterValue[0] = JSON.parse(JSON.stringify(parameterValue[0]))
 
   return parameterValue
 

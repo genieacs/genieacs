@@ -377,7 +377,7 @@ rpcRequest = (sessionData, declarations, callback) ->
               path.length = i
               allDeclarations.push([path.slice(), provision[2], null, 1, null, 1, null, provision[2]])
           when 'value'
-            allDeclarations.push([[common.parsePath(provision[1]), provision[2], null, null, null, null, null, provision[2]]])
+            allDeclarations.push([common.parsePath(provision[1]), 1, null, null, null, null, null, 1, [provision[2]]])
           when 'tag'
             allDeclarations.push([[['Tags', provision[1]], null, null, null, null, null, null, null, [provision[2], 'xsd:boolean']]])
         continue
