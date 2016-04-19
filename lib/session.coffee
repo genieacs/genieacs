@@ -138,11 +138,11 @@ generateRpcRequest = (sessionData) ->
         overlap = common.pathOverlap(descendantTimestamps[j][0], descendantTimestamps[i][0], path.length)
 
         if overlap & 1 and descendantTimestamps[j][4]?
-          if descendantRefresh[i] and descendantTimestamps[j][4] > descendantTimestamps[i][2]
+          if descendantRefresh[i] and descendantTimestamps[j][4] >= descendantTimestamps[i][2]
             descendantRefresh[i] = false
 
         if overlap & 2 and descendantTimestamps[i][4]?
-          if descendantRefresh[j] and descendantTimestamps[i][4] > descendantTimestamps[j][2]
+          if descendantRefresh[j] and descendantTimestamps[i][4] >= descendantTimestamps[j][2]
             descendantRefresh[j] = false
 
     for d in descendantRefresh when d
