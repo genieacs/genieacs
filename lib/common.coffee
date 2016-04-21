@@ -162,12 +162,101 @@ pathOverlap = (a, b, start) ->
   return res
 
 
-parsePath = (path) ->
-  parts = if path == '' then [] else path.split('.')
-  for p, i in parts
-    parts[i] = null if p == '*'
+parseAlias = (pattern, start, res) ->
+  aliases = []
+  i = start
+  while i < pattern.length and pattern[i] != ']'
+    alias = []
+    i = j = parsePath(pattern, i, alias) + 1
 
-  return parts
+    while pattern[j] not in [']', ',']
+      if pattern[j] == '"' and i == j
+        ++ j
+        while pattern[j] != '"' or pattern[j - 1] == '\\'
+          if ++ j >= pattern.length
+            throw new Error('Invalid alias expression')
+      if ++ j >= pattern.length
+        throw new Error('Invalid alias expression')
+    value = pattern[i...j].trim()
+    i = j
+    if value[0] == '"'
+      try
+        value = JSON.parse(value)
+      catch err
+        throw new Error('Invalid alias expression')
+    alias.push(value)
+    aliases.push(alias)
+    ++ i if pattern[i] == ','
+
+  # Need to sort to ensure identical expressions have idential string representation
+  srt = (a, b) ->
+    for j in [0...Math.min(a.length, b.length)] by 2
+      for k in [0...Math.min(a[j].length, b[j].length)] by 1
+        if Array.isArray(a[j][k])
+          if Array.isArray(b[j][k])
+            return srt(a[j][k], b[j][k])
+          else if not b[j][k]?
+            return -1
+          else
+            return 1
+        else if not a[j][k]?
+          if not b[j][k]?
+            return 0
+          else
+            return 1
+        else if not b[j][k]? or Array.isArray(b[j][k])
+            return -1
+        else if a[j][k] > b[j][k]
+          return 1
+        else if a[j][k] < b[j][k]
+          return -1
+
+      if a[j].length > b[j].length
+        return -1
+      else if a[j].length < b[j].length
+        return 1
+
+      if a[j + 1] > b[j + 1]
+        return -1
+      else if a[j + 1] < b[j + 1]
+        return 1
+
+    if a.length > b.length
+      return -1
+    else if a.length < b.length
+      return 1
+
+    return 0
+
+  aliases.sort(srt)
+  res.push([].concat.apply([], aliases))
+  return i
+
+
+parsePath = (pattern, start, res) ->
+  path = []
+  i = j = start ? 0
+
+  # Colon separator is needed for parseAlias
+  while j < pattern.length and pattern[j] != ':'
+    if pattern[j] == '.'
+      n = pattern.slice(i, j)
+      path.push(if n == '*' then null else n)
+      i = j + 1
+    else if pattern[j] == '[' and i == j
+      j = parseAlias(pattern, j + 1, path) + 1
+      i = j + 1
+    ++ j
+
+  if j > 0
+    n = pattern.slice(i, j)
+    path.push(if n == '*' then null else n)
+
+  if not res?
+    return path
+
+  res.push(path)
+  return j
 
 
 exports.UNDEFINED_TYPE = UNDEFINED_TYPE
