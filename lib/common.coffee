@@ -235,28 +235,32 @@ parseAlias = (pattern, start, res) ->
 
 parsePath = (pattern, start, res) ->
   path = []
-  i = j = start ? 0
+  i = start ? 0
 
   # Colon separator is needed for parseAlias
-  while j < pattern.length and pattern[j] != ':'
-    if pattern[j] == '.'
-      n = pattern.slice(i, j)
-      path.push(if n == '*' then null else n)
-      i = j + 1
-    else if pattern[j] == '[' and i == j
-      j = parseAlias(pattern, j + 1, path) + 1
-      i = j + 1
-    ++ j
+  if i < pattern.length and pattern[i] != ':'
+    while true
+      if pattern[i] == '['
+        i = parseAlias(pattern, i + 1, path) + 1
+      else
+        j = i
+        while i < pattern.length and pattern[i] != ':' and pattern[i] != '.'
+          ++ i
+        n = pattern.slice(j, i)
+        path.push(if n == '*' then null else n)
 
-  if j > 0
-    n = pattern.slice(i, j)
-    path.push(if n == '*' then null else n)
+      if i >= pattern.length or pattern[i] == ':'
+        break
+      else if pattern[i] != '.'
+        throw new Error('Invalid alias expression')
+
+      ++ i
 
   if not res?
     return path
 
   res.push(path)
-  return j
+  return i
 
 
 exports.UNDEFINED_TYPE = UNDEFINED_TYPE
