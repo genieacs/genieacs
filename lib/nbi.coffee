@@ -290,19 +290,25 @@ listener = (request, response) ->
       action = r[2]
       if not action? or action is '/'
         if request.method == 'DELETE'
-          db.tasksCollection.remove({'_id' : taskId}, (err, removedCount) ->
-            if err
-              response.writeHead(500)
-              response.end(errorToString(err))
-              return
+          db.tasksCollection.findOne({'_id' : taskId}, {'device' : 1}, (err, task) ->
+            throw err if err
 
-            if removedCount == 0
+            if not task
               response.writeHead(404)
               response.end()
               return
 
-            response.writeHead(200)
-            response.end()
+            deviceId = task.device
+            db.tasksCollection.remove({'_id' : taskId}, (err, removedCount) ->
+              throw err if err
+
+              db.redisClient.del("#{deviceId}_presets_hash", (err) ->
+                throw err if err
+
+                response.writeHead(200)
+                response.end()
+              )
+            )
           )
         else
           response.writeHead 405, {'Allow': 'PUT DELETE'}
