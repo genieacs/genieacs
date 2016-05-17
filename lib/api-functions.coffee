@@ -84,7 +84,7 @@ connectionRequest = (deviceId, callback) ->
     )
 
     request.on('socket', (socket) ->
-      socket.setTimeout(2000)
+      socket.setTimeout(config.get('CONNECTION_REQUEST_TIMEOUT', deviceId))
       socket.on('timeout', () ->
         request.abort()
       )

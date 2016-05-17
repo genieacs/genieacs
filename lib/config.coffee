@@ -50,6 +50,7 @@ options = {
   GET_PARAMETER_NAMES_DEPTH_THRESHOLD : {type : 'int', default : 0},
   TASK_PARAMETERS_BATCH_SIZE : {type : 'int', default : 32},
   COOKIES_PATH : {type : 'string'},
+  CONNECTION_REQUEST_TIMEOUT : {type : 'int', default : 2000},
 
   # Libxml related configuration
   XML_PARSE_RECOVER : {type : 'bool'},
