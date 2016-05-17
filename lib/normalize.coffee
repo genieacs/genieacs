@@ -68,7 +68,7 @@ normalizers.default = (input, normType) ->
 
     r = stringToRegexp(input)
     if r isnt false
-      vals.push({'$regex' : r})
+      vals.push(r)
 
     return vals
   return input
@@ -90,7 +90,7 @@ normalizers.date = (input, normType) ->
 normalizers.string = (input, normType) ->
   if normType is 'query'
     if (m = /^\/(.*?)\/(g?i?m?y?)$/.exec(input))
-      return [{'$regex' : new RegExp(m[1], m[2])}, input]
+      return [new RegExp(m[1], m[2]), input]
   return input
 
 
@@ -124,7 +124,7 @@ normalizers.mac = (input, normType) ->
   if input.length == 17
     return [input, input.toLowerCase()]
 
-  return {'$regex' : new RegExp(input, 'i')}
+  return new RegExp(input, 'i')
 
 
 exports.normalize = (path, value, normType) ->

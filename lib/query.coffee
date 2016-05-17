@@ -51,8 +51,17 @@ expandValue = (param, value) ->
   while i < indices.length
     obj = {}
     for i in [0...keys.length]
+      if common.typeOf(values[i][indices[i]]) is common.REGEXP_TYPE
+        if keys[i] == '$ne'
+          obj['$not'] = values[i][indices[i]]
+          continue
+      else if keys[i] == '$not' and common.typeOf(values[i][indices[i]]) isnt common.OBJECT_TYPE
+        # Only a regex or decoument (object) are allowed within a $not operator.
+        # This is needed in order to discard string from which a regex is generated.
+        continue
+
       obj[keys[i]] = values[i][indices[i]]
-    objs.push(obj)
+    objs.push(obj) if Object.keys(obj).length
 
     for i in [0...indices.length]
       indices[i] += 1
@@ -75,7 +84,7 @@ permute = (param, val, aliases) ->
     values = expandValue(k, val)
     if k[k.lastIndexOf('.') + 1] != '_'
       k += '._value'
-  
+
     for v in values
       obj = {}
       obj[k] = v
@@ -96,7 +105,7 @@ expand = (query, aliases) ->
       conditions = permute(k, v, aliases)
       if conditions.length > 1
         new_query['$and'] ?= []
-        if v?['$ne']?
+        if v?['$ne']? or v?['$nin']? or v?['$not']?
           for c in conditions
             new_query['$and'].push(c)
         else
