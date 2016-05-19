@@ -344,6 +344,11 @@ listener = (request, response) ->
 
         gs = new mongodb.GridStore(db.mongoDb, filename, 'w', {metadata : metadata})
         gs.open((err, gs) ->
+          if err
+            response.writeHead(500)
+            response.end(errorToString(err))
+            return
+
           gs.write(body, (err, res) ->
             throw err if err
             gs.close((err) ->
@@ -355,6 +360,11 @@ listener = (request, response) ->
         )
       else if request.method == 'DELETE'
         mongodb.GridStore.unlink(db.mongoDb, filename, (err) ->
+          if err
+            response.writeHead(500)
+            response.end(errorToString(err))
+            return
+
           response.writeHead(200)
           response.end()
         )
@@ -442,6 +452,11 @@ listener = (request, response) ->
         cur.skip(parseInt(urlParts.query.skip)) if urlParts.query.skip?
         cur.limit(parseInt(urlParts.query.limit)) if urlParts.query.limit?
         cur.count((err, total) ->
+          if err
+            response.writeHead(500)
+            response.end(errorToString(err))
+            return
+
           response.writeHead(200, {'Content-Type' : 'application/json', 'total' : total})
           if request.method is 'HEAD'
             response.end()
@@ -449,6 +464,8 @@ listener = (request, response) ->
           response.write("[\n")
           i = 0
           cur.each((err, item) ->
+            throw err if err
+
             if item is null
               response.end("\n]")
             else
