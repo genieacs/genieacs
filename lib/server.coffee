@@ -69,7 +69,7 @@ if useHttps
   fs = require 'fs'
   httpsKey = path.resolve(config.get('CONFIG_DIR'), "#{service}.key")
   httpsCert = path.resolve(config.get('CONFIG_DIR'), "#{service}.crt")
-  httpsCa = path.resolve(config.get('CONFIG_DIR'), "#{service}.crt")
+  httpsCa = path.resolve(config.get('CONFIG_DIR'), "#{service}.cabundle.crt")
 
   read = require('fs').readFileSync
   chainLines = fs.readFileSync(httpsCa, 'utf8').split('\n')
