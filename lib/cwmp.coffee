@@ -118,7 +118,7 @@ applyPresets = (currentRequest) ->
 
     declarations = []
     for k, v of parameters
-      declarations.push([v, 1, null, null, null, null, null, 1])
+      declarations.push([v, {exist: 1, value: 1}])
 
     session.rpcRequest(currentRequest.sessionData, declarations, (err, id, rpcRequest) ->
       throw err if err

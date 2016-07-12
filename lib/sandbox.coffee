@@ -26,6 +26,7 @@ class Exit;
 
 
 sandbox = {
+  timestamp: null
   deviceData: null
   args: null
   revision: null
@@ -35,6 +36,16 @@ sandbox = {
   extensions: null
   context: vm.createContext()
 }
+
+sandbox.context.Date = class
+  constructor: (arg) ->
+    if arguments.length
+      return new (Function.prototype.bind.apply(Date, arguments))
+
+    return new Date(sandbox.timestamp)
+
+  now: () ->
+    return sandbox.timestamp
 
 
 sandbox.context.ext = () ->
@@ -56,66 +67,47 @@ sandbox.context.declare = (decs) ->
 
   if sandbox.revision == sandbox.maxRevision + 1
     for k, v of decs
-      sandbox.declarations.push([common.parsePath(k)].concat(toIndexDeclaration(v)))
+      decT = {}
+      decV = {}
+      for attrName, dec of v
+        if Array.isArray(dec)
+          decT[attrName] = dec[0]
+          decV[attrName] = dec[1] if 1 in dec
+        else
+          decT[attrName] = dec
+
+      sandbox.declarations.push([common.parsePath(k), decT, decV])
 
     throw new Exit()
 
   res = {}
   for k, v of decs
     path = common.parsePath(k)
-    all = device.getAll(sandbox.deviceData, path, sandbox.revision)
-    res[k] = {}
-    for a in all
-      r = {}
-      r.exist = a[1] if v.exist?
-      r.type = a.slice(3, 5) if v.type?
-      r.writable = a.slice(5, 7) if v.writable?
-      r.value = a.slice(7, 9) if v.value? and a[8]?
 
-      p = a[0].join('.')
-      if p == k
-        res[k] = r
-      else
-        res[k][p] = r
+    res[k] = {}
+    unpacked = device.unpack(sandbox.deviceData, path, sandbox.revision)
+    for path in unpacked
+      iter = sandbox.deviceData.paths.subset(path)
+      while (param = iter.next().value)?
+        if param.wildcards == 0 and sandbox.deviceData.values.exist.get(param, sandbox.revision)
+          r = {}
+          for attrName, dec of v
+            if (attrValue = sandbox.deviceData.values[attrName].get(param, sandbox.revision))?
+              r[attrName] = [sandbox.deviceData.timestamps[attrName].get(param, sandbox.revision), attrValue]
+
+          p = param.join('.')
+          if p == k
+            res[k] = r
+          else
+            res[k][p] = r
 
   return res
 
 Object.freeze(sandbox.context)
 
 
-# Convert from friendly declaration format
-toIndexDeclaration = (keyDeclaraiton) ->
-  indexDeclaraiton = []
-
-  if keyDeclaraiton['exist']?
-    if Array.isArray(keyDeclaraiton['exist'])
-      indexDeclaraiton[0] = keyDeclaraiton['exist'][0]
-    else
-      indexDeclaraiton[0] = keyDeclaraiton['exist']
-
-  if keyDeclaraiton['type']?
-    if Array.isArray(keyDeclaraiton['type'])
-      indexDeclaraiton[2] = keyDeclaraiton['type'][0]
-    else
-      indexDeclaraiton[2] = keyDeclaraiton['type']
-
-  if keyDeclaraiton['writable']?
-    if Array.isArray(keyDeclaraiton['writable'])
-      indexDeclaraiton[4] = keyDeclaraiton['writable'][0]
-    else
-      indexDeclaraiton[4] = keyDeclaraiton['writable']
-
-  if keyDeclaraiton['value']?
-    if Array.isArray(keyDeclaraiton['value'])
-      indexDeclaraiton[6] = keyDeclaraiton['value'][0]
-      indexDeclaraiton[7] = keyDeclaraiton['value'][1]
-    else
-      indexDeclaraiton[6] = keyDeclaraiton['value']
-
-  return indexDeclaraiton
-
-
-run = (script, args, deviceData, extensionsCache, startRevision, maxRevision) ->
+run = (script, args, timestamp, deviceData, extensionsCache, startRevision, maxRevision) ->
+  sandbox.timestamp = timestamp
   sandbox.deviceData = deviceData
   sandbox.extensionsCache = extensionsCache
   sandbox.args = args
@@ -125,7 +117,7 @@ run = (script, args, deviceData, extensionsCache, startRevision, maxRevision) ->
   sandbox.extensions = null
 
   try
-    ret = script.runInNewContext(sandbox.context)
+    ret = script.runInNewContext(sandbox.context, {displayErrors: false})
     return {done: true, declarations: sandbox.declarations, returnValue: ret}
   catch err
     throw err if err not instanceof Exit

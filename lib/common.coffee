@@ -247,7 +247,7 @@ parsePath = (pattern, start, res) ->
         while i < pattern.length and pattern[i] != ':' and pattern[i] != '.'
           ++ i
         n = pattern.slice(j, i)
-        path.push(if n == '*' then null else n)
+        path.push(n)
 
       if i >= pattern.length or pattern[i] == ':'
         break
@@ -263,6 +263,15 @@ parsePath = (pattern, start, res) ->
   return i
 
 
+hammingWeight = (flags) ->
+  flags -= ((flags >> 1) & 0x55555555)
+  flags = (((flags >> 2) & 0x33333333) + (flags & 0x33333333))
+  flags = (((flags >> 4) + flags) & 0x0f0f0f0f)
+  flags += (flags >> 8)
+  flags += (flags >> 16)
+  return flags & 0x0000003f
+
+
 exports.UNDEFINED_TYPE = UNDEFINED_TYPE
 exports.NULL_TYPE = NULL_TYPE
 exports.NUMBER_TYPE = NUMBER_TYPE
@@ -274,3 +283,4 @@ exports.REGEXP_TYPE = REGEXP_TYPE
 exports.typeOf = typeOf
 exports.pathOverlap = pathOverlap
 exports.parsePath = parsePath
+exports.hammingWeight = hammingWeight
