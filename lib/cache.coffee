@@ -142,7 +142,7 @@ refresh = (callback) ->
         for r in res
           provisions[r._id] = {}
           provisions[r._id].md5 = crypto.createHash('md5').update(r.script).digest('hex')
-          provisions[r._id].script = vm.Script(r.script, {filename: r._id, timeout: 50})
+          provisions[r._id].script = new vm.Script(r.script, {filename: r._id, timeout: 50})
 
         if -- counter == 0
           computeHash()
@@ -163,7 +163,7 @@ refresh = (callback) ->
         for r in res
           virtualParameters[r._id] = {}
           virtualParameters[r._id].md5 = crypto.createHash('md5').update(r.script).digest('hex')
-          virtualParameters[r._id].script = vm.Script(r.script, {filename: r._id, timeout: 50})
+          virtualParameters[r._id].script = new vm.Script(r.script, {filename: r._id, timeout: 50})
 
         if -- counter == 0
           computeHash()
