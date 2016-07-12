@@ -44,7 +44,7 @@ sandbox.context.Date = class
 
     return new Date(sandbox.timestamp)
 
-  now: () ->
+  @now: () ->
     return sandbox.timestamp
 
 
@@ -72,7 +72,7 @@ sandbox.context.declare = (decs) ->
       for attrName, dec of v
         if Array.isArray(dec)
           decT[attrName] = dec[0]
-          decV[attrName] = dec[1] if 1 in dec
+          decV[attrName] = dec[1] if 1 of dec
         else
           decT[attrName] = dec
 

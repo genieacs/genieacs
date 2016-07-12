@@ -256,7 +256,7 @@ fetchDevice = (id, timestamp, patterns, callback) ->
     loaded.push([pattern, 1])
     if pattern.length == 0
       projection['_timestamp'] = 1
-    else if not pattern[0]?
+    else if pattern[0] == '*'
       projection[''] = 1
     else if pattern[0] == 'Events'
       if pattern.length == 1
@@ -264,7 +264,7 @@ fetchDevice = (id, timestamp, patterns, callback) ->
           {exist: timestamp, object: timestamp, writable: timestamp},
           {exist: 1, object: 1, writable: 0}])
       else if pattern.length == 2
-        if not pattern[1]?
+        if pattern[1] == '*'
           projection['_registered'] = 1
           projection['_lastInform'] = 1
           projection['_lastBootstrap'] = 1
@@ -285,7 +285,7 @@ fetchDevice = (id, timestamp, patterns, callback) ->
           {exist: 1, object: 1, writable: 0}])
 
       else if pattern.length == 2
-        if not pattern[1]?
+        if pattern[1] == '*'
           projection['_id'] = 1
           projection['_deviceId._Manufacturer'] = 1
           projection['_deviceId._ProductClass'] = 1
