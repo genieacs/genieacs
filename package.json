@@ -1,6 +1,6 @@
 {
   "name": "genieacs",
-  "version": "1.0.0",
+  "version": "1.1.0-alpha",
   "description": "A blazing fast TR-069 auto configuration server (ACS) built with Node.js, Redis, and MongoDB",
   "repository": {
     "type": "git",
@@ -21,16 +21,16 @@
   },
   "dependencies": {
     "later": "^1.2.0",
-    "libxmljs": "^0.17.1",
-    "redis": "^2.4.2",
-    "hiredis": "^0.4.1",
-    "mongodb": "^2.1.7"
+    "libxmljs": "^0.18.0",
+    "redis": "^2.6.2",
+    "hiredis": "^0.5.0",
+    "mongodb": "^2.2.4"
   },
   "devDependencies": {
     "coffee-script": "^1.10.0"
   },
   "engines": {
-    "node": ">=0.10.0 <0.12"
+    "node": ">=4.4.0 <5.0"
   },
   "scripts": {
     "prepublish": "npm run compile",
