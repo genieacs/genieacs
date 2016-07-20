@@ -5,5 +5,5 @@ var fs = require('fs');
 var dir = path.resolve(path.dirname(fs.realpathSync(__filename)), '..');
 process.chdir(dir);
 
-cluster = require(path.resolve(dir, 'lib/cluster'));
+var cluster = require(path.resolve(dir, 'lib/cluster'));
 cluster.start('cwmp');
