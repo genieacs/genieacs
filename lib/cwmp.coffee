@@ -127,8 +127,9 @@ applyPresets = (currentRequest) ->
         return sendRpcRequest(currentRequest, id, rpcRequest)
 
       for k, v of parameters
-        if (vv = device.getAll(currentRequest.sessionData.deviceData, v)[0]?[8]?[0])
-          parameters[k] = vv
+        unpacked = device.unpack(currentRequest.sessionData.deviceData, v)
+        if unpacked[0] and (vv = deviceData.values.value.get(unpacked[0]))?
+          parameters[k] = vv[0]
 
       for p in presets
         if query.test(parameters, p.precondition)
@@ -272,8 +273,9 @@ listener = (httpRequest, httpResponse) ->
     return body
 
   stream.on('end', () ->
-    getSession(httpRequest, (sessionId, sessionData) ->
-      cwmpRequest = soap.request(httpRequest, session?.cwmpVersion)
+    cwmpRequest = null
+    getSession(httpRequest, f = (sessionId, sessionData) ->
+      cwmpRequest ?= soap.request(httpRequest, sessionData?.cwmpVersion)
       if not sessionData?
         if cwmpRequest.methodRequest?.type isnt 'Inform'
           httpResponse.writeHead(400)
@@ -281,8 +283,11 @@ listener = (httpRequest, httpResponse) ->
           return
 
         deviceId = common.generateDeviceId(cwmpRequest.methodRequest.deviceId)
-        sessionData = session.init(deviceId, cwmpRequest.cwmpVersion, cwmpRequest.sessionTimeout ? config.get('SESSION_TIMEOUT', deviceId))
-        httpRequest.connection.setTimeout(sessionData.timeout * 1000)
+        return session.init(deviceId, cwmpRequest.cwmpVersion, cwmpRequest.sessionTimeout ? config.get('SESSION_TIMEOUT', deviceId), (err, sessionData) ->
+          throw err if err
+          httpRequest.connection.setTimeout(sessionData.timeout * 1000)
+          f(null, sessionData)
+        )
 
       currentRequest = {
         httpRequest : httpRequest,

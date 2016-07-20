@@ -235,18 +235,22 @@ parseAlias = (pattern, start, res) ->
 
 parsePath = (pattern, start, res) ->
   path = []
+  path.wildcard = 0
+  path.alias = 0
   i = start ? 0
 
   # Colon separator is needed for parseAlias
   if i < pattern.length and pattern[i] != ':'
     while true
       if pattern[i] == '['
+        path.alias |= 1 << path.length
         i = parseAlias(pattern, i + 1, path) + 1
       else
         j = i
         while i < pattern.length and pattern[i] != ':' and pattern[i] != '.'
           ++ i
         n = pattern.slice(j, i)
+        path.wildcard |= 1 << path.length if n == '*'
         path.push(n)
 
       if i >= pattern.length or pattern[i] == ':'
@@ -256,11 +260,29 @@ parsePath = (pattern, start, res) ->
 
       ++ i
 
+  Object.freeze(path)
+
   if not res?
     return path
 
   res.push(path)
   return i
+
+
+addPathMeta = (path) ->
+  path.alias = 0
+  path.wildcard = 0
+
+  for p, i in path
+    if typeOf(p) is ARRAY_TYPE
+      path.alias |= 1 << i
+      for j in [0...p.length] by 2
+        addPathMeta(p[j])
+    else if p == '*'
+      path.wildcard |= 1 << i
+
+  Object.freeze(path)
+  return path
 
 
 hammingWeight = (flags) ->
@@ -283,4 +305,5 @@ exports.REGEXP_TYPE = REGEXP_TYPE
 exports.typeOf = typeOf
 exports.pathOverlap = pathOverlap
 exports.parsePath = parsePath
+exports.addPathMeta = addPathMeta
 exports.hammingWeight = hammingWeight

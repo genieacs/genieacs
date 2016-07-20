@@ -83,23 +83,24 @@ sandbox.context.declare = (decs) ->
   res = {}
   for k, v of decs
     path = common.parsePath(k)
+    single = true
+    for p in path
+      if p == '*' or common.typeOf(p) isnt common.STRING_TYPE
+        single = false
+        break
 
-    res[k] = {}
     unpacked = device.unpack(sandbox.deviceData, path, sandbox.revision)
-    for path in unpacked
-      iter = sandbox.deviceData.paths.subset(path)
-      while (param = iter.next().value)?
-        if param.wildcards == 0 and sandbox.deviceData.values.exist.get(param, sandbox.revision)
-          r = {}
-          for attrName, dec of v
-            if (attrValue = sandbox.deviceData.values[attrName].get(param, sandbox.revision))?
-              r[attrName] = [sandbox.deviceData.timestamps[attrName].get(param, sandbox.revision), attrValue]
+    for param in unpacked
+      r = {}
+      for attrName, dec of v
+        if (attrValue = sandbox.deviceData.values[attrName].get(param, sandbox.revision))?
+          r[attrName] = [sandbox.deviceData.timestamps[attrName].get(param, sandbox.revision), attrValue]
 
-          p = param.join('.')
-          if p == k
-            res[k] = r
-          else
-            res[k][p] = r
+      if single
+        res[k] = r
+      else
+        res[k] ?= {}
+        res[k][param.join('.')] = r
 
   return res
 

@@ -452,7 +452,7 @@ saveDevice = (deviceId, deviceData, isNew, callback) ->
   # Set object's children timestamps
   iter = deviceData.timestamps.exist.diff()
   while not (diff = iter.next()).done
-    continue if diff.value[0].wildcards != (1 << (diff.value[0].length - 1))
+    continue if diff.value[0].wildcard != (1 << (diff.value[0].length - 1))
     continue if diff.value[0][0] in ['Events', 'DeviceID', 'Tags']
 
     if not diff.value[2]? and diff.value[1]?
