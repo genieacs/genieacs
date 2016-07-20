@@ -105,6 +105,28 @@ inform = (currentRequest, cwmpRequest) ->
   )
 
 
+ testSchedule = (schedule, timestamp) ->
+   range = schedule.schedule.nextRange(10, new Date(timestamp))
+   prev = schedule.schedule.prevRange(1, new Date(timestamp), new Date(timestamp - schedule.duration))
+
+   if prev
+     first = +(prev[0] ? 0)
+     last = +(prev[1] ? 0) + schedule.duration
+   else
+     first = +(range[0][0] ? 0)
+     last = +(range[0][1] ? 0) + schedule.duration
+
+   for r in range
+     if last < r[0]
+       break
+     last = +(r[1] ? 0) + schedule.duration
+
+   if timestamp >= first
+     return [true, Math.max(0, last - timestamp)]
+   else
+    return [false, first - timestamp]
+
+
 applyPresets = (currentRequest) ->
   cache.getPresets((err, presetsHash, presets) ->
     throw err if err
@@ -112,7 +134,12 @@ applyPresets = (currentRequest) ->
     currentRequest.sessionData.presetsHash = presetsHash
 
     parameters = {}
+    filteredPresets = []
     for p in presets
+      continue if p.schedule and not
+        (p.schedule.schedule and testSchedule(p.schedule, currentRequest.sessionData.timestamp)[0])
+
+      filteredPresets.push(p)
       for a in Object.keys(query.queryProjection(p.precondition))
         parameters[a] = common.parsePath(a)
 
@@ -131,7 +158,7 @@ applyPresets = (currentRequest) ->
         if unpacked[0] and (vv = deviceData.values.value.get(unpacked[0]))?
           parameters[k] = vv[0]
 
-      for p in presets
+      for p in filteredPresets
         if query.test(parameters, p.precondition)
           session.addProvisions(currentRequest.sessionData, p.provisions)
 

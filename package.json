@@ -20,6 +20,7 @@
     "bin": "bin"
   },
   "dependencies": {
+    "later": "^1.2.0",
     "libxmljs": "^0.17.1",
     "redis": "^2.4.2",
     "hiredis": "^0.4.1",

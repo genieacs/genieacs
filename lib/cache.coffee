@@ -18,6 +18,8 @@
 vm = require 'vm'
 crypto = require 'crypto'
 
+later = require 'later'
+
 db = require './db'
 
 REFRESH = 3000
@@ -101,6 +103,22 @@ refresh = (callback) ->
         presets = []
 
         for preset in res
+          schedule = null
+          if preset.schedule
+            parts = preset.schedule.trim().split(/\s+/)
+            schedule = {
+              md5: crypto.createHash('md5').update(preset.schedule).digest('hex')
+            }
+
+            try
+              schedule.duration = +(parts.shift()) * 1000
+              parts.unshift('0') if parts.length == 5
+              # TODO later.js doesn't throw erorr if expression is invalid!
+              schedule.schedule = later.schedule(later.parse.cron(parts.join(' '), true))
+            catch err
+              # TODO show a warning
+              schedule.schedule = false
+
           precondition = JSON.parse(preset.precondition)
 
           _provisions = preset.provisions or []
@@ -121,7 +139,7 @@ refresh = (callback) ->
               else
                 throw new Error("Unknown configuration type #{c.type}")
 
-          presets.push({name: preset._id, precondition: precondition, provisions: _provisions})
+          presets.push({name: preset._id, schedule: schedule, precondition: precondition, provisions: _provisions})
 
         if -- counter == 0
           computeHash()
