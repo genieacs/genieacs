@@ -119,6 +119,8 @@ refresh = (callback) ->
               # TODO show a warning
               schedule.schedule = false
 
+          events = preset.events ? {}
+
           precondition = JSON.parse(preset.precondition)
 
           _provisions = preset.provisions or []
@@ -139,7 +141,7 @@ refresh = (callback) ->
               else
                 throw new Error("Unknown configuration type #{c.type}")
 
-          presets.push({name: preset._id, schedule: schedule, precondition: precondition, provisions: _provisions})
+          presets.push({name: preset._id, schedule: schedule, events: events, precondition: precondition, provisions: _provisions})
 
         if -- counter == 0
           computeHash()

@@ -133,11 +133,23 @@ applyPresets = (currentRequest) ->
 
     currentRequest.sessionData.presetsHash = presetsHash
 
+    deviceEvents = {}
+    iter = currentRequest.sessionData.deviceData.paths.subset(['Events', '*'])
+    while (p = iter.next().value)
+      if currentRequest.sessionData.timestamp == currentRequest.sessionData.deviceData.values.value.get(p)?[0]
+        deviceEvents[p[1]] = true
+
     parameters = {}
     filteredPresets = []
     for p in presets
-      continue if p.schedule and not
-        (p.schedule.schedule and testSchedule(p.schedule, currentRequest.sessionData.timestamp)[0])
+      eventsMatch = true
+      for k, v of p.events
+        if !v != !deviceEvents[k.replace(' ', '_')]
+          eventsMatch = false
+          break
+
+      continue if not eventsMatch or (p.schedule and not
+        (p.schedule.schedule and testSchedule(p.schedule, currentRequest.sessionData.timestamp)[0]))
 
       filteredPresets.push(p)
       for a in Object.keys(query.queryProjection(p.precondition))
