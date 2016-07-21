@@ -403,6 +403,15 @@ listener = (request, response) ->
       )
     else if QUERY_REGEX.test(urlParts.pathname)
       collectionName = QUERY_REGEX.exec(urlParts.pathname)[1]
+
+      # Convert to camel case
+      i = collectionName.indexOf('_')
+      while i >= 0
+        ++ i
+        up = if i < collectionName.length then collectionName[i].toUpperCase() else ''
+        collectionName = collectionName.slice(0, i - 1) + up + collectionName.slice(i + 1)
+        i = collectionName.indexOf('_', i)
+
       if request.method not in ['GET', 'HEAD']
         response.writeHead 405, {'Allow' : 'GET, HEAD'}
         response.end('405 Method Not Allowed')
