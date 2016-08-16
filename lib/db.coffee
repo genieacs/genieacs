@@ -538,6 +538,9 @@ saveDevice = (deviceId, deviceData, isNew, callback) ->
 
   return callback() if Object.keys(update).length == 0
 
+  if (update['$unset']?)
+    optimizeProjection(update['$unset'])
+
   devicesCollection.update({'_id' : deviceId}, update, {upsert: isNew}, (err, result) ->
     if not err and result.result.n != 1
       return callback(new Error("Device #{deviceId} not found in database"))
