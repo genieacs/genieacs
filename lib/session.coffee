@@ -26,6 +26,7 @@ cache = require './cache'
 extensions = require './extensions'
 PathSet = require './path-set'
 VersionedMap = require './versioned-map.js'
+InstanceSet = require './instance-set'
 
 
 initDeviceData = () ->
@@ -326,6 +327,9 @@ runVirtualParameters = (sessionData, inception, callback) ->
 
 
 rpcRequest = (sessionData, declarations, callback) ->
+  if sessionData.rpcRequest?
+    return callback(null, generateRpcId(sessionData), sessionData.rpcRequest)
+
   revision = sessionData.revisions.reduce(((a, b) -> a + (b >> 1)), 0) + 1
 
   v.revision = revision for k, v of sessionData.deviceData.timestamps
@@ -448,26 +452,57 @@ generateRpcRequest = (sessionData) ->
   rpcReq = null
   completed = true
 
+  # Delete instance
+  syncState.instancesToDelete.forEach((instances, parent) ->
+    instances.forEach((instance) ->
+      if rpcReq?
+        completed = false
+      else
+        rpcReq = {
+          type: 'DeleteObject'
+          objectName: instance.join('.') + '.'
+        }
+    )
+  )
+
+  # Create instance
+  syncState.instancesToCreate.forEach((instances, parent) ->
+    instances.forEach((instance) ->
+      if rpcReq?
+        completed = false
+      else
+        rpcReq = {
+          type: 'AddObject'
+          objectName: parent.join('.') + '.'
+          next: 'getInstanceKeys'
+          instanceValues: instance
+        }
+    )
+  )
+
   if syncState.refreshGpn.size
-    GET_PARAMETER_NAMES_DEPTH_THRESHOLD =
-      config.get('GET_PARAMETER_NAMES_DEPTH_THRESHOLD', sessionData.deviceId)
-
-    pair = syncState.refreshGpn.entries().next().value
-
-    nextLevel = true
-    if pair[0].length >= GET_PARAMETER_NAMES_DEPTH_THRESHOLD
-      nextLevel = false
-    else if common.hammingWeight(pair[1] >> 3) >= 3
-      nextLevel = false
-
-    if syncState.refreshGpn.size > 1 or (pair[1] > 1 and nextLevel)
+    if rpcReq?
       completed = false
+    else
+      GET_PARAMETER_NAMES_DEPTH_THRESHOLD =
+        config.get('GET_PARAMETER_NAMES_DEPTH_THRESHOLD', sessionData.deviceId)
 
-    rpcReq = {
-      type: 'GetParameterNames'
-      parameterPath: pair[0].join('.')
-      nextLevel: nextLevel
-    }
+      pair = syncState.refreshGpn.entries().next().value
+
+      nextLevel = true
+      if pair[0].length >= GET_PARAMETER_NAMES_DEPTH_THRESHOLD
+        nextLevel = false
+      else if common.hammingWeight(pair[1] >> 3) >= 3
+        nextLevel = false
+
+      if syncState.refreshGpn.size > 1 or (pair[1] > 1 and nextLevel)
+        completed = false
+
+      rpcReq = {
+        type: 'GetParameterNames'
+        parameterPath: pair[0].join('.')
+        nextLevel: nextLevel
+      }
 
   if syncState.refreshAttributes.value.size
     if rpcReq?
@@ -560,19 +595,6 @@ processVirtualparameterDeclaration = (sessionData, path, timestamps, values) ->
 
 
 processDeclaration = (sessionData, path, _timestamps, values) ->
-  sessionData.syncState ?= {
-    paths: new PathSet()
-    refreshAttributes: {
-      exist: new Set()
-      object: new Set()
-      writable: new Set()
-      value: new Set()
-    }
-    setValues: new Map()
-    refreshGpn: new Map()
-    virtualParameters:  {}
-  }
-
   syncState = sessionData.syncState
   deviceData = sessionData.deviceData
 
@@ -747,11 +769,65 @@ loadPath = (sessionData, path) ->
   return false
 
 
+processInstances = (sessionData, parent, parameters, keys, minInstances, maxInstances) ->
+  instancesToDelete = sessionData.syncState.instancesToDelete.get(parent)
+  if not instancesToDelete?
+    instancesToDelete = new Set()
+    sessionData.syncState.instancesToDelete.set(parent, instancesToDelete)
+
+  instancesToCreate = sessionData.syncState.instancesToCreate.get(parent)
+  if not instancesToCreate?
+    instancesToCreate = new InstanceSet()
+    sessionData.syncState.instancesToCreate.set(parent, instancesToCreate)
+
+  counter = 0
+  for p in parameters
+    ++ counter
+    if counter > maxInstances
+      instancesToDelete.add(p)
+    else if counter <= minInstances
+      instancesToDelete.delete(p)
+
+  superset = instancesToCreate.superset(keys)
+  for inst in superset
+    ++ counter
+    if counter > maxInstances
+      instancesToCreate.delete(inst)
+
+  subset = instancesToCreate.subset(keys)
+  for inst in subset
+    ++ counter
+    if counter <= minInstances
+      instancesToCreate.delete(inst)
+      instancesToCreate.add(JSON.parse(JSON.stringify(keys)))
+
+  while counter < minInstances
+    ++ counter
+    instancesToCreate.add(JSON.parse(JSON.stringify(keys)))
+
+  return
+
+
 applyDeclaration = (sessionData, path, state, timestamps, values) ->
   if state == 100
     if not values? or Object.keys(values).length == 0
       return state
     timestamps = {}
+
+  sessionData.syncState ?= {
+    paths: new PathSet()
+    refreshAttributes: {
+      exist: new Set()
+      object: new Set()
+      writable: new Set()
+      value: new Set()
+    }
+    setValues: new Map()
+    refreshGpn: new Map()
+    virtualParameters: {}
+    instancesToDelete: new Map()
+    instancesToCreate: new Map()
+  }
 
   decs = device.getAliasDeclarations(path, timestamps.exist ? 1)
 
@@ -777,6 +853,30 @@ applyDeclaration = (sessionData, path, state, timestamps, values) ->
       return 2 if not satisfied
 
     unpacked = device.unpack(sessionData.deviceData, path)
+
+    if values.exist?
+      if Array.isArray(values.exist)
+        minInstances = values.exist[0]
+        maxInstances = values.exist[1]
+      else
+        minInstances = maxInstances = values.exist
+
+      parent = path.slice(0, -1)
+
+      if Array.isArray(path[path.length - 1])
+        keys = {}
+        for p, i in path[path.length - 1] by 2
+          keys[p] = path[path.length - 1][i + 1]
+      else if path[path.length - 1] == '*'
+        keys = {}
+
+      if (path.wildcard | path.alias) & ((1 << (path.length - 1)) - 1) == 0
+        processInstances(sessionData, parent, unpacked, keys, minInstances, maxInstances)
+      else
+        parentsUnpacked = device.unpack(sessionData.deviceData, parent)
+        for parent in parentsUnpacked
+          processInstances(sessionData, parent, device.unpack(sessionData.deviceData, parent.concat([path[parent.length]])), keys, minInstances, maxInstances)
+
     satisfied = true
     for up in unpacked
       satisfied &&= processDeclaration(sessionData, path, timestamps, values)
@@ -848,7 +948,37 @@ rpcResponse = (sessionData, id, rpcRes, callback) ->
   ++ sessionData.rpcCount
 
   rpcReq = sessionData.rpcRequest
-  sessionData.rpcRequest = null
+  if not rpcReq.next?
+    sessionData.rpcRequest = null
+  else if rpcReq.next == 'getInstanceKeys'
+    instanceNumber = rpcRes.instanceNumber
+    parameterNames = []
+    instanceValues = {}
+    for k, v of rpcReq.instanceValues
+      n = "#{rpcReq.objectName}#{rpcRes.instanceNumber}.#{k}"
+      parameterNames.push(n)
+      instanceValues[n] = v
+
+    if parameterNames.length == 0
+      sessionData.rpcRequest = null
+    else
+      sessionData.rpcRequest = {
+        type: 'GetParameterValues'
+        parameterNames: parameterNames
+        next: 'setInstanceKeys'
+        instanceValues: instanceValues
+      }
+  else if rpcReq.next == 'setInstanceKeys'
+    parameterList = []
+    for p in rpcRes.parameterList
+      if p[1] != rpcReq.instanceValues[p[0]]
+        parameterList.push(
+          [p[0]].concat(device.sanitizeParameterValue([rpcReq.instanceValues[p[0]], p[2]])))
+
+    sessionData.rpcRequest = {
+      type: 'SetParameterValues'
+      parameterList: parameterList
+    }
 
   timestamp = sessionData.timestamp
   revision = sessionData.revisions.reduce(((a, b) -> a + (b >> 1)), 0) + 1
@@ -917,6 +1047,15 @@ rpcResponse = (sessionData, id, rpcRes, callback) ->
         device.set(sessionData.deviceData, common.parsePath(p[0]),
           {exist: timestamp, object: timestamp, writable: timestamp, value: timestamp},
           {exist: 1, object: 0, writable: 1, value: p.slice(1)})
+
+    when 'AddObjectResponse'
+      device.set(sessionData.deviceData, common.parsePath(rpcReq.objectName + rpcRes.instanceNumber),
+        {exist: timestamp, object: timestamp},
+        {exist: 1, object: 1})
+
+    when 'DeleteObjectResponse'
+      device.set(sessionData.deviceData, common.parsePath(rpcReq.objectName.slice(0, -1)),
+        {exist: timestamp})
 
     else
       return callback(new Error('Response type not recognized'))
