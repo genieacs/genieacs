@@ -28,10 +28,11 @@ presetsCollection = null
 objectsCollection = null
 provisionsCollection = null
 virtualParametersCollection = null
+faultsCollection = null
 
 
 connect = (callback) ->
-  callbackCounter = 8
+  callbackCounter = 9
   mongodb.MongoClient.connect(config.get('MONGODB_CONNECTION_URL'), {db:{w:1},server:{autoReconnect:true}}, (err, db) ->
     return callback(err) if err
     exports.mongoDb = db
@@ -87,6 +88,13 @@ connect = (callback) ->
         return callback(err)
     )
 
+    db.collection('faults', (err, collection) ->
+      exports.faultsCollection = faultsCollection = collection
+      if --callbackCounter == 0 or err
+        callbackCounter = 0
+        return callback(err)
+    )
+
     exports.redisClient = redisClient = redis.createClient(config.get('REDIS_PORT'), config.get('REDIS_HOST'))
     redisClient.select(config.get('REDIS_DB'), (err) ->
       if --callbackCounter == 0 or err
@@ -99,19 +107,6 @@ connect = (callback) ->
 disconnect = () ->
   exports.mongoDb.close()
   redisClient.quit()
-
-
-getTask = (taskId, callback) ->
-  tid = String(taskId)
-  redisClient.get(tid, (err, res) ->
-    return callback(err) if err
-    if res?
-      callback(err, JSON.parse(res))
-    else
-      tasksCollection.findOne({_id : mongodb.ObjectID(tid)}, (err, task) ->
-        callback(err, task)
-      )
-  )
 
 
 getCached = (name, valueCallback, valueExpiry, callback) ->
@@ -549,10 +544,168 @@ saveDevice = (deviceId, deviceData, isNew, callback) ->
   )
 
 
-exports.getTask = getTask
+getDueTasksAndFaults = (deviceId, timestamp, callback) ->
+  redisClient.mget("#{deviceId}_no_tasks", "#{deviceId}_faults", (err, res) ->
+    return callback(err) if err
+
+    if res[0]?
+      tasks = []
+
+    if res[1]?
+      faults = JSON.parse(res[1])
+
+    if tasks? and faults?
+      return callback(null, tasks, faults)
+
+    CACHE_DURATION = config.get('PRESETS_CACHE_DURATION', deviceId)
+
+    if not faults?
+      getFaults(deviceId, (err, flts) ->
+        if err
+          callback?(err)
+          return callback = null
+
+        faults = flts
+        if tasks?
+          return callback(null, tasks, faults)
+      )
+
+    if not tasks?
+      getDueTasks(deviceId, timestamp, (err, dueTasks, nextTimestamp) ->
+        if err
+          callback?(err)
+          return callback = null
+
+        if nextTimestamp?
+          exp = Math.min(0, Math.trunc((nextTimestamp - Date.now()) / 1000))
+        else
+          exp = CACHE_DURATION
+
+        redisClient.setex("#{deviceId}_no_tasks", exp, 1, (err) ->
+          if err
+            callback?(err)
+            return callback = null
+
+          tasks = dueTasks
+          if faults?
+            return callback(null, tasks, faults)
+        )
+      )
+  )
+
+
+getFaults = (deviceId, callback) ->
+  faultsCollection.find({'_id' : {'$regex' : "^#{common.escapeRegExp(deviceId)}\\:"}}).toArray((err, res) ->
+    return callback(err) if err
+
+    faults = {}
+    for r in res
+      channel = r._id.slice(deviceId.length + 1)
+      delete r._id
+      r.timestamp = +r.timestamp
+      r.expiry = +r.expiry if r.expiry?
+      faults[channel] = r
+
+    CACHE_DURATION = config.get('PRESETS_CACHE_DURATION', deviceId)
+
+    redisClient.setex("#{deviceId}_faults", CACHE_DURATION, JSON.stringify(faults), (err) ->
+      callback(err, faults)
+    )
+  )
+
+
+
+getDueTasks = (deviceId, timestamp, callback) ->
+  cur = tasksCollection.find({
+    'device' : deviceId,
+    'fault' : {'$exists': false}
+    }).sort(['timestamp'])
+
+  tasks = []
+
+  cur.nextObject(f = (err, task) ->
+    return callback(err) if err
+
+    if not task?
+      return callback(null, tasks, null)
+
+    task.timestamp = +task.timestamp if task.timestamp?
+
+    if task.timestamp >= timestamp
+      return callback(null, tasks, +task.timestamp)
+
+    task._id = String(task._id)
+    tasks.push(task)
+    cur.nextObject(f)
+  )
+
+
+clearTasks = (taskIds, callback) ->
+  if not taskIds?.length
+    return callback()
+
+  tasksCollection.remove({'_id' : {'$in' : (mongodb.ObjectID(id) for id in taskIds)}}, callback)
+
+
+syncFaults = (deviceId, faults, callback) ->
+  getFaults(deviceId, (err, existingFaults) ->
+    return callback(err) if err
+
+    counter = 1
+    toDelete = []
+    for k of existingFaults
+      if k not of faults
+        toDelete.push("#{deviceId}:#{k}")
+
+    if toDelete.length
+      ++ counter
+      faultsCollection.remove({'_id' : {'$in' : toDelete}}, (err) ->
+        if err
+          callback(err) if counter
+          return counter = 0
+
+        if -- counter == 0
+          return redisClient.del("#{deviceId}_faults", callback)
+      )
+
+    for channel, fault of faults
+      continue if fault.retries == existingFaults[channel]?.retries
+      do (channel, fault) ->
+        ++ counter
+        fault._id = "#{deviceId}:#{channel}"
+        fault.timestamp = new Date(fault.timestamp)
+        fault.expiry = new Date(fault.expiry) if fault.expiry?
+
+        faultsCollection.save(fault, (err) ->
+          if err
+            callback(err) if counter
+            return counter = 0
+
+          if channel.startsWith('_task_')
+            return tasksCollection.update({_id: mongodb.ObjectID(channel.slice(6))}, {$set: {fault: fault.fault, retries: fault.retries}}, (err) ->
+              if err
+                callback(err) if counter
+                return counter = 0
+
+              if -- counter == 0
+                return redisClient.del("#{deviceId}_faults", callback)
+            )
+          else
+            if -- counter == 0
+              return redisClient.del("#{deviceId}_faults", callback)
+        )
+
+    if -- counter == 0
+      return callback()
+  )
+
+
 exports.getPresetsObjectsAliases = getPresetsObjectsAliases
 exports.getAliases = getAliases
 exports.connect = connect
 exports.disconnect = disconnect
 exports.fetchDevice = fetchDevice
 exports.saveDevice = saveDevice
+exports.getDueTasksAndFaults = getDueTasksAndFaults
+exports.clearTasks = clearTasks
+exports.syncFaults = syncFaults

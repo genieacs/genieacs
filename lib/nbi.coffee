@@ -94,7 +94,7 @@ listener = (request, response) ->
         preset._id = presetName
 
         db.presetsCollection.save(preset, (err) ->
-          db.redisClient.del('presets', 'presets_hash', (err) ->
+          db.redisClient.del('presets_hash', (err) ->
             throw err if err
           )
           if err
@@ -106,7 +106,7 @@ listener = (request, response) ->
         )
       else if request.method == 'DELETE'
         db.presetsCollection.remove({'_id' : presetName}, (err) ->
-          db.redisClient.del('presets', 'presets_hash', (err) ->
+          db.redisClient.del('presets_hash', (err) ->
             throw err if err
           )
           if err
@@ -258,47 +258,44 @@ listener = (request, response) ->
           task.device = deviceId
           db.getAliases((aliases) ->
             apiFunctions.insertTasks(task, aliases, (err) ->
-              db.redisClient.del("#{deviceId}_presets_hash", (err) ->
+              throw err if err
+              db.redisClient.del("#{deviceId}_no_tasks", (err) ->
                 throw err if err
-              )
-              if err
-                response.writeHead(500)
-                response.end(errorToString(err))
-                return
 
-              if urlParts.query.connection_request?
-                apiFunctions.connectionRequest(deviceId, (err) ->
-                  if err
-                    response.writeHead(202, err.message, {'Content-Type' : 'application/json'})
-                    response.end(JSON.stringify(task))
-                  else
-                    apiFunctions.watchTask(task._id, config.get('DEVICE_ONLINE_THRESHOLD', deviceId), (err, status) ->
-                      if err
-                        response.writeHead(500)
-                        response.end(errorToString(err))
-                        return
+                if urlParts.query.connection_request?
+                  apiFunctions.connectionRequest(deviceId, (err) ->
+                    if err
+                      response.writeHead(202, err.message, {'Content-Type' : 'application/json'})
+                      response.end(JSON.stringify(task))
+                    else
+                      apiFunctions.watchTask(task._id, config.get('DEVICE_ONLINE_THRESHOLD', deviceId), (err, status) ->
+                        if err
+                          response.writeHead(500)
+                          response.end(errorToString(err))
+                          return
 
-                      if status is 'timeout'
-                        response.writeHead(202, 'Task queued but not processed', {'Content-Type' : 'application/json'})
-                        response.end(JSON.stringify(task))
-                      else if status is 'fault'
-                        db.tasksCollection.findOne({_id : task._id}, (err, task) ->
-                          if err
-                            response.writeHead(500)
-                            response.end(errorToString(err))
-                            return
-
-                          response.writeHead(202, 'Task faulted', {'Content-Type' : 'application/json'})
+                        if status is 'timeout'
+                          response.writeHead(202, 'Task queued but not processed', {'Content-Type' : 'application/json'})
                           response.end(JSON.stringify(task))
-                        )
-                      else
-                        response.writeHead(200, {'Content-Type' : 'application/json'})
-                        response.end(JSON.stringify(task))
-                    )
-                )
-              else
-                response.writeHead(202, {'Content-Type' : 'application/json'})
-                response.end(JSON.stringify(task))
+                        else if status is 'fault'
+                          db.tasksCollection.findOne({_id : task._id}, (err, task) ->
+                            if err
+                              response.writeHead(500)
+                              response.end(errorToString(err))
+                              return
+
+                            response.writeHead(202, 'Task faulted', {'Content-Type' : 'application/json'})
+                            response.end(JSON.stringify(task))
+                          )
+                        else
+                          response.writeHead(200, {'Content-Type' : 'application/json'})
+                          response.end(JSON.stringify(task))
+                      )
+                  )
+                else
+                  response.writeHead(202, {'Content-Type' : 'application/json'})
+                  response.end(JSON.stringify(task))
+              )
             )
           )
         else if urlParts.query.connection_request?
@@ -323,23 +320,37 @@ listener = (request, response) ->
       action = r[2]
       if not action? or action is '/'
         if request.method == 'DELETE'
-          db.tasksCollection.remove({'_id' : taskId}, (err) ->
-            if err
-              response.writeHead(500)
-              response.end(errorToString(err))
-              return
-            response.writeHead(200)
-            response.end()
+          db.tasksCollection.findOne({'_id' : taskId}, {'device' : 1}, (err, task) ->
+            throw err if err
+            deviceId = task.device
+            db.tasksCollection.remove({'_id' : taskId}, (err) ->
+              throw err if err
+              db.faultsCollection.remove({_id : "#{deviceId}:_task_#{String(taskId)}"}, (err) ->
+                throw err if err
+                response.writeHead(200)
+                response.end()
+              )
+            )
           )
         else
           response.writeHead 405, {'Allow': 'PUT DELETE'}
           response.end('405 Method Not Allowed')
       else if action is '/retry'
         if request.method == 'POST'
-          db.tasksCollection.update({_id : taskId}, {$unset : {fault : 1}, $set : {timestamp : new Date()}}, (err, count) ->
-            # TODO need to invalidate presets hash for the device
-            response.writeHead(200)
-            response.end()
+          db.tasksCollection.findOne({'_id' : taskId}, {'device' : 1}, (err, task) ->
+            throw err if err
+            deviceId = task.device
+            db.tasksCollection.update({_id : taskId}, {$unset : {fault : 1}, $set : {timestamp : new Date()}}, (err, count) ->
+              throw err if err
+              db.faultsCollection.remove({_id : "#{deviceId}:_task_#{String(taskId)}"}, (err) ->
+                throw err if err
+                db.redisClient.del("#{deviceId}_no_tasks", "#{deviceId}_faults", (err) ->
+                  throw err if err
+                  response.writeHead(200)
+                  response.end()
+                )
+              )
+            )
           )
         else
           response.writeHead 405, {'Allow': 'POST'}

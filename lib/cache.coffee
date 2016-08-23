@@ -141,7 +141,7 @@ refresh = (callback) ->
               else
                 throw new Error("Unknown configuration type #{c.type}")
 
-          presets.push({name: preset._id, schedule: schedule, events: events, precondition: precondition, provisions: _provisions})
+          presets.push({name: preset._id, channel: preset.channel or 'default', schedule: schedule, events: events, precondition: precondition, provisions: _provisions})
 
         if -- counter == 0
           computeHash()

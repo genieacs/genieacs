@@ -48,6 +48,7 @@ init = (deviceId, cwmpVersion, timeout, callback) ->
     cwmpVersion : cwmpVersion
     timeout : timeout
     provisions: []
+    channels: []
     revisions: [0]
     rpcCount: 0
     cycle: 0
@@ -188,8 +189,17 @@ inform = (sessionData, rpcReq, callback) ->
   )
 
 
-addProvisions = (sessionData, provisions) ->
-  sessionData.provisions = sessionData.provisions.concat(provisions)
+addProvisions = (sessionData, channel, provisions) ->
+  for provision, i in provisions
+    # Remove duplicate provisions
+    for p, j in sessionData.provisions
+      if channel == sessionData.channels[j] and JSON.stringify(p) == JSON.stringify(provision)
+        sessionData.provisions.splice(j, 1)
+        sessionData.channels.splice(j, 1)
+
+    sessionData.provisions.push(provision)
+    sessionData.channels.push(channel)
+
   if sessionData.revisions.length > 1 or sessionData.revisions[0] > 0
     v.collapse(1) for k, v of sessionData.timestamps
     v.collapse(1) for k, v of sessionData.values
@@ -200,7 +210,10 @@ addProvisions = (sessionData, provisions) ->
 
 
 clearProvisions = (sessionData) ->
+  delete sessionData.syncState
   sessionData.provisions = []
+  sessionData.channels = []
+  sessionData.declarations = []
   if sessionData.revisions.length > 1 or sessionData.revisions[0] > 0
     v.collapse(1) for k, v of sessionData.deviceData.timestamps
     v.collapse(1) for k, v of sessionData.deviceData.values
@@ -1064,7 +1077,10 @@ rpcResponse = (sessionData, id, rpcRes, callback) ->
 
 
 rpcFault = (sessionData, id, faultResponse, callback) ->
-  throw new Error('Not implemented')
+  # TODO Consider handling invalid parameter faults by automatically refreshing
+  # relevant data model portions
+  delete sessionData.rpcRequest
+  return callback(null, faultResponse)
 
 
 load = (id, callback) ->
@@ -1076,11 +1092,13 @@ load = (id, callback) ->
 
       sessionData = JSON.parse(sessionDataString)
 
-      if sessionData.cache.hash != hash
+      if sessionData.presetsHash? and sessionData.presetsHash != hash
         return callback(new Error('Preset hash mismatch'))
 
-      sessionData.cache.provisions = provisions
-      sessionData.cache.virtualParameters = virtualParameters
+      sessionData.cache = {
+        provisions: provisions
+        virtualParameters: virtualParameters
+      }
 
       for d in sessionData.declarations
         common.addPathMeta(d[0])
@@ -1110,8 +1128,7 @@ load = (id, callback) ->
 save = (sessionData, callback) ->
   delete sessionData.syncState
   delete sessionData.toLoad
-  delete sessionData.cache.provisions
-  delete sessionData.cache.virtualParameters
+  delete sessionData.cache
 
   sessionData.id ?= crypto.randomBytes(8).toString('hex')
   deviceData = []

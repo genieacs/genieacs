@@ -294,6 +294,11 @@ hammingWeight = (flags) ->
   return flags & 0x0000003f
 
 
+# Source: http://stackoverflow.com/a/6969486
+escapeRegExp = (str) ->
+  return str.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, "\\$&")
+
+
 exports.UNDEFINED_TYPE = UNDEFINED_TYPE
 exports.NULL_TYPE = NULL_TYPE
 exports.NUMBER_TYPE = NUMBER_TYPE
@@ -307,3 +312,4 @@ exports.pathOverlap = pathOverlap
 exports.parsePath = parsePath
 exports.addPathMeta = addPathMeta
 exports.hammingWeight = hammingWeight
+exports.escapeRegExp = escapeRegExp
