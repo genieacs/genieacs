@@ -125,31 +125,6 @@ expand = (query, aliases) ->
   return new_query
 
 
-# Replace _id string values with ObjectID type
-substituteObjectId = (query) ->
-  for k, v of query
-    if k[0] == '$' # logical operator
-      for i in [0...v.length]
-        substituteObjectId(v[i])
-    else if k == '_id'
-      if common.typeOf(v) is common.STRING_TYPE
-        query[k] = mongodb.ObjectID(v) if v.length == 24
-      else if common.typeOf(v) is common.OBJECT_TYPE
-        for kk, vv of v
-          switch kk # operator
-            when '$in', '$nin'
-              for i in [0...vv.length]
-                vv[i] = mongodb.ObjectID(vv[i]) if vv[i].length == 24
-            when '$eq', '$gt', '$gte', '$lt', '$lte', '$ne'
-              v[kk] = mongodb.ObjectID(vv) if vv.length == 24
-            when '$exists', '$type' then
-              # ignore
-            else
-              throw new Error('Operator not supported')
-
-  return query
-
-
 # Generate parameter projection from a query
 # If second arg is given, it's edited and returned
 queryProjection = (query, proj) ->
@@ -233,7 +208,29 @@ test = (params, query) ->
   return true
 
 
+sanitizeQueryTypes = (query, types) ->
+  for k, v of query
+    if k[0] == '$' # logical operator
+      sanitizeQueryTypes(vv, types) for vv in v
+    else if k of types
+      if common.typeOf(v) is common.OBJECT_TYPE
+        for kk, vv of v
+          switch kk # operator
+            when '$in', '$nin'
+              vv[i] = types[k](vv[i]) for i in [0...vv.length]
+            when '$eq', '$gt', '$gte', '$lt', '$lte', '$ne'
+              v[kk] = types[k](vv)
+            when '$exists', '$type' then
+              # ignore
+            else
+              throw new Error('Operator not supported')
+      else
+        query[k] = types[k](query[k])
+
+  return query
+
+
 exports.expand = expand
-exports.substituteObjectId = substituteObjectId
 exports.queryProjection = queryProjection
 exports.test = test
+exports.sanitizeQueryTypes = sanitizeQueryTypes

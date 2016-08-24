@@ -443,8 +443,16 @@ listener = (request, response) ->
             return
         else
           q = {}
-        q = query.expand(q, aliases) if collectionName is 'devices'
-        q = query.substituteObjectId(q) if collectionName is 'tasks'
+
+        switch collectionName
+          when 'devices'
+            q = query.expand(q, aliases)
+          when 'tasks'
+            q = query.sanitizeQueryTypes(q, {
+              _id: ((v) -> return new mongodb.ObjectID(v))
+              timestamp: ((v) -> return new Date(v))
+              retries: Number
+            })
 
         if urlParts.query.projection?
           projection = {}
