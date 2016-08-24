@@ -430,6 +430,8 @@ listener = (httpRequest, httpResponse) ->
             fault = faults[channel]
             if not fault?
               fault = {
+                device: currentRequest.sessionData.deviceId
+                channel: channel
                 timestamp: currentRequest.sessionData.timestamp
                 provisions: []
                 fault: flt
