@@ -60,6 +60,7 @@ QUERY_REGEX = /^\/([a-zA-Z0-9_]+s)\/?$/
 DELETE_DEVICE_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/?$/
 PROVISIONS_REGEX = /^\/provisions\/([a-zA-Z0-9\-\_\%]+)\/?$/
 VIRTUAL_PARAMETERS_REGEX = /^\/virtual_parameters\/([a-zA-Z0-9\-\_\%]+)\/?$/
+FAULTS_REGEX = /^\/faults\/([a-zA-Z0-9\-\_\%\:]+)\/?$/
 
 
 errorToString = (err) ->
@@ -249,6 +250,25 @@ listener = (request, response) ->
         )
       else
         response.writeHead 405, {'Allow': 'POST, DELETE'}
+        response.end('405 Method Not Allowed')
+    else if FAULTS_REGEX.test(urlParts.pathname)
+      if request.method == 'DELETE'
+        faultId = querystring.unescape(FAULTS_REGEX.exec(urlParts.pathname)[1])
+        deviceId = faultId.split(':', 1)
+        channel = faultId.slice(deviceId + 1)
+        db.redisClient.del("#{deviceId}_faults", (err) ->
+          db.faultsCollection.remove({_id : faultId}, (err) ->
+            throw err if err
+            if channel.startsWith('_task_')
+              return db.tasksCollection.remove({_id : mongodb.ObjectID(channel.slice(6))}, (err) ->
+                throw err if err
+              )
+            response.writeHead(200)
+            response.end()
+          )
+        )
+      else
+        response.writeHead 405, {'Allow': 'DELETE'}
         response.end('405 Method Not Allowed')
     else if DEVICE_TASKS_REGEX.test(urlParts.pathname)
       if request.method == 'POST'
@@ -450,6 +470,11 @@ listener = (request, response) ->
           when 'tasks'
             q = query.sanitizeQueryTypes(q, {
               _id: ((v) -> return new mongodb.ObjectID(v))
+              timestamp: ((v) -> return new Date(v))
+              retries: Number
+            })
+          when 'faults'
+            q = query.sanitizeQueryTypes(q, {
               timestamp: ((v) -> return new Date(v))
               retries: Number
             })
