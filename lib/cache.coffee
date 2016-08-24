@@ -62,6 +62,9 @@ computeHash = () ->
   h = crypto.createHash('md5')
   for p in presets
     h.update(JSON.stringify(p.name))
+    h.update(JSON.stringify(p.channel))
+    h.update(JSON.stringify(p.schedule))
+    h.update(JSON.stringify(p.events))
     h.update(JSON.stringify(p.precondition))
     h.update(JSON.stringify(p.provisions))
 
