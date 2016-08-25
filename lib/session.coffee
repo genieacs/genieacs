@@ -513,7 +513,7 @@ generateRpcRequest = (sessionData) ->
 
       rpcReq = {
         type: 'GetParameterNames'
-        parameterPath: pair[0].join('.')
+        parameterPath: pair[0].concat('').join('.')
         nextLevel: nextLevel
       }
 
@@ -1011,7 +1011,11 @@ rpcResponse = (sessionData, id, rpcRes, callback) ->
     when 'GetParameterNamesResponse'
       return callback(new Error('Response type does not match request type')) if rpcReq.type isnt 'GetParameterNames'
 
-      root = common.parsePath(rpcReq.parameterPath)
+      if rpcReq.parameterPath.endsWith('.')
+        root = common.parsePath(rpcReq.parameterPath.slice(0, -1))
+      else
+        root = common.parsePath(rpcReq.parameterPath)
+
       params = []
       params.push([root.concat('*'), {exist: timestamp}])
 
