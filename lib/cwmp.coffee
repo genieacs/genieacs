@@ -196,7 +196,7 @@ applyPresets = (currentRequest) ->
 
       for k, v of parameters
         unpacked = device.unpack(currentRequest.sessionData.deviceData, v)
-        if unpacked[0] and (vv = deviceData.values.value.get(unpacked[0]))?
+        if unpacked[0] and (vv = currentRequest.sessionData.deviceData.values.value.get(unpacked[0]))?
           parameters[k] = vv[0]
 
       if whiteList?

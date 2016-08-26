@@ -687,10 +687,10 @@ processDeclaration = (sessionData, path, _timestamps, values) ->
 
       if values?.value?
         if isObject == 0 and isWritable == 1
-          cur = setValues.setValues.get(sub)
+          cur = syncState.setValues.get(sub)
           if not cur?
             cur = [deviceData.values.value.get(sub), values.value]
-            setValues.setValues.set(sub, cur)
+            syncState.setValues.set(sub, cur)
           else
             cur[1] = values.value
         else
@@ -988,10 +988,13 @@ rpcResponse = (sessionData, id, rpcRes, callback) ->
         parameterList.push(
           [p[0]].concat(device.sanitizeParameterValue([rpcReq.instanceValues[p[0]], p[2]])))
 
-    sessionData.rpcRequest = {
-      type: 'SetParameterValues'
-      parameterList: parameterList
-    }
+    if not parameterList.length
+      sessionData.rpcRequest = null
+    else
+      sessionData.rpcRequest = {
+        type: 'SetParameterValues'
+        parameterList: parameterList
+      }
 
   timestamp = sessionData.timestamp
   revision = sessionData.revisions.reduce(((a, b) -> a + (b >> 1)), 0) + 1
