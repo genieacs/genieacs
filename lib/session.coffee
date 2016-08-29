@@ -15,8 +15,6 @@
 # along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
 ###
 
-crypto = require 'crypto'
-
 config = require './config'
 common = require './common'
 db = require './db'
@@ -1090,54 +1088,45 @@ rpcFault = (sessionData, id, faultResponse, callback) ->
   return callback(null, faultResponse)
 
 
-load = (id, callback) ->
-  db.redisClient.get("session_#{id}", (err, sessionDataString) ->
-    return callback(err) if err or not sessionDataString?
+deserialize = (sessionDataString, callback) ->
+  cache.getProvisionsAndVirtualParameters((err, hash, provisions, virtualParameters) ->
+    return callback(err) if err
 
-    cache.getProvisionsAndVirtualParameters((err, hash, provisions, virtualParameters) ->
-      return callback(err) if err
+    sessionData = JSON.parse(sessionDataString)
 
-      sessionData = JSON.parse(sessionDataString)
+    if sessionData.presetsHash? and sessionData.presetsHash != hash
+      return callback(new Error('Preset hash mismatch'))
 
-      if sessionData.presetsHash? and sessionData.presetsHash != hash
-        return callback(new Error('Preset hash mismatch'))
+    sessionData.cache = {
+      provisions: provisions
+      virtualParameters: virtualParameters
+    }
 
-      sessionData.cache = {
-        provisions: provisions
-        virtualParameters: virtualParameters
-      }
+    for d in sessionData.declarations
+      common.addPathMeta(d[0])
 
-      for d in sessionData.declarations
-        common.addPathMeta(d[0])
+    deviceData = initDeviceData()
+    keys = ['exist', 'object', 'writable', 'value']
+    for r in sessionData.deviceData
+      path = deviceData.paths.add(r[0])
 
-      deviceData = initDeviceData()
-      keys = ['exist', 'object', 'writable', 'value']
-      for r in sessionData.deviceData
-        path = deviceData.paths.add(r[0])
+      if r[1]
+        deviceData.loaded.set(path, r[1])
 
-        if r[1]
-          deviceData.loaded.set(path, r[1])
+      for k, i in keys
+        if r[2 + i]?
+          deviceData.timestamps[k].setRevisions(path, r[2 + i])
 
-        for k, i in keys
-          if r[2 + i]?
-            deviceData.timestamps[k].setRevisions(path, r[2 + i])
+        if r[2 + keys.length + i]?
+          deviceData.values[k].setRevisions(path, r[2 + keys.length +  i])
 
-          if r[2 + keys.length + i]?
-            deviceData.values[k].setRevisions(path, r[2 + keys.length +  i])
+    sessionData.deviceData = deviceData
 
-      sessionData.deviceData = deviceData
-
-      return callback(null, sessionData)
-    )
+    return callback(null, sessionData)
   )
 
 
-save = (sessionData, callback) ->
-  delete sessionData.syncState
-  delete sessionData.toLoad
-  delete sessionData.cache
-
-  sessionData.id ?= crypto.randomBytes(8).toString('hex')
+serialize = (sessionData, callback) ->
   deviceData = []
   keys = ['exist', 'object', 'writable', 'value']
   iter = sessionData.deviceData.paths.find([], 99)
@@ -1154,15 +1143,24 @@ save = (sessionData, callback) ->
 
     deviceData.push(e)
 
-  oldDeviceData = sessionData.deviceData.deviceData
-  sessionData.deviceData = deviceData
-  sessionDataString = JSON.stringify(sessionData)
-  sessionData.deviceData = oldDeviceData
+  oldDeviceData = sessionData.deviceData
+  oldSyncState = sessionData.syncState
+  oldToLoad = sessionData.toLoad
+  oldCache = sessionData.cache
 
-  db.redisClient.setex("session_#{sessionData.id}", sessionData.timeout, sessionDataString, (err) ->
-     return callback(err, sessionData.id)
-  )
-  return
+  sessionData.deviceData = deviceData
+  delete sessionData.syncState
+  delete sessionData.toLoad
+  delete sessionData.cache
+
+  sessionDataString = JSON.stringify(sessionData)
+
+  sessionData.deviceData = oldDeviceData
+  sessionData.syncState = oldSyncState
+  sessionData.toLoad = sessionData.toLoad
+  sessionData.cache = sessionData.cache
+
+  return callback(null, sessionDataString)
 
 
 end = (sessionData, callback) ->
@@ -1182,5 +1180,5 @@ exports.rpcRequest = rpcRequest
 exports.rpcResponse = rpcResponse
 exports.rpcFault = rpcFault
 exports.end = end
-exports.save = save
-exports.load = load
+exports.serialize = serialize
+exports.deserialize = deserialize

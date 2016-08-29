@@ -30,6 +30,7 @@ port = config.get("#{service.toUpperCase()}_PORT")
 useHttps = config.get("#{service.toUpperCase()}_SSL")
 
 serviceListener = require("./#{service}").listener
+onConnection = require("./#{service}").onConnection
 
 server = null
 
@@ -76,6 +77,9 @@ if useHttps
   server = require('https').createServer(options, listener)
 else
   server = require('http').createServer(listener)
+
+if onConnection?
+  server.on('connection', onConnection)
 
 db.connect((err) ->
   throw err if err

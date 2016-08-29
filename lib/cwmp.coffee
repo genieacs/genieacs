@@ -40,6 +40,7 @@
 
 util = require 'util'
 zlib = require 'zlib'
+crypto = require 'crypto'
 mongodb = require 'mongodb'
 
 config = require './config'
@@ -94,15 +95,12 @@ inform = (currentRequest, cwmpRequest) ->
       cwmpVersion : currentRequest.sessionData.cwmpVersion
     })
 
-    session.save(currentRequest.sessionData, (err, sessionId) ->
-      throw err if err
-      if !!cookiesPath = config.get('COOKIES_PATH', currentRequest.sessionData.deviceId)
-        res.headers['Set-Cookie'] = "session=#{sessionId}; Path=#{cookiesPath}"
-      else
-        res.headers['Set-Cookie'] = "session=#{sessionId}"
+    if !!cookiesPath = config.get('COOKIES_PATH', currentRequest.sessionData.deviceId)
+      res.headers['Set-Cookie'] = "session=#{currentRequest.sessionData.sessionId}; Path=#{cookiesPath}"
+    else
+      res.headers['Set-Cookie'] = "session=#{currentRequest.sessionData.sessionId}"
 
-      writeResponse(currentRequest, res)
-    )
+    writeResponse(currentRequest, res)
   )
 
 
@@ -268,6 +266,8 @@ sendRpcRequest = (currentRequest, id, rpcRequest) ->
   if not rpcRequest?
     session.end(currentRequest.sessionData, (err, isNew) ->
       throw err if err
+
+      delete currentSessions.get(currentRequest.httpRequest.connection)[currentRequest.sessionData.sessionId]
       if isNew
         util.log("#{currentRequest.sessionData.deviceId}: New device registered")
 
@@ -293,10 +293,7 @@ sendRpcRequest = (currentRequest, id, rpcRequest) ->
     cwmpVersion : currentRequest.sessionData.cwmpVersion
   })
 
-  session.save(currentRequest.sessionData, (err) ->
-    throw err if err
-    writeResponse(currentRequest, res)
-  )
+  writeResponse(currentRequest, res)
 
 
 getSession = (httpRequest, callback) ->
@@ -307,9 +304,38 @@ getSession = (httpRequest, callback) ->
 
   return callback() if not sessionId?
 
-  session.load(sessionId, (err, sessionData) ->
-    throw err if err
-    return callback(sessionId, sessionData)
+  sessionData = currentSessions.get(httpRequest.connection)?[sessionId]
+
+  if sessionData?
+    return callback(null, sessionData)
+
+  setTimeout(() ->
+    db.redisClient.eval('local v=redis.call("get",KEYS[1]);redis.call("del",KEYS[1]);return v;', 1, "session_#{sessionId}", (err, sessionDataString) ->
+      return callback(err) if err or not sessionDataString
+      session.deserialize(sessionDataString, (err, sessionData) ->
+        return callback(err) if err
+        currentSessions.get(httpRequest.connection)[sessionId] = sessionData
+        callback(null, sessionData)
+      )
+    )
+  , 100
+  )
+
+
+currentSessions = new WeakMap()
+
+# When socket closes, store active sessions in redis
+onConnection = (socket) ->
+  currentSessions.set(socket, {})
+  socket.on('close', () ->
+    sessions = currentSessions.get(socket)
+    for sessionId, sessionData of sessions
+      session.serialize(sessionData, (err, sessionDataString) ->
+        throw err if err
+        db.redisClient.setex("session_#{sessionId}", sessionData.timeout, sessionDataString, (err) ->
+          throw err if err
+        )
+      )
   )
 
 
@@ -352,7 +378,8 @@ listener = (httpRequest, httpResponse) ->
 
   stream.on('end', () ->
     cwmpRequest = null
-    getSession(httpRequest, f = (sessionId, sessionData) ->
+    getSession(httpRequest, f = (err, sessionData) ->
+      throw err if err
       cwmpRequest ?= soap.request(httpRequest, sessionData?.cwmpVersion)
       if not sessionData?
         if cwmpRequest.methodRequest?.type isnt 'Inform'
@@ -363,6 +390,10 @@ listener = (httpRequest, httpResponse) ->
         deviceId = common.generateDeviceId(cwmpRequest.methodRequest.deviceId)
         return session.init(deviceId, cwmpRequest.cwmpVersion, cwmpRequest.sessionTimeout ? config.get('SESSION_TIMEOUT', deviceId), (err, sessionData) ->
           throw err if err
+
+          sessionData.sessionId = crypto.randomBytes(8).toString('hex')
+
+          currentSessions.get(httpRequest.connection)[sessionData.sessionId] = sessionData
 
           httpRequest.connection.setTimeout(sessionData.timeout * 1000)
 
@@ -401,10 +432,7 @@ listener = (httpRequest, httpResponse) ->
             methodResponse : {type : 'GetRPCMethodsResponse', methodList : ['Inform', 'GetRPCMethods', 'TransferComplete', 'RequestDownload']},
             cwmpVersion : currentRequest.sessionData.cwmpVersion
           })
-          session.save(currentRequest.sessionData, (err) ->
-            throw err if err
-            writeResponse(currentRequest, res)
-          )
+          writeResponse(currentRequest, res)
         else if cwmpRequest.methodRequest.type is 'TransferComplete'
           throw new Error('ACS method not supported')
       else if cwmpRequest.methodResponse?
@@ -469,3 +497,4 @@ listener = (httpRequest, httpResponse) ->
 
 
 exports.listener = listener
+exports.onConnection = onConnection
