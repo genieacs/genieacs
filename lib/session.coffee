@@ -341,6 +341,10 @@ rpcRequest = (sessionData, declarations, callback) ->
   if sessionData.rpcRequest?
     return callback(null, generateRpcId(sessionData), sessionData.rpcRequest)
 
+  if sessionData.syncState? and (rpcReq = generateRpcRequest(sessionData))?
+    sessionData.rpcRequest = rpcReq
+    return callback(null, generateRpcId(sessionData), rpcReq)
+
   revision = sessionData.revisions.reduce(((a, b) -> a + (b >> 1)), 0) + 1
 
   v.revision = revision for k, v of sessionData.deviceData.timestamps
@@ -427,6 +431,7 @@ generateRpcRequest = (sessionData) ->
     if not found
       path = syncState.paths.add(path.slice(0, -1))
       syncState.refreshGpn.set(path, syncState.refreshGpn.get(path) or 1)
+  syncState.refreshAttributes.exist.clear()
 
 
   iter = syncState.refreshAttributes.object.values()
@@ -443,11 +448,13 @@ generateRpcRequest = (sessionData) ->
     if not found
       path = syncState.paths.add(path.slice(0, -1))
       syncState.refreshGpn.set(path, syncState.refreshGpn.get(path) or 1)
+  syncState.refreshAttributes.object.clear()
 
   iter = syncState.refreshAttributes.writable.values()
   while (path = iter.next().value)
     path = syncState.paths.add(path.slice(0, -1))
     syncState.refreshGpn.set(path, syncState.refreshGpn.get(path) or 1)
+  syncState.refreshAttributes.writable.clear()
 
   iter = syncState.refreshGpn.keys()
   while (path = iter.next().value)
@@ -465,7 +472,7 @@ generateRpcRequest = (sessionData) ->
 
   # Delete instance
   syncState.instancesToDelete.forEach((instances, parent) ->
-    instances.forEach((instance) ->
+    instances.forEach((instance, index, thisArray) ->
       if rpcReq?
         completed = false
       else
@@ -473,12 +480,13 @@ generateRpcRequest = (sessionData) ->
           type: 'DeleteObject'
           objectName: instance.join('.') + '.'
         }
+        thisArray.splice(index, 1)
     )
   )
 
   # Create instance
   syncState.instancesToCreate.forEach((instances, parent) ->
-    instances.forEach((instance) ->
+    instances.forEach((instance, index, thisArray) ->
       if rpcReq?
         completed = false
       else
@@ -488,6 +496,7 @@ generateRpcRequest = (sessionData) ->
           next: 'getInstanceKeys'
           instanceValues: instance
         }
+        thisArray.splice(index, 1)
     )
   )
 
@@ -514,6 +523,7 @@ generateRpcRequest = (sessionData) ->
         parameterPath: pair[0].concat('').join('.')
         nextLevel: nextLevel
       }
+      syncState.refreshGpn.delete(pair[0])
 
   if syncState.refreshAttributes.value.size
     if rpcReq?
@@ -527,6 +537,7 @@ generateRpcRequest = (sessionData) ->
       while (path = iter.next().value) and
           parameterNames.length < TASK_PARAMETERS_BATCH_SIZE
         parameterNames.push(path)
+        syncState.refreshAttributes.value.delete(path)
 
       if syncState.refreshAttributes.value.size > parameterNames.length
         completed = false
@@ -556,6 +567,7 @@ generateRpcRequest = (sessionData) ->
         completed = false
         return
       parameterValues.push([k, val[0], val[1]])
+      syncState.setValues.delete(k)
   )
 
   if parameterValues.length and not rpcReq?
