@@ -429,7 +429,7 @@ fetchDevice = (id, timestamp, patterns, callback) ->
               {exist: timestamp, object: timestamp, writable: timestamp, value: timestamp},
               {exist: 1, object: 0, writable: 0, value: [vv, 'xsd:boolean']}])
       else if common.typeOf(v) is common.OBJECT_TYPE
-        storeParams(v, [k], +(device['_timestamp'] ? 0), projection == null)
+        storeParams(v, [k], +(device['_timestamp'] ? 0), Object.keys(projection).length == 0)
 
     return callback(null, res, loaded)
   )
