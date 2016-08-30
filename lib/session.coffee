@@ -79,6 +79,7 @@ loadParameters = (sessionData, callback) ->
       sessionData.new = true
       path = sessionData.deviceData.paths.add(['*'])
       sessionData.deviceData.loaded.set(path, 99)
+      delete sessionData.toLoad
       return callback()
 
     for p in loaded
@@ -124,7 +125,7 @@ loadParameters = (sessionData, callback) ->
             sessionData.deviceData.values.exist.set(p, 1, 0)
             sessionData.deviceData.values.object.set(p, 0, 0)
 
-    sessionData.toLoad = null
+    delete sessionData.toLoad
     return callback()
   )
 
@@ -768,6 +769,7 @@ processDeclaration = (sessionData, path, _timestamps, values) ->
 
 
 loadPath = (sessionData, path) ->
+  return true if sessionData.new
   tl = []
   for i in [path.length...0] by -1
     p = path.slice(0, i)
