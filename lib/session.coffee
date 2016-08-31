@@ -1171,8 +1171,8 @@ serialize = (sessionData, callback) ->
 
   sessionData.deviceData = oldDeviceData
   sessionData.syncState = oldSyncState
-  sessionData.toLoad = sessionData.toLoad
-  sessionData.cache = sessionData.cache
+  sessionData.toLoad = oldToLoad
+  sessionData.cache = oldCache
 
   return callback(null, sessionDataString)
 
