@@ -358,13 +358,13 @@ fetchDevice = (id, timestamp, patterns, callback) ->
         v.exist = 1
 
       if obj['_writable']?
-        t.writable = timestamp
+        t.writable = timestamp or 1
         v.writable = if obj['_writable'] then 1 else 0
         t.exist = Math.max(t.exist || 0, t.writable)
         v.exist = 1
 
       if obj['_object']?
-        t.object = obj['_timestamp'] ? timestamp
+        t.object = obj['_timestamp'] or timestamp or 1
         v.object = if obj['_object'] then 1 else 0
         t.exist = Math.max(t.exist || 0, t.object)
         v.exist = 1
@@ -468,10 +468,24 @@ saveDevice = (deviceId, deviceData, isNew, callback) ->
   iter = deviceData.values.object.diff()
   while not (diff = iter.next()).done
     continue if diff.value[0][0] in ['Events', 'DeviceID', 'Tags']
-    if not diff.value[2] and diff.value[1]
-      update['$unset'][diff.value[0].concat('_object').join('.')] = 1
-    else if diff.value[2] and diff.value[2] != diff.value[1]
-      update['$set'][diff.value[0].concat('_object').join('.')] = true
+    if diff.value[1] != diff.value[2]
+      if diff.value[2]
+        update['$set'][diff.value[0].concat('_object').join('.')] = true
+      else if not diff.value[2]?
+        update['$unset'][diff.value[0].concat('_object').join('.')] = 1
+      else
+        if deviceData.values.value.getDiff(diff.value[0])?[2]?
+          if diff.value[1]?
+            update['$unset'][diff.value[0].concat('_object').join('.')] = 1
+        else
+          update['$set'][diff.value[0].concat('_object').join('.')] = false
+    else if diff.value[2]?
+      vdiff = deviceData.values.value.getDiff(diff.value[0])
+      if vdiff[1] != vdiff[2]
+        if not vdiff[2]?
+          update['$set'][diff.value[0].concat('_object').join('.')] = false
+        else if not vdiff[1]?
+          update['$unset'][diff.value[0].concat('_object').join('.')] = 1
 
   # Set value
   iter = deviceData.values.value.diff()
@@ -518,8 +532,8 @@ saveDevice = (deviceId, deviceData, isNew, callback) ->
           update['$set'][diff.value[0].concat('_type').join('.')] = diff.value[2][1]
 
       else if diff.value[1]?
-          update['$unset'][diff.value[0].concat('_value').join('.')] = 1
-          update['$unset'][diff.value[0].concat('_value').join('.')] = 1
+        update['$unset'][diff.value[0].concat('_value').join('.')] = 1
+        update['$unset'][diff.value[0].concat('_value').join('.')] = 1
 
   # Remove empty keys
   for k of update
