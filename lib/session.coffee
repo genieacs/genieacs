@@ -1083,10 +1083,9 @@ rpcResponse = (sessionData, id, rpcRes, callback) ->
         return bl - al
       )
 
-      p = root.slice()
-      p.length = params[params.length - 1].length
-      p.fill('*', root.length)
-      loadPath(sessionData, p)
+      for p in params
+        loadPath(sessionData, p[0])
+
       loadParameters(sessionData, (err) ->
         return callback(err) if err
 
