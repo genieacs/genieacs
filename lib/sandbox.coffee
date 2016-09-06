@@ -28,7 +28,6 @@ class Exit;
 sandbox = {
   timestamp: null
   deviceData: null
-  args: null
   revision: null
   maxRevision: null
   declarations: null
@@ -37,7 +36,7 @@ sandbox = {
   context: vm.createContext()
 }
 
-sandbox.context.Date = class
+Object.defineProperty(sandbox.context, 'Date', {value: class
   constructor: (arg) ->
     if arguments.length
       return new (Function.prototype.bind.apply(Date, arguments))
@@ -46,9 +45,10 @@ sandbox.context.Date = class
 
   @now: () ->
     return sandbox.timestamp
+})
 
 
-sandbox.context.ext = () ->
+Object.defineProperty(sandbox.context, 'ext', {value: () ->
   if sandbox.extensions?.length
     throw new Error('Ext function should not be called from within a try/catch block')
 
@@ -59,9 +59,10 @@ sandbox.context.ext = () ->
     throw new Exit()
 
   return sandbox.extensionsCache[sandbox.revision][key]
+})
 
 
-sandbox.context.declare = (decs) ->
+Object.defineProperty(sandbox.context, 'declare', {value: (decs) ->
   if ++ sandbox.revision > sandbox.maxRevision + 1
     throw new Error('Declare function should not be called from within a try/catch block')
 
@@ -103,26 +104,28 @@ sandbox.context.declare = (decs) ->
         res[k][param.join('.')] = r
 
   return res
+})
 
-Object.freeze(sandbox.context)
 
-
-run = (script, args, timestamp, deviceData, extensionsCache, startRevision, maxRevision) ->
+run = (script, globals, timestamp, deviceData, extensionsCache, startRevision, maxRevision) ->
   sandbox.timestamp = timestamp
   sandbox.deviceData = deviceData
   sandbox.extensionsCache = extensionsCache
-  sandbox.args = args
   sandbox.revision = startRevision
   sandbox.maxRevision = maxRevision
   sandbox.declarations = []
   sandbox.extensions = null
 
+  for k, v of globals
+    sandbox.context[k] = v
+
   try
     ret = script.runInNewContext(sandbox.context, {displayErrors: false})
+    delete sandbox.context[k] for k of sandbox.context
     return {done: true, declarations: sandbox.declarations, returnValue: ret}
   catch err
+    delete sandbox.context[k] for k of sandbox.context
     throw err if err not instanceof Exit
-
     return {done: false, declarations: sandbox.declarations, extensions: sandbox.extensions}
 
 

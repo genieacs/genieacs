@@ -220,7 +220,7 @@ nextRpc = (currentRequest) ->
     if rpcRequest?
       return sendRpcRequest(currentRequest, id, rpcRequest)
 
-    for p, i in currentRequest.sessionData.provisions
+    for p, i in currentRequest.sessionData.provisions[0]
       if currentRequest.sessionData.faults?
         delete currentRequest.sessionData.faults[currentRequest.sessionData.channels[i]]
 
