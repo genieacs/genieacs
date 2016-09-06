@@ -528,9 +528,8 @@ generateRpcRequest = (sessionData) ->
 
       nextLevel = true
       if pair[0].length >= GET_PARAMETER_NAMES_DEPTH_THRESHOLD
-        nextLevel = false
-      else if common.hammingWeight(pair[1] >> 3) >= 3
-        nextLevel = false
+        if common.hammingWeight(pair[1] >> 3) >= 3
+          nextLevel = false
 
       if syncState.refreshGpn.size > 1 or (pair[1] > 1 and nextLevel)
         completed = false
