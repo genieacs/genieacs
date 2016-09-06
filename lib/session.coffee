@@ -247,7 +247,7 @@ runProvisions = (sessionData, provisions, startRevision, endRevision, callback) 
         when 'refresh'
           path = common.parsePath(provision[1]).slice()
           l = path.length
-          path.length = 10
+          path.length += 10
           path.fill('*', l)
           t = provision[2]
           t += sessionData.timestamp if t <= 0
@@ -272,7 +272,7 @@ runProvisions = (sessionData, provisions, startRevision, endRevision, callback) 
             when 'refreshObject'
               path = common.parsePath(provision[3]).slice()
               l = path.length
-              path.length = 10
+              path.length += 10
               path.fill('*', l)
               for i in [l...path.length] by 1
                 p = common.addPathMeta(path.slice(0, i))
