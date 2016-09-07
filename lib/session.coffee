@@ -206,7 +206,7 @@ addProvisions = (sessionData, channel, provisions) ->
     # Remove duplicate provisions
     for p, j in sessionData.provisions[0]
       if channel == sessionData.channels[j] and JSON.stringify(p) == JSON.stringify(provision)
-        sessionData.provisions.splice(j, 1)
+        sessionData.provisions[0].splice(j, 1)
         sessionData.channels.splice(j, 1)
 
     sessionData.provisions[0].push(provision)
@@ -571,7 +571,7 @@ generateRpcRequest = (sessionData) ->
 
   # Delete instance
   syncState.instancesToDelete.forEach((instances, parent) ->
-    instances.forEach((instance, index, thisArray) ->
+    instances.forEach((instance, key, thisSet) ->
       if rpcReq?
         completed = false
       else
@@ -579,7 +579,7 @@ generateRpcRequest = (sessionData) ->
           type: 'DeleteObject'
           objectName: instance.join('.') + '.'
         }
-        thisArray.splice(index, 1)
+        thisSet.delete(instance)
     )
   )
 
@@ -587,7 +587,7 @@ generateRpcRequest = (sessionData) ->
 
   # Create instance
   syncState.instancesToCreate.forEach((instances, parent) ->
-    instances.forEach((instance, index, thisArray) ->
+    instances.forEach((instance, key, thisSet) ->
       if rpcReq?
         completed = false
       else
@@ -597,7 +597,7 @@ generateRpcRequest = (sessionData) ->
           next: 'getInstanceKeys'
           instanceValues: instance
         }
-        thisArray.splice(index, 1)
+        thisSet.delete(instance)
     )
   )
 
