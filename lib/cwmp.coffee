@@ -453,7 +453,7 @@ listener = (httpRequest, httpResponse) ->
           faults = {}
           currentRequest.sessionData.faults ?= {}
 
-          for p, i in currentRequest.sessionData.provisions
+          for p, i in currentRequest.sessionData.provisions[0]
             channel = currentRequest.sessionData.channels[i]
             fault = faults[channel]
             if not fault?

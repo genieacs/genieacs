@@ -564,10 +564,6 @@ generateRpcRequest = (sessionData) ->
       }
 
   refreshDone = not rpcReq?
-  # Skip write if read isn't finished
-  sessionData.syncState.setValues.clear()
-  sessionData.syncState.instancesToDelete.clear()
-  sessionData.syncState.instancesToCreate.clear()
 
   # Delete instance
   syncState.instancesToDelete.forEach((instances, parent) ->

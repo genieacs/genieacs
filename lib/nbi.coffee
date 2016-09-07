@@ -254,8 +254,8 @@ listener = (request, response) ->
     else if FAULTS_REGEX.test(urlParts.pathname)
       if request.method == 'DELETE'
         faultId = querystring.unescape(FAULTS_REGEX.exec(urlParts.pathname)[1])
-        deviceId = faultId.split(':', 1)
-        channel = faultId.slice(deviceId + 1)
+        deviceId = faultId.split(':', 1)[0]
+        channel = faultId.slice(deviceId.length + 1)
         db.redisClient.del("#{deviceId}_faults", (err) ->
           db.faultsCollection.remove({_id : faultId}, (err) ->
             throw err if err
