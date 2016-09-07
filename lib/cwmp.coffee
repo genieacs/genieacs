@@ -253,6 +253,10 @@ nextRpc = (currentRequest) ->
           session.addProvisions(currentRequest.sessionData, "_task_#{task._id}", [t])
         when 'refreshObject'
           session.addProvisions(currentRequest.sessionData, "_task_#{task._id}", [['_task', task._id, 'refreshObject', task.objectName]])
+        when 'reboot'
+          session.addProvisions(currentRequest.sessionData, "_task_#{task._id}", [['_task', task._id, 'reboot']])
+        when 'factoryReset'
+          session.addProvisions(currentRequest.sessionData, "_task_#{task._id}", [['_task', task._id, 'factoryReset']])
         else
           throw new Error('Task name not recognized')
 

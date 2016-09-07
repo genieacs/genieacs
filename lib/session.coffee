@@ -277,6 +277,10 @@ runProvisions = (sessionData, provisions, startRevision, endRevision, callback) 
               for i in [l...path.length] by 1
                 p = common.addPathMeta(path.slice(0, i))
                 allDeclarations.push([p, {exist: sessionData.timestamp, object: 1, writable: 1, value: sessionData.timestamp}])
+            when 'reboot'
+              allDeclarations.push([['Reboot'], {exist: 1, value: 1}, {value: [sessionData.timestamp]}])
+            when 'factoryReset'
+              allDeclarations.push([['FactoryReset'], {exist: 1, value: 1}, {value: [sessionData.timestamp]}])
       continue
 
     ret = sandbox.run(sessionData.cache.provisions[provision[0]].script, {args: provision[1]}, sessionData.timestamp, sessionData.deviceData, sessionData.extensionsCache, startRevision, endRevision)
@@ -629,6 +633,34 @@ generateRpcRequest = (sessionData) ->
       parameterList: ([p[0].join('.'), p[1], p[2]] for p in parameterValues)
     }
 
+  # Reboot
+  if syncState.reboot?
+    p = sessionData.deviceData.paths.subset(['Reboot']).next().value
+    if not (p? and sessionData.deviceData.values.value.get(p)?[0] >= syncState.reboot)
+      if rpcReq?
+        completed = false
+      else
+        delete syncState.reboot
+        rpcReq = {
+          type: 'Reboot'
+        }
+
+  delete syncState.reboot if not refreshDone
+
+  # Factory reset
+  if syncState.factoryReset?
+    p = sessionData.deviceData.paths.subset(['FactoryReset']).next().value
+    if not (p? and sessionData.deviceData.values.value.get(p)?[0] >= syncState.factoryReset)
+      if rpcReq?
+        completed = false
+      else
+        delete syncState.factoryReset
+        rpcReq = {
+          type: 'FactoryReset'
+        }
+
+  delete syncState.factoryReset if not refreshDone
+
   if completed and rpcReq?
     rpcReq.done = true
 
@@ -671,6 +703,22 @@ processVirtualparameterDeclaration = (sessionData, path, timestamps, values) ->
   return ret
 
 
+processRebootDeclaration = (sessionData, path, timestamps, values) ->
+  return true if path.length != 1
+  if values?.value?
+    sessionData.syncState.reboot = values.value[0]
+
+  return true
+
+
+processFactoryResetDeclaration = (sessionData, path, timestamps, values) ->
+  return true if path.length != 1
+  if values?.value?
+    sessionData.syncState.factoryReset = values.value[0]
+
+  return true
+
+
 processDeclaration = (sessionData, path, _timestamps, values) ->
   syncState = sessionData.syncState
   deviceData = sessionData.deviceData
@@ -683,6 +731,14 @@ processDeclaration = (sessionData, path, _timestamps, values) ->
 
   if path[0] == '*' or path[0] == 'VirtualParameters'
     ret = processVirtualparameterDeclaration(sessionData, path, _timestamps, values) && ret
+    return ret if path[0] != '*'
+
+  if path[0] == '*' or path[0] == 'Reboot'
+    ret = processRebootDeclaration(sessionData, path, _timestamps, values) && ret
+    return ret if path[0] != '*'
+
+  if path[0] == '*' or path[0] == 'FactoryReset'
+    ret = processFactoryResetDeclaration(sessionData, path, _timestamps, values) && ret
     return ret if path[0] != '*'
 
   iter = sessionData.deviceData.paths.superset(path)
@@ -1108,6 +1164,16 @@ rpcResponse = (sessionData, id, rpcRes, callback) ->
     when 'DeleteObjectResponse'
       device.set(sessionData.deviceData, common.parsePath(rpcReq.objectName.slice(0, -1)),
         {exist: timestamp})
+
+    when 'RebootResponse'
+      device.set(sessionData.deviceData, common.parsePath('Reboot'),
+        {exist: sessionData.timestamp, value: sessionData.timestamp},
+        {exist: 1, value: [sessionData.timestamp, 'xsd:unsignedInt']})
+
+    when 'FactoryResetResponse'
+      device.set(sessionData.deviceData, common.parsePath('FactoryReset'),
+        {exist: sessionData.timestamp, value: sessionData.timestamp},
+        {exist: 1, value: [sessionData.timestamp, 'xsd:unsignedInt']})
 
     else
       return callback(new Error('Response type not recognized'))
