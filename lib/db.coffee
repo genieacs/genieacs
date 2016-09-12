@@ -683,7 +683,7 @@ syncFaults = (deviceId, faults, callback) ->
       )
 
     for channel, fault of faults
-      continue if fault.retries == existingFaults[channel]?.retries
+      continue if existingFaults[channel]? and fault.retries == existingFaults[channel].retries
       do (channel, fault) ->
         ++ counter
         fault._id = "#{deviceId}:#{channel}"
