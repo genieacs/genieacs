@@ -270,6 +270,8 @@ parsePath = (pattern, start, res) ->
 
 
 addPathMeta = (path) ->
+  return path if path.alias? or path.wildcard?
+
   path.alias = 0
   path.wildcard = 0
 
