@@ -78,7 +78,10 @@ loadParameters = (sessionData, callback) ->
       # Device not available in database, mark as new
       sessionData.new = true
       loaded = [[[], 99]]
-      parameters = []
+      parameters = [
+        [['DeviceID', '*'], {exist: sessionData.timestamp}],
+        [['Events', '*'], {exist: sessionData.timestamp}]
+      ]
 
     vparams = {}
 
@@ -336,7 +339,7 @@ runDeclarations = (sessionData, declarations, callback) ->
     )
 
   for d in declarations
-    done &= applyDeclaration(sessionData, d[0], d[1], d[2])
+    done = applyDeclaration(sessionData, d[0], d[1], d[2]) && done
 
   if sessionData.syncState? and sessionData.syncState.virtualParameters?
     provisions = []
@@ -361,8 +364,6 @@ rpcRequest = (sessionData, _declarations, callback) ->
 
   if _declarations?.length
     sessionData.declarations = []
-    sessionData.provisions[0] ?= []
-    sessionData.revisions[0] ?= 0
     sessionData.doneDeclarations = 0
     sessionData.doneProvisions = 0
 
@@ -419,7 +420,7 @@ rpcRequest = (sessionData, _declarations, callback) ->
   inception = 0
   runDeclarations(sessionData, sessionData.declarations[inception], f = (err, done, provisions) ->
     return callback(err) if err
-    sessionData.doneDeclarations |= 1 << (sessionData.revisions.length - 1)
+    sessionData.doneDeclarations |= 1 << (sessionData.revisions.length - 1) if done
     if ++ inception < sessionData.revisions.length
       return runDeclarations(sessionData, sessionData.declarations[inception], f)
 
@@ -946,8 +947,9 @@ applyDeclaration = (sessionData, path, timestamps, values) ->
   }
 
   decs = device.getAliasDeclarations(path, timestamps.exist ? 1)
+  common.addPathMeta(path)
 
-  if decs.length == 1
+  if (path.wildcard | path.alias) == 0
     processDeclaration(sessionData, decs[0][0], timestamps, values)
     return true
 
@@ -960,7 +962,7 @@ applyDeclaration = (sessionData, path, timestamps, values) ->
 
   unpacked = device.unpack(sessionData.deviceData, path)
 
-  if values.exist?
+  if values?.exist?
     if Array.isArray(values.exist)
       minInstances = values.exist[0]
       maxInstances = values.exist[1]
@@ -1086,8 +1088,8 @@ rpcResponse = (sessionData, id, rpcRes, callback) ->
       }
 
   timestamp = sessionData.timestamp
-  revision = sessionData.revisions.reduce(((a, b) -> a + (b >> 1)), 0) + 1
 
+  revision = sessionData.revisions[sessionData.revisions.length - 1] + 1
   v.revision = revision for k, v of sessionData.deviceData.timestamps
   v.revision = revision for k, v of sessionData.deviceData.values
 
@@ -1130,9 +1132,9 @@ rpcResponse = (sessionData, id, rpcRes, callback) ->
       params.sort((a, b) ->
         al = a[0].length
         bl = b[0].length
-        -- bl if b[0][bl - 1] == '*'
-        -- al if a[0][al - 1] == '*'
-        return bl - al
+        ++ bl if b[0][bl - 1] == '*'
+        ++ al if a[0][al - 1] == '*'
+        return al - bl
       )
 
       for p in params
