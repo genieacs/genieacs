@@ -54,7 +54,7 @@ Object.defineProperty(sandbox.context, 'ext', {value: () ->
 
   extCall = (String(a) for a in arguments)
   key = JSON.stringify(extCall)
-  if not sandbox.extensionsCache[sandbox.revision]?[key]?
+  if not sandbox.extensionsCache[sandbox.revision]? or key not of sandbox.extensionsCache[sandbox.revision]
     sandbox.extensions = [extCall]
     throw new Exit()
 

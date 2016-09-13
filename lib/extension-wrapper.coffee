@@ -20,7 +20,7 @@ script = require("#{process.argv[2]}/#{process.argv[3]}")
 
 
 process.on('message', (message) ->
-  script[message[1]](message.slice(2), (err, res) ->
+  script[message[1][0]](message[1].slice(1), (err, res) ->
     throw err if err
     process.send([message[0], res])
   )

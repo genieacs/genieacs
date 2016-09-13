@@ -36,7 +36,7 @@ messageHandler = (message) ->
 run = (args, callback) ->
   scriptName = args[0]
   if not processes[scriptName]?
-    cwd = path.resolve(config.get('CONFIG_DIR'), 'extensions')
+    cwd = path.resolve(config.get('CONFIG_DIR'), 'ext')
     p = childProcess.fork('lib/extension-wrapper', [cwd, scriptName])
     p.on('message', messageHandler)
     processes[scriptName] = p
