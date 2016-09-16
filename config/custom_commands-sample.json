@@ -1,4 +1,0 @@
-{
-  "seowon_frequencies" : "/^[0-9]+\\-SWU\\%2D9200\\-[0-9A-Z]+$/",
-  "greenpacket_frequencies" : "/^[0-9A-Z]+\\-DX350\\-[0-9A-Z]+$/"
-}
