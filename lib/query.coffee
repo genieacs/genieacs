@@ -39,18 +39,59 @@
 ###
 
 common = require './common'
-normalize = require './normalize'
 mongodb = require 'mongodb'
 
 
-expandValue = (param, value) ->
+stringToRegexp = (input, flags) ->
+  if (input.indexOf('*') == -1)
+    return false
+
+  output = input.replace(/[\[\]\\\^\$\.\|\?\+\(\)]/, "\\$&")
+  if output[0] == '*'
+    output = output.replace(/^\*+/g, '')
+  else
+    output = '^' + output
+
+  if output[output.length - 1] == '*'
+    output = output.replace(/\*+$/g, '')
+  else
+    output = output + '$'
+
+  output = output.replace(/[\*]/, '.*')
+
+  return new RegExp(output, flags)
+
+
+normalize = (input) ->
+  if common.typeOf(input) is common.STRING_TYPE
+    vals = [input]
+    if (m = /^\/(.*?)\/(g?i?m?y?)$/.exec(input))
+      vals.push({'$regex' : new RegExp(m[1], m[2])})
+
+    f = parseFloat(input)
+    if not isNaN(f)
+      vals.push(f)
+
+    d = new Date(input)
+    if input.length >= 8 and d.getFullYear() > 1983
+      vals.push(d)
+
+    r = stringToRegexp(input)
+    if r isnt false
+      vals.push({'$regex' : r})
+
+    return vals
+  return input
+
+
+expandValue = (value) ->
   if common.typeOf(value) is common.ARRAY_TYPE
     a = []
     for j in value
-      a = a.concat(expandValue(param, j))
+      a = a.concat(expandValue(j))
     return [a]
   else if common.typeOf(value) isnt common.OBJECT_TYPE
-    n = normalize.normalize(param, value, 'query')
+    n = normalize(value)
     if common.typeOf(n) isnt common.ARRAY_TYPE
       return [n]
     else
@@ -62,7 +103,7 @@ expandValue = (param, value) ->
   values = []
   for k,v of value
     keys.push(k)
-    values.push(expandValue(param, v))
+    values.push(expandValue(v))
     indices.push(0)
 
   i = 0
@@ -80,38 +121,31 @@ expandValue = (param, value) ->
   return objs
 
 
-permute = (param, val, aliases) ->
-  keys = []
-  if aliases[param]?
-    for p in aliases[param]
-      keys.push(p)
-  else
-    keys.push(param)
-
+permute = (param, val) ->
   conditions = []
-  for k in keys
-    values = expandValue(k, val)
-    if k[k.lastIndexOf('.') + 1] != '_'
-      k += '._value'
 
-    for v in values
-      obj = {}
-      obj[k] = v
-      conditions.push(obj)
+  values = expandValue(val)
+  if param[param.lastIndexOf('.') + 1] != '_'
+    param += '._value'
+
+  for v in values
+    obj = {}
+    obj[param] = v
+    conditions.push(obj)
 
   return conditions
 
 
-expand = (query, aliases) ->
+expand = (query) ->
   new_query = {}
   for k,v of query
     if k[0] == '$' # operator
       expressions = []
       for e in v
-        expressions.push(expand(e, aliases))
+        expressions.push(expand(e))
       new_query[k] = expressions
     else
-      conditions = permute(k, v, aliases)
+      conditions = permute(k, v)
       if conditions.length > 1
         new_query['$and'] ?= []
         if v?['$ne']?

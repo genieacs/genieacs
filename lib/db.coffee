@@ -109,121 +109,6 @@ disconnect = () ->
   redisClient.quit()
 
 
-getCached = (name, valueCallback, valueExpiry, callback) ->
-  redisClient.get(name, (err, res) ->
-    return callback(err) if err
-    return callback(null, JSON.parse(res)) if res?
-
-    lockAcquired = () ->
-      valueCallback((err, value) ->
-        return callback(err, value) if err
-        redisClient.setex(name, valueExpiry, JSON.stringify(value), (err) ->
-          return callback(err, value) if err
-          redisClient.del("lock.#{name}", (err) ->
-            callback(err, value)
-          )
-        )
-      )
-
-    redisClient.setnx("lock.#{name}", Date.now() + 30000, (err, res) ->
-      return callback(err) if err
-      if res == 1
-        lockAcquired()
-      else
-        setTimeout(() ->
-          redisClient.get("lock.#{name}", (err, timestamp) ->
-            return callback(err) if err
-            now = Date.now()
-            if not timestamp?
-              getCached(name, valueCallback, valueExpiry, callback)
-            else if timestamp > now
-              setTimeout(() ->
-                getCached(name, valueCallback, valueExpiry, callback)
-              , 1000)
-            else
-              redisClient.getset("lock.#{name}", now + 30000, (err, timestamp) ->
-                return callback(err) if err
-                if timestamp > now
-                  setTimeout(() ->
-                    getCached(name, valueCallback, valueExpiry, callback)
-                  , 1000)
-                else
-                  lockAcquired()
-              )
-          )
-        , 1000)
-    )
-  )
-
-
-getAliases = (callback) ->
-  getCached('aliases', parameters.compileAliases, config.get('PRESETS_CACHE_DURATION'), (err, res) ->
-    throw err if err
-    callback(res)
-  )
-
-
-getPresetsObjectsAliases = (callback) ->
-  redisClient.mget('presets', 'objects', 'aliases', (err, res) ->
-    presets = JSON.parse(res[0])
-    objects = JSON.parse(res[1])
-    aliases = JSON.parse(res[2])
-
-    if presets and objects and aliases
-      return callback(presets, objects, aliases)
-
-    if not presets
-      getCached('presets', (callback) ->
-        presetsCollection.find().toArray((err, res) ->
-          for r in res
-            r.precondition = JSON.parse(r.precondition)
-
-            # Generate provisions from the old configuration format
-            r.provisions = []
-            for c in r.configurations
-              switch c.type
-                when 'age'
-                  r.provisions.push(['refresh', c.name, c.age * -1000])
-                when 'value'
-                  r.provisions.push(['value', c.name, c.value])
-                when 'add_tag'
-                  r.provisions.push(['tag', c.tag, true])
-                when 'delete_tag'
-                  r.provisions.push(['tag', c.tag, false])
-                else
-                  throw new Error("Unknown configuration type #{c.type}")
-
-          callback(err, res)
-        )
-      , config.get('PRESETS_CACHE_DURATION'), (err, res) ->
-        throw err if err
-        presets = res
-        callback(presets, objects, aliases) if objects and aliases
-      )
-
-    if not objects
-      getCached('objects', (callback) ->
-        objectsCollection.find().toArray((err, res) ->
-          return callback(err) if err
-          objs = {}
-          objs[r._id] = r for r in res
-          callback(null, objs)
-        )
-      , config.get('PRESETS_CACHE_DURATION'), (err, res) ->
-        throw err if err
-        objects = res
-        callback(presets, objects, aliases) if presets and aliases
-      )
-
-    if not aliases
-      getCached('aliases', parameters.compileAliases, config.get('PRESETS_CACHE_DURATION'), (err, res) ->
-        throw err if err
-        aliases = res
-        callback(presets, objects, aliases) if presets and objects
-      )
-  )
-
-
 # Optimize projection by removing overlaps
 # This modifies given object and returns it
 optimizeProjection = (obj) ->
@@ -714,8 +599,6 @@ syncFaults = (deviceId, faults, callback) ->
   )
 
 
-exports.getPresetsObjectsAliases = getPresetsObjectsAliases
-exports.getAliases = getAliases
 exports.connect = connect
 exports.disconnect = disconnect
 exports.fetchDevice = fetchDevice

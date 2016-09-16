@@ -276,46 +276,44 @@ listener = (request, response) ->
         if body.length
           task = JSON.parse(body)
           task.device = deviceId
-          db.getAliases((aliases) ->
-            apiFunctions.insertTasks(task, aliases, (err) ->
+          apiFunctions.insertTasks(task, (err) ->
+            throw err if err
+            db.redisClient.del("#{deviceId}_no_tasks", (err) ->
               throw err if err
-              db.redisClient.del("#{deviceId}_no_tasks", (err) ->
-                throw err if err
 
-                if urlParts.query.connection_request?
-                  apiFunctions.connectionRequest(deviceId, (err) ->
-                    if err
-                      response.writeHead(202, err.message, {'Content-Type' : 'application/json'})
-                      response.end(JSON.stringify(task))
-                    else
-                      apiFunctions.watchTask(task._id, config.get('DEVICE_ONLINE_THRESHOLD', deviceId), (err, status) ->
-                        if err
-                          response.writeHead(500)
-                          response.end(errorToString(err))
-                          return
+              if urlParts.query.connection_request?
+                apiFunctions.connectionRequest(deviceId, (err) ->
+                  if err
+                    response.writeHead(202, err.message, {'Content-Type' : 'application/json'})
+                    response.end(JSON.stringify(task))
+                  else
+                    apiFunctions.watchTask(task._id, config.get('DEVICE_ONLINE_THRESHOLD', deviceId), (err, status) ->
+                      if err
+                        response.writeHead(500)
+                        response.end(errorToString(err))
+                        return
 
-                        if status is 'timeout'
-                          response.writeHead(202, 'Task queued but not processed', {'Content-Type' : 'application/json'})
+                      if status is 'timeout'
+                        response.writeHead(202, 'Task queued but not processed', {'Content-Type' : 'application/json'})
+                        response.end(JSON.stringify(task))
+                      else if status is 'fault'
+                        db.tasksCollection.findOne({_id : task._id}, (err, task) ->
+                          if err
+                            response.writeHead(500)
+                            response.end(errorToString(err))
+                            return
+
+                          response.writeHead(202, 'Task faulted', {'Content-Type' : 'application/json'})
                           response.end(JSON.stringify(task))
-                        else if status is 'fault'
-                          db.tasksCollection.findOne({_id : task._id}, (err, task) ->
-                            if err
-                              response.writeHead(500)
-                              response.end(errorToString(err))
-                              return
-
-                            response.writeHead(202, 'Task faulted', {'Content-Type' : 'application/json'})
-                            response.end(JSON.stringify(task))
-                          )
-                        else
-                          response.writeHead(200, {'Content-Type' : 'application/json'})
-                          response.end(JSON.stringify(task))
-                      )
-                  )
-                else
-                  response.writeHead(202, {'Content-Type' : 'application/json'})
-                  response.end(JSON.stringify(task))
-              )
+                        )
+                      else
+                        response.writeHead(200, {'Content-Type' : 'application/json'})
+                        response.end(JSON.stringify(task))
+                    )
+                )
+              else
+                response.writeHead(202, {'Content-Type' : 'application/json'})
+                response.end(JSON.stringify(task))
             )
           )
         else if urlParts.query.connection_request?
@@ -453,88 +451,69 @@ listener = (request, response) ->
         response.end('404 Not Found')
         return
 
-      func = (aliases) ->
-        if urlParts.query.query?
-          try
-            q = JSON.parse(urlParts.query.query)
-          catch err
-            response.writeHead(400)
-            response.end(errorToString(err))
-            return
-        else
-          q = {}
-
-        switch collectionName
-          when 'devices'
-            q = query.expand(q, aliases)
-          when 'tasks'
-            q = query.sanitizeQueryTypes(q, {
-              _id: ((v) -> return new mongodb.ObjectID(v))
-              timestamp: ((v) -> return new Date(v))
-              retries: Number
-            })
-          when 'faults'
-            q = query.sanitizeQueryTypes(q, {
-              timestamp: ((v) -> return new Date(v))
-              retries: Number
-            })
-
-        if urlParts.query.projection?
-          projection = {}
-          for p in urlParts.query.projection.split(',')
-            p = p.trim()
-            projection[p] = 1
-            if collectionName is 'devices'
-              for k,v of aliases
-                if k == p or common.startsWith(k, "#{p}.")
-                  projection[a] = 1 for a in v
-
-        cur = collection.find(q, projection, {batchSize : 50})
-        if urlParts.query.sort?
-          s = JSON.parse(urlParts.query.sort)
-          sort = {}
-          for k,v of s
-            if aliases[k]?
-              for a in aliases[k]
-                if a[a.lastIndexOf('.')+1] != '_' and collectionName is 'devices'
-                  sort["#{a}._value"] = v
-                else
-                  sort[a] = v
-            else
-              if k[k.lastIndexOf('.') + 1] != '_' and collectionName is 'devices'
-                sort["#{k}._value"] = v
-              else
-                sort[k] = v
-          cur.sort(sort)
-
-        cur.skip(parseInt(urlParts.query.skip)) if urlParts.query.skip?
-        cur.limit(limit = parseInt(urlParts.query.limit)) if urlParts.query.limit?
-        cur.count(false, (err, total) ->
-          response.writeHead(200, {'Content-Type' : 'application/json', 'total' : total})
-          if request.method is 'HEAD'
-            response.end()
-            return
-          response.write("[\n")
-          i = 0
-          cur.each((err, item) ->
-            throw err if err
-
-            if item?
-              response.write(",\n") if i++
-              apiFunctions.addAliases(item, aliases) if collectionName is 'devices'
-              response.write(JSON.stringify(item))
-
-            if not item? or (limit? and i >= limit)
-              response.end("\n]")
-          )
-        )
-
-      if collectionName is 'devices'
-        db.getAliases((aliases) ->
-          func(aliases)
-        )
+      if urlParts.query.query?
+        try
+          q = JSON.parse(urlParts.query.query)
+        catch err
+          response.writeHead(400)
+          response.end(errorToString(err))
+          return
       else
-        func({})
+        q = {}
+
+      switch collectionName
+        when 'devices'
+          q = query.expand(q)
+        when 'tasks'
+          q = query.sanitizeQueryTypes(q, {
+            _id: ((v) -> return new mongodb.ObjectID(v))
+            timestamp: ((v) -> return new Date(v))
+            retries: Number
+          })
+        when 'faults'
+          q = query.sanitizeQueryTypes(q, {
+            timestamp: ((v) -> return new Date(v))
+            retries: Number
+          })
+
+      if urlParts.query.projection?
+        projection = {}
+        for p in urlParts.query.projection.split(',')
+          p = p.trim()
+          projection[p] = 1
+
+      cur = collection.find(q, projection, {batchSize : 50})
+      if urlParts.query.sort?
+        s = JSON.parse(urlParts.query.sort)
+        sort = {}
+        for k,v of s
+          if k[k.lastIndexOf('.') + 1] != '_' and collectionName is 'devices'
+            sort["#{k}._value"] = v
+          else
+            sort[k] = v
+        cur.sort(sort)
+
+      cur.skip(parseInt(urlParts.query.skip)) if urlParts.query.skip?
+      cur.limit(limit = parseInt(urlParts.query.limit)) if urlParts.query.limit?
+      cur.count(false, (err, total) ->
+        response.writeHead(200, {'Content-Type' : 'application/json', 'total' : total})
+        if request.method is 'HEAD'
+          response.end()
+          return
+        response.write("[\n")
+        i = 0
+        cur.each((err, item) ->
+          throw err if err
+
+          if item?
+            response.write(",\n") if i++
+            response.write(JSON.stringify(item))
+
+          if not item? or (limit? and i >= limit)
+            response.end("\n]")
+        )
+      )
+
     else
       response.writeHead 404
       response.end('404 Not Found')

@@ -147,17 +147,7 @@ watchTask = (taskId, timeout, callback) ->
   , 500)
 
 
-expandParam = (param, aliases) ->
-  params = [param]
-  for a,aa of aliases
-    if a == param or common.startsWith(a, "#{param}.")
-      for p in aa
-        params.push(p) if p[p.lastIndexOf('.') + 1] != '_'
-
-  return params
-
-
-sanitizeTask = (task, aliases, callback) ->
+sanitizeTask = (task, callback) ->
   task.timestamp = new Date(task.timestamp ? Date.now())
   if task.expiry?
     if common.typeOf(task.expiry) is common.DATE_TYPE or isNaN(task.expiry)
@@ -169,8 +159,7 @@ sanitizeTask = (task, aliases, callback) ->
     when 'getParameterValues'
       projection = {}
       for p in task.parameterNames
-        for pp in expandParam(p, aliases)
-          projection[pp] = 1
+        projection[p] = 1
       db.devicesCollection.findOne({_id : task.device}, projection, (err, device) ->
         parameterNames = []
         for k of projection
@@ -183,9 +172,8 @@ sanitizeTask = (task, aliases, callback) ->
       projection = {}
       values = {}
       for p in task.parameterValues
-        for pp in expandParam(p[0], aliases)
-          projection[pp] = 1
-          values[pp] = p[1]
+        projection[p[0]] = 1
+        values[p[0]] = p[1]
       db.devicesCollection.findOne({_id : task.device}, projection, (err, device) ->
         parameterValues = []
         for k of projection
@@ -200,21 +188,7 @@ sanitizeTask = (task, aliases, callback) ->
       callback(task)
 
 
-addAliases = (device, aliases) ->
-  for k,v of aliases
-    for p in v
-      pp = p.split('.')
-      obj = device
-      for i in pp
-        if not obj[i]?
-          obj = null
-          break
-        obj = obj[i]
-
-      device[k] = obj if obj?
-
-
-insertTasks = (tasks, aliases, callback) ->
+insertTasks = (tasks, callback) ->
   if tasks? and common.typeOf(tasks) isnt common.ARRAY_TYPE
     tasks = [tasks]
   else if not tasks? or tasks.length == 0
@@ -223,7 +197,7 @@ insertTasks = (tasks, aliases, callback) ->
   counter = tasks.length
 
   for task in tasks
-    sanitizeTask(task, aliases, (t) ->
+    sanitizeTask(task, (t) ->
       if t.uniqueKey?
         db.tasksCollection.remove({device : t.device, uniqueKey : t.uniqueKey}, (err) ->
         )
@@ -250,8 +224,6 @@ deleteDevice = (deviceId, callback) ->
   )
 
 
-exports.addAliases = addAliases
-exports.sanitizeTask = sanitizeTask
 exports.connectionRequest = connectionRequest
 exports.watchTask = watchTask
 exports.insertTasks = insertTasks
