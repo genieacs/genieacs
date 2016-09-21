@@ -18,7 +18,6 @@
 config = require './config'
 mongodb = require 'mongodb'
 redis = require('redis')
-parameters = require './parameters'
 common = require './common'
 
 redisClient = null

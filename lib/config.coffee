@@ -158,9 +158,6 @@ get = (option, deviceId) ->
   return allConfig[option]
 
 
-# load parameter configurations
-exports.PARAMETERS = require(path.resolve(allConfig.CONFIG_DIR, 'parameters'))
-
 # load authentication scripts
 exports.auth = require(path.resolve(allConfig.CONFIG_DIR, 'auth'))
 
