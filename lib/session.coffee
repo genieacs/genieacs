@@ -77,7 +77,7 @@ loadParameters = (sessionData, callback) ->
     if not parameters?
       # Device not available in database, mark as new
       sessionData.new = true
-      loaded = [[[], 99]]
+      loaded = [[[], (1 << config.get('MAX_DEPTH', sessionData.deviceId)) - 1]]
       parameters = [
         [['DeviceID', '*'], {exist: sessionData.timestamp}],
         [['Events', '*'], {exist: sessionData.timestamp}]
@@ -89,19 +89,17 @@ loadParameters = (sessionData, callback) ->
       path = sessionData.deviceData.paths.add(p[0])
 
       if p[1]
-        l = sessionData.deviceData.loaded.get(path) || 0
-        sessionData.deviceData.loaded.set(path, Math.max(l, p[1]))
+        l = sessionData.deviceData.loaded.get(path) | 0
+        sessionData.deviceData.loaded.set(path, l | p[1])
 
-      if path.length <= 2 and path.length + p[1] > 2
-        if path.length < 1 or path[0] == '*' or path[0] == 'VirtualParameters'
-          if path.length < 2 or path[1] == '*'
-            vparams['*'] = 1
-          else
-            vparams[path[1]] = 1
+      if p[1] & 2 and (path.length < 1 or path[0] == '*' or path[0] == 'VirtualParameters')
+        if path.length < 2 or path[1] == '*'
+          vparams['*'] = 1
+        else
+          vparams[path[1]] = 1
 
-      if path.length <= 1 and path.length + p[1] > 1
-        if path.length < 1 or path[0] == '*' or path[0] == 'VirtualParameters'
-          vparams[''] = 1
+      if p[1] & 1 and (path.length < 1 or path[0] == '*' or path[0] == 'VirtualParameters')
+        vparams[''] = 1
 
     for p in parameters
       path = sessionData.deviceData.paths.add(p[0])
@@ -112,32 +110,37 @@ loadParameters = (sessionData, callback) ->
       for k, v of p[2]
         sessionData.deviceData.values[k].set(path, v, 0)
 
+    toClear = null
     # Virtual parameters
     if vparams['']
-      device.set(sessionData.deviceData, ['VirtualParameters'],
+      toClear = device.set(sessionData.deviceData, ['VirtualParameters'],
         {exist: sessionData.timestamp, object: sessionData.timestamp, writable: sessionData.timestamp},
-        {exist: 1, object: 1, writable: 0})
+        {exist: 1, object: 1, writable: 0},
+        toClear)
       delete vparams['']
 
     if vparams['*']
       for k, v of sessionData.cache.virtualParameters
-        device.set(sessionData.deviceData, ['VirtualParameters', k],
+        toClear = device.set(sessionData.deviceData, ['VirtualParameters', k],
           {exist: sessionData.timestamp, object: sessionData.timestamp},
-          {exist: 1, object: 0})
+          {exist: 1, object: 0},
+          toClear)
 
-      device.set(sessionData.deviceData, ['VirtualParameters', '*'],
-        {exist: sessionData.timestamp})
+      toClear = device.set(sessionData.deviceData, ['VirtualParameters', '*'],
+        {exist: sessionData.timestamp}, toClear)
     else
       for k of vparams
         if k of sessionData.cache.virtualParameters
-          device.set(sessionData.deviceData, ['VirtualParameters', k]
+          toClear = device.set(sessionData.deviceData, ['VirtualParameters', k]
             {exist: sessionData.timestamp, object: sessionData.timestamp},
-            {exist: 1, object: 0})
+            {exist: 1, object: 0},
+            toClear)
         else
-          device.set(sessionData.deviceData, ['VirtualParameters', k], {exist: sessionData.timestamp})
+          toClear = device.set(sessionData.deviceData, ['VirtualParameters', k], {exist: sessionData.timestamp}, toClear)
 
     delete sessionData.toLoad
-    return callback()
+
+    return clear(sessionData, toClear, callback)
   )
 
 
@@ -192,10 +195,13 @@ inform = (sessionData, rpcReq, callback) ->
     v.revision = 1 for k, v of sessionData.deviceData.timestamps
     v.revision = 1 for k, v of sessionData.deviceData.values
 
+    toClear = null
     for p in params
-      device.set(sessionData.deviceData, p[0], p[1], p[2])
+      toClear = device.set(sessionData.deviceData, p[0], p[1], p[2], toClear)
 
-    return callback(null, {type : 'InformResponse'})
+    clear(sessionData, toClear, (err) ->
+      return callback(err, {type : 'InformResponse'})
+    )
   )
 
 
@@ -323,11 +329,14 @@ runVirtualParameters = (sessionData, provisions, startRevision, endRevision, cal
       return runVirtualParameters(sessionData, provisions, startRevision, endRevision, callback)
     )
 
+  toClear = null
   if virtualParameterUpdates.length == provisions.length
     for vpu, i in virtualParameterUpdates
-      commitVirtualParameter(sessionData, vpu[0], provisions[i][1], vpu[1])
+      toClear = commitVirtualParameter(sessionData, vpu[0], provisions[i][1], vpu[1], toClear)
 
-  return callback(null, done, decs)
+  clear(sessionData, toClear, (err) ->
+    return callback(err, done, decs)
+  )
 
 
 runDeclarations = (sessionData, declarations, callback) ->
@@ -865,29 +874,27 @@ processDeclaration = (sessionData, path, _timestamps, values) ->
   return ret
 
 
-loadPath = (sessionData, path) ->
+loadPath = (sessionData, path, depth) ->
   return true if sessionData.new
-  tl = []
-  for i in [path.length...0] by -1
-    p = path.slice(0, i)
-    loaded = 0
-    iter = sessionData.deviceData.paths.superset(p)
+  depth ?= (1 << path.length) - 1
+
+  # Trim trailing wildcards
+  trimWildcard = path.length
+  -- trimWildcard while trimWildcard and path[trimWildcard - 1] != '*'
+  path = path.slice(0, trimWildcard) if trimWildcard < path.length
+
+  for i in [0..path.length] by 1
+    iter = sessionData.deviceData.paths.superset(path.slice(0, i))
 
     while sup = iter.next().value
-      if (l = sessionData.deviceData.loaded.get(sup)) > loaded
-        loaded = l
+      v = sessionData.deviceData.loaded.get(sup)
+      depth &= depth ^ sessionData.deviceData.loaded.get(sup)
 
-    if loaded
-      tl = tl.slice(0, tl.length - (loaded - 1))
-      break
+    return true if depth == 0
 
-    tl.push(p)
-
-  if not tl.length
-    return true
 
   sessionData.toLoad ?= []
-  sessionData.toLoad = sessionData.toLoad.concat(tl)
+  sessionData.toLoad.push([path, depth])
   return false
 
 
@@ -991,7 +998,27 @@ applyDeclaration = (sessionData, path, timestamps, values) ->
   return true
 
 
-commitVirtualParameter = (sessionData, name, declaration, update) ->
+clear = (sessionData, toClear, callback) ->
+  return callback() if not toClear?.size
+  MAX_DEPTH = config.get('MAX_DEPTH', sessionData.deviceId)
+
+  toClear.forEach((t, p) ->
+    if t.exist?
+      loadPath(sessionData, p, ((1 << p.length) - 1) ^ (1 << MAX_DEPTH) - 1)
+    else
+      loadPath(sessionData, p, 1 << (p.length - 1))
+  )
+
+  loadParameters(sessionData, (err) ->
+    return callback(err) if err
+
+    toClear.forEach((t, p) ->
+      device.clearSupersets(sessionData.deviceData, p, t)
+    )
+    return callback()
+  )
+
+commitVirtualParameter = (sessionData, name, declaration, update, toClear) ->
   t = {}
   v = {}
   if update.writable?
@@ -1020,7 +1047,7 @@ commitVirtualParameter = (sessionData, name, declaration, update) ->
   else if declaration.timestamps.value?
     throw new Error('Virtual parameter must provide declared attributes')
 
-  device.set(sessionData.deviceData, ['VirtualParameters', name], t, v)
+  return device.set(sessionData.deviceData, ['VirtualParameters', name], t, v, toClear)
 
 
 runExtensions = (sessionData, revision, _extensions, callback) ->
@@ -1093,14 +1120,17 @@ rpcResponse = (sessionData, id, rpcRes, callback) ->
   v.revision = revision for k, v of sessionData.deviceData.timestamps
   v.revision = revision for k, v of sessionData.deviceData.values
 
+  toClear = null
+
   switch rpcRes.type
     when 'GetParameterValuesResponse'
       return callback(new Error('Response type does not match request type')) if rpcReq.type isnt 'GetParameterValues'
 
       for p in rpcRes.parameterList
-        device.set(sessionData.deviceData, common.parsePath(p[0]),
+        toClear = device.set(sessionData.deviceData, common.parsePath(p[0]),
           {exist: timestamp, object: timestamp, value: timestamp},
-          {exist: 1, object: 0, value: p.slice(1)})
+          {exist: 1, object: 0, value: p.slice(1)},
+          toClear)
 
     when 'GetParameterNamesResponse'
       return callback(new Error('Response type does not match request type')) if rpcReq.type isnt 'GetParameterNames'
@@ -1137,16 +1167,18 @@ rpcResponse = (sessionData, id, rpcRes, callback) ->
         return al - bl
       )
 
-      for p in params
-        loadPath(sessionData, p[0])
+      if rpcReq.nextLevel
+        loadPath(sessionData, root, (1 << (root.length + 1)) - 1)
+      else
+        loadPath(sessionData, root, (1 << config.get('MAX_DEPTH', sessionData.deviceId) - 1))
 
       loadParameters(sessionData, (err) ->
         return callback(err) if err
 
         for p in params
-          device.set(sessionData.deviceData, p[0], p[1], p[2])
+          toClear = device.set(sessionData.deviceData, p[0], p[1], p[2], toClear)
 
-        return callback()
+        clear(sessionData, toClear, callback)
       )
       return
 
@@ -1154,33 +1186,36 @@ rpcResponse = (sessionData, id, rpcRes, callback) ->
       return callback(new Error('Response type does not match request type')) if rpcReq.type isnt 'SetParameterValues'
 
       for p in rpcReq.parameterList
-        device.set(sessionData.deviceData, common.parsePath(p[0]),
+        toClear = device.set(sessionData.deviceData, common.parsePath(p[0]),
           {exist: timestamp, object: timestamp, writable: timestamp, value: timestamp},
-          {exist: 1, object: 0, writable: 1, value: p.slice(1)})
+          {exist: 1, object: 0, writable: 1, value: p.slice(1)}, toClear)
 
     when 'AddObjectResponse'
-      device.set(sessionData.deviceData, common.parsePath(rpcReq.objectName + rpcRes.instanceNumber),
+      toClear = device.set(sessionData.deviceData, common.parsePath(rpcReq.objectName + rpcRes.instanceNumber),
         {exist: timestamp, object: timestamp},
-        {exist: 1, object: 1})
+        {exist: 1, object: 1},
+        toClear)
 
     when 'DeleteObjectResponse'
-      device.set(sessionData.deviceData, common.parsePath(rpcReq.objectName.slice(0, -1)),
-        {exist: timestamp})
+      toClear = device.set(sessionData.deviceData, common.parsePath(rpcReq.objectName.slice(0, -1)),
+        {exist: timestamp}, toClear)
 
     when 'RebootResponse'
-      device.set(sessionData.deviceData, common.parsePath('Reboot'),
+      toClear = device.set(sessionData.deviceData, common.parsePath('Reboot'),
         {exist: sessionData.timestamp, value: sessionData.timestamp},
-        {exist: 1, value: [sessionData.timestamp, 'xsd:unsignedInt']})
+        {exist: 1, value: [sessionData.timestamp, 'xsd:unsignedInt']},
+        toClear)
 
     when 'FactoryResetResponse'
-      device.set(sessionData.deviceData, common.parsePath('FactoryReset'),
+      toClear = device.set(sessionData.deviceData, common.parsePath('FactoryReset'),
         {exist: sessionData.timestamp, value: sessionData.timestamp},
-        {exist: 1, value: [sessionData.timestamp, 'xsd:unsignedInt']})
+        {exist: 1, value: [sessionData.timestamp, 'xsd:unsignedInt']},
+        toClear)
 
     else
       return callback(new Error('Response type not recognized'))
 
-  return callback()
+  return clear(sessionData, toClear, callback)
 
 
 rpcFault = (sessionData, id, faultResponse, callback) ->

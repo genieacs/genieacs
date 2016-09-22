@@ -126,94 +126,98 @@ optimizeProjection = (obj) ->
 
 
 fetchDevice = (id, timestamp, patterns, callback) ->
+  MAX_DEPTH = config.get('MAX_DEPTH', id)
   res = []
   loaded = []
 
   # Build projection
   projection = {_id: 1}
-  for pattern in patterns
-    loaded.push([pattern, 1])
-    if pattern.length == 0
-      projection['_timestamp'] = 1
-    else if pattern[0] == '*'
+  for [pattern, depth] in patterns
+    loaded.push([pattern, depth])
+    if depth & 1 and (pattern.length < 1 or pattern[0] == '*')
       projection[''] = 1
-    else if pattern[0] == 'Events'
-      if pattern.length == 1
-        res.push([['Events'],
-          {exist: timestamp, object: timestamp, writable: timestamp},
-          {exist: 1, object: 1, writable: 0}])
-      else if pattern.length == 2
-        if pattern[1] == '*'
-          projection['_registered'] = 1
-          projection['_lastInform'] = 1
-          projection['_lastBootstrap'] = 1
-          projection['_lastBoot'] = 1
-          res.push([['Events', '*'], {exist: timestamp}])
-        else if pattern[1] == 'Registered'
-          projection['_registered'] = 1
-        else if pattern[1] == 'Inform'
-          projection['_lastInform'] = 1
-        else if pattern[1] == '0_BOOTSTRAP'
-          projection['_lastBootstrap'] = 1
-        else if pattern[1] == '1_BOOT'
-          projection['_lastBoot'] = 1
-    else if pattern[0] == 'DeviceID'
-      if pattern.length == 1
-        res.push([['DeviceID'],
-          {exist: timestamp, object: timestamp, writable: timestamp},
-          {exist: 1, object: 1, writable: 0}])
 
-      else if pattern.length == 2
-        if pattern[1] == '*'
-          projection['_id'] = 1
-          projection['_deviceId._Manufacturer'] = 1
-          projection['_deviceId._ProductClass'] = 1
-          projection['_deviceId._SerialNumber'] = 1
-          projection['_deviceId._OUI'] = 1
-          res.push([['DeviceID', '*'], {exist: timestamp}])
+    if depth & 1 and (pattern.length < 1 or pattern[0] == '*' or pattern[0] == 'Events')
+      res.push([['Events'],
+        {exist: timestamp, object: timestamp, writable: timestamp},
+        {exist: 1, object: 1, writable: 0}])
 
-        else if pattern[1] == 'ID'
-          projection['_id'] = 1
-        else if pattern[1] == 'Manufacturer'
-          projection['_deviceId._Manufacturer'] = 1
-        else if pattern[1] == 'ProductClass'
-          projection['_deviceId._ProductClass'] = 1
-        else if pattern[1] == 'OUI'
-          projection['_deviceId._OUI'] = 1
-        else if pattern[1] == 'SerialNumber'
-          projection['_deviceId._SerialNumber'] = 1
-    else if pattern[0] == 'Tags'
-      if pattern.length == 1
-        res.push([['Tags'],
-          {exist: timestamp, object: timestamp, writable: timestamp},
-          {exist: 1, object: 1, writable: 0}])
+    if depth & 2 and (pattern.length < 2 or pattern[0] == '*' or pattern[0] == 'Events')
+      if not pattern[1]? or pattern[1] == '*'
+        projection['_registered'] = 1
+        projection['_lastInform'] = 1
+        projection['_lastBootstrap'] = 1
+        projection['_lastBoot'] = 1
+        res.push([['Events', '*'], {exist: timestamp}])
+      else if pattern[1] == 'Registered'
+        projection['_registered'] = 1
+      else if pattern[1] == 'Inform'
+        projection['_lastInform'] = 1
+      else if pattern[1] == '0_BOOTSTRAP'
+        projection['_lastBootstrap'] = 1
+      else if pattern[1] == '1_BOOT'
+        projection['_lastBoot'] = 1
 
-      else if pattern.length == 2
-        res.push([['Tags', '*'], {exist: timestamp}])
-        projection['_tags'] = 1
-    else
-      wildcardIndex = pattern.indexOf('*')
+    if depth & 1 and (pattern.length < 1 or pattern[0] == '*' or pattern[0] == 'DeviceID')
+      res.push([['DeviceID'],
+        {exist: timestamp, object: timestamp, writable: timestamp},
+        {exist: 1, object: 1, writable: 0}])
 
-      if wildcardIndex == -1
-        s = pattern.join('.')
-        projection["#{s}._value"] = 1
-        projection["#{s}._timestamp"] = 1
-        projection["#{s}._type"] = 1
-        projection["#{s}._writable"] = 1
-        projection["#{s}._object"] = 1
-        projection["#{s}._orig"] = 1
+    if depth & 2 and (pattern.length < 2 or pattern[0] == '*' or pattern[0] == 'DeviceID')
+      if not pattern[1]? or pattern[1] == '*'
+        projection['_id'] = 1
+        projection['_deviceId._Manufacturer'] = 1
+        projection['_deviceId._ProductClass'] = 1
+        projection['_deviceId._SerialNumber'] = 1
+        projection['_deviceId._OUI'] = 1
+        res.push([['DeviceID', '*'], {exist: timestamp}])
+      else if pattern[1] == 'ID'
+        projection['_id'] = 1
+      else if pattern[1] == 'Manufacturer'
+        projection['_deviceId._Manufacturer'] = 1
+      else if pattern[1] == 'ProductClass'
+        projection['_deviceId._ProductClass'] = 1
+      else if pattern[1] == 'OUI'
+        projection['_deviceId._OUI'] = 1
+      else if pattern[1] == 'SerialNumber'
+        projection['_deviceId._SerialNumber'] = 1
 
-        # Timestamp from parent is needed for writable timestamp
-        if pattern.length <= 1
-          projection['_timestamp'] = 1
-        else
-          projection["#{pattern.slice(0, -1).join('.')}._timestamp"] = 1
-      else
-        p = pattern.slice(0, wildcardIndex)
-        loaded.push([p, 99])
-        s = p.join('.')
-        projection[s] = 1
-        projection[pattern.slice(0, wildcardIndex - 1).concat('_timestamp').join('.')] = 1
+    if depth & 1 and (pattern.length < 1 or pattern[0] == '*' or pattern[0] == 'Tags')
+      res.push([['Tags'],
+        {exist: timestamp, object: timestamp, writable: timestamp},
+        {exist: 1, object: 1, writable: 0}])
+
+    if depth & 2 and (pattern.length < 1 or pattern[0] == '*' or pattern[0] == 'Tags')
+      res.push([['Tags', '*'], {exist: timestamp}])
+      projection['_tags'] = 1
+
+    if pattern[0] not in ['Tags', 'Events', 'DeviceID']
+      i = 0
+      while (1 << i) <= depth
+        if pattern.length <= i or pattern[i] == '*'
+          p = pattern.slice(0, i)
+          loaded.push([p, ((1 << p.length) - 1) ^ ((1 << MAX_DEPTH) - 1)])
+          s = p.join('.')
+          projection[s] = 1
+          projection[pattern.slice(0, i - 1).concat('_timestamp').join('.')] = 1
+          break
+
+        if depth & (1 << i)
+          s = pattern.slice(0, i + 1).join('.')
+          projection["#{s}._value"] = 1
+          projection["#{s}._timestamp"] = 1
+          projection["#{s}._orig"] = 1
+          projection["#{s}._type"] = 1
+          projection["#{s}._writable"] = 1
+          projection["#{s}._object"] = 1
+
+          # Timestamp from parent is needed for writable timestamp
+          if i <= 1
+            projection['_timestamp'] = 1
+          else
+            projection["#{pattern.slice(0, i).join('.')}._timestamp"] = 1
+
+        ++ i
 
   if projection['']
     projection = {}
@@ -253,8 +257,8 @@ fetchDevice = (id, timestamp, patterns, callback) ->
         t.exist = Math.max(t.exist || 0, t.object)
         v.exist = 1
 
-        if not obj['_object']
-          loaded.push([path, 99])
+      if not descendantsFetched and v.object == 0
+        loaded.push([path, ((1 << path.length) - 1) ^ ((1 << MAX_DEPTH) - 1)])
 
       res.push([path, t, v])
 

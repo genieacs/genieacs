@@ -49,6 +49,7 @@ options = {
   SESSION_TIMEOUT : {type : 'int', default : 30},
   GET_PARAMETER_NAMES_DEPTH_THRESHOLD : {type : 'int', default : 0},
   TASK_PARAMETERS_BATCH_SIZE : {type : 'int', default : 32},
+  MAX_DEPTH : {type: 'int', default : 16},
   COOKIES_PATH : {type : 'string'},
 
   # Libxml related configuration
