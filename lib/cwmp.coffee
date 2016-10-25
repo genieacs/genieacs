@@ -157,7 +157,7 @@ applyPresets = (currentRequest) ->
     deviceEvents = {}
     iter = currentRequest.sessionData.deviceData.paths.subset(['Events', '*'])
     while (p = iter.next().value)
-      if currentRequest.sessionData.timestamp == currentRequest.sessionData.deviceData.values.value.get(p)?[0]
+      if currentRequest.sessionData.timestamp == currentRequest.sessionData.deviceData.attributes.get(p)?.value?[1][0]
         deviceEvents[p[1]] = true
 
     parameters = {}
@@ -171,11 +171,11 @@ applyPresets = (currentRequest) ->
 
       eventsMatch = true
       for k, v of p.events
-        if !v != !deviceEvents[k.replace(' ', '_')]
+        if (!v) != (!deviceEvents[k.replace(' ', '_')])
           eventsMatch = false
           break
 
-      continue if not eventsMatch or (p.schedule and not
+      continue if (not eventsMatch) or (p.schedule and not
         (p.schedule.schedule and testSchedule(p.schedule, currentRequest.sessionData.timestamp)[0]))
 
       filteredPresets.push(p)
@@ -184,7 +184,7 @@ applyPresets = (currentRequest) ->
 
     declarations = []
     for k, v of parameters
-      declarations.push([v, {exist: 1, value: 1}])
+      declarations.push([v, 1, {value: 1}])
 
     session.rpcRequest(currentRequest.sessionData, declarations, (err, id, rpcRequest) ->
       throw err if err
@@ -194,7 +194,7 @@ applyPresets = (currentRequest) ->
 
       for k, v of parameters
         unpacked = device.unpack(currentRequest.sessionData.deviceData, v)
-        if unpacked[0] and (vv = currentRequest.sessionData.deviceData.values.value.get(unpacked[0]))?
+        if unpacked[0] and (vv = currentRequest.sessionData.deviceData.attributes.get(unpacked[0]).value?[1])?
           parameters[k] = vv[0]
 
       if whiteList?
@@ -215,12 +215,12 @@ applyPresets = (currentRequest) ->
 
 
 nextRpc = (currentRequest) ->
-  session.rpcRequest(currentRequest.sessionData, null, (err, id, rpcRequest) ->
+  session.rpcRequest(currentRequest.sessionData, null, (err, id, rpcRequest, doneProvisions) ->
     throw err if err
     if rpcRequest?
       return sendRpcRequest(currentRequest, id, rpcRequest)
 
-    for p, i in currentRequest.sessionData.provisions[0]
+    for p, i in doneProvisions or []
       if currentRequest.sessionData.faults?
         delete currentRequest.sessionData.faults[currentRequest.sessionData.channels[i]]
 
@@ -336,6 +336,7 @@ onConnection = (socket) ->
     for sessionId, sessionData of sessions
       session.serialize(sessionData, (err, sessionDataString) ->
         throw err if err
+        # TODO don't set if process is shutting down
         db.redisClient.setex("session_#{sessionId}", sessionData.timeout, sessionDataString, (err) ->
           throw err if err
         )

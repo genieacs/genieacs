@@ -138,9 +138,8 @@ fetchDevice = (id, timestamp, patterns, callback) ->
       projection[''] = 1
 
     if depth & 1 and (pattern.length < 1 or pattern[0] == '*' or pattern[0] == 'Events')
-      res.push([['Events'],
-        {exist: timestamp, object: timestamp, writable: timestamp},
-        {exist: 1, object: 1, writable: 0}])
+      res.push([['Events'], timestamp,
+        {object: [timestamp, 1], writable: [timestamp, 0]}])
 
     if depth & 2 and (pattern.length < 2 or pattern[0] == '*' or pattern[0] == 'Events')
       if not pattern[1]? or pattern[1] == '*'
@@ -148,7 +147,7 @@ fetchDevice = (id, timestamp, patterns, callback) ->
         projection['_lastInform'] = 1
         projection['_lastBootstrap'] = 1
         projection['_lastBoot'] = 1
-        res.push([['Events', '*'], {exist: timestamp}])
+        res.push([['Events', '*'], timestamp])
       else if pattern[1] == 'Registered'
         projection['_registered'] = 1
       else if pattern[1] == 'Inform'
@@ -159,9 +158,8 @@ fetchDevice = (id, timestamp, patterns, callback) ->
         projection['_lastBoot'] = 1
 
     if depth & 1 and (pattern.length < 1 or pattern[0] == '*' or pattern[0] == 'DeviceID')
-      res.push([['DeviceID'],
-        {exist: timestamp, object: timestamp, writable: timestamp},
-        {exist: 1, object: 1, writable: 0}])
+      res.push([['DeviceID'], timestamp,
+        {object: [timestamp, 1], writable: [timestamp, 0]}])
 
     if depth & 2 and (pattern.length < 2 or pattern[0] == '*' or pattern[0] == 'DeviceID')
       if not pattern[1]? or pattern[1] == '*'
@@ -170,7 +168,7 @@ fetchDevice = (id, timestamp, patterns, callback) ->
         projection['_deviceId._ProductClass'] = 1
         projection['_deviceId._SerialNumber'] = 1
         projection['_deviceId._OUI'] = 1
-        res.push([['DeviceID', '*'], {exist: timestamp}])
+        res.push([['DeviceID', '*'], timestamp])
       else if pattern[1] == 'ID'
         projection['_id'] = 1
       else if pattern[1] == 'Manufacturer'
@@ -183,12 +181,11 @@ fetchDevice = (id, timestamp, patterns, callback) ->
         projection['_deviceId._SerialNumber'] = 1
 
     if depth & 1 and (pattern.length < 1 or pattern[0] == '*' or pattern[0] == 'Tags')
-      res.push([['Tags'],
-        {exist: timestamp, object: timestamp, writable: timestamp},
-        {exist: 1, object: 1, writable: 0}])
+      res.push([['Tags'], timestamp,
+        {object: [timestamp, 1], writable: [timestamp, 0]}])
 
     if depth & 2 and (pattern.length < 1 or pattern[0] == '*' or pattern[0] == 'Tags')
-      res.push([['Tags', '*'], {exist: timestamp}])
+      res.push([['Tags', '*'], timestamp])
       projection['_tags'] = 1
 
     if pattern[0] not in ['Tags', 'Events', 'DeviceID']
@@ -235,89 +232,71 @@ fetchDevice = (id, timestamp, patterns, callback) ->
       if obj['_timestamp']?
         obj['_timestamp'] = +obj['_timestamp']
 
-      t = {}
-      v = {}
+      t = if obj['_timestamp'] > timestamp then obj['_timestamp'] else timestamp
+
+      attrs = {}
 
       if obj['_value']?
-        t.value = obj['_timestamp'] ? timestamp
-        v.value = [obj['_value'], obj['_type']]
+        attrs.value = [t, [obj['_value'], obj['_type']]]
         obj['_object'] = false
-        t.exist = Math.max(t.exist || 0, t.value)
-        v.exist = 1
 
       if obj['_writable']?
-        t.writable = timestamp or 1
-        v.writable = if obj['_writable'] then 1 else 0
-        t.exist = Math.max(t.exist || 0, t.writable)
-        v.exist = 1
+        attrs.writable = [timestamp, if obj['_writable'] then 1 else 0]
 
       if obj['_object']?
-        t.object = obj['_timestamp'] or timestamp or 1
-        v.object = if obj['_object'] then 1 else 0
-        t.exist = Math.max(t.exist || 0, t.object)
-        v.exist = 1
+        attrs.object = [t, if obj['_object'] then 1 else 0]
 
-      if not descendantsFetched and v.object == 0
+      if not descendantsFetched and attrs.object?[1] == 0
         loaded.push([path, ((1 << path.length) - 1) ^ ((1 << MAX_DEPTH) - 1)])
 
-      res.push([path, t, v])
+      res.push([path, t, attrs])
 
       for k, v of obj
         if k[0] != '_'
           obj['_object'] = true
-          storeParams(v, path.concat(k), obj['_timestamp'] ? 0, descendantsFetched)
+          storeParams(v, path.concat(k), obj['_timestamp'] or 1, descendantsFetched)
 
       if obj['_object'] and descendantsFetched
-        res.push([path.concat('*'), {exist: obj['_timestamp'] ? 0}])
+        res.push([path.concat('*'), obj['_timestamp'] or 1])
 
     for k, v of device
       if k == '_timestamp'
-        res.push([['*'], {exist: v}]) if not Object.keys(projection).length
+        res.push([['*'], +v]) if not Object.keys(projection).length
       else if k == '_lastInform'
-        res.push([['Events', 'Inform'],
-          {exist: timestamp, object: timestamp, writable: timestamp, value: timestamp},
-          {exist: 1, object: 0, writable: 0, value: [+v, 'xsd:dateTime']}])
+        res.push([['Events', 'Inform'], timestamp,
+          {object: [timestamp, 0], writable: [timestamp, 0], value: [+v, [+v, 'xsd:dateTime']]}])
       else if k == '_lastBoot'
-        res.push([['Events', '1_BOOT'],
-          {exist: timestamp, object: timestamp, writable: timestamp, value: timestamp},
-          {exist: 1, object: 0, writable: 0, value: [+v, 'xsd:dateTime']}])
+        res.push([['Events', '1_BOOT'], timestamp,
+          {object: [timestamp, 0], writable: [timestamp, 0], value: [+v, [+v, 'xsd:dateTime']]}])
       else if k == '_lastBootstrap'
-        res.push([['Events', '0_BOOTSTRAP'],
-          {exist: timestamp, object: timestamp, writable: timestamp, value: timestamp},
-          {exist: 1, object: 0, writable: 0, value: [+v, 'xsd:dateTime']}])
+        res.push([['Events', '0_BOOTSTRAP'], timestamp,
+          {object: [timestamp, 0], writable: [timestamp, 0], value: [+v, [+v, 'xsd:dateTime']]}])
       else if k == '_registered'
-        res.push([['Events', 'Registered'],
-          {exist: timestamp, object: timestamp, writable: timestamp, value: timestamp},
-          {exist: 1, object: 0, writable: 0, value: [+v, 'xsd:dateTime']}])
+        res.push([['Events', 'Registered'], timestamp,
+          {object: [timestamp, 0], writable: [timestamp, 0], value: [+v, [+v, 'xsd:dateTime']]}])
       else if k == '_id'
-        res.push([['DeviceID', 'ID'],
-          {exist: timestamp, object: timestamp, writable: timestamp, value: timestamp},
-          {exist: 1, object: 0, writable: 0, value: [v, 'xsd:string']}])
+        res.push([['DeviceID', 'ID'], timestamp,
+          {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [v, 'xsd:string']]}])
       else if k == '_tags'
         for t in v
-          res.push([['Tags', t],
-            {exist: timestamp, object: timestamp, writable: timestamp, value: timestamp},
-            {exist: 1, object: 0, writable: 1, value: [true, 'xsd:boolean']}])
+          res.push([['Tags', t], timestamp,
+            {object: [timestamp, 0], writable: [timestamp, 1], value: [timestamp, [true, 'xsd:boolean']]}])
       else if k == '_deviceId'
         for kk, vv of v
           if kk == '_Manufacturer'
-            res.push([['DeviceID', 'Manufacturer'],
-              {exist: timestamp, object: timestamp, writable: timestamp, value: timestamp},
-              {exist: 1, object: 0, writable: 0, value: [vv, 'xsd:boolean']}])
+            res.push([['DeviceID', 'Manufacturer'], timestamp,
+              {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [vv, 'xsd:string']]}])
           else if kk == '_OUI'
-            res.push([['DeviceID', 'OUI'],
-              {exist: timestamp, object: timestamp, writable: timestamp, value: timestamp},
-              {exist: 1, object: 0, writable: 0, value: [vv, 'xsd:boolean']}])
+            res.push([['DeviceID', 'OUI'], timestamp,
+              {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [vv, 'xsd:string']]}])
           if kk == '_ProductClass'
-            res.push([['DeviceID', 'ProductClass'],
-              {exist: timestamp, object: timestamp, writable: timestamp, value: timestamp},
-              {exist: 1, object: 0, writable: 0, value: [vv, 'xsd:boolean']}])
+            res.push([['DeviceID', 'ProductClass'], timestamp,
+              {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [vv, 'xsd:string']]}])
           if kk == '_SerialNumber'
-            res.push([['DeviceID', 'SerialNumber'],
-              {exist: timestamp, object: timestamp, writable: timestamp, value: timestamp},
-              {exist: 1, object: 0, writable: 0, value: [vv, 'xsd:boolean']}])
+            res.push([['DeviceID', 'SerialNumber'], timestamp,
+              {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [vv, 'xsd:string']]}])
       else if common.typeOf(v) is common.OBJECT_TYPE
-        storeParams(v, [k], +(device['_timestamp'] ? 0), Object.keys(projection).length == 0)
+        storeParams(v, [k], +(device['_timestamp'] ? 1), Object.keys(projection).length == 0)
 
     return callback(null, res, loaded)
   )
@@ -326,102 +305,91 @@ fetchDevice = (id, timestamp, patterns, callback) ->
 saveDevice = (deviceId, deviceData, isNew, callback) ->
   update = {'$set' : {}, '$unset' : {}, '$addToSet' : {}, '$pull' : {}}
 
-  # Delete parameters that no longer exist
-  iter = deviceData.values.exist.diff()
-  while not (diff = iter.next()).done
-    if diff.value[1] and not diff.value[2]
-      update['$unset'][diff.value[0].join('.')] = 1
+  iter = deviceData.timestamps.diff()
+  while diff = iter.next().value
+    continue if diff[0].wildcard != (1 << (diff[0].length - 1))
+    continue if diff[0][0] in ['Events', 'DeviceID', 'Tags']
 
-  # Set object's children timestamps
-  iter = deviceData.timestamps.exist.diff()
-  while not (diff = iter.next()).done
-    continue if diff.value[0].wildcard != (1 << (diff.value[0].length - 1))
-    continue if diff.value[0][0] in ['Events', 'DeviceID', 'Tags']
+    if not diff[2]? and diff[1]?
+      update['$unset'][diff[0].slice(0, -1).concat('_timestamp').join('.')] = 1
+    else if diff[2] != diff[1]
+      parent = deviceData.paths.subset(diff[0].slice(0, -1)).next().value
+      if parent and (parent.length == 0 or deviceData.attributes.has(parent))
+        update['$set'][diff[0].slice(0, -1).concat('_timestamp').join('.')] = new Date(diff[2])
 
-    if not diff.value[2]? and diff.value[1]?
-      update['$unset'][diff.value[0].slice(0, -1).concat('_timestamp').join('.')] = 1
-    else if diff.value[2] != diff.value[1]
-      update['$set'][diff.value[0].slice(0, -1).concat('_timestamp').join('.')] = new Date(diff.value[2])
-
-  # Set writable
-  iter = deviceData.values.writable.diff()
-  while not (diff = iter.next()).done
-    continue if diff.value[0][0] in ['Events', 'DeviceID', 'Tags']
-    if not diff.value[2]? and diff.value[1]?
-      update['$unset'][diff.value[0].concat('_writable').join('.')] = 1
-    else if diff.value[2] != diff.value[1]
-      update['$set'][diff.value[0].concat('_writable').join('.')] = Boolean(diff.value[2])
-
-  # Set object
-  iter = deviceData.values.object.diff()
-  while not (diff = iter.next()).done
-    continue if diff.value[0][0] in ['Events', 'DeviceID', 'Tags']
-    if diff.value[1] != diff.value[2]
-      if diff.value[2]
-        update['$set'][diff.value[0].concat('_object').join('.')] = true
-      else if not diff.value[2]?
-        update['$unset'][diff.value[0].concat('_object').join('.')] = 1
+  iter = deviceData.attributes.diff()
+  while diff = iter.next().value
+    continue if diff[1] == diff[2]
+    path = diff[0]
+    switch path[0]
+      when 'Events'
+        if diff[0].length == 2 and diff[2].value?[1][0] != diff[1]?.value?[1][0]
+          t = new Date(diff[2].value[1][0])
+          switch path[1]
+            when 'Inform'
+              update['$set']['_lastInform'] = t
+            when '1_BOOT'
+              update['$set']['_lastBoot'] = t
+            when '0_BOOTSTRAP'
+              update['$set']['_lastBootstrap'] = t
+            when 'Registered'
+              update['$set']['_registered'] = t
+      when 'DeviceID'
+        if diff[2].value?[1]?[0] != diff[1]?.value?[1]?[0]
+          v = diff[2].value[1][0]
+          switch path[1]
+            when 'ID'
+              update['$set']['_id'] = v
+            when 'Manufacturer'
+              update['$set']['_deviceId._Manufacturer'] = v
+            when 'OUI'
+              update['$set']['_deviceId._OUI'] = v
+            when 'ProductClass'
+              update['$set']['_deviceId._ProductClass'] = v
+            when 'SerialNumber'
+              update['$set']['_deviceId._SerialNumber'] = v
+      when 'Tags'
+        if diff[2].value?[1][0] != diff[1].value?[1][0]
+          v = diff[2].value?[1][0]
+          if v?
+            update['$addToSet']['_tags'] ?= {'$each' : []}
+            update['$addToSet']['_tags']['$each'].push(v)
+          else
+            update['$pull']['_tags'] ?= {'$in' : []}
+            update['$pull']['_tags']['$in'].push(v)
       else
-        if deviceData.values.value.getDiff(diff.value[0])?[2]?
-          if diff.value[1]?
-            update['$unset'][diff.value[0].concat('_object').join('.')] = 1
-        else
-          update['$set'][diff.value[0].concat('_object').join('.')] = false
-    else if diff.value[2]?
-      vdiff = deviceData.values.value.getDiff(diff.value[0])
-      if vdiff[1] != vdiff[2]
-        if not vdiff[2]?
-          update['$set'][diff.value[0].concat('_object').join('.')] = false
-        else if not vdiff[1]?
-          update['$unset'][diff.value[0].concat('_object').join('.')] = 1
+        if not diff[2]
+          update['$unset'][diff[0].join('.')] = 1
+          continue
 
-  # Set value
-  iter = deviceData.values.value.diff()
-  while not (diff = iter.next()).done
-    if diff.value[0][0] == 'Events'
-      continue if diff.value[1]?[0] == diff.value[2][0]
-      if diff.value[0][1] == 'Inform'
-        update['$set']['_lastInform'] = new Date(diff.value[2][0])
-      else if diff.value[0][1] == '1_BOOT'
-        update['$set']['_lastBoot'] = new Date(diff.value[2][0])
-      else if diff.value[0][1] == '0_BOOTSTRAP'
-        update['$set']['_lastBootstrap'] = new Date(diff.value[2][0])
-      else if diff.value[0][1] == 'Registered'
-        update['$set']['_registered'] = new Date(diff.value[2][0])
-    else if diff.value[0][0] == 'Tags'
-      continue if diff.value[1]?[0] == diff.value[2]?[0]
-      if diff.value[2][0]
-        update['$addToSet']['_tags'] ?= {'$each' : []}
-        update['$addToSet']['_tags']['$each'].push(p[0][1])
-      else
-        update['$pull']['_tags'] ?= {'$in' : []}
-        update['$pull']['_tags']['$in'].push(p[0][1])
-    else if diff.value[0][0] == 'DeviceID'
-      continue if diff.value[1]?[0] == diff.value[2][0]
-      if diff.value[0][1] == 'ID'
-        update['$set']['_id'] = diff.value[2][0]
-      else if diff.value[0][1] == 'Manufacturer'
-        update['$set']['_deviceId._Manufacturer'] = diff.value[2][0]
-      else if diff.value[0][1] == 'OUI'
-        update['$set']['_deviceId._OUI'] = diff.value[2][0]
-      else if diff.value[0][1] == 'ProductClass'
-        update['$set']['_deviceId._ProductClass'] = diff.value[2][0]
-      else if diff.value[0][1] == 'SerialNumber'
-        update['$set']['_deviceId._SerialNumber'] = diff.value[2][0]
-    else
-      tdiff = deviceData.timestamps.value.getDiff(diff.value[0])
-      if diff.value[2]?
-        if tdiff[2] != tdiff[1]
-          update['$set'][diff.value[0].concat('_timestamp').join('.')] = new Date(tdiff[2])
-          delete update['$unset'][diff.value[0].concat('_timestamp').join('.')]
-        if diff.value[2][0] != diff.value[1]?[0]
-          update['$set'][diff.value[0].concat('_value').join('.')] = diff.value[2][0]
-        if diff.value[2][1] != diff.value[1]?[1]
-          update['$set'][diff.value[0].concat('_type').join('.')] = diff.value[2][1]
+        for attrName of diff[2]
+          if diff[2][attrName][1]? or diff[1]?[attrName]?[1]?
+            switch attrName
+              when 'value'
+                if not diff[1] or diff[2].value[1][0] != diff[1].value?[1][0]
+                  if diff[2].value[1][1] == 'xsd:dateTime'
+                    update['$set'][path.concat('_value').join('.')] = new Date(diff[2].value[1][0])
+                  else
+                    update['$set'][path.concat('_value').join('.')] = diff[2].value[1][0]
+                if not diff[1] or diff[2].value[1][1] != diff[1].value?[1][1]
+                  update['$set'][path.concat('_type').join('.')] = diff[2].value[1][1]
+                if not diff[1] or diff[2].value[0] != diff[1].value?[0]
+                  update['$set'][path.concat('_timestamp').join('.')] = new Date(diff[2].value[0])
+              when 'object'
+                if not diff[1]?.object or diff[2].object[1] != diff[1].object?[1]
+                  update['$set'][path.concat('_object').join('.')] = !!diff[2].object[1]
+              when 'writable'
+                if not diff[1]?.writable or diff[2].writable[1] != diff[1].writable?[1]
+                  update['$set'][path.concat('_writable').join('.')] = !!diff[2].writable[1]
 
-      else if diff.value[1]?
-        update['$unset'][diff.value[0].concat('_value').join('.')] = 1
-        update['$unset'][diff.value[0].concat('_value').join('.')] = 1
+        if diff[1]
+          for attrName of diff[1]
+            if attrName not of diff[2]
+              update['$unset'][path.concat("_#{attrName}").join('.')] = 1
+              if attrName is 'value'
+                update['$unset'][path.concat('_type').join('.')] = 1
+                update['$unset'][path.concat('_timestamp').join('.')] = 1
+
 
   # Remove empty keys
   for k of update

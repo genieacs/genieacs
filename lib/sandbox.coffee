@@ -68,16 +68,26 @@ Object.defineProperty(sandbox.context, 'declare', {value: (decs) ->
 
   if sandbox.revision == sandbox.maxRevision + 1
     for k, v of decs
-      decT = {}
-      decV = {}
+      timestamp = 1
+      exist = null
+      attributeTimestamps = {}
+      attributeValues = {}
       for attrName, dec of v
-        if Array.isArray(dec)
-          decT[attrName] = dec[0]
-          decV[attrName] = dec[1] if 1 of dec
-        else
-          decT[attrName] = dec
+        if attrName is 'exist'
+          if Array.isArray(dec)
+            timestamp = dec[0]
+            exist = dec[1] if 1 of dec
+          else
+            timestamp = dec
+          continue
 
-      sandbox.declarations.push([common.parsePath(k), decT, decV])
+        if Array.isArray(dec)
+          attributeTimestamps[attrName] = dec[0]
+          attributeValues[attrName] = dec[1] if 1 of dec
+        else
+          attributeTimestamps[attrName] = dec
+
+      sandbox.declarations.push([common.parsePath(k), timestamp, attributeTimestamps, exist, attributeValues])
 
     throw new Exit()
 
@@ -93,9 +103,10 @@ Object.defineProperty(sandbox.context, 'declare', {value: (decs) ->
     unpacked = device.unpack(sandbox.deviceData, path, sandbox.revision)
     for param in unpacked
       r = {}
+      attrs = sandbox.deviceData.attributes.get(param, sandbox.revision)
       for attrName, dec of v
-        if (attrValue = sandbox.deviceData.values[attrName].get(param, sandbox.revision))?
-          r[attrName] = [sandbox.deviceData.timestamps[attrName].get(param, sandbox.revision), attrValue]
+        if attrName of attrs
+          r[attrName] = attrs[attrName]
 
       if single
         res[k] = r
@@ -107,6 +118,14 @@ Object.defineProperty(sandbox.context, 'declare', {value: (decs) ->
 })
 
 
+Object.defineProperty(sandbox.context, 'clear', {value: (pattern, timestamp) ->
+  if sandbox.revision == sandbox.maxRevision
+    sandbox.clear ?= []
+    sandbox.clear.push([common.parsePath(pattern), timestamp])
+  return
+})
+
+
 run = (script, globals, timestamp, deviceData, extensionsCache, startRevision, maxRevision) ->
   sandbox.timestamp = timestamp
   sandbox.deviceData = deviceData
@@ -115,6 +134,7 @@ run = (script, globals, timestamp, deviceData, extensionsCache, startRevision, m
   sandbox.maxRevision = maxRevision
   sandbox.declarations = []
   sandbox.extensions = null
+  sandbox.clear = null
 
   for k, v of globals
     sandbox.context[k] = v
@@ -122,11 +142,11 @@ run = (script, globals, timestamp, deviceData, extensionsCache, startRevision, m
   try
     ret = script.runInNewContext(sandbox.context, {displayErrors: false})
     delete sandbox.context[k] for k of sandbox.context
-    return {done: true, declarations: sandbox.declarations, returnValue: ret}
+    return {done: true, declarations: sandbox.declarations, extensions: sandbox.extensions, clear: sandbox.clear, returnValue: ret}
   catch err
     delete sandbox.context[k] for k of sandbox.context
     throw err if err not instanceof Exit
-    return {done: false, declarations: sandbox.declarations, extensions: sandbox.extensions}
+    return {done: false, declarations: sandbox.declarations, extensions: sandbox.extensions, clear: sandbox.clear}
 
 
 exports.run = run
