@@ -166,7 +166,7 @@ queryProjection = (query, proj) ->
   for k,v of query
     if k.charAt(0) == '$' # this is a logical operator
       for q in v
-        projection(q, proj)
+        queryProjection(q, proj)
     else
       proj[k] = 1
   return proj
