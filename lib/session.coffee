@@ -442,10 +442,6 @@ rpcRequest = (sessionData, _declarations, callback) ->
       )
     )
 
-  if sessionData.deviceData.changes.has('prerequisite')
-    delete sessionData.syncState
-    device.clearTrackers(sessionData.deviceData, 'prerequisite')
-
   if _declarations?.length
     delete sessionData.syncState
     sessionData.declarations[0] ?= []
@@ -493,6 +489,11 @@ rpcRequest = (sessionData, _declarations, callback) ->
   if not provisions
     sessionData.rpcRequest = generateGetRpcRequest(sessionData)
     if not sessionData.rpcRequest
+      if sessionData.deviceData.changes.has('prerequisite')
+        delete sessionData.syncState
+        device.clearTrackers(sessionData.deviceData, 'prerequisite')
+        return rpcRequest(sessionData, null, callback)
+
       provisions = generateSetVirtualParameterProvisions(sessionData, sessionData.syncState.virtualParameterDeclarations[inception])
       if not provisions
         sessionData.rpcRequest = generateSetRpcRequest(sessionData)
@@ -814,7 +815,6 @@ processDeclarations = (sessionData, allDeclareTimestamps, allDeclareAttributeTim
             for attrName of attrs
               declareAttributeValues[attrName] = attrs[attrName]
 
-    aaa = (if currentPath[0] != '*' then currentPath[0] else leafParam[0])
     switch (if currentPath[0] != '*' then currentPath[0] else leafParam[0])
       when 'Reboot'
         if currentPath.length == 1
