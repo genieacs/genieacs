@@ -127,176 +127,170 @@ optimizeProjection = (obj) ->
 
 fetchDevice = (id, timestamp, patterns, callback) ->
   MAX_DEPTH = config.get('MAX_DEPTH', id)
+
+  projection = {_id: 1}
+  projectionTree = {}
+  func = (path, pats, projTree) ->
+    children = {}
+    for pat in pats
+      fragment = pat[0][path.length] or '*'
+      load = 0
+      if fragment == '*'
+        projection[path.join('.')] = 1
+        return
+
+      projTree[fragment] ?= {}
+
+      if pat[1] & (1 << path.length)
+        projection[path.concat('_timestamp').join('.')] = 1
+        projection[path.concat([fragment, '_timestamp']).join('.')] = 1
+        projection[path.concat([fragment, '_value']).join('.')] = 1
+        projection[path.concat([fragment, '_type']).join('.')] = 1
+        projection[path.concat([fragment, '_object']).join('.')] = 1
+        projection[path.concat([fragment, '_writable']).join('.')] = 1
+        projection[path.concat([fragment, '_orig']).join('.')] = 1
+
+      if pat[1] >> (path.length + 1)
+        children[fragment] ?= []
+        children[fragment].push(pat)
+
+    for k, v of children
+      func(path.concat(k), v, projTree[k])
+
+  func([], patterns, projectionTree)
+
+  if projection['']?
+    proj = {}
+  else
+    proj = JSON.parse(JSON.stringify(projection))
+
+  for k, v of proj
+    if k == '' or k == 'Events' or k.startsWith('Events.')
+      if k.length < 7 or k.startsWith('Events.Inform.') or k == 'Events.Inform'
+        proj['_lastInform'] = 1
+      if k.length < 7 or k.startsWith('Events.1_BOOT.') or k == 'Events.1_BOOT'
+        proj['_lastBoot'] = 1
+      if k.length < 7 or k.startsWith('Events.0_BOOTSTRAP.') or k == 'Events.0_BOOTSTRAP'
+        proj['_lastBootstrap'] = 1
+      if k.length < 7 or k.startsWith('Events.Registered.') or k == 'Events.Registered'
+        proj['_registered'] = 1
+      delete proj[k] if k != ''
+
+    if k == '' or k == 'DeviceID' or k.startsWith('DeviceID.')
+      if k.length < 9 or k.startsWith('DeviceID.ID.') or k == 'DeviceID.ID'
+        proj['_id'] = 1
+      if k.length < 9 or k.startsWith('DeviceID.Manufacturer.') or k == 'DeviceID.DeManufacturer'
+        proj['_deviceId._Manufacturer'] = 1
+      if k.length < 9 or k.startsWith('DeviceID.ProductClass.') or k == 'DeviceID.ProductClass'
+        proj['_deviceId._ProductClass'] = 1
+      if k.length < 9 or k.startsWith('DeviceID.OUI.') or k == 'DeviceID.OUI'
+        proj['_deviceId._OUI'] = 1
+      if k.length < 9 or k.startsWith('DeviceID.SerialNumber.') or k == 'DeviceID.SerialNumber'
+        proj['_deviceId._SerialNumber'] = 1
+      if k.length < 9
+        proj['_deviceId'] = 1
+      delete proj[k] if k != ''
+
+    if k == '' or k == 'Tags' or k.startsWith('Tags.')
+      proj['_tags'] = 1
+      delete proj[k] if k != ''
+
+  optimizeProjection(proj)
+
   res = []
   loaded = []
 
-  # Build projection
-  projection = {_id: 1}
-  for [pattern, depth] in patterns
-    loaded.push([pattern, depth])
-    if depth & 1 and (pattern.length < 1 or pattern[0] == '*')
-      projection[''] = 1
-
-    if depth & 1 and (pattern.length < 1 or pattern[0] == '*' or pattern[0] == 'Events')
-      res.push([['Events'], timestamp,
-        {object: [timestamp, 1], writable: [timestamp, 0]}])
-
-    if depth & 2 and (pattern.length < 2 or pattern[0] == '*' or pattern[0] == 'Events')
-      if not pattern[1]? or pattern[1] == '*'
-        projection['_registered'] = 1
-        projection['_lastInform'] = 1
-        projection['_lastBootstrap'] = 1
-        projection['_lastBoot'] = 1
-        res.push([['Events', '*'], timestamp])
-      else if pattern[1] == 'Registered'
-        projection['_registered'] = 1
-      else if pattern[1] == 'Inform'
-        projection['_lastInform'] = 1
-      else if pattern[1] == '0_BOOTSTRAP'
-        projection['_lastBootstrap'] = 1
-      else if pattern[1] == '1_BOOT'
-        projection['_lastBoot'] = 1
-
-    if depth & 1 and (pattern.length < 1 or pattern[0] == '*' or pattern[0] == 'DeviceID')
-      res.push([['DeviceID'], timestamp,
-        {object: [timestamp, 1], writable: [timestamp, 0]}])
-
-    if depth & 2 and (pattern.length < 2 or pattern[0] == '*' or pattern[0] == 'DeviceID')
-      if not pattern[1]? or pattern[1] == '*'
-        projection['_id'] = 1
-        projection['_deviceId._Manufacturer'] = 1
-        projection['_deviceId._ProductClass'] = 1
-        projection['_deviceId._SerialNumber'] = 1
-        projection['_deviceId._OUI'] = 1
-        res.push([['DeviceID', '*'], timestamp])
-      else if pattern[1] == 'ID'
-        projection['_id'] = 1
-      else if pattern[1] == 'Manufacturer'
-        projection['_deviceId._Manufacturer'] = 1
-      else if pattern[1] == 'ProductClass'
-        projection['_deviceId._ProductClass'] = 1
-      else if pattern[1] == 'OUI'
-        projection['_deviceId._OUI'] = 1
-      else if pattern[1] == 'SerialNumber'
-        projection['_deviceId._SerialNumber'] = 1
-
-    if depth & 1 and (pattern.length < 1 or pattern[0] == '*' or pattern[0] == 'Tags')
-      res.push([['Tags'], timestamp,
-        {object: [timestamp, 1], writable: [timestamp, 0]}])
-
-    if depth & 2 and (pattern.length < 1 or pattern[0] == '*' or pattern[0] == 'Tags')
-      res.push([['Tags', '*'], timestamp])
-      projection['_tags'] = 1
-
-    if pattern[0] not in ['Tags', 'Events', 'DeviceID']
-      i = 0
-      while (1 << i) <= depth
-        if pattern.length <= i or pattern[i] == '*'
-          p = pattern.slice(0, i)
-          loaded.push([p, ((1 << p.length) - 1) ^ ((1 << MAX_DEPTH) - 1)])
-          s = p.join('.')
-          projection[s] = 1
-          projection[pattern.slice(0, i - 1).concat('_timestamp').join('.')] = 1
-          break
-
-        if depth & (1 << i)
-          s = pattern.slice(0, i + 1).join('.')
-          projection["#{s}._value"] = 1
-          projection["#{s}._timestamp"] = 1
-          projection["#{s}._orig"] = 1
-          projection["#{s}._type"] = 1
-          projection["#{s}._writable"] = 1
-          projection["#{s}._object"] = 1
-
-          # Timestamp from parent is needed for writable timestamp
-          if i <= 1
-            projection['_timestamp'] = 1
-          else
-            projection["#{pattern.slice(0, i).join('.')}._timestamp"] = 1
-
-        ++ i
-
-  if projection['']
-    projection = {}
-
-  if projection?
-    optimizeProjection(projection)
-
-  devicesCollection.findOne({'_id' : id}, projection, (err, device) ->
+  devicesCollection.findOne({'_id' : id}, proj, (err, device) ->
     return callback(err) if err or not device?
 
-    storeParams = (obj, path, timestamp, descendantsFetched) ->
-      if not descendantsFetched and not obj['_value']? and projection[path.join('.')]
-        descendantsFetched = true
+    storeParams = (obj, path, timestamp, descendantsFetched, projTree) ->
+      if descendantsFetched
+        thisFetched = true
+      else
+        if projection[path.join('.')]
+          descendantsFetched = true
+          loaded.push([path, ((1 << path.length) - 1) ^ ((1 << MAX_DEPTH) - 1)])
+        if projection[path.concat('_writable').join('.')]
+          loaded.push([path, 1 << (path.length - 1)])
+          thisFetched = true
 
       if obj['_timestamp']?
         obj['_timestamp'] = +obj['_timestamp']
 
-      t = if obj['_timestamp'] > timestamp then obj['_timestamp'] else timestamp
+      if thisFetched
+        attrs = {}
 
-      attrs = {}
+        t = if obj['_timestamp'] > timestamp then obj['_timestamp'] else timestamp
 
-      if obj['_value']?
-        attrs.value = [t, [obj['_value'], obj['_type']]]
-        obj['_object'] = false
+        if obj['_value']?
+          attrs.value = [obj['_timestamp'] or 1, [obj['_value'], obj['_type']]]
+          attrs.value[1][0] = +attrs.value[1][0] if obj['_type'] == 'xsd:dateTime'
+          obj['_object'] = false
 
-      if obj['_writable']?
-        attrs.writable = [timestamp, if obj['_writable'] then 1 else 0]
+        if obj['_writable']?
+          attrs.writable = [timestamp, if obj['_writable'] then 1 else 0]
 
-      if obj['_object']?
-        attrs.object = [t, if obj['_object'] then 1 else 0]
+        if obj['_object']?
+          attrs.object = [t, if obj['_object'] then 1 else 0]
 
-      if not descendantsFetched and attrs.object?[1] == 0
-        loaded.push([path, ((1 << path.length) - 1) ^ ((1 << MAX_DEPTH) - 1)])
-
-      res.push([path, t, attrs])
+        res.push([path, t, attrs])
 
       for k, v of obj
         if k[0] != '_'
+          kk = k
           obj['_object'] = true
-          storeParams(v, path.concat(k), obj['_timestamp'] or 1, descendantsFetched)
+          storeParams(v, path.concat(k), obj['_timestamp'] or 1, descendantsFetched, projTree?[k])
+          delete projTree[kk] if projTree
 
-      if obj['_object'] and descendantsFetched
-        res.push([path.concat('*'), obj['_timestamp'] or 1])
+      if obj['_object']
+        if descendantsFetched
+          res.push([path.concat('*'), obj['_timestamp']]) if obj['_timestamp']
+        else
+          for k, v of projTree
+            p = path.concat(k)
+            res.push([p, +(obj['_timestamp'] ? 1)])
+            loaded.push([p, ((1 << path.length) - 1) ^ ((1 << MAX_DEPTH) - 1)])
 
     for k, v of device
-      if k == '_timestamp'
-        res.push([['*'], +v]) if not Object.keys(projection).length
-      else if k == '_lastInform'
-        res.push([['Events', 'Inform'], timestamp,
-          {object: [timestamp, 0], writable: [timestamp, 0], value: [+v, [+v, 'xsd:dateTime']]}])
+      if k == '_lastInform'
+        device['Events'] ?= {'_timestamp': timestamp, '_writable': false, '_object': true}
+        device['Events']['Inform'] = {'_writable': false, '_value': v, '_type' : 'xsd:dateTime', '_timestamp': v}
+        delete device[k]
       else if k == '_lastBoot'
-        res.push([['Events', '1_BOOT'], timestamp,
-          {object: [timestamp, 0], writable: [timestamp, 0], value: [+v, [+v, 'xsd:dateTime']]}])
+        device['Events'] ?= {'_timestamp': timestamp, '_writable': false, '_object': true}
+        device['Events']['1_BOOT'] = {'_writable': false, '_value': v, '_type' : 'xsd:dateTime', '_timestamp': v}
+        delete device[k]
       else if k == '_lastBootstrap'
-        res.push([['Events', '0_BOOTSTRAP'], timestamp,
-          {object: [timestamp, 0], writable: [timestamp, 0], value: [+v, [+v, 'xsd:dateTime']]}])
+        device['Events'] ?= {'_timestamp': timestamp, '_writable': false, '_object': true}
+        device['Events']['0_BOOTSTRAP'] = {'_writable': false, '_value': v, '_type' : 'xsd:dateTime', '_timestamp': v}
+        delete device[k]
       else if k == '_registered'
-        res.push([['Events', 'Registered'], timestamp,
-          {object: [timestamp, 0], writable: [timestamp, 0], value: [+v, [+v, 'xsd:dateTime']]}])
+        device['Events'] ?= {'_timestamp': timestamp, '_writable': false, '_object': true}
+        device['Events']['Registered'] = {'_writable': false, '_value': v, '_type' : 'xsd:dateTime', '_timestamp': v}
+        delete device[k]
       else if k == '_id'
-        res.push([['DeviceID', 'ID'], timestamp,
-          {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [v, 'xsd:string']]}])
+        device['DeviceID'] ?= {'_timestamp': timestamp, '_writable': false, '_object': true}
+        device['DeviceID']['ID'] = {'_writable': false, '_value': v, '_type' : 'xsd:string', '_timestamp': timestamp}
+        delete device[k]
       else if k == '_tags'
+        device['Tags'] ?= {'_timestamp': timestamp, '_writable': false, '_object': true}
         for t in v
-          res.push([['Tags', t], timestamp,
-            {object: [timestamp, 0], writable: [timestamp, 1], value: [timestamp, [true, 'xsd:boolean']]}])
+          device['Tags'][t] = {'_writable': false, '_value': true, '_type' : 'xsd:boolean', '_timestamp': timestamp}
+        delete device[k]
       else if k == '_deviceId'
+        device['DeviceID'] ?= {'_timestamp': timestamp, '_writable': false, '_object': true}
         for kk, vv of v
           if kk == '_Manufacturer'
-            res.push([['DeviceID', 'Manufacturer'], timestamp,
-              {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [vv, 'xsd:string']]}])
+            device['DeviceID']['Manufacturer'] = {'_writable': false, '_value': vv, '_type' : 'xsd:string', '_timestamp': timestamp}
           else if kk == '_OUI'
-            res.push([['DeviceID', 'OUI'], timestamp,
-              {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [vv, 'xsd:string']]}])
+            device['DeviceID']['OUI'] = {'_writable': false, '_value': vv, '_type' : 'xsd:string', '_timestamp': timestamp}
           if kk == '_ProductClass'
-            res.push([['DeviceID', 'ProductClass'], timestamp,
-              {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [vv, 'xsd:string']]}])
+            device['DeviceID']['ProductClass'] = {'_writable': false, '_value': vv, '_type' : 'xsd:string', '_timestamp': timestamp}
           if kk == '_SerialNumber'
-            res.push([['DeviceID', 'SerialNumber'], timestamp,
-              {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [vv, 'xsd:string']]}])
-      else if common.typeOf(v) is common.OBJECT_TYPE
-        storeParams(v, [k], +(device['_timestamp'] ? 1), Object.keys(projection).length == 0)
+            device['DeviceID']['SerialNumber'] = {'_writable': false, '_value': vv, '_type' : 'xsd:string', '_timestamp': timestamp}
+        delete device[k]
+
+    storeParams(device, [], 0, false, projectionTree)
 
     return callback(null, res, loaded)
   )
