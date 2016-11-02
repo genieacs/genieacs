@@ -21,6 +21,8 @@ crypto = require 'crypto'
 later = require 'later'
 
 db = require './db'
+query = require './query'
+
 
 REFRESH = 3000
 
@@ -124,7 +126,7 @@ refresh = (callback) ->
 
           events = preset.events ? {}
 
-          precondition = JSON.parse(preset.precondition)
+          precondition = query.convertMongoQueryToFilters(JSON.parse(preset.precondition))
 
           _provisions = preset.provisions or []
 

@@ -179,8 +179,9 @@ applyPresets = (currentRequest) ->
         (p.schedule.schedule and testSchedule(p.schedule, currentRequest.sessionData.timestamp)[0]))
 
       filteredPresets.push(p)
-      for a in Object.keys(query.queryProjection(p.precondition))
-        parameters[a] = common.parsePath(a)
+      for k of p.precondition
+        p = k.split(/([^a-zA-Z0-9\-\_\.].*)/, 1)[0]
+        parameters[p] = common.parsePath(p)
 
     declarations = []
     for k, v of parameters
@@ -196,12 +197,14 @@ applyPresets = (currentRequest) ->
         unpacked = device.unpack(currentRequest.sessionData.deviceData, v)
         if unpacked[0] and (vv = currentRequest.sessionData.deviceData.attributes.get(unpacked[0]).value?[1])?
           parameters[k] = vv[0]
+        else
+          delete parameters[k]
 
       if whiteList?
         session.addProvisions(currentRequest.sessionData, whiteList, whiteListProvisions)
 
       for p in filteredPresets
-        if query.test(parameters, p.precondition)
+        if query.testFilter(parameters, p.precondition)
           session.addProvisions(currentRequest.sessionData, p.channel, p.provisions)
 
       session.rpcRequest(currentRequest.sessionData, null, (err, id, rpcRequest) ->

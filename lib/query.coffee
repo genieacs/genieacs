@@ -242,6 +242,74 @@ test = (params, query) ->
   return true
 
 
+testFilter = (obj, filter) ->
+  for k, v of filter
+    [param, op] = k.split(/([^a-zA-Z0-9\-\_\.].*)/, 2)
+    val = common.matchType(obj[param], v)
+    switch op
+      when '=', undefined
+        return false if obj[param] != val
+      when '>'
+        return false if not (obj[param] > val)
+      when '>='
+        return false if not (obj[param] >= val)
+      when '<'
+        return false if not (obj[param] < val)
+      when '<='
+        return false if not (obj[param] <= val)
+      when '!'
+        return false if obj[param] == val
+      else
+        throw new Error("Unrecognized operator #{op}")
+
+  return true
+
+
+convertMongoQueryToFilters = (query, filters) ->
+  filters ?= {}
+  for k, v of query
+    if k[0] == '$'
+      if k == '$and'
+        for vv in v
+          convertMongoQueryToFilters(vv, filters)
+      else
+        throw new Error("Operator #{k} not supported")
+    else if k == '_tags'
+      if common.typeOf(v) is common.OBJECT_TYPE
+        for kk, vv of v
+          vv = vv.replace(/[^a-zA-Z0-9\-]+/g, '_')
+          switch kk
+            when '$ne'
+              filters["Tags.#{vv}!"] = true
+            else
+              throw new Error("Operator #{kk} not supported")
+      else
+        v = v.replace(/[^a-zA-Z0-9\-]+/g, '_')
+        filters["Tags.#{v}"] = true
+    else
+      if common.typeOf(v) is common.OBJECT_TYPE
+        for kk, vv of v
+          switch kk
+            when '$eq'
+              filters[k] = vv
+            when '$ne'
+              filters["#{k}!"] = vv
+            when '$lt'
+              filters["#{k}<"] = vv
+            when '$lte'
+              filters["#{k}<="] = vv
+            when '$gt'
+              filters["#{k}>"] = vv
+            when '$gte'
+              filters["#{k}>="] = vv
+            else
+              throw new Error("Oprator #{kk} not supported")
+      else
+        filters[k] = v
+
+  return filters
+
+
 sanitizeQueryTypes = (query, types) ->
   for k, v of query
     if k[0] == '$' # logical operator
@@ -268,3 +336,5 @@ exports.expand = expand
 exports.queryProjection = queryProjection
 exports.test = test
 exports.sanitizeQueryTypes = sanitizeQueryTypes
+exports.convertMongoQueryToFilters = convertMongoQueryToFilters
+exports.testFilter = testFilter
