@@ -434,12 +434,9 @@ rpcRequest = (sessionData, _declarations, callback) ->
         for ad in device.getAliasDeclarations(d[0], 1)
           loadPath(sessionData, ad[0])
 
-      return clear(sessionData, toClear, (err) ->
+      return loadParameters(sessionData, (err) ->
         return callback(err) if err
-        loadParameters(sessionData, (err) ->
-          return callback(err) if err
-          return rpcRequest(sessionData, _declarations, callback)
-        )
+        return rpcRequest(sessionData, _declarations, callback)
       )
     )
 
@@ -449,6 +446,15 @@ rpcRequest = (sessionData, _declarations, callback) ->
     sessionData.declarations[0] = sessionData.declarations[0].concat(_declarations)
     sessionData.provisions[0] ?= []
     sessionData.revisions[0] ?= 0
+
+    for d in _declarations
+      for ad in device.getAliasDeclarations(d[0], 1)
+        loadPath(sessionData, ad[0])
+
+    return loadParameters(sessionData, (err) ->
+      return callback(err) if err
+      return rpcRequest(sessionData, null, callback)
+    )
 
 
   if (sessionData.syncState?.virtualParameterDeclarations?.length or 0) < sessionData.declarations.length
