@@ -1128,8 +1128,16 @@ rpcResponse = (sessionData, id, rpcRes, callback) ->
       params = []
       params.push([root.concat('*'), timestamp])
 
+      # Some clients don't report all ancestors explicitly
+      missing = {}
+
       for p in rpcRes.parameterList
+        i = p[0].length - 1
+        while (i = p[0].lastIndexOf('.', i - 1)) > rpcReq.parameterPath.length
+          missing[p[0].slice(0, i)] |= 0
+
         if common.endsWith(p[0], '.')
+          missing[p[0][0...-1]] |= 1
           path = common.parsePath(p[0][0...-1])
           if not rpcReq.nextLevel
             params.push([path.concat('*'), timestamp])
@@ -1138,8 +1146,13 @@ rpcResponse = (sessionData, id, rpcRes, callback) ->
             {object: [timestamp, 1], writable: [timestamp, if p[1] then 1 else 0]}])
 
         else
+          missing[p[0]] |= 1
           params.push([common.parsePath(p[0]), timestamp,
             {object: [timestamp, 0], writable: [timestamp, if p[1] then 1 else 0]}])
+
+      for k, v of missing when v == 0
+        # TODO consider showing a warning
+        params.push([common.parsePath(k), timestamp, {object: [timestamp, 1], writable: [timestamp, 0]}])
 
       # Sort such that actual parameters are set before wildcard ones
       params.sort((a, b) ->
