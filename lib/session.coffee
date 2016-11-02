@@ -315,6 +315,7 @@ runDeclarations = (sessionData, declarations) ->
     spv: new Map()
     gpn: new Set()
     gpnPatterns: new Map()
+    tags: new Map()
 
     virtualParameterDeclarations: []
     instancesToDelete: new Map()
@@ -489,6 +490,39 @@ rpcRequest = (sessionData, _declarations, callback) ->
   if not provisions
     sessionData.rpcRequest = generateGetRpcRequest(sessionData)
     if not sessionData.rpcRequest
+      if sessionData.deviceData.changes.has('prerequisite')
+        delete sessionData.syncState
+        device.clearTrackers(sessionData.deviceData, 'prerequisite')
+        return rpcRequest(sessionData, null, callback)
+
+      # Update tags
+      toClear = null
+      sessionData.syncState.tags.forEach((v, p) ->
+        c = sessionData.deviceData.attributes.get(p)
+        timestamp = sessionData.timestamp + sessionData.iteration + 1
+        if v and not c?
+          toClear = device.set(sessionData.deviceData, p, timestamp, {object: [timestamp, false], writable: [timestamp, true], value: [timestamp, [true, 'xsd:boolean']]}, toClear)
+        else if c? and not v
+          toClear = device.set(sessionData.deviceData, p, timestamp, toClear)
+          noMoreTags = true
+          iter = sessionData.deviceData.paths.subset(['Tags', '*'])
+          while p = iter.next().value
+            if sessionData.deviceData.attributes.has(p)
+              noMoreTags = false
+              break
+          if noMoreTags
+            toClear = device.set(sessionData.deviceData, ['Tags'], timestamp, null, toClear)
+      )
+
+      if toClear
+        return clear(sessionData, toClear, (err) ->
+          return callback(err) if err
+          if sessionData.deviceData.changes.has('prerequisite')
+            delete sessionData.syncState
+            device.clearTrackers(sessionData.deviceData, 'prerequisite')
+          return rpcRequest(sessionData, null, callback)
+        )
+
       if sessionData.deviceData.changes.has('prerequisite')
         delete sessionData.syncState
         device.clearTrackers(sessionData.deviceData, 'prerequisite')
@@ -824,6 +858,9 @@ processDeclarations = (sessionData, allDeclareTimestamps, allDeclareAttributeTim
         if currentPath.length == 1
           if declareAttributeValues.value?
             syncState.factoryReset = +(new Date(declareAttributeValues.value[0]))
+      when 'Tags'
+        if currentPath.length == 2 and currentPath.wildcard == 0 and declareAttributeValues?.value?
+          syncState.tags.set(currentPath, device.sanitizeParameterValue([declareAttributeValues.value[0], 'xsd:boolean'])[0])
       when 'VirtualParameters'
         if currentPath.length <= 2
           d = null

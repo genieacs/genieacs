@@ -275,7 +275,8 @@ fetchDevice = (id, timestamp, patterns, callback) ->
       else if k == '_tags'
         device['Tags'] ?= {'_timestamp': timestamp, '_writable': false, '_object': true}
         for t in v
-          device['Tags'][t] = {'_writable': false, '_value': true, '_type' : 'xsd:boolean', '_timestamp': timestamp}
+          t = t.replace(/[^a-zA-Z0-9\-]+/g, '_')
+          device['Tags'][t] = {'_writable': true, '_value': true, '_type' : 'xsd:boolean', '_timestamp': timestamp}
         delete device[k]
       else if k == '_deviceId'
         device['DeviceID'] ?= {'_timestamp': timestamp, '_writable': false, '_object': true}
@@ -343,14 +344,14 @@ saveDevice = (deviceId, deviceData, isNew, callback) ->
             when 'SerialNumber'
               update['$set']['_deviceId._SerialNumber'] = v
       when 'Tags'
-        if diff[2].value?[1][0] != diff[1].value?[1][0]
-          v = diff[2].value?[1][0]
+        if diff[2]?.value?[1]?[0] != diff[1]?.value?[1]?[0]
+          v = diff[2]?.value?[1][0]
           if v?
             update['$addToSet']['_tags'] ?= {'$each' : []}
-            update['$addToSet']['_tags']['$each'].push(v)
+            update['$addToSet']['_tags']['$each'].push(diff[0][1])
           else
             update['$pull']['_tags'] ?= {'$in' : []}
-            update['$pull']['_tags']['$in'].push(v)
+            update['$pull']['_tags']['$in'].push(diff[0][1])
       else
         if not diff[2]
           update['$unset'][diff[0].join('.')] = 1
