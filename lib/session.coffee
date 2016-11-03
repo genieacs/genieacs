@@ -80,10 +80,7 @@ loadParameters = (sessionData, callback) ->
       # Device not available in database, mark as new
       sessionData.new = true
       loaded = [[[], (1 << config.get('MAX_DEPTH', sessionData.deviceId)) - 1]]
-      parameters = [
-        [['DeviceID', '*'], sessionData.timestamp],
-        [['Events', '*'], sessionData.timestamp]
-      ]
+      parameters = []
 
     for p in loaded
       path = sessionData.deviceData.paths.add(p[0])
@@ -114,7 +111,7 @@ generateRpcId = (sessionData) ->
 
 
 inform = (sessionData, rpcReq, callback) ->
-  timestamp = sessionData.timestamp
+  timestamp = sessionData.timestamp + sessionData.iteration + 1
 
   params = []
   params.push([['DeviceID', 'Manufacturer'], timestamp,
@@ -179,8 +176,8 @@ addProvisions = (sessionData, channel, provisions) ->
     sessionData.channels.push(channel)
 
   if sessionData.revisions.length > 1 or sessionData.revisions[0] > 0
-    v.collapse(1) for k, v of sessionData.timestamps
-    v.collapse(1) for k, v of sessionData.attributes
+    v.collapse(1) for k, v of sessionData.deviceData.timestamps
+    v.collapse(1) for k, v of sessionData.deviceData.attributes
     sessionData.rpcCount = 0
     sessionData.revisions = [0]
     sessionData.extensionsCache.length = 0
@@ -434,9 +431,12 @@ rpcRequest = (sessionData, _declarations, callback) ->
         for ad in device.getAliasDeclarations(d[0], 1)
           loadPath(sessionData, ad[0])
 
-      return loadParameters(sessionData, (err) ->
+      return clear(sessionData, toClear, (err) ->
         return callback(err) if err
-        return rpcRequest(sessionData, _declarations, callback)
+        loadParameters(sessionData, (err) ->
+          return callback(err) if err
+          rpcRequest(sessionData, _declarations, callback)
+        )
       )
     )
 
@@ -867,6 +867,8 @@ processDeclarations = (sessionData, allDeclareTimestamps, allDeclareAttributeTim
       when 'Tags'
         if currentPath.length == 2 and currentPath.wildcard == 0 and declareAttributeValues?.value?
           syncState.tags.set(currentPath, device.sanitizeParameterValue([declareAttributeValues.value[0], 'xsd:boolean'])[0])
+      when 'Events', 'DeviceID' then
+        # Do nothing
       when 'VirtualParameters'
         if currentPath.length <= 2
           d = null

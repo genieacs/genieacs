@@ -157,7 +157,7 @@ applyPresets = (currentRequest) ->
     deviceEvents = {}
     iter = currentRequest.sessionData.deviceData.paths.subset(['Events', '*'])
     while (p = iter.next().value)
-      if currentRequest.sessionData.timestamp == currentRequest.sessionData.deviceData.attributes.get(p)?.value?[1][0]
+      if currentRequest.sessionData.timestamp <= currentRequest.sessionData.deviceData.attributes.get(p)?.value?[1][0]
         deviceEvents[p[1]] = true
 
     parameters = {}

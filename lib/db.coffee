@@ -159,6 +159,10 @@ fetchDevice = (id, timestamp, patterns, callback) ->
 
   func([], patterns, projectionTree)
 
+  delete projectionTree['DeviceID']
+  delete projectionTree['Events']
+  delete projectionTree['Tags']
+
   if projection['']?
     proj = {}
   else
@@ -252,44 +256,62 @@ fetchDevice = (id, timestamp, patterns, callback) ->
             loaded.push([p, ((1 << path.length) - 1) ^ ((1 << MAX_DEPTH) - 1)])
 
     for k, v of device
-      if k == '_lastInform'
-        device['Events'] ?= {'_timestamp': timestamp, '_writable': false, '_object': true}
-        device['Events']['Inform'] = {'_writable': false, '_value': v, '_type' : 'xsd:dateTime', '_timestamp': v}
-        delete device[k]
-      else if k == '_lastBoot'
-        device['Events'] ?= {'_timestamp': timestamp, '_writable': false, '_object': true}
-        device['Events']['1_BOOT'] = {'_writable': false, '_value': v, '_type' : 'xsd:dateTime', '_timestamp': v}
-        delete device[k]
-      else if k == '_lastBootstrap'
-        device['Events'] ?= {'_timestamp': timestamp, '_writable': false, '_object': true}
-        device['Events']['0_BOOTSTRAP'] = {'_writable': false, '_value': v, '_type' : 'xsd:dateTime', '_timestamp': v}
-        delete device[k]
-      else if k == '_registered'
-        device['Events'] ?= {'_timestamp': timestamp, '_writable': false, '_object': true}
-        device['Events']['Registered'] = {'_writable': false, '_value': v, '_type' : 'xsd:dateTime', '_timestamp': v}
-        delete device[k]
-      else if k == '_id'
-        device['DeviceID'] ?= {'_timestamp': timestamp, '_writable': false, '_object': true}
-        device['DeviceID']['ID'] = {'_writable': false, '_value': v, '_type' : 'xsd:string', '_timestamp': timestamp}
-        delete device[k]
-      else if k == '_tags'
-        device['Tags'] ?= {'_timestamp': timestamp, '_writable': false, '_object': true}
-        for t in v
-          t = t.replace(/[^a-zA-Z0-9\-]+/g, '_')
-          device['Tags'][t] = {'_writable': true, '_value': true, '_type' : 'xsd:boolean', '_timestamp': timestamp}
-        delete device[k]
-      else if k == '_deviceId'
-        device['DeviceID'] ?= {'_timestamp': timestamp, '_writable': false, '_object': true}
-        for kk, vv of v
-          if kk == '_Manufacturer'
-            device['DeviceID']['Manufacturer'] = {'_writable': false, '_value': vv, '_type' : 'xsd:string', '_timestamp': timestamp}
-          else if kk == '_OUI'
-            device['DeviceID']['OUI'] = {'_writable': false, '_value': vv, '_type' : 'xsd:string', '_timestamp': timestamp}
-          if kk == '_ProductClass'
-            device['DeviceID']['ProductClass'] = {'_writable': false, '_value': vv, '_type' : 'xsd:string', '_timestamp': timestamp}
-          if kk == '_SerialNumber'
-            device['DeviceID']['SerialNumber'] = {'_writable': false, '_value': vv, '_type' : 'xsd:string', '_timestamp': timestamp}
-        delete device[k]
+      switch k
+        when '_lastInform'
+          res.push([['Events'], timestamp,
+            {object: [timestamp, 1], writable: [timestamp, 0]}])
+          res.push([['Events', 'Inform'], +v,
+            {object: [+v, 0], writable: [+v, 0], value: [+v, [+v, 'xsd:dateTime']]}])
+          delete device[k]
+        when '_lastInform'
+          res.push([['Events'], timestamp,
+            {object: [timestamp, 1], writable: [timestamp, 0]}])
+          res.push([['Events', '1_BOOT'], +v,
+            {object: [+v, 0], writable: [+v, 0], value: [+v, [+v, 'xsd:dateTime']]}])
+          delete device[k]
+        when '_lastBootstrap'
+          res.push([['Events'], timestamp,
+            {object: [timestamp, 1], writable: [timestamp, 0]}])
+          res.push([['Events', '0_BOOTSTRAP'], +v,
+            {object: [+v, 0], writable: [+v, 0], value: [+v, [+v, 'xsd:dateTime']]}])
+          delete device[k]
+        when '_registered'
+          res.push([['Events'], timestamp,
+            {object: [timestamp, 1], writable: [timestamp, 0]}])
+          # Use current timestamp for registered event attribute timestamps
+          res.push([['Events', 'Registered'], timestamp,
+            {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [v, 'xsd:dateTime']]}])
+          delete device[k]
+        when '_id'
+          res.push([['DeviceID'], timestamp,
+            {object: [timestamp, 1], writable: [timestamp, 0]}])
+          res.push([['DeviceID', 'ID'], timestamp,
+            {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [v, 'xsd:string']]}])
+          delete device[k]
+        when '_tags'
+          res.push([['Tags'], timestamp,
+            {object: [timestamp, 1], writable: [timestamp, 0]}])
+          for t in v
+            t = t.replace(/[^a-zA-Z0-9\-]+/g, '_')
+            res.push([['Tags', t], timestamp,
+              {object: [timestamp, 0], writable: [timestamp, 1], value: [timestamp, [true, 'xsd:boolean']]}])
+          delete device[k]
+        when '_deviceId'
+          res.push([['DeviceID'], timestamp,
+            {object: [timestamp, 1], writable: [timestamp, 0]}])
+          if v['_Manufacturer']?
+            res.push([['DeviceID', 'Manufacturer'], timestamp,
+              {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [v['_Manufacturer'], 'xsd:string']]}])
+          if v['_OUI']?
+            res.push([['DeviceID', 'OUI'], timestamp,
+              {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [v['_OUI'], 'xsd:string']]}])
+          if v['_ProductClass']?
+            res.push([['DeviceID', 'ProductClass'], timestamp,
+              {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [v['_ProductClass'], 'xsd:string']]}])
+          if v['_SerialNumber']?
+            res.push([['DeviceID', 'SerialNumber'], timestamp,
+              {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [v['_SerialNumber'], 'xsd:string']]}])
+          delete device[k]
 
     storeParams(device, [], 0, false, projectionTree)
 
@@ -318,17 +340,28 @@ saveDevice = (deviceId, deviceData, isNew, callback) ->
     path = diff[0]
     switch path[0]
       when 'Events'
-        if diff[0].length == 2 and diff[2].value?[1][0] != diff[1]?.value?[1][0]
-          t = new Date(diff[2].value[1][0])
-          switch path[1]
-            when 'Inform'
-              update['$set']['_lastInform'] = t
-            when '1_BOOT'
-              update['$set']['_lastBoot'] = t
-            when '0_BOOTSTRAP'
-              update['$set']['_lastBootstrap'] = t
-            when 'Registered'
-              update['$set']['_registered'] = t
+        if diff[0].length == 2 and diff[2]?.value?[1][0] != diff[1]?.value?[1][0]
+          if not diff[2]
+            switch path[1]
+              when 'Inform'
+                update['$unset']['_lastInform'] = 1
+              when '1_BOOT'
+                update['$unset']['_lastBoot'] = 1
+              when '0_BOOTSTRAP'
+                update['$unset']['_lastBootstrap'] = 1
+              when 'Registered'
+                update['$unset']['_registered'] = 1
+          else
+            t = new Date(diff[2].value[1][0])
+            switch path[1]
+              when 'Inform'
+                update['$set']['_lastInform'] = t
+              when '1_BOOT'
+                update['$set']['_lastBoot'] = t
+              when '0_BOOTSTRAP'
+                update['$set']['_lastBootstrap'] = t
+              when 'Registered'
+                update['$set']['_registered'] = t
       when 'DeviceID'
         if diff[2].value?[1]?[0] != diff[1]?.value?[1]?[0]
           v = diff[2].value[1][0]
@@ -384,7 +417,6 @@ saveDevice = (deviceId, deviceData, isNew, callback) ->
               if attrName is 'value'
                 update['$unset'][path.concat('_type').join('.')] = 1
                 update['$unset'][path.concat('_timestamp').join('.')] = 1
-
 
   # Remove empty keys
   for k of update
