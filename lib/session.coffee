@@ -411,7 +411,7 @@ runDeclarations = (sessionData, declarations) ->
       else
         minInstances = maxInstances = declaration[3]
 
-      parent = path.slice(0, -1)
+      parent = sessionData.deviceData.paths.add(path.slice(0, -1))
 
       if Array.isArray(path[path.length - 1])
         keys = {}
@@ -507,6 +507,10 @@ rpcRequest = (sessionData, _declarations, callback) ->
 
   if not sessionData.syncState?
     return callback()
+
+  revision = sessionData.revisions[sessionData.revisions.length - 1] + 1
+  sessionData.deviceData.timestamps.revision = revision
+  sessionData.deviceData.attributes.revision = revision
 
   inception = sessionData.declarations.length - 1
 
@@ -683,32 +687,38 @@ generateGetRpcRequest = (sessionData) ->
     GET_PARAMETER_NAMES_DEPTH_THRESHOLD =
       config.get('GET_PARAMETER_NAMES_DEPTH_THRESHOLD', sessionData.deviceId)
 
-    path = Array.from(syncState.gpn.keys()).sort((a,b) -> a.length - b.length)[0]
-    patterns = []
-    iter = sessionData.deviceData.paths.superset(path, 99)
-    while p = iter.next().value
-      if v = syncState.gpnPatterns.get(p)
-        patterns.push([p, (v >> path.length) << path.length])
-
-    if path.length >= GET_PARAMETER_NAMES_DEPTH_THRESHOLD
-      est = estimateGpnCount(patterns)
-    else
-      est = 0
-
-    if est < Math.pow(2, Math.max(0, 8 - path.length))
-      nextLevel = true
+    paths = Array.from(syncState.gpn.keys()).sort((a,b) -> b.length - a.length)
+    path = paths.pop()
+    while path and not sessionData.deviceData.attributes.has(path)
       syncState.gpn.delete(path)
-    else
-      nextLevel = false
-      iter = sessionData.deviceData.paths.subset(path, 99)
-      while p = iter.next().value
-        syncState.gpn.delete(p)
+      path = paths.pop()
 
-    return {
-      type: 'GetParameterNames'
-      parameterPath: path.concat('').join('.')
-      nextLevel: nextLevel
-    }
+    if path
+      patterns = []
+      iter = sessionData.deviceData.paths.superset(path, 99)
+      while p = iter.next().value
+        if v = syncState.gpnPatterns.get(p)
+          patterns.push([p, (v >> path.length) << path.length])
+
+      if path.length >= GET_PARAMETER_NAMES_DEPTH_THRESHOLD
+        est = estimateGpnCount(patterns)
+      else
+        est = 0
+
+      if est < Math.pow(2, Math.max(0, 8 - path.length))
+        nextLevel = true
+        syncState.gpn.delete(path)
+      else
+        nextLevel = false
+        iter = sessionData.deviceData.paths.subset(path, 99)
+        while p = iter.next().value
+          syncState.gpn.delete(p)
+
+      return {
+        type: 'GetParameterNames'
+        parameterPath: path.concat('').join('.')
+        nextLevel: nextLevel
+      }
 
   if syncState.refreshAttributes.value.size
     TASK_PARAMETERS_BATCH_SIZE =
@@ -718,8 +728,9 @@ generateGetRpcRequest = (sessionData) ->
     iter = syncState.refreshAttributes.value.values()
     while (path = iter.next().value) and
         parameterNames.length < TASK_PARAMETERS_BATCH_SIZE
-      parameterNames.push(path)
       syncState.refreshAttributes.value.delete(path)
+      if sessionData.deviceData.attributes.has(path)
+        parameterNames.push(path)
 
     return {
       type: 'GetParameterValues'
@@ -736,8 +747,8 @@ generateSetRpcRequest = (sessionData) ->
   # Delete instance
   iter = syncState.instancesToDelete.values()
   while instances = iter.next().value
-    if instance = instances.values().next().value
-      instances.delete(instance)
+    if instance = instances.values().next().value and
+        sessionData.deviceData.attributes.has(instance)
       return {
         type: 'DeleteObject'
         objectName: instance.concat('').join('.')
@@ -746,7 +757,8 @@ generateSetRpcRequest = (sessionData) ->
   # Create instance
   iter = syncState.instancesToCreate.entries()
   while pair = iter.next().value
-    if instance = pair[1].values().next().value
+    if sessionData.deviceData.attributes.has(pair[0]) and
+        instance = pair[1].values().next().value
       pair[1].delete(instance)
       return {
         type: 'AddObject'
