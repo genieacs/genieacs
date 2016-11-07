@@ -52,7 +52,7 @@ init = (deviceId, cwmpVersion, timeout, callback) ->
     revisions: []
     rpcCount: 0
     iteration: 0
-    extensionsCache: []
+    extensionsCache: {}
     declarations: []
   }
 
@@ -180,7 +180,7 @@ addProvisions = (sessionData, channel, provisions) ->
     v.collapse(1) for k, v of sessionData.deviceData.attributes
     sessionData.rpcCount = 0
     sessionData.revisions = [0]
-    sessionData.extensionsCache.length = 0
+    sessionData.extensionsCache = {}
 
 
 clearProvisions = (sessionData) ->
@@ -195,7 +195,7 @@ clearProvisions = (sessionData) ->
     sessionData.deviceData.attributes.collapse(1)
     sessionData.rpcCount = 0
     sessionData.revisions = [0]
-    sessionData.extensionsCache.length = 0
+    sessionData.extensionsCache = {}
 
 
 runProvisions = (sessionData, provisions, startRevision, endRevision, callback) ->
@@ -203,6 +203,7 @@ runProvisions = (sessionData, provisions, startRevision, endRevision, callback) 
   _extensions = []
   _clear = []
   allDeclarations = []
+  counter = 1
   for provision in provisions
     if not sessionData.cache.provisions[provision[0]]?
       switch provision[0]
@@ -245,22 +246,27 @@ runProvisions = (sessionData, provisions, startRevision, endRevision, callback) 
               allDeclarations.push([['FactoryReset'], 1, {value: 1}, null, {value: [sessionData.timestamp]}])
       continue
 
-    ret = sandbox.run(sessionData.cache.provisions[provision[0]].script, {args: provision[1]}, sessionData.timestamp, sessionData.deviceData, sessionData.extensionsCache, startRevision, endRevision)
+    ++ counter
+    sandbox.run(sessionData.cache.provisions[provision[0]].script,
+      {args: provision[1]}, sessionData.timestamp, sessionData.deviceData,
+      sessionData.extensionsCache, startRevision, endRevision,
+      (err, _clear, _declarations, _done) ->
+        -- counter
+        if err
+          if counter >= 0
+            counter = 0
+            return callback(err)
+          return
 
-    if ret.extensions?.length
-      _extensions = _extensions.concat(ret.extensions)
-    if ret.clear?.length
-      _clear = _clear.concat(ret.clear)
-    done &&= ret.done
-    allDeclarations = allDeclarations.concat(ret.declarations)
+        done &&= _done
+        allDeclarations = allDeclarations.concat(_declarations)
 
-  if _extensions.length
-    return runExtensions(sessionData, endRevision, _extensions, (err) ->
-      return callback(err) if err
-      return runProvisions(sessionData, provisions, startRevision, endRevision, callback)
-    )
+        if counter == 0
+          return callback(null, done, allDeclarations, _clear)
+      )
 
-  return callback(null, done, allDeclarations, _clear)
+  if -- counter == 0
+    return callback(null, done, allDeclarations, _clear)
 
 
 runVirtualParameters = (sessionData, provisions, startRevision, endRevision, callback) ->
@@ -269,35 +275,47 @@ runVirtualParameters = (sessionData, provisions, startRevision, endRevision, cal
   virtualParameterUpdates = []
   _extensions = []
   _clear = []
-
+  counter = 1
   for provision in provisions
+    ++ counter
     globals = {TIMESTAMPS: provision[1], VALUES: provision[2]}
-    ret = sandbox.run(sessionData.cache.virtualParameters[provision[0]].script, globals, sessionData.timestamp, sessionData.deviceData, sessionData.extensionsCache, startRevision, endRevision)
-    if ret.extensions?.length
-      _extensions = _extensions.concat(ret.extensions)
-    if ret.clear?.length
-      _clear = _clear.concat(ret.clear)
+    sandbox.run(sessionData.cache.virtualParameters[provision[0]].script, globals,
+      sessionData.timestamp, sessionData.deviceData,
+      sessionData.extensionsCache, startRevision, endRevision,
+      (err, _clear, _declarations, _done, _returnValue) ->
+        -- counter
+        if err
+          if counter >= 0
+            counter = 0
+            return callback(err)
+          return
 
-    done &&= ret.done
-    decs = decs.concat(ret.declarations)
+        done &&= _done
+        decs = decs.concat(_declarations)
 
-    if ret.done
-      virtualParameterUpdates.push(ret.returnValue)
+        if _done
+          virtualParameterUpdates.push(_returnValue)
 
-  if _extensions.length
-    return runExtensions(sessionData, endRevision, _extensions, (err) ->
-      return callback(err) if err
-      return runVirtualParameters(sessionData, provisions, startRevision, endRevision, callback)
+        if counter == 0
+          toClear = null
+          if virtualParameterUpdates.length == provisions.length
+            for vpu, i in virtualParameterUpdates
+              toClear = commitVirtualParameter(sessionData, provisions[i], vpu, toClear)
+
+          clear(sessionData, toClear, (err) ->
+            return callback(err, done, decs, _clear)
+          )
+      )
+
+  if -- counter == 0
+    toClear = null
+    if virtualParameterUpdates.length == provisions.length
+      for vpu, i in virtualParameterUpdates
+        toClear = commitVirtualParameter(sessionData, provisions[i], vpu, toClear)
+
+    clear(sessionData, toClear, (err) ->
+      return callback(err, done, decs, _clear)
     )
-
-  toClear = null
-  if virtualParameterUpdates.length == provisions.length
-    for vpu, i in virtualParameterUpdates
-      toClear = commitVirtualParameter(sessionData, provisions[i], vpu, toClear)
-
-  clear(sessionData, toClear, (err) ->
-    return callback(err, done, decs, _clear)
-  )
 
 
 runDeclarations = (sessionData, declarations) ->
@@ -388,8 +406,8 @@ runDeclarations = (sessionData, declarations) ->
 
     if declaration[3]?
       if Array.isArray(declaration[3])
-        minInstances = declaration[3].exist[0]
-        maxInstances = declaration[3].exist[1]
+        minInstances = declaration[3][0]
+        maxInstances = declaration[3][1]
       else
         minInstances = maxInstances = declaration[3]
 
@@ -557,13 +575,16 @@ rpcRequest = (sessionData, _declarations, callback) ->
       delete sessionData.syncState
       sessionData.deviceData.timestamps.collapse(1)
       sessionData.deviceData.attributes.collapse(1)
-      sessionData.extensionsCache.splice(0)
+      sessionData.extensionsCache = {}
       return callback(null, null, null, doneProvisions)
 
     rev = sessionData.revisions[sessionData.revisions.length - 1]
     sessionData.deviceData.timestamps.collapse(rev + 1)
     sessionData.deviceData.attributes.collapse(rev + 1)
-    sessionData.extensionsCache.splice(rev)
+    for k of sessionData.extensionsCache
+      n = Number(k.split(':', 1)[0])
+      if n > rev
+        delete sessionData.extensionsCache[k]
 
   sessionData.syncState.virtualParameterDeclarations.length = sessionData.declarations.length
 
@@ -1037,28 +1058,6 @@ commitVirtualParameter = (sessionData, provision, update, toClear) ->
     throw new Error('Virtual parameter must provide declared attributes')
 
   return device.set(sessionData.deviceData, ['VirtualParameters', provision[0]], timestamp, attributes, toClear)
-
-
-runExtensions = (sessionData, revision, _extensions, callback) ->
-  sessionData.extensionsCache[revision] ?= {}
-  obj = {}
-  for e in _extensions
-    obj[JSON.stringify(e)] = e
-
-  counter = 1
-  for k, v of obj
-    ++ counter
-    do (k, v) ->
-      extensions.run(v, (err, res) ->
-        sessionData.extensionsCache[revision][k] = res
-
-        if -- counter == 0 or err
-          counter = 0
-          return callback(err)
-      )
-
-  if -- counter == 0
-    return callback()
 
 
 rpcResponse = (sessionData, id, rpcRes, callback) ->
