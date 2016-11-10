@@ -797,7 +797,7 @@ generateSetRpcRequest = (sessionData) ->
   # Reboot
   if syncState.reboot?
     p = sessionData.deviceData.paths.subset(['Reboot']).next().value
-    if not (p? and sessionData.deviceData.attributes.get(p)?.value?[1[0]] >= syncState.reboot)
+    if not (p? and sessionData.deviceData.attributes.get(p)?.value?[1][0] >= syncState.reboot)
       delete syncState.reboot
       return {
         type: 'Reboot'
