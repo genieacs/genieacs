@@ -209,8 +209,6 @@ applyPresets = (currentRequest) ->
 
       session.rpcRequest(currentRequest.sessionData, null, (err, id, rpcRequest) ->
         throw err if err
-        if not rpcRequest?
-          session.clearProvisions(currentRequest.sessionData)
         sendRpcRequest(currentRequest, id, rpcRequest)
       )
     )
@@ -235,12 +233,11 @@ nextRpc = (currentRequest) ->
             currentRequest.sessionData.tasks.splice(j, 1)
             break
 
-    session.clearProvisions(currentRequest.sessionData)
-
     for task in currentRequest.sessionData.tasks
       # Delete if expired
       if task.expiry <= currentRequest.sessionData.timestamp
         util.log("#{currentRequest.sessionData.deviceId}: Task is expired #{task.name}(#{task._id})")
+        currentRequest.sessionData.doneTasks ?= []
         currentRequest.sessionData.doneTasks.push(String(task._id))
         continue
 

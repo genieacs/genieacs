@@ -30,7 +30,7 @@ queue = {}
 messageHandler = (message) ->
   func = queue[message[0]]
   delete queue[message[0]]
-  func(null, message[1])
+  func(message[1], message[2])
 
 
 run = (args, callback) ->

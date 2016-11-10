@@ -157,13 +157,17 @@ inform = (sessionData, rpcReq, callback) ->
 
 
 addProvisions = (sessionData, channel, provisions) ->
-  sessionData.declarations = []
-  sessionData.provisions.length = 1
-  sessionData.doneProvisions = 0
-  sessionData.doneDeclarations = 0
+  if sessionData.revisions[0] > 0
+    sessionData.deviceData.timestamps.collapse(1)
+    sessionData.deviceData.attributes.collapse(1)
 
+  delete sessionData.syncState
+  sessionData.declarations = []
+  sessionData.doneProvisions = 0
   sessionData.provisions[0] ?= []
-  sessionData.revisions[0] ?= 0
+  sessionData.provisions.length = 1
+  sessionData.revisions = [0]
+  sessionData.extensionsCache = {}
 
   for provision, i in provisions
     # Remove duplicate provisions
@@ -175,34 +179,25 @@ addProvisions = (sessionData, channel, provisions) ->
     sessionData.provisions[0].push(provision)
     sessionData.channels.push(channel)
 
-  if sessionData.revisions.length > 1 or sessionData.revisions[0] > 0
-    v.collapse(1) for k, v of sessionData.deviceData.timestamps
-    v.collapse(1) for k, v of sessionData.deviceData.attributes
-    sessionData.rpcCount = 0
-    sessionData.revisions = [0]
-    sessionData.extensionsCache = {}
-
 
 clearProvisions = (sessionData) ->
+  if sessionData.revisions[sessionData.revisions.length - 1] > 0
+    sessionData.deviceData.timestamps.collapse(1)
+    sessionData.deviceData.attributes.collapse(1)
+
   delete sessionData.syncState
-  sessionData.provisions = [[]]
+  sessionData.provisions = []
   sessionData.channels = []
   sessionData.declarations = []
   sessionData.doneProvisions = 0
-  sessionData.doneDeclarations = 0
-  if sessionData.revisions.length > 1 or sessionData.revisions[0] > 0
-    sessionData.deviceData.timestamps.collapse(1)
-    sessionData.deviceData.attributes.collapse(1)
-    sessionData.rpcCount = 0
-    sessionData.revisions = [0]
-    sessionData.extensionsCache = {}
+  sessionData.revisions = []
+  sessionData.extensionsCache = {}
 
 
 runProvisions = (sessionData, provisions, startRevision, endRevision, callback) ->
   done = true
-  _extensions = []
-  _clear = []
   allDeclarations = []
+  allClear = []
   counter = 1
   for provision in provisions
     if not sessionData.cache.provisions[provision[0]]?
@@ -259,22 +254,26 @@ runProvisions = (sessionData, provisions, startRevision, endRevision, callback) 
           return
 
         done &&= _done
-        allDeclarations = allDeclarations.concat(_declarations)
+
+        if _declarations
+          allDeclarations = allDeclarations.concat(_declarations)
+
+        if _clear
+          allClear = allClear.concat(_clear)
 
         if counter == 0
-          return callback(null, done, allDeclarations, _clear)
+          return callback(null, done, allDeclarations, allClear)
       )
 
   if -- counter == 0
-    return callback(null, done, allDeclarations, _clear)
+    return callback(null, done, allDeclarations, allClear)
 
 
 runVirtualParameters = (sessionData, provisions, startRevision, endRevision, callback) ->
   done = true
-  decs = []
   virtualParameterUpdates = []
-  _extensions = []
-  _clear = []
+  allDeclarations = []
+  allClear = []
   counter = 1
   for provision in provisions
     ++ counter
@@ -291,7 +290,12 @@ runVirtualParameters = (sessionData, provisions, startRevision, endRevision, cal
           return
 
         done &&= _done
-        decs = decs.concat(_declarations)
+
+        if _declarations
+          allDeclarations = allDeclarations.concat(_declarations)
+
+        if _clear
+          allClear = allClear.concat(_clear)
 
         if _done
           virtualParameterUpdates.push(_returnValue)
@@ -303,7 +307,7 @@ runVirtualParameters = (sessionData, provisions, startRevision, endRevision, cal
               toClear = commitVirtualParameter(sessionData, provisions[i], vpu, toClear)
 
           clear(sessionData, toClear, (err) ->
-            return callback(err, done, decs, _clear)
+            return callback(err, done, allDeclarations, allClear)
           )
       )
 
@@ -314,7 +318,7 @@ runVirtualParameters = (sessionData, provisions, startRevision, endRevision, cal
         toClear = commitVirtualParameter(sessionData, provisions[i], vpu, toClear)
 
     clear(sessionData, toClear, (err) ->
-      return callback(err, done, decs, _clear)
+      return callback(err, done, allDeclarations, allClear)
     )
 
 
@@ -354,7 +358,7 @@ runDeclarations = (sessionData, declarations) ->
     if (path.alias | path.wildcard) & 1 or path[0] == 'Reboot'
       sessionData.deviceData.paths.add(['Reboot'])
 
-    if (path.aliasa | path.wildcard) & 1 or path[0] == 'FactoryReset'
+    if (path.alias | path.wildcard) & 1 or path[0] == 'FactoryReset'
       sessionData.deviceData.paths.add(['FactoryReset'])
 
     if path.alias
@@ -411,7 +415,7 @@ runDeclarations = (sessionData, declarations) ->
       else
         minInstances = maxInstances = declaration[3]
 
-      parent = sessionData.deviceData.paths.add(path.slice(0, -1))
+      parent = common.addPathMeta(path.slice(0, -1))
 
       if Array.isArray(path[path.length - 1])
         keys = {}
@@ -421,12 +425,14 @@ runDeclarations = (sessionData, declarations) ->
         keys = {}
 
       if ((path.wildcard | path.alias) & ((1 << (path.length - 1)) - 1)) == 0
+        parent = sessionData.deviceData.paths.add(parent)
         unpacked ?= device.unpack(sessionData.device, path)
         processInstances(sessionData, parent, unpacked, keys, minInstances, maxInstances)
       else
         parentsUnpacked = device.unpack(sessionData.deviceData, parent)
         for parent in parentsUnpacked
-          processInstances(sessionData, parent, device.unpack(sessionData.deviceData, parent.concat([path[parent.length]])), keys, minInstances, maxInstances)
+          parent = sessionData.deviceData.paths.add(parent)
+          processInstances(sessionData, parent, device.unpack(sessionData.deviceData, common.addPathMeta(parent.concat([path[parent.length]]))), keys, minInstances, maxInstances)
 
   return processDeclarations(sessionData, allDeclareTimestamps, allDeclareAttributeTimestamps, allDeclareAttributeValues)
 
@@ -437,6 +443,9 @@ rpcRequest = (sessionData, _declarations, callback) ->
 
   if sessionData.declarations.length < sessionData.provisions.length
     inception = sessionData.declarations.length
+    revision = sessionData.revisions[inception] + 1
+    sessionData.deviceData.timestamps.revision = revision
+    sessionData.deviceData.attributes.revision = revision
     run = if inception == 0 then runProvisions else runVirtualParameters
 
     return run(sessionData, sessionData.provisions[inception], sessionData.revisions[inception - 1] ? 0, sessionData.revisions[inception], (err, done, decs, toClear) ->
@@ -474,7 +483,6 @@ rpcRequest = (sessionData, _declarations, callback) ->
       return rpcRequest(sessionData, null, callback)
     )
 
-
   if (sessionData.syncState?.virtualParameterDeclarations?.length or 0) < sessionData.declarations.length
     inception = sessionData.syncState?.virtualParameterDeclarations?.length or 0
     vpd = runDeclarations(sessionData, sessionData.declarations[inception])
@@ -507,10 +515,6 @@ rpcRequest = (sessionData, _declarations, callback) ->
 
   if not sessionData.syncState?
     return callback()
-
-  revision = sessionData.revisions[sessionData.revisions.length - 1] + 1
-  sessionData.deviceData.timestamps.revision = revision
-  sessionData.deviceData.attributes.revision = revision
 
   inception = sessionData.declarations.length - 1
 
@@ -586,8 +590,7 @@ rpcRequest = (sessionData, _declarations, callback) ->
     sessionData.deviceData.timestamps.collapse(rev + 1)
     sessionData.deviceData.attributes.collapse(rev + 1)
     for k of sessionData.extensionsCache
-      n = Number(k.split(':', 1)[0])
-      if n > rev
+      if rev < Number(k.split(':', 1)[0])
         delete sessionData.extensionsCache[k]
 
   sessionData.syncState.virtualParameterDeclarations.length = sessionData.declarations.length
@@ -747,7 +750,7 @@ generateSetRpcRequest = (sessionData) ->
   # Delete instance
   iter = syncState.instancesToDelete.values()
   while instances = iter.next().value
-    if instance = instances.values().next().value and
+    if (instance = instances.values().next().value) and
         sessionData.deviceData.attributes.has(instance)
       return {
         type: 'DeleteObject'
