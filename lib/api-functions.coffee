@@ -38,6 +38,9 @@
 # THE SOFTWARE.
 ###
 
+crypto = require 'crypto'
+dgram = require 'dgram'
+
 config = require './config'
 db = require './db'
 http = require 'http'
@@ -45,6 +48,27 @@ common = require './common'
 util = require 'util'
 URL = require 'url'
 auth = require './auth'
+
+udpConReq = (address, un, key, callback) ->
+  [host, port] = address.split(':', 2)
+
+  ts = Math.trunc(Date.now() / 1000)
+  id = Math.trunc(Math.random() * 4294967295)
+  cn = crypto.randomBytes(8).toString('hex')
+  sig = crypto.createHmac('sha1', key).update("#{ts}#{id}#{un}#{cn}").digest('hex')
+  uri = "http://#{address}?ts=#{ts}&id=#{id}&un=#{un}&cn=#{cn}&sig=#{sig}"
+
+  message = Buffer.from("GET #{uri} HTTP/1.1\r\nHost: #{host}:#{port}\r\n\r\n")
+
+  client = dgram.createSocket('udp4')
+
+  count = 3
+  client.send(message, 0, message.length, port, host, f = (err) ->
+    if err or -- count <= 0
+      client.close()
+      return callback(err)
+    client.send(message, 0, message.length, port, host, f)
+  )
 
 
 connectionRequest = (deviceId, callback) ->
@@ -92,11 +116,13 @@ connectionRequest = (deviceId, callback) ->
 
   proj = {
     'Device.ManagementServer.ConnectionRequestURL._value' : 1,
-    'Device.ManagementServer.ConnectionRequestUsername._value',
-    'Device.ManagementServer.ConnectionRequestPassword._value',
+    'Device.ManagementServer.UDPConnectionRequestAddress._value' : 1,
+    'Device.ManagementServer.ConnectionRequestUsername._value' : 1,
+    'Device.ManagementServer.ConnectionRequestPassword._value' : 1,
     'InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value' : 1,
-    'InternetGatewayDevice.ManagementServer.ConnectionRequestUsername._value',
-    'InternetGatewayDevice.ManagementServer.ConnectionRequestPassword._value'
+    'InternetGatewayDevice.ManagementServer.UDPConnectionRequestAddress._value' : 1,
+    'InternetGatewayDevice.ManagementServer.ConnectionRequestUsername._value' : 1,
+    'InternetGatewayDevice.ManagementServer.ConnectionRequestPassword._value' : 1
   }
 
   db.devicesCollection.findOne({_id : deviceId}, proj, (err, device)->
@@ -106,20 +132,25 @@ connectionRequest = (deviceId, callback) ->
 
     if device.Device? # TR-181 data model
       connectionRequestUrl = device.Device.ManagementServer.ConnectionRequestURL._value
+      udpConnectionRequestAddress = device.Device.ManagementServer?.UDPConnectionRequestAddress?._value
       username = device.Device.ManagementServer.ConnectionRequestUsername?._value
       password = device.Device.ManagementServer.ConnectionRequestPassword?._value
     else # TR-098 data model
       connectionRequestUrl = device.InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value
+      udpConnectionRequestAddress = device.InternetGatewayDevice.ManagementServer?.UDPConnectionRequestAddress?._value
       username = device.InternetGatewayDevice.ManagementServer.ConnectionRequestUsername?._value
       password = device.InternetGatewayDevice.ManagementServer.ConnectionRequestPassword?._value
+
+    if not (username and password) and config.auth?.connectionRequest
+      [username, password] = config.auth.connectionRequest(deviceId)
+
+    if udpConnectionRequestAddress
+      udpConReq(udpConnectionRequestAddress, username, password, (err) -> throw err if err)
 
     # for testing
     #connectionRequestUrl = connectionRequestUrl.replace(/^(http:\/\/)([0-9\.]+)(\:[0-9]+\/[a-zA-Z0-9]+\/?$)/, '$110.1.1.254$3')
     conReq(connectionRequestUrl, null, (statusCode, authHeader) ->
       if statusCode == 401
-        if not (username and password) and config.auth?.connectionRequest
-          [username, password] = config.auth.connectionRequest(deviceId)
-
         if authHeader.method is 'Basic'
           authString = auth.basic(username, password)
         else if authHeader.method is 'Digest'
@@ -132,6 +163,8 @@ connectionRequest = (deviceId, callback) ->
             return conReq(connectionRequestUrl, authString, (statusCode) -> callback(statusToError(statusCode)))
           callback(statusToError(statusCode))
         )
+      else if udpConnectionRequestAddress
+        return callback()
       else
         callback(statusToError(statusCode))
     )
