@@ -28,10 +28,12 @@ objectsCollection = null
 provisionsCollection = null
 virtualParametersCollection = null
 faultsCollection = null
+filesCollection = null
+operationsCollection = null
 
 
 connect = (callback) ->
-  callbackCounter = 9
+  callbackCounter = 10
   mongodb.MongoClient.connect(config.get('MONGODB_CONNECTION_URL'), {db:{w:1},server:{autoReconnect:true}}, (err, db) ->
     return callback(err) if err
     exports.mongoDb = db
@@ -89,6 +91,13 @@ connect = (callback) ->
 
     db.collection('faults', (err, collection) ->
       exports.faultsCollection = faultsCollection = collection
+      if --callbackCounter == 0 or err
+        callbackCounter = 0
+        return callback(err)
+    )
+
+    db.collection('operations', (err, collection) ->
+      exports.operationsCollection = operationsCollection = collection
       if --callbackCounter == 0 or err
         callbackCounter = 0
         return callback(err)
@@ -441,18 +450,21 @@ saveDevice = (deviceId, deviceData, isNew, callback) ->
   )
 
 
-getDueTasksAndFaults = (deviceId, timestamp, callback) ->
-  redisClient.mget("#{deviceId}_no_tasks", "#{deviceId}_faults", (err, res) ->
+getDueTasksAndFaultsAndOperations = (deviceId, timestamp, callback) ->
+  redisClient.mget("#{deviceId}_no_tasks", "#{deviceId}_faults", "#{deviceId}_operations", (err, res) ->
     return callback(err) if err
 
     if res[0]?
-      tasks = []
+      tasks = JSON.parse(res[0])
 
     if res[1]?
       faults = JSON.parse(res[1])
 
-    if tasks? and faults?
-      return callback(null, tasks, faults)
+    if res[2]?
+      operations = JSON.parse(res[2])
+
+    if tasks? and faults? and operations?
+      return callback(null, tasks, faults, operations)
 
     CACHE_DURATION = config.get('PRESETS_CACHE_DURATION', deviceId)
 
@@ -463,8 +475,8 @@ getDueTasksAndFaults = (deviceId, timestamp, callback) ->
           return callback = null
 
         faults = flts
-        if tasks?
-          return callback(null, tasks, faults)
+        if tasks? and operations?
+          return callback(null, tasks, faults, operations)
       )
 
     if not tasks?
@@ -484,10 +496,22 @@ getDueTasksAndFaults = (deviceId, timestamp, callback) ->
             return callback = null
 
           tasks = dueTasks
-          if faults?
-            return callback(null, tasks, faults)
+          if faults? and operations?
+            return callback(null, tasks, faults, operations)
         )
       )
+
+    if not operations?
+      getOperations(deviceId, (err, _operations) ->
+        if err
+          callback?(err)
+          return callback = null
+
+        operations = _operations
+        if tasks? and faults?
+          return callback(null, tasks, faults, operations)
+      )
+
   )
 
 
@@ -499,6 +523,8 @@ getFaults = (deviceId, callback) ->
     for r in res
       channel = r._id.slice(deviceId.length + 1)
       delete r._id
+      delete r.channel
+      delete r.device
       r.timestamp = +r.timestamp
       r.expiry = +r.expiry if r.expiry?
       faults[channel] = r
@@ -533,7 +559,23 @@ getDueTasks = (deviceId, timestamp, callback) ->
 
     task._id = String(task._id)
     tasks.push(task)
-    cur.nextObject(f)
+
+    # For API compatibility
+    if task.name is 'download' and task.file?
+      if mongodb.ObjectID.isValid(task.file)
+        q = {_id: {'$in' : [task.file, new mongodb.ObjectID(task.file)]}}
+      else
+        q = {_id: task.file}
+
+      filesCollection.find(q).toArray((err, res) ->
+        return callback(err) if err
+        if res[0]?
+          task.fileType ?= res[0].metadata.fileType
+          task.fileName ?= res[0].filename or res[0]._id.toString()
+        cur.nextObject(f)
+      )
+    else
+      cur.nextObject(f)
   )
 
 
@@ -570,6 +612,8 @@ syncFaults = (deviceId, faults, callback) ->
       do (channel, fault) ->
         ++ counter
         fault._id = "#{deviceId}:#{channel}"
+        fault.device = deviceId
+        fault.channel = channel
         fault.timestamp = new Date(fault.timestamp)
         fault.expiry = new Date(fault.expiry) if fault.expiry?
 
@@ -597,10 +641,53 @@ syncFaults = (deviceId, faults, callback) ->
   )
 
 
+getOperations = (deviceId, callback) ->
+  operationsCollection.find({'_id' : {'$regex' : "^#{common.escapeRegExp(deviceId)}\\:"}}).toArray((err, res) ->
+    return callback(err) if err
+
+    operations = {}
+    for r in res
+      commandKey = r._id.slice(deviceId.length + 1)
+      delete r._id
+      r.timestamp = +r.timestamp
+      r.args = JSON.parse(r.args) if r.args
+      r.provisions = JSON.parse(r.provisions)
+      r.retries = JSON.parse(r.retries)
+      operations[commandKey] = r
+
+    CACHE_DURATION = config.get('PRESETS_CACHE_DURATION', deviceId)
+
+    redisClient.setex("#{deviceId}_operations", CACHE_DURATION, JSON.stringify(operations), (err) ->
+      callback(err, operations)
+    )
+  )
+
+
+saveOperation = (deviceId, commandKey, operation, callback) ->
+  operation._id = "#{deviceId}:#{commandKey}"
+  operation.timestamp = new Date(operation.timestamp)
+  operation.provisions = JSON.stringify(operation.provisions)
+  operation.retries = JSON.stringify(operation.retries)
+  operation.args = JSON.stringify(operation.args)
+  operationsCollection.save(operation, (err) ->
+    return callback(err) if err
+    redisClient.del("#{deviceId}_operations", callback)
+  )
+
+
+deleteOperation = (deviceId, commandKey, callback) ->
+  operationsCollection.remove({_id: "#{deviceId}:#{commandKey}"}, (err) ->
+    return callback(err) if err
+    redisClient.del("#{deviceId}_operations", callback)
+  )
+
+
 exports.connect = connect
 exports.disconnect = disconnect
 exports.fetchDevice = fetchDevice
 exports.saveDevice = saveDevice
-exports.getDueTasksAndFaults = getDueTasksAndFaults
+exports.getDueTasksAndFaultsAndOperations = getDueTasksAndFaultsAndOperations
 exports.clearTasks = clearTasks
 exports.syncFaults = syncFaults
+exports.saveOperation = saveOperation
+exports.deleteOperation = deleteOperation

@@ -41,6 +41,7 @@ options = {
   FS_SSL : {type : 'bool', default : false},
   FS_IP : {type : 'string', default : '192.168.0.1'},
 
+  DOWNLOAD_TIMEOUT: {type : 'int', default : 3600},
   PRESETS_CACHE_DURATION : {type : 'int', default : 86400},
   LOG_INFORMS : {type : 'bool', default : true},
   DEBUG : {type : 'bool', default : false},

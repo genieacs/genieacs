@@ -23,7 +23,7 @@ sandbox = require './sandbox'
 cache = require './cache'
 extensions = require './extensions'
 PathSet = require './path-set'
-VersionedMap = require './versioned-map.js'
+VersionedMap = require './versioned-map'
 InstanceSet = require './instance-set'
 
 
@@ -156,12 +156,139 @@ inform = (sessionData, rpcReq, callback) ->
   )
 
 
+transferComplete = (sessionData, rpcReq, callback) ->
+  commandKey = rpcReq.commandKey
+  operation = sessionData.operations[commandKey]
+  if not operation?
+    # TODO Show a warning instead
+    throw new Error('Invalid command key')
+  instance = operation.args.instance
+  faults = {}
+
+  delete sessionData.operations[commandKey]
+  sessionData.operationsTouched ?= {}
+  sessionData.operationsTouched[commandKey] = 1
+
+  if rpcReq.faultStruct? and rpcReq.faultStruct.FaultCode != '0'
+    return revertDownloadParameters(sessionData, operation.args.instance, (err) ->
+      for channel, provisions of operation.provisions
+        faults[channel] = {
+          provisions: provisions
+          timestamp: sessionData.timestamp
+          code: "cwmp.#{rpcReq.faultStruct['FaultCode']}"
+          message: rpcReq.faultStruct['FaultString']
+          detail: rpcReq.faultStruct
+        }
+
+        if operation.retries[channel]?
+          faults[channel].retries = operation.retries[channel] + 1
+
+      return callback(err, {type : 'TransferCompleteResponse'}, faults)
+    )
+
+  loadPath(sessionData, ['Downloads', instance, '*'])
+
+  loadParameters(sessionData, (err) ->
+    return callback(err) if err
+
+    toClear = null
+    timestamp = sessionData.timestamp + sessionData.iteration + 1
+
+    p = sessionData.deviceData.paths.add(['Downloads', instance, 'LastDownload'])
+    toClear = device.set(sessionData.deviceData, p, timestamp,
+      {value: [timestamp, [operation.timestamp, 'xsd:dateTime']]}, toClear)
+
+    p = sessionData.deviceData.paths.add(['Downloads', instance, 'LastFileType'])
+    toClear = device.set(sessionData.deviceData, p, timestamp,
+      {value: [timestamp, [operation.args.fileType, 'xsd:string']]}, toClear)
+
+    p = sessionData.deviceData.paths.add(['Downloads', instance, 'LastFileName'])
+    toClear = device.set(sessionData.deviceData, p, timestamp,
+      {value: [timestamp, [operation.args.fileName, 'xsd:string']]}, toClear)
+
+    p = sessionData.deviceData.paths.add(['Downloads', instance, 'LastTargetFileName'])
+    toClear = device.set(sessionData.deviceData, p, timestamp,
+      {value: [timestamp, [operation.args.targetFileName, 'xsd:string']]}, toClear)
+
+    p = sessionData.deviceData.paths.add(['Downloads', instance, 'StartTime'])
+    toClear = device.set(sessionData.deviceData, p, timestamp,
+      {value: [timestamp, [+rpcReq.startTime, 'xsd:dateTime']]}, toClear)
+
+    p = sessionData.deviceData.paths.add(['Downloads', instance, 'CompleteTime'])
+    toClear = device.set(sessionData.deviceData, p, timestamp,
+      {value: [timestamp, [+rpcReq.completeTime, 'xsd:dateTime']]}, toClear)
+
+    clear(sessionData, toClear, (err) ->
+      return callback(err, {type : 'TransferCompleteResponse'}, faults)
+    )
+  )
+
+
+revertDownloadParameters = (sessionData, instance, callback) ->
+  loadPath(sessionData, ['Downloads', instance, '*'])
+
+  loadParameters(sessionData, (err) ->
+    return callback(err) if err
+
+    timestamp = sessionData.timestamp + sessionData.iteration + 1
+
+    p = sessionData.deviceData.paths.add(['Downloads', instance, 'LastDownload'])
+    LastDownload = sessionData.deviceData.attributes.get(p)
+
+    p = sessionData.deviceData.paths.add(['Downloads', instance, 'Download'])
+    toClear = device.set(sessionData.deviceData, p, timestamp,
+      {value: [timestamp, [LastDownload?.value[1]?[0] or 0, 'xsd:dateTime']]}, toClear)
+
+    clear(sessionData, toClear, callback)
+  )
+
+
+timeoutOperations = (sessionData, callback) ->
+  faults = {}
+  counter = 1
+
+  for commandKey, operation of sessionData.operations
+    if operation.type isnt 'Download'
+      return callback(new Error("Unknown operation type #{operation.type}"))
+
+    DOWNLOAD_TIMEOUT = config.get('DOWNLOAD_TIMEOUT', sessionData.deviceId) * 1000
+
+    if sessionData.timestamp > operation.timestamp + DOWNLOAD_TIMEOUT
+      delete sessionData.operations[commandKey]
+      sessionData.operationsTouched ?= {}
+      sessionData.operationsTouched[commandKey] = 1
+
+      for channel, provisions of operation.provisions
+        faults[channel] = {
+          provisions: provisions
+          timestamp: sessionData.timestamp
+          code: 'timeout'
+          message: 'Download operation timeed out'
+        }
+
+        if operation.retries[channel]?
+          faults[channel].retries = operation.retries[channel] + 1
+
+      ++ counter
+      revertDownloadParameters(sessionData, operation.args.instance, (err) ->
+        -- counter
+        if err and counter > 0
+          counter = 0
+
+        return callback(err, faults) if counter == 0
+      )
+
+  -- counter
+  return callback(null, faults) if counter == 0
+
+
 addProvisions = (sessionData, channel, provisions) ->
   if sessionData.revisions[0] > 0
     sessionData.deviceData.timestamps.collapse(1)
     sessionData.deviceData.attributes.collapse(1)
 
   delete sessionData.syncState
+  delete sessionData.rpcRequest
   sessionData.declarations = []
   sessionData.doneProvisions = 0
   sessionData.provisions[0] ?= []
@@ -186,6 +313,7 @@ clearProvisions = (sessionData) ->
     sessionData.deviceData.attributes.collapse(1)
 
   delete sessionData.syncState
+  delete sessionData.rpcRequest
   sessionData.provisions = []
   sessionData.channels = []
   sessionData.declarations = []
@@ -239,6 +367,12 @@ runProvisions = (sessionData, provisions, startRevision, endRevision, callback) 
               allDeclarations.push([['Reboot'], 1, {value: 1}, null, {value: [sessionData.timestamp]}])
             when 'factoryReset'
               allDeclarations.push([['FactoryReset'], 1, {value: 1}, null, {value: [sessionData.timestamp]}])
+            when 'download'
+              alias = "[FileType:#{JSON.stringify(provision[3] or '')},FileName:#{JSON.stringify(provision[4] or '')},TargetFileName:#{JSON.stringify(provision[5] or '')}]"
+              allDeclarations.push([common.parsePath("Downloads.#{alias}"),
+                1, {}, 1, {}])
+              allDeclarations.push([common.parsePath("Downloads.#{alias}.Download"),
+                1, {value: 1}, null, {value: [sessionData.timestamp]}])
       continue
 
     ++ counter
@@ -339,6 +473,11 @@ runDeclarations = (sessionData, declarations) ->
     virtualParameterDeclarations: []
     instancesToDelete: new Map()
     instancesToCreate: new Map()
+
+    downloadsToDelete: new Set()
+    downloadsToCreate: new InstanceSet()
+    downloadsValues: new Map()
+    downloadsDownload: new Map()
   }
 
   allDeclareTimestamps = new Map()
@@ -360,6 +499,14 @@ runDeclarations = (sessionData, declarations) ->
 
     if (path.alias | path.wildcard) & 1 or path[0] == 'FactoryReset'
       sessionData.deviceData.paths.add(['FactoryReset'])
+
+    if path[0] == 'Files' and
+        !(path.alias | path.wildcard) and
+        path.length == 3 and
+        path[2] == 'Download' and
+        (declaration[4]?.value? or sessionData.deviceData.attributes.has(path))
+      sessionData.syncState.download ?= new Map()
+      sessionData.syncState.download.set(path, 0)
 
     if path.alias
       aliasDecs = device.getAliasDeclarations(path, declaration[1] or 1)
@@ -527,11 +674,12 @@ rpcRequest = (sessionData, _declarations, callback) ->
         device.clearTrackers(sessionData.deviceData, 'prerequisite')
         return rpcRequest(sessionData, null, callback)
 
-      # Update tags
       toClear = null
+      timestamp = sessionData.timestamp + sessionData.iteration + 1
+
+      # Update tags
       sessionData.syncState.tags.forEach((v, p) ->
         c = sessionData.deviceData.attributes.get(p)
-        timestamp = sessionData.timestamp + sessionData.iteration + 1
         if v and not c?
           toClear = device.set(sessionData.deviceData, p, timestamp, {object: [timestamp, false], writable: [timestamp, true], value: [timestamp, [true, 'xsd:boolean']]}, toClear)
         else if c? and not v
@@ -544,6 +692,65 @@ rpcRequest = (sessionData, _declarations, callback) ->
               break
           if noMoreTags
             toClear = device.set(sessionData.deviceData, ['Tags'], timestamp, null, toClear)
+      )
+
+      # Downloads
+      index = null
+      sessionData.syncState.downloadsToCreate.forEach((instance) ->
+        if not index?
+          index = 0
+          iter = sessionData.deviceData.paths.subset(['Downloads', '*'])
+          while p = iter.next().value
+            if +p[1] > index and sessionData.deviceData.attributes.has(p)
+              index = +p[1]
+
+        ++ index
+
+        toClear = device.set(sessionData.deviceData, ['Downloads'],
+          timestamp,
+          {object: [timestamp, 1], writable: [timestamp, 1]}, toClear)
+
+        toClear = device.set(sessionData.deviceData, ['Downloads', "#{index}"],
+          timestamp,
+          {object: [timestamp, 1], writable: [timestamp, 1]}, toClear)
+
+        params = {
+          'FileType': {writable: 1, value: [instance.FileType or '', 'xsd:string']}
+          'FileName': {writable: 1, value: [instance.FileName or '', 'xsd:string']}
+          'TargetFileName': {writable: 1, value: [instance.TargetFileName or '', 'xsd:string']}
+          'Download': {writable: 1, value: [instance.Download or 0, 'xsd:dateTime']}
+          'LastFileType': {writable: 0, value: ['', 'xsd:string']}
+          'LastFileName': {writable: 0, value: ['', 'xsd:string']}
+          'LastTargetFileName': {writable: 0, value: ['', 'xsd:string']}
+          'LastDownload': {writable: 0, value: [0, 'xsd:dateTime']}
+          'StartTime': {writable: 0, value: [0, 'xsd:dateTime']}
+          'CompleteTime': {writable: 0, value: [0, 'xsd:dateTime']}
+        }
+
+        for k, v of params
+          toClear = device.set(sessionData.deviceData, ['Downloads', "#{index}", k],
+            timestamp, {object: [timestamp, 0], writable: [timestamp, v.writable], value: [timestamp, v.value]}, toClear)
+
+        toClear = device.set(sessionData.deviceData, ['Downloads', "#{index}", '*'],
+          timestamp, null, toClear)
+      )
+      sessionData.syncState.downloadsToCreate.clear()
+
+      sessionData.syncState.downloadsToDelete.forEach((instance) ->
+        toClear = device.set(sessionData.deviceData, instance, timestamp, null, toClear)
+        sessionData.syncState.downloadsValues.forEach((v, p) ->
+          if p[1] == instance[1]
+            sessionData.syncState.downloadsValues.delete(p)
+        )
+      )
+      sessionData.syncState.downloadsToDelete.clear()
+
+      sessionData.syncState.downloadsValues.forEach((v, p) ->
+        if attrs = sessionData.deviceData.attributes.get(p)
+          if attrs.writable?[1] and attrs.value?
+            v = device.sanitizeParameterValue([v, attrs.value[1][1]])
+            if v[0] != attrs.value[1][0]
+              toClear = device.set(sessionData.deviceData, p, timestamp, {value: [timestamp, v]}, toClear)
       )
 
       if toClear
@@ -747,6 +954,8 @@ generateSetRpcRequest = (sessionData) ->
   if not (syncState = sessionData.syncState)?
     return
 
+  deviceData = sessionData.deviceData
+
   # Delete instance
   iter = syncState.instancesToDelete.values()
   while instances = iter.next().value
@@ -810,6 +1019,22 @@ generateSetRpcRequest = (sessionData) ->
       delete syncState.factoryReset
       return {
         type: 'FactoryReset'
+      }
+
+  # Download
+  iter = syncState.downloadsDownload.entries()
+  while pair = iter.next().value
+    if not (pair[1] <= deviceData.attributes.get(pair[0])?.value?[1][0])
+      fileTypePath = deviceData.paths.subset(pair[0].slice(0, -1).concat('FileType')).next().value
+      fileNamePath = deviceData.paths.subset(pair[0].slice(0, -1).concat('FileName')).next().value
+      targetFileNamePath = deviceData.paths.subset(pair[0].slice(0, -1).concat('TargetFileName')).next().value
+      return {
+        type: 'Download'
+        commandKey: generateRpcId(sessionData)
+        instance: pair[0][1]
+        fileType: deviceData.attributes.get(fileTypePath)?.value?[1][0]
+        fileName: deviceData.attributes.get(fileNamePath)?.value?[1][0]
+        targetFileName: deviceData.attributes.get(targetFileNamePath)?.value?[1][0]
       }
 
   return null
@@ -905,6 +1130,12 @@ processDeclarations = (sessionData, allDeclareTimestamps, allDeclareAttributeTim
           syncState.tags.set(currentPath, device.sanitizeParameterValue([declareAttributeValues.value[0], 'xsd:boolean'])[0])
       when 'Events', 'DeviceID' then
         # Do nothing
+      when 'Downloads'
+        if currentPath.length == 3 and currentPath.wildcard == 0 and declareAttributeValues.value?
+          if currentPath[2] == 'Download'
+            syncState.downloadsDownload.set(currentPath, declareAttributeValues.value[0])
+          else
+            syncState.downloadsValues.set(currentPath, declareAttributeValues.value[0])
       when 'VirtualParameters'
         if currentPath.length <= 2
           d = null
@@ -999,15 +1230,20 @@ loadPath = (sessionData, path, depth) ->
 
 
 processInstances = (sessionData, parent, parameters, keys, minInstances, maxInstances) ->
-  instancesToDelete = sessionData.syncState.instancesToDelete.get(parent)
-  if not instancesToDelete?
-    instancesToDelete = new Set()
-    sessionData.syncState.instancesToDelete.set(parent, instancesToDelete)
+  if parent[0] == 'Downloads'
+    return if parent.length != 1
+    instancesToDelete = sessionData.syncState.downloadsToDelete
+    instancesToCreate = sessionData.syncState.downloadsToCreate
+  else
+    instancesToDelete = sessionData.syncState.instancesToDelete.get(parent)
+    if not instancesToDelete?
+      instancesToDelete = new Set()
+      sessionData.syncState.instancesToDelete.set(parent, instancesToDelete)
 
-  instancesToCreate = sessionData.syncState.instancesToCreate.get(parent)
-  if not instancesToCreate?
-    instancesToCreate = new InstanceSet()
-    sessionData.syncState.instancesToCreate.set(parent, instancesToCreate)
+    instancesToCreate = sessionData.syncState.instancesToCreate.get(parent)
+    if not instancesToCreate?
+      instancesToCreate = new InstanceSet()
+      sessionData.syncState.instancesToCreate.set(parent, instancesToCreate)
 
   counter = 0
   for p in parameters
@@ -1223,6 +1459,49 @@ rpcResponse = (sessionData, id, rpcRes, callback) ->
       toClear = device.set(sessionData.deviceData, common.parsePath('FactoryReset'),
         timestamp + 1, {value: [timestamp + 1, [timestamp + 1, 'xsd:dateTime']]}, toClear)
 
+    when 'DownloadResponse'
+      toClear = device.set(sessionData.deviceData, ['Downloads', rpcReq.instance, 'Download'],
+        timestamp + 1, {value: [timestamp + 1, [timestamp + 1, 'xsd:dateTime']]}, toClear)
+
+      if rpcRes.status == 0
+        toClear = device.set(sessionData.deviceData, ['Downloads', rpcReq.instance, 'LastDownload'],
+          timestamp + 1, {value: [timestamp + 1, [timestamp + 1, 'xsd:dateTime']]}, toClear)
+        toClear = device.set(sessionData.deviceData, ['Downloads', rpcReq.instance, 'LastFileType'],
+          timestamp + 1, {value: [timestamp + 1, [rpcReq.fileType, 'xsd:dateTime']]}, toClear)
+        toClear = device.set(sessionData.deviceData, ['Downloads', rpcReq.instance, 'LastFileName'],
+          timestamp + 1, {value: [timestamp + 1, [rpcReq.fileType, 'xsd:dateTime']]}, toClear)
+        toClear = device.set(sessionData.deviceData, ['Downloads', rpcReq.instance, 'LastTargetFileName'],
+          timestamp + 1, {value: [timestamp + 1, [rpcReq.fileType, 'xsd:dateTime']]}, toClear)
+
+        toClear = device.set(sessionData.deviceData, ['Downloads', rpcReq.instance, 'StartTime'],
+          timestamp + 1, {value: [timestamp + 1, [+rpcRes.startTime, 'xsd:dateTime']]}, toClear)
+        toClear = device.set(sessionData.deviceData, ['Downloads', rpcReq.instance, 'CompleteTime'],
+          timestamp + 1, {value: [timestamp + 1, [+rpcRes.completeTime, 'xsd:dateTime']]}, toClear)
+      else
+        operation = {
+          type: 'Download'
+          timestamp: sessionData.timestamp
+          provisions: {}
+          retries: {}
+          args: {
+            instance: rpcReq.instance
+            fileType: rpcReq.fileType
+            fileName: rpcReq.fileName
+            targetFileName: rpcReq.targetFileName
+          }
+        }
+
+        for provision, i in sessionData.provisions[0]
+          channel = sessionData.channels[i]
+          operation.provisions[channel] ?= []
+          operation.provisions[channel].push(provision)
+          if sessionData.faults[channel]?
+            operation.retries[channel] = sessionData.faults[channel].retries or 0
+
+        sessionData.operations[rpcReq.commandKey] = operation
+        sessionData.operationsTouched ?= {}
+        sessionData.operationsTouched[rpcReq.commandKey] = 1
+
     else
       return callback(new Error('Response type not recognized'))
 
@@ -1232,9 +1511,32 @@ rpcResponse = (sessionData, id, rpcRes, callback) ->
 rpcFault = (sessionData, id, faultResponse, callback) ->
   # TODO Consider handling invalid parameter faults by automatically refreshing
   # relevant data model portions
-  delete sessionData.rpcRequest
-  delete sessionData.syncState
-  return callback(null, faultResponse)
+
+  if not sessionData.provisions[0]?.length
+    throw new Error('A fault occured while trying to discover parameters to test preset preconditions: ' + JSON.stringify(flt))
+
+  faults = {}
+  for p, i in sessionData.provisions[0]
+    channel = sessionData.channels[i]
+    fault = faults[channel]
+    if not fault?
+      fault = {
+        provisions: []
+        timestamp: sessionData.timestamp
+        code: "cwmp.#{faultResponse.detail.Fault['FaultCode']}"
+        message: faultResponse.detail.Fault['FaultString']
+        detail: faultResponse.detail.Fault
+      }
+
+      if sessionData.faults[channel]?
+        fault.retries = (sessionData.faults[channel].retries or 0) + 1
+
+      faults[channel] = fault
+
+    fault.provisions.push(p)
+
+  clearProvisions(sessionData)
+  return callback(null, faults)
 
 
 deserialize = (sessionDataString, callback) ->
@@ -1312,16 +1614,43 @@ serialize = (sessionData, callback) ->
 
 
 end = (sessionData, callback) ->
+  counter = 2
   db.saveDevice(sessionData.deviceId, sessionData.deviceData, sessionData.new, (err) ->
-    return callback(err) if err
-    db.redisClient.del("session_#{sessionData.id}", (err) ->
-      callback(err, sessionData.new)
-    )
+    -- counter
+    if err and counter > 0
+      counter = 0
+    return callback(err, sessionData.new) if counter == 0
   )
+
+  db.redisClient.del("session_#{sessionData.id}", (err) ->
+    -- counter
+    if err and counter > 0
+      counter = 0
+    return callback(err, sessionData.new) if counter == 0
+  )
+
+  for k of sessionData.operationsTouched
+    ++ counter
+    if sessionData.operations[k]?
+      db.saveOperation(sessionData.deviceId, k, sessionData.operations[k], (err) ->
+        -- counter
+        if err and counter > 0
+          counter = 0
+        return callback(err, sessionData.new) if counter == 0
+      )
+    else
+      db.deleteOperation(sessionData.deviceId, k, (err) ->
+        -- counter
+        if err and counter > 0
+          counter = 0
+        return callback(err, sessionData.new) if counter == 0
+      )
 
 
 exports.init = init
+exports.timeoutOperations = timeoutOperations
 exports.inform = inform
+exports.transferComplete = transferComplete
 exports.addProvisions = addProvisions
 exports.clearProvisions = clearProvisions
 exports.rpcRequest = rpcRequest

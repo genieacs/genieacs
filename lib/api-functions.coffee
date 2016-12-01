@@ -218,7 +218,10 @@ deleteDevice = (deviceId, callback) ->
       return callback(err) if err
       db.faultsCollection.remove({'_id' : {'$regex' : "^#{common.escapeRegExp(deviceId)}\\:"}}, (err) ->
         return callback(err) if err
-        db.redisClient.del("#{deviceId}_presets_hash", "#{deviceId}_inform_hash", "#{deviceId}_faults", "#{deviceId}_no_tasks", callback)
+        db.operationsCollection.remove({'_id' : {'$regex' : "^#{common.escapeRegExp(deviceId)}\\:"}}, (err) ->
+          return callback(err) if err
+          db.redisClient.del("#{deviceId}_presets_hash", "#{deviceId}_inform_hash", "#{deviceId}_faults", "#{deviceId}_no_tasks", callback)
+        )
       )
     )
   )

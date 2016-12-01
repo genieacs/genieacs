@@ -31,6 +31,7 @@ hash = null
 presets = null
 provisions = null
 virtualParameters = null
+files = null
 
 
 UNLOCK_SCRIPT = 'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end'
@@ -91,7 +92,7 @@ refresh = (callback) ->
       return callback()
 
     lock('presets_hash_lock', 3000, (err, unlockOrExtend) ->
-      counter = 3
+      counter = 4
       db.presetsCollection.find().toArray((err, res) ->
         if err
           callback(err) if -- counter >= 0
@@ -198,9 +199,31 @@ refresh = (callback) ->
             return callback()
           )
       )
+
+      db.filesCollection.find().toArray((err, res) ->
+        if err
+          callback(err) if -- counter >= 0
+          counter = 0
+          return
+
+        files = {}
+        for r in res
+          id = r.filename or r._id.toString()
+          files[id] = {}
+          files[id].length = r.length
+          files[id].md5 = r.md5
+          files[id].contentType = r.contentType
+
+        if -- counter == 0
+          computeHash()
+          db.redisClient.setex("presets_hash", 300, hash, (err) ->
+            unlockOrExtend(0)
+            nextRefresh = now + REFRESH
+            return callback()
+          )
+      )
     )
   )
-
 
 
 getPresets = (callback) ->
@@ -230,6 +253,15 @@ getVirtualParameters = (callback) ->
   )
 
 
+getFiles = (callback) ->
+  if Date.now() < nextRefresh
+    return callback(null, hash, files)
+
+  refresh((err) ->
+    return callback(err, hash, files)
+  )
+
+
 getProvisionsAndVirtualParameters = (callback) ->
   if Date.now() < nextRefresh
     return callback(null, hash, provisions, virtualParameters)
@@ -240,4 +272,5 @@ getProvisionsAndVirtualParameters = (callback) ->
 
 exports.getPresets = getPresets
 exports.getProvisions = getProvisions
+exports.getFiles = getFiles
 exports.getProvisionsAndVirtualParameters = getProvisionsAndVirtualParameters

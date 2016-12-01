@@ -217,14 +217,22 @@ cpeDownload = (xml, methodRequest) ->
   el.node('Username').text(methodRequest.username ? '')
   el.node('Password').text(methodRequest.password ? '')
   el.node('FileSize').text(methodRequest.fileSize ? '0')
-  el.node('TargetFileName').text(methodRequest.TargetFileName ? '')
+  el.node('TargetFileName').text(methodRequest.targetFileName ? '')
   el.node('DelaySeconds').text(methodRequest.delaySeconds ? '0')
   el.node('SuccessURL').text(methodRequest.successUrl ? '')
   el.node('FailureURL').text(methodRequest.failureUrl ? '')
 
 
 cpeDownloadResponse = (xml) ->
-  {status : JSON.parse(xml.get('Status').text())}
+  res = {
+    status : parseInt(xml.get('Status').text()),
+  }
+
+  if res.status == 0
+    res.startTime = Date.parse(xml.get('StartTime').text())
+    res.completeTime = Date.parse(xml.get('CompleteTime').text())
+
+  return res
 
 
 acsInform = (xml) ->
@@ -255,8 +263,8 @@ acsTransferComplete = (xml) ->
   {
     commandKey : xml.get('CommandKey').text(),
     faultStruct : traverseXml(xml.get('FaultStruct')),
-    startTime : xml.get('StartTime').text(), # TODO convert to datetime
-    completeTime : xml.get('CompleteTime').text() # TODO convert to datetime
+    startTime : Date.parse(xml.get('StartTime').text()),
+    completeTime : Date.parse(xml.get('CompleteTime').text())
   }
 
 
@@ -367,7 +375,7 @@ exports.request = (httpRequest, cwmpVersion) ->
     else
       faultElement = xml.get('/soap-env:Envelope/soap-env:Body/soap-env:Fault', NAMESPACES[cwmpRequest.cwmpVersion])
       cwmpRequest.fault = fault(faultElement)
-    
+
   return cwmpRequest
 
 
@@ -425,7 +433,7 @@ exports.response = (cwmpResponse) ->
         cpeDownload(body, cwmpResponse.methodRequest)
       else
         throw Error("Unknown method request #{cwmpResponse.methodRequest.type}")
-  
+
   if env?
     headers['Content-Type'] = 'text/xml; charset="utf-8"'
     return {code: 200, headers: headers, data: new Buffer(env.doc().toString(false))}

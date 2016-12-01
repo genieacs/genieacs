@@ -104,6 +104,26 @@ inform = (currentRequest, cwmpRequest) ->
   )
 
 
+transferComplete = (currentRequest, cwmpRequest) ->
+  session.transferComplete(currentRequest.sessionData, cwmpRequest.methodRequest, (err, rpcResponse, faults) ->
+    throw err if err
+
+    for channel, fault of faults
+      if not fault.retries? and Object.keys(faults).length == 1
+        fault.retries = 0
+
+      currentRequest.sessionData.faults[channel] = fault
+      util.log("#{currentRequest.sessionData.deviceId}: Fault response for channel #{channel} (retries: #{fault.retries ? 0})")
+
+    res = soap.response({
+      id : cwmpRequest.id,
+      methodResponse : rpcResponse,
+      cwmpVersion : currentRequest.sessionData.cwmpVersion
+    })
+    writeResponse(currentRequest, res)
+  )
+
+
 testSchedule = (schedule, timestamp) ->
   range = schedule.schedule.nextRange(10, new Date(timestamp))
   prev = schedule.schedule.prevRange(1, new Date(timestamp), new Date(timestamp - schedule.duration))
@@ -207,8 +227,12 @@ applyPresets = (currentRequest) ->
         if query.testFilter(parameters, p.precondition)
           session.addProvisions(currentRequest.sessionData, p.channel, p.provisions)
 
-      session.rpcRequest(currentRequest.sessionData, null, (err, id, rpcRequest) ->
+      session.rpcRequest(currentRequest.sessionData, null, (err, id, rpcRequest, doneProvisions) ->
         throw err if err
+
+        for p, i in doneProvisions or []
+          delete currentRequest.sessionData.faults[currentRequest.sessionData.channels[i]]
+
         sendRpcRequest(currentRequest, id, rpcRequest)
       )
     )
@@ -222,8 +246,7 @@ nextRpc = (currentRequest) ->
       return sendRpcRequest(currentRequest, id, rpcRequest)
 
     for p, i in doneProvisions or []
-      if currentRequest.sessionData.faults?
-        delete currentRequest.sessionData.faults[currentRequest.sessionData.channels[i]]
+      delete currentRequest.sessionData.faults[currentRequest.sessionData.channels[i]]
 
       if p[0] == '_task'
         currentRequest.sessionData.doneTasks ?= []
@@ -257,6 +280,8 @@ nextRpc = (currentRequest) ->
           session.addProvisions(currentRequest.sessionData, "_task_#{task._id}", [['_task', task._id, 'reboot']])
         when 'factoryReset'
           session.addProvisions(currentRequest.sessionData, "_task_#{task._id}", [['_task', task._id, 'factoryReset']])
+        when 'download'
+          session.addProvisions(currentRequest.sessionData, "_task_#{task._id}", [['_task', task._id, 'download', task.fileType, task.fileName, task.targetFileName]])
         else
           throw new Error('Task name not recognized')
 
@@ -288,6 +313,28 @@ sendRpcRequest = (currentRequest, id, rpcRequest) ->
       )
     )
     return
+
+  if rpcRequest.type is 'Download'
+    if not rpcRequest.url?
+      FS_PORT = config.get('FS_PORT')
+      FS_IP = config.get('FS_IP')
+      FS_SSL = config.get('FS_SSL')
+      rpcRequest.url = if FS_SSL then 'https://' else 'http://'
+      rpcRequest.url += FS_IP
+      rpcRequest.url += ":#{FS_PORT}" if FS_PORT != 80
+      rpcRequest.url += "/#{encodeURIComponent(rpcRequest.fileName)}"
+
+    if not rpcRequest.fileSize?
+      return cache.getFiles((err, hash, files) ->
+        throw err if err
+
+        if rpcRequest.fileName of files
+          rpcRequest.fileSize = files[rpcRequest.fileName].length
+        else
+          rpcRequest.fileSize = 0
+
+        return sendRpcRequest(currentRequest, id, rpcRequest)
+      )
 
   util.log("#{currentRequest.sessionData.deviceId}: #{rpcRequest.type} (#{id})")
 
@@ -402,10 +449,11 @@ listener = (httpRequest, httpResponse) ->
 
           httpRequest.connection.setTimeout(sessionData.timeout * 1000)
 
-          db.getDueTasksAndFaults(deviceId, sessionData.timestamp, (err, dueTasks, faults) ->
+          db.getDueTasksAndFaultsAndOperations(deviceId, sessionData.timestamp, (err, dueTasks, faults, operations) ->
             throw err if err
             sessionData.tasks = dueTasks
-            sessionData.faults = faults if Object.keys(faults).length
+            sessionData.faults = faults
+            sessionData.operations = operations
 
             # Delete expired faults
             for k, v of sessionData.faults
@@ -430,6 +478,8 @@ listener = (httpRequest, httpResponse) ->
       if cwmpRequest.methodRequest?
         if cwmpRequest.methodRequest.type is 'Inform'
           inform(currentRequest, cwmpRequest)
+        else if cwmpRequest.methodRequest.type is 'TransferComplete'
+          transferComplete(currentRequest, cwmpRequest)
         else if cwmpRequest.methodRequest.type is 'GetRPCMethods'
           util.log("#{currentRequest.sessionData.deviceId}: GetRPCMethods")
           res = soap.response({
@@ -446,44 +496,17 @@ listener = (httpRequest, httpResponse) ->
           nextRpc(currentRequest)
         )
       else if cwmpRequest.fault?
-        session.rpcFault(currentRequest.sessionData, cwmpRequest.id, cwmpRequest.fault, (err, flt) ->
+        session.rpcFault(currentRequest.sessionData, cwmpRequest.id, cwmpRequest.fault, (err, faults) ->
           throw err if err
 
-          if not flt?
-            return nextRpc(currentRequest)
-
-          if not currentRequest.sessionData.provisions.length
-            throw new Error('A fault occured while trying to discover parameters to test preset preconditions: ' + JSON.stringify(flt))
-
-          faults = {}
-          currentRequest.sessionData.faults ?= {}
-
-          for p, i in currentRequest.sessionData.provisions[0]
-            channel = currentRequest.sessionData.channels[i]
-            fault = faults[channel]
-            if not fault?
-              fault = {
-                device: currentRequest.sessionData.deviceId
-                channel: channel
-                timestamp: currentRequest.sessionData.timestamp
-                provisions: []
-                fault: flt
-              }
-
-              if p[0] == '_task'
-                for t, j in currentRequest.sessionData.tasks
-                  if t._id == p[1]
-                    currentRequest.sessionData.tasks.splice(j, 1)
-                    fault.expiry = t.expiry if t.expiry?
-                    break
-
-              faults[channel] = fault
-
-            fault.provisions.push(p)
-
           for channel, fault of faults
-            if currentRequest.sessionData.faults[channel]?
-              fault.retries = (currentRequest.sessionData.faults[channel].retries ? 0) + 1
+            if channel.startsWith('_task_')
+              taskId = channel.slice(6)
+              for t, j in currentRequest.sessionData.tasks
+                if t._id == taskId
+                  currentRequest.sessionData.tasks.splice(j, 1)
+                  fault.expiry = t.expiry if t.expiry?
+                  break
 
             if not fault.retries? and Object.keys(faults).length == 1
               fault.retries = 0
@@ -491,12 +514,21 @@ listener = (httpRequest, httpResponse) ->
             currentRequest.sessionData.faults[channel] = fault
             util.log("#{currentRequest.sessionData.deviceId}: Fault response for channel #{channel} (retries: #{fault.retries ? 0})")
 
-          session.clearProvisions(currentRequest.sessionData)
           nextRpc(currentRequest)
         )
-      else
-        # cpe sent empty response. add presets
-        nextRpc(currentRequest)
+      else # CPE sent empty response
+        session.timeoutOperations(currentRequest.sessionData, (err, faults) ->
+          throw err if err
+
+          for channel, fault of faults
+            if not fault.retries? and Object.keys(faults).length == 1
+              fault.retries = 0
+
+            currentRequest.sessionData.faults[channel] = fault
+            util.log("#{currentRequest.sessionData.deviceId}: Fault response for channel #{channel} (retries: #{fault.retries ? 0})")
+
+          nextRpc(currentRequest)
+        )
     )
   )
 
