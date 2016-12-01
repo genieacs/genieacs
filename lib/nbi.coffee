@@ -386,7 +386,7 @@ listener = (request, response) ->
           version : request.headers.version,
         }
 
-        gs = new mongodb.GridStore(db.mongoDb, filename, 'w', {metadata : metadata})
+        gs = new mongodb.GridStore(db.mongoDb, filename, filename, 'w', {metadata : metadata})
         gs.open((err, gs) ->
           gs.write(body, (err, res) ->
             throw err if err
