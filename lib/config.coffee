@@ -100,7 +100,7 @@ setConfig = (name, value, commandLineArgument) ->
     if _value?
       allConfig[n] = _value
       # Save as environmnet variable to pass on to any child processes
-      process.env[n] = _value
+      process.env["GENIEACS_#{n}"] = _value
       return true
 
   return false
@@ -137,7 +137,9 @@ else
 
 # Configuration file
 for k, v of require(path.resolve(allConfig.CONFIG_DIR, 'config'))
-  setConfig(k, v)
+  if not setConfig(k, v)
+    # Pass as environment variable to be accessable by extensions
+    process.env["GENIEACS_#{k}"] = v
 
 
 # Defaults
