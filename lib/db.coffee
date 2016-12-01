@@ -583,7 +583,7 @@ clearTasks = (taskIds, callback) ->
   if not taskIds?.length
     return callback()
 
-  tasksCollection.remove({'_id' : {'$in' : (mongodb.ObjectID(id) for id in taskIds)}}, callback)
+  tasksCollection.remove({'_id' : {'$in' : (new mongodb.ObjectID(id) for id in taskIds)}}, callback)
 
 
 syncFaults = (deviceId, faults, callback) ->
@@ -623,7 +623,7 @@ syncFaults = (deviceId, faults, callback) ->
             return counter = 0
 
           if channel.startsWith('_task_')
-            return tasksCollection.update({_id: mongodb.ObjectID(channel.slice(6))}, {$set: {fault: fault.fault, retries: fault.retries}}, (err) ->
+            return tasksCollection.update({_id: new mongodb.ObjectID(channel.slice(6))}, {$set: {fault: fault.fault, retries: fault.retries}}, (err) ->
               if err
                 callback(err) if counter
                 return counter = 0

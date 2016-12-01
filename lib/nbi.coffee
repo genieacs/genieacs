@@ -260,7 +260,7 @@ listener = (request, response) ->
           db.faultsCollection.remove({_id : faultId}, (err) ->
             throw err if err
             if channel.startsWith('_task_')
-              return db.tasksCollection.remove({_id : mongodb.ObjectID(channel.slice(6))}, (err) ->
+              return db.tasksCollection.remove({_id : new mongodb.ObjectID(channel.slice(6))}, (err) ->
                 throw err if err
               )
             response.writeHead(200)
@@ -334,7 +334,7 @@ listener = (request, response) ->
         response.end('405 Method Not Allowed')
     else if TASKS_REGEX.test(urlParts.pathname)
       r = TASKS_REGEX.exec(urlParts.pathname)
-      taskId = mongodb.ObjectID(querystring.unescape(r[1]))
+      taskId = new mongodb.ObjectID(querystring.unescape(r[1]))
       action = r[2]
       if not action? or action is '/'
         if request.method == 'DELETE'
