@@ -19,7 +19,7 @@ path = require 'path'
 common = require './common'
 
 options = {
-  CONFIG_DIR : {type : 'string', default : 'config'},
+  CONFIG_DIR : {type : 'path', default : 'config'},
   MONGODB_CONNECTION_URL : {type : 'string', default : 'mongodb://127.0.0.1/genieacs'},
   REDIS_PORT : {type : 'int', default : 6379},
   REDIS_HOST : {type : 'string', default : '127.0.0.1'},
@@ -80,6 +80,8 @@ setConfig = (name, value, commandLineArgument) ->
         String(val).trim().toLowerCase() in ['true', 'on', 'yes', '1']
       when 'string'
         String(val)
+      when 'path'
+        path.resolve(val)
       else
         null
 
@@ -126,14 +128,8 @@ for k, v of process.env
   setConfig(k, v)
 
 
-# Find config dir
-if exports.argv['--config-dir']?
-  allConfig.CONFIG_DIR = exports.argv['--config-dir']
-else if process.env['GENIEACS_CONFIG_DIR']?
-  allConfig.CONFIG_DIR = process.env['GENIEACS_CONFIG_DIR']
-else
-  allConfig.CONFIG_DIR = options.CONFIG_DIR.default
-
+# Use default config dir if none defined
+setConfig('CONFIG_DIR', options['CONFIG_DIR'].default)
 
 # Configuration file
 for k, v of require(path.resolve(allConfig.CONFIG_DIR, 'config'))
