@@ -24,10 +24,11 @@ cluster.on('listening', (worker, address) ->
   util.log("Worker #{worker.process.pid} listening to #{address.address}:#{address.port}")
 )
 
-cluster.on('exit', (worker, code, signal) ->
-  util.log("Worker #{worker.process.pid} died (#{worker.process.exitCode})")
+restartWorker = (worker, code, signal) ->
+  util.log("Worker #{worker.process.pid} died (#{worker.process.exitCode}) #{signal}")
   cluster.fork()
-)
+
+cluster.on('exit', restartWorker)
 
 
 start = (service) ->
@@ -41,6 +42,17 @@ start = (service) ->
 
   for [0 ... workerProcesses]
     cluster.fork()
+
+
+process.on('SIGINT', () ->
+  cluster.removeListener('exit', restartWorker)
+)
+
+process.on('SIGTERM', () ->
+  cluster.removeListener('exit', restartWorker)
+  for id of cluster.workers
+    cluster.workers[id].kill()
+)
 
 
 exports.start = start

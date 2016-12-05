@@ -20,6 +20,8 @@ util = require 'util'
 cluster = require 'cluster'
 config = require './config'
 db = require './db'
+extensions = require './extensions'
+
 
 service = config.argv[0]
 if not service?
@@ -34,23 +36,25 @@ onConnection = require("./#{service}").onConnection
 
 server = null
 
+exit = () ->
+  setTimeout(() ->
+    process.exit(1)
+  , 30000).unref()
+
+  cluster.worker?.disconnect()
+  server.close(() ->
+    db.disconnect()
+    extensions.killAll()
+  )
+
+
 listener = (httpRequest, httpResponse) ->
   d = domain.create()
 
   d.on('error', (err) ->
     util.error("#{new Date().toISOString()} - #{err.stack}\n")
     try
-      killTimer = setTimeout(() ->
-        process.exit(1)
-      , 30000)
-
-      killTimer.unref()
-
-      cluster.worker?.disconnect()
-      server.close(() ->
-        db.disconnect()
-      )
-
+      exit()
       httpResponse.writeHead(500, {'Connection' : 'close'})
       httpResponse.end("#{err.name}: #{err.message}")
     catch err2
@@ -85,3 +89,7 @@ db.connect((err) ->
   throw err if err
   server.listen(port, networkInterface)
 )
+
+
+process.on('SIGINT', exit)
+process.on('SIGTERM', exit)
