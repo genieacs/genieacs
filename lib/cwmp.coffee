@@ -207,8 +207,11 @@ applyPresets = (currentRequest) ->
     for k, v of parameters
       declarations.push([v, 1, {value: 1}])
 
-    session.rpcRequest(currentRequest.sessionData, declarations, (err, id, rpcRequest) ->
+    session.rpcRequest(currentRequest.sessionData, declarations, (err, faults, id, rpcRequest) ->
       throw err if err
+
+      if faults?
+        throw new Error('A fault occured while trying to discover parameters to test preset preconditions: ' + JSON.stringify(faults))
 
       if rpcRequest?
         return sendRpcRequest(currentRequest, id, rpcRequest)
@@ -227,8 +230,17 @@ applyPresets = (currentRequest) ->
         if query.testFilter(parameters, p.precondition)
           session.addProvisions(currentRequest.sessionData, p.channel, p.provisions)
 
-      session.rpcRequest(currentRequest.sessionData, null, (err, id, rpcRequest, doneProvisions) ->
+      session.rpcRequest(currentRequest.sessionData, null, (err, faults, id, rpcRequest, doneProvisions) ->
         throw err if err
+
+        if faults?
+          for channel, fault of faults
+            if not fault.retries? and Object.keys(faults).length == 1
+              fault.retries = 0
+            currentRequest.sessionData.faults[channel] = fault
+            util.log("#{currentRequest.sessionData.deviceId}: Fault response for channel #{channel} (retries: #{fault.retries ? 0})")
+
+          return nextRpc(currentRequest)
 
         for p, i in doneProvisions or []
           delete currentRequest.sessionData.faults[currentRequest.sessionData.channels[i]]
@@ -240,8 +252,26 @@ applyPresets = (currentRequest) ->
 
 
 nextRpc = (currentRequest) ->
-  session.rpcRequest(currentRequest.sessionData, null, (err, id, rpcRequest, doneProvisions) ->
+  session.rpcRequest(currentRequest.sessionData, null, (err, faults, id, rpcRequest, doneProvisions) ->
     throw err if err
+
+    if faults?
+      for channel, fault of faults
+        if channel.startsWith('_task_')
+          taskId = channel.slice(6)
+          for t, j in currentRequest.sessionData.tasks
+            if t._id == taskId
+              currentRequest.sessionData.tasks.splice(j, 1)
+              fault.expiry = t.expiry if t.expiry?
+              break
+
+        if not fault.retries? and Object.keys(faults).length == 1
+          fault.retries = 0
+        currentRequest.sessionData.faults[channel] = fault
+        util.log("#{currentRequest.sessionData.deviceId}: Fault response for channel #{channel} (retries: #{fault.retries ? 0})")
+
+      return nextRpc(currentRequest)
+
     if rpcRequest?
       return sendRpcRequest(currentRequest, id, rpcRequest)
 

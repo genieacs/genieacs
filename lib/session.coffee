@@ -21,7 +21,6 @@ db = require './db'
 device = require './device'
 sandbox = require './sandbox'
 cache = require './cache'
-extensions = require './extensions'
 PathSet = require './path-set'
 VersionedMap = require './versioned-map'
 InstanceSet = require './instance-set'
@@ -379,12 +378,12 @@ runProvisions = (sessionData, provisions, startRevision, endRevision, callback) 
     sandbox.run(sessionData.cache.provisions[provision[0]].script,
       {args: provision[1]}, sessionData.timestamp, sessionData.deviceData,
       sessionData.extensionsCache, startRevision, endRevision,
-      (err, _clear, _declarations, _done) ->
+      (err, _fault, _clear, _declarations, _done) ->
         -- counter
-        if err
+        if err or _fault
           if counter >= 0
             counter = 0
-            return callback(err)
+            return callback(err, _fault)
           return
 
         done &&= _done
@@ -396,11 +395,11 @@ runProvisions = (sessionData, provisions, startRevision, endRevision, callback) 
           allClear = allClear.concat(_clear)
 
         if counter == 0
-          return callback(null, done, allDeclarations, allClear)
+          return callback(null, null, done, allDeclarations, allClear)
       )
 
   if -- counter == 0
-    return callback(null, done, allDeclarations, allClear)
+    return callback(null, null, done, allDeclarations, allClear)
 
 
 runVirtualParameters = (sessionData, provisions, startRevision, endRevision, callback) ->
@@ -415,12 +414,12 @@ runVirtualParameters = (sessionData, provisions, startRevision, endRevision, cal
     sandbox.run(sessionData.cache.virtualParameters[provision[0]].script, globals,
       sessionData.timestamp, sessionData.deviceData,
       sessionData.extensionsCache, startRevision, endRevision,
-      (err, _clear, _declarations, _done, _returnValue) ->
+      (err, _fault, _clear, _declarations, _done, _returnValue) ->
         -- counter
-        if err
+        if err or _fault
           if counter >= 0
             counter = 0
-            return callback(err)
+            return callback(err, _fault)
           return
 
         done &&= _done
@@ -441,7 +440,7 @@ runVirtualParameters = (sessionData, provisions, startRevision, endRevision, cal
               toClear = commitVirtualParameter(sessionData, provisions[i], vpu, toClear)
 
           clear(sessionData, toClear, (err) ->
-            return callback(err, done, allDeclarations, allClear)
+            return callback(err, null, done, allDeclarations, allClear)
           )
       )
 
@@ -452,7 +451,7 @@ runVirtualParameters = (sessionData, provisions, startRevision, endRevision, cal
         toClear = commitVirtualParameter(sessionData, provisions[i], vpu, toClear)
 
     clear(sessionData, toClear, (err) ->
-      return callback(err, done, allDeclarations, allClear)
+      return callback(err, null, done, allDeclarations, allClear)
     )
 
 
@@ -586,7 +585,7 @@ runDeclarations = (sessionData, declarations) ->
 
 rpcRequest = (sessionData, _declarations, callback) ->
   if sessionData.rpcRequest?
-    return callback(null, generateRpcId(sessionData), sessionData.rpcRequest)
+    return callback(null, null, generateRpcId(sessionData), sessionData.rpcRequest)
 
   if sessionData.declarations.length < sessionData.provisions.length
     inception = sessionData.declarations.length
@@ -595,8 +594,32 @@ rpcRequest = (sessionData, _declarations, callback) ->
     sessionData.deviceData.attributes.revision = revision
     run = if inception == 0 then runProvisions else runVirtualParameters
 
-    return run(sessionData, sessionData.provisions[inception], sessionData.revisions[inception - 1] ? 0, sessionData.revisions[inception], (err, done, decs, toClear) ->
+    return run(sessionData, sessionData.provisions[inception], sessionData.revisions[inception - 1] ? 0, sessionData.revisions[inception], (err, fault, done, decs, toClear) ->
       return callback(err) if err
+
+      if fault
+        faults = {}
+        for p, i in sessionData.provisions[0]
+          channel = sessionData.channels[i]
+          f = faults[channel]
+          if not f?
+            f = {
+              provisions: []
+              timestamp: sessionData.timestamp
+              code: fault.code
+              message: fault.message
+              detail: fault.detail
+            }
+
+            if sessionData.faults[channel]?
+              f.retries = (sessionData.faults[channel].retries or 0) + 1
+
+            faults[channel] = f
+
+          f.provisions.push(p)
+
+        clearProvisions(sessionData)
+        return callback(null, faults)
 
       sessionData.declarations.push(decs)
       sessionData.doneProvisions |= 1 << inception if done or not decs.length
@@ -777,7 +800,7 @@ rpcRequest = (sessionData, _declarations, callback) ->
     return rpcRequest(sessionData, null, callback)
 
   if sessionData.rpcRequest
-    return callback(null, generateRpcId(sessionData), sessionData.rpcRequest)
+    return callback(null, null, generateRpcId(sessionData), sessionData.rpcRequest)
 
   ++ sessionData.revisions[inception]
   sessionData.declarations.pop()
@@ -791,7 +814,7 @@ rpcRequest = (sessionData, _declarations, callback) ->
       sessionData.deviceData.timestamps.collapse(1)
       sessionData.deviceData.attributes.collapse(1)
       sessionData.extensionsCache = {}
-      return callback(null, null, null, doneProvisions)
+      return callback(null, null, null, null, doneProvisions)
 
     rev = sessionData.revisions[sessionData.revisions.length - 1]
     sessionData.deviceData.timestamps.collapse(rev + 1)
