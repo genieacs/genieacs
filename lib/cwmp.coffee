@@ -442,6 +442,7 @@ listener = (httpRequest, httpResponse) ->
         if cwmpRequest.methodRequest?.type isnt 'Inform'
           httpResponse.writeHead(400)
           httpResponse.end('Session is expired')
+          util.log("Session timeout occured")
           return
 
         deviceId = common.generateDeviceId(cwmpRequest.methodRequest.deviceId)
