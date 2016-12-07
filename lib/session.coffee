@@ -168,14 +168,14 @@ transferComplete = (sessionData, rpcReq, callback) ->
   sessionData.operationsTouched ?= {}
   sessionData.operationsTouched[commandKey] = 1
 
-  if rpcReq.faultStruct? and rpcReq.faultStruct.FaultCode != '0'
+  if rpcReq.faultStruct? and rpcReq.faultStruct.faultCode != '0'
     return revertDownloadParameters(sessionData, operation.args.instance, (err) ->
       for channel, provisions of operation.provisions
         faults[channel] = {
           provisions: provisions
           timestamp: sessionData.timestamp
-          code: "cwmp.#{rpcReq.faultStruct['FaultCode']}"
-          message: rpcReq.faultStruct['FaultString']
+          code: "cwmp.#{rpcReq.faultStruct.faultCode}"
+          message: rpcReq.faultStruct.faultString
           detail: rpcReq.faultStruct
         }
 
@@ -1546,9 +1546,9 @@ rpcFault = (sessionData, id, faultResponse, callback) ->
       fault = {
         provisions: []
         timestamp: sessionData.timestamp
-        code: "cwmp.#{faultResponse.detail.Fault['FaultCode']}"
-        message: faultResponse.detail.Fault['FaultString']
-        detail: faultResponse.detail.Fault
+        code: "cwmp.#{faultResponse.detail.faultCode}"
+        message: faultResponse.detail.faultString
+        detail: faultResponse.detail
       }
 
       if sessionData.faults[channel]?

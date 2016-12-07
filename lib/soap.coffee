@@ -238,7 +238,12 @@ cpeDownloadResponse = (xml) ->
 acsInform = (xml) ->
   {
     parameterList : parameterValueList(xml.get('ParameterList')),
-    deviceId : traverseXml(xml.get('DeviceId')),
+    deviceId : {
+      'Manufacturer' : xml.get('DeviceId/Manufacturer').text(),
+      'OUI' : xml.get('DeviceId/OUI').text(),
+      'ProductClass' : xml.get('DeviceId/ProductClass').text(),
+      'SerialNumber' : xml.get('DeviceId/SerialNumber').text()
+    }
     event : event(xml.get('Event')),
     retryCount : parseInt(xml.get('RetryCount').text())
   }
@@ -262,7 +267,7 @@ acsGetRPCMethodsResponse = (xml, methodResponse) ->
 acsTransferComplete = (xml) ->
   {
     commandKey : xml.get('CommandKey').text(),
-    faultStruct : traverseXml(xml.get('FaultStruct')),
+    faultStruct : faultStruct(xml.get('FaultStruct')),
     startTime : Date.parse(xml.get('StartTime').text()),
     completeTime : Date.parse(xml.get('CompleteTime').text())
   }
@@ -283,20 +288,29 @@ acsRequestDownloadResponse = (xml, methodResponse) ->
   xml.node('cwmp:RequestDownloadResponse').text('')
 
 
-traverseXml = (xml) ->
-  obj = {}
-  for n in xml.childNodes()
-    if n.type() == 'element'
-      obj[n.name()] = traverseXml(n)
+faultStruct = (xml) ->
+  f = {
+    faultCode: xml.get('FaultCode').text(),
+    faultString: xml.get('FaultString').text()
+  }
 
-  if Object.keys(obj).length == 0
-    xml.text()
-  else
-    obj
+  for e in xml.find('SetParameterValuesFault')
+    f.setParameterValuesFault ?= []
+    f.setParameterValuesFault.push({
+      parameterName: e.get('ParameterName').text(),
+      faultCode: e.get('FaultCode').text(),
+      faultString: e.get('FaultString').text()
+    })
+
+  return f
 
 
-fault = (xml) ->
-  return traverseXml(xml)
+fault = (xml, cwmpVersion) ->
+  {
+    faultCode: xml.get('faultcode').text(),
+    faultString: xml.get('faultstring').text(),
+    detail: faultStruct(xml.get('detail/cwmp:Fault', NAMESPACES[cwmpVersion]))
+  }
 
 
 exports.request = (httpRequest, cwmpVersion) ->
@@ -374,7 +388,7 @@ exports.request = (httpRequest, cwmpVersion) ->
           throw Error('8000 Method not supported ' + methodElement.name())
     else
       faultElement = xml.get('/soap-env:Envelope/soap-env:Body/soap-env:Fault', NAMESPACES[cwmpRequest.cwmpVersion])
-      cwmpRequest.fault = fault(faultElement)
+      cwmpRequest.fault = fault(faultElement, cwmpRequest.cwmpVersion)
 
   return cwmpRequest
 
