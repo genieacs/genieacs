@@ -483,6 +483,9 @@ listener = (httpRequest, httpResponse) ->
             throw err if err
             sessionData.tasks = dueTasks
             sessionData.faults = faults
+            sessionData.retries = {}
+            for k, v of faults
+              sessionData.retries[k] = v.retries
             sessionData.operations = operations
 
             # Delete expired faults

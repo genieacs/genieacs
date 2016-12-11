@@ -103,9 +103,6 @@ loadParameters = (sessionData, callback) ->
 
 
 generateRpcId = (sessionData) ->
-  if sessionData.rpcCount > 255 or sessionData.revisions.length > 15
-    throw new Error('Too many RPCs')
-
   return sessionData.timestamp.toString(16) + "0#{sessionData.rpcCount.toString(16)}".slice(-2)
 
 
@@ -611,8 +608,8 @@ rpcRequest = (sessionData, _declarations, callback) ->
               detail: fault.detail
             }
 
-            if sessionData.faults[channel]?
-              f.retries = (sessionData.faults[channel].retries or 0) + 1
+            if sessionData.retries[channel]?
+              f.retries = sessionData.retries[channel] + 1
 
             faults[channel] = f
 
@@ -685,6 +682,32 @@ rpcRequest = (sessionData, _declarations, callback) ->
 
   if not sessionData.syncState?
     return callback()
+
+  if sessionData.rpcCount >= 255 or
+      sessionData.revisions.length >= 8 or
+      sessionData.iteration >= 64
+
+    faults = {}
+    for p, i in sessionData.provisions[0]
+      channel = sessionData.channels[i]
+      fault = faults[channel]
+      if not fault?
+        fault = {
+          provisions: []
+          timestamp: sessionData.timestamp
+          code: 'endless_cycle'
+          message: 'The provision seems to be repeating indefinitely'
+        }
+
+        if sessionData.retries[channel]?
+          fault.retries = sessionData.retries[channel] + 1
+
+        faults[channel] = fault
+
+      fault.provisions.push(p)
+
+    clearProvisions(sessionData)
+    return callback(null, faults)
 
   inception = sessionData.declarations.length - 1
 
@@ -1551,8 +1574,8 @@ rpcFault = (sessionData, id, faultResponse, callback) ->
         detail: faultResponse.detail
       }
 
-      if sessionData.faults[channel]?
-        fault.retries = (sessionData.faults[channel].retries or 0) + 1
+      if sessionData.retries[channel]?
+        fault.retries = sessionData.retries[channel] + 1
 
       faults[channel] = fault
 
