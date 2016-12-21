@@ -83,6 +83,41 @@ writeResponse = (currentRequest, res) ->
     currentRequest.httpResponse.end(res.data)
 
 
+recordFault = (sessionData, fault, provisions, channels) ->
+  faults = sessionData.faults
+
+  for channel of channels
+    provs = sessionData.faults[channel]?.provisions or []
+    faults[channel] = Object.assign({provisions: provs}, fault)
+
+    if sessionData.retries[channel]?
+      ++ sessionData.retries[channel]
+    else
+      sessionData.retries[channel] = 0
+      if Object.keys(channels).length != 1
+        faults[channel].retryNow = true
+
+    if channels[channel] == 0
+      faults[channel].precondition = true
+
+    sessionData.faultsTouched ?= {}
+    sessionData.faultsTouched[channel] = true
+    util.log("#{sessionData.deviceId}: Fault occurred in channel #{channel} (retries: #{sessionData.retries[channel]})")
+
+  for provision, i in provisions
+    for channel of channels
+      if (channels[channel] >> i) & 1
+        faults[channel].provisions.push(provision)
+
+  for channel of channels
+    provs = faults[channel].provisions
+    faults[channel].provisions = []
+    appendProvisions(faults[channel].provisions, provs)
+
+  session.clearProvisions(sessionData)
+  return
+
+
 inform = (currentRequest, cwmpRequest) ->
   if config.get('LOG_INFORMS', currentRequest.sessionData.deviceId)
     util.log("#{currentRequest.sessionData.deviceId}: Inform (#{cwmpRequest.methodRequest.event}); retry count #{cwmpRequest.methodRequest.retryCount}")
@@ -105,15 +140,14 @@ inform = (currentRequest, cwmpRequest) ->
 
 
 transferComplete = (currentRequest, cwmpRequest) ->
-  session.transferComplete(currentRequest.sessionData, cwmpRequest.methodRequest, (err, rpcResponse, faults) ->
+  session.transferComplete(currentRequest.sessionData, cwmpRequest.methodRequest, (err, rpcResponse, fault, operation) ->
     throw err if err
 
-    for channel, fault of faults
-      if not fault.retries? and Object.keys(faults).length == 1
-        fault.retries = 0
+    if fault
+      for k, v of operation.retries
+        currentRequest.sessionData.retries[k] = v
 
-      currentRequest.sessionData.faults[channel] = fault
-      util.log("#{currentRequest.sessionData.deviceId}: Fault response for channel #{channel} (retries: #{fault.retries ? 0})")
+      recordFault(currentRequest.sessionData, fault, operation.provisions, operation.channels)
 
     res = soap.response({
       id : cwmpRequest.id,
@@ -146,12 +180,37 @@ testSchedule = (schedule, timestamp) ->
     return [false, first - timestamp]
 
 
+# Append providions and remove duplicates
+appendProvisions = (original, toAppend) ->
+  modified = false
+  stringified = new WeakMap()
+  for p, i in original
+    stringified.set(p, JSON.stringify(p))
+
+  for p, i in toAppend by -1
+    s = JSON.stringify(p)
+    for pp, j in original by -1
+      ss = stringified.get(pp)
+      if s == ss
+        if (not p) or j >= original.length - (toAppend.length - i)
+          p = null
+        else
+          original.splice(j, 1)
+          modified = true
+    if p
+      original.splice(original.length - (toAppend.length - i) + 1, 0, p)
+      stringified.set(p, s)
+      modified = true
+
+  return modified
+
+
 applyPresets = (currentRequest) ->
   cache.getPresets((err, presetsHash, presets) ->
     throw err if err
 
     # Filter presets based on existing faults
-    blackList = null
+    blackList = {}
     whiteList = null
     whiteListProvisions = null
 
@@ -159,18 +218,17 @@ applyPresets = (currentRequest) ->
 
     if currentRequest.sessionData.faults?
       for channel, fault of currentRequest.sessionData.faults
-        if fault.retries?
-          retryTimestamp = fault.timestamp + (RETRY_DELAY * Math.pow(2, fault.retries)) * 1000
-        else
+        if fault.retryNow
           retryTimestamp = 0
+        else
+          retryTimestamp = fault.timestamp + (RETRY_DELAY * Math.pow(2, currentRequest.sessionData.retries[channel])) * 1000
 
         if retryTimestamp <= currentRequest.sessionData.timestamp
           whiteList = channel
           whiteListProvisions = fault.provisions
           break
 
-        blackList ?= []
-        blackList.push(channel)
+        blackList[channel] = if fault.precondition then 1 else 2
 
     currentRequest.sessionData.presetsHash = presetsHash
 
@@ -183,23 +241,24 @@ applyPresets = (currentRequest) ->
     parameters = {}
     filteredPresets = []
 
-    for p in presets
+    for preset in presets
       if whiteList?
-        continue if p.channel != whiteList
-      else if blackList and p.channel in blackList
+        continue if preset.channel != whiteList
+      else if blackList[channel] == 1
         continue
 
       eventsMatch = true
-      for k, v of p.events
+      for k, v of preset.events
         if (!v) != (!deviceEvents[k.replace(' ', '_')])
           eventsMatch = false
           break
 
-      continue if (not eventsMatch) or (p.schedule and not
-        (p.schedule.schedule and testSchedule(p.schedule, currentRequest.sessionData.timestamp)[0]))
+      continue if (not eventsMatch) or (preset.schedule and not
+        (preset.schedule.schedule and testSchedule(preset.schedule, currentRequest.sessionData.timestamp)[0]))
 
-      filteredPresets.push(p)
-      for k of p.precondition
+      filteredPresets.push(preset)
+      for k of preset.precondition
+        currentRequest.sessionData.channels[preset.channel] = 0
         p = k.split(/([^a-zA-Z0-9\-\_\.].*)/, 1)[0]
         parameters[p] = common.parsePath(p)
 
@@ -207,14 +266,18 @@ applyPresets = (currentRequest) ->
     for k, v of parameters
       declarations.push([v, 1, {value: 1}])
 
-    session.rpcRequest(currentRequest.sessionData, declarations, (err, faults, id, rpcRequest) ->
+    session.rpcRequest(currentRequest.sessionData, declarations, (err, fault, id, rpcRequest) ->
       throw err if err
 
-      if faults?
-        throw new Error('A fault occured while trying to discover parameters to test preset preconditions: ' + JSON.stringify(faults))
+      if fault
+        recordFault(currentRequest.sessionData, fault, currentRequest.sessionData.provisions, currentRequest.sessionData.channels)
+        session.clearProvisions(currentRequest.sessionData)
+        return applyPresets(currentRequest)
 
       if rpcRequest?
         return sendRpcRequest(currentRequest, id, rpcRequest)
+
+      session.clearProvisions(currentRequest.sessionData)
 
       for k, v of parameters
         unpacked = device.unpack(currentRequest.sessionData.deviceData, v)
@@ -226,24 +289,37 @@ applyPresets = (currentRequest) ->
       if whiteList?
         session.addProvisions(currentRequest.sessionData, whiteList, whiteListProvisions)
 
+      appendProvisionsToFaults = {}
       for p in filteredPresets
         if query.testFilter(parameters, p.precondition)
-          session.addProvisions(currentRequest.sessionData, p.channel, p.provisions)
+          if blackList[p.channel] == 2
+            appendProvisionsToFaults[p.channel] =
+              (appendProvisionsToFaults[p.channel] or []).concat(p.provisions)
+          else
+            session.addProvisions(currentRequest.sessionData, p.channel, p.provisions)
 
-      session.rpcRequest(currentRequest.sessionData, null, (err, faults, id, rpcRequest, doneProvisions) ->
+      for channel, provisions of appendProvisionsToFaults
+        if appendProvisions(currentRequest.sessionData.faults[channel].provisions, provisions)
+          currentRequest.sessionData.faultsTouched ?= {}
+          currentRequest.sessionData.faultsTouched[channel] = true
+
+      session.rpcRequest(currentRequest.sessionData, null, (err, fault, id, rpcRequest) ->
         throw err if err
 
-        if faults?
-          for channel, fault of faults
-            if not fault.retries? and Object.keys(faults).length == 1
-              fault.retries = 0
-            currentRequest.sessionData.faults[channel] = fault
-            util.log("#{currentRequest.sessionData.deviceId}: Fault response for channel #{channel} (retries: #{fault.retries ? 0})")
+        if fault
+          recordFault(currentRequest.sessionData, fault, currentRequest.sessionData.provisions, currentRequest.sessionData.channels)
+          session.clearProvisions(currentRequest.sessionData)
+          return applyPresets(currentRequest)
 
-          return nextRpc(currentRequest)
+        if not rpcRequest?
+          for channel, flags of currentRequest.sessionData.channels
+            if flags and channel of currentRequest.sessionData.faults
+              delete currentRequest.sessionData.faults[channel]
+              currentRequest.sessionData.faultsTouched ?= {}
+              currentRequest.sessionData.faultsTouched[channel] = true
 
-        for p, i in doneProvisions or []
-          delete currentRequest.sessionData.faults[currentRequest.sessionData.channels[i]]
+          if whiteList?
+            return applyPresets(currentRequest)
 
         sendRpcRequest(currentRequest, id, rpcRequest)
       )
@@ -252,11 +328,11 @@ applyPresets = (currentRequest) ->
 
 
 nextRpc = (currentRequest) ->
-  session.rpcRequest(currentRequest.sessionData, null, (err, faults, id, rpcRequest, doneProvisions) ->
+  session.rpcRequest(currentRequest.sessionData, null, (err, fault, id, rpcRequest) ->
     throw err if err
 
-    if faults?
-      for channel, fault of faults
+    if fault
+      for channel of currentRequest.sessionData.channels
         if channel.startsWith('_task_')
           taskId = channel.slice(6)
           for t, j in currentRequest.sessionData.tasks
@@ -265,19 +341,20 @@ nextRpc = (currentRequest) ->
               fault.expiry = t.expiry if t.expiry?
               break
 
-        if not fault.retries? and Object.keys(faults).length == 1
-          fault.retries = 0
-        currentRequest.sessionData.faults[channel] = fault
-        util.log("#{currentRequest.sessionData.deviceId}: Fault response for channel #{channel} (retries: #{fault.retries ? 0})")
-
+      recordFault(currentRequest.sessionData, fault, currentRequest.sessionData.provisions, currentRequest.sessionData.channels)
+      session.clearProvisions(currentRequest.sessionData)
       return nextRpc(currentRequest)
 
     if rpcRequest?
       return sendRpcRequest(currentRequest, id, rpcRequest)
 
-    for p, i in doneProvisions or []
-      delete currentRequest.sessionData.faults[currentRequest.sessionData.channels[i]]
+    for channel, flags of currentRequest.sessionData.channels
+      if flags and channel of currentRequest.sessionData.faults
+        delete currentRequest.sessionData.faults[channel]
+        currentRequest.sessionData.faultsTouched ?= {}
+        currentRequest.sessionData.faultsTouched[channel] = true
 
+    for p in currentRequest.sessionData.provisions
       if p[0] == '_task'
         currentRequest.sessionData.doneTasks ?= []
         currentRequest.sessionData.doneTasks.push(p[1])
@@ -285,6 +362,8 @@ nextRpc = (currentRequest) ->
           if String(t._id) == p[1]
             currentRequest.sessionData.tasks.splice(j, 1)
             break
+
+    session.clearProvisions(currentRequest.sessionData)
 
     for task in currentRequest.sessionData.tasks
       # Delete if expired
@@ -333,13 +412,32 @@ sendRpcRequest = (currentRequest, id, rpcRequest) ->
       db.clearTasks(currentRequest.sessionData.doneTasks, (err) ->
         throw err if err
 
-        if not currentRequest.sessionData.faults?
-          return writeResponse(currentRequest, soap.response(null))
+        counter = 1
 
-        db.syncFaults(currentRequest.sessionData.deviceId, currentRequest.sessionData.faults, (err) ->
-          throw err if err
-          writeResponse(currentRequest, soap.response(null))
-        )
+        for k of currentRequest.sessionData.faultsTouched
+          ++ counter
+          if currentRequest.sessionData.faults[k]
+            currentRequest.sessionData.faults[k].retries = currentRequest.sessionData.retries[k]
+            db.saveFault(currentRequest.sessionData.deviceId, k, currentRequest.sessionData.faults[k], (err) ->
+              -- counter
+              if err and counter >= 0
+                throw err
+
+              if counter == 0
+                return writeResponse(currentRequest, soap.response(null))
+            )
+          else
+            db.deleteFault(currentRequest.sessionData.deviceId, k, (err) ->
+              -- counter
+              if err and counter >= 0
+                throw err
+
+              if counter == 0
+                return writeResponse(currentRequest, soap.response(null))
+            )
+
+        if -- counter == 0
+          return writeResponse(currentRequest, soap.response(null))
       )
     )
     return
@@ -490,7 +588,10 @@ listener = (httpRequest, httpResponse) ->
 
             # Delete expired faults
             for k, v of sessionData.faults
-              delete sessionData.faults[k] if v.expiry >= sessionData.timestamp
+              if v.expiry >= sessionData.timestamp
+                delete sessionData.faults[k]
+                sessionData.faultsTouched ?= {}
+                sessionData.faultsTouched[k] = true
 
             f(null, sessionData)
           )
@@ -529,36 +630,32 @@ listener = (httpRequest, httpResponse) ->
           nextRpc(currentRequest)
         )
       else if cwmpRequest.fault?
-        session.rpcFault(currentRequest.sessionData, cwmpRequest.id, cwmpRequest.fault, (err, faults) ->
+        session.rpcFault(currentRequest.sessionData, cwmpRequest.id, cwmpRequest.fault, (err, fault) ->
           throw err if err
 
-          for channel, fault of faults
-            if channel.startsWith('_task_')
-              taskId = channel.slice(6)
-              for t, j in currentRequest.sessionData.tasks
-                if t._id == taskId
-                  currentRequest.sessionData.tasks.splice(j, 1)
-                  fault.expiry = t.expiry if t.expiry?
-                  break
+          if fault
+            for channel of currentRequest.sessionData.channels
+              if channel.startsWith('_task_')
+                taskId = channel.slice(6)
+                for t, j in currentRequest.sessionData.tasks
+                  if t._id == taskId
+                    currentRequest.sessionData.tasks.splice(j, 1)
+                    fault.expiry = t.expiry if t.expiry?
+                    break
 
-            if not fault.retries? and Object.keys(faults).length == 1
-              fault.retries = 0
-
-            currentRequest.sessionData.faults[channel] = fault
-            util.log("#{currentRequest.sessionData.deviceId}: Fault response for channel #{channel} (retries: #{fault.retries ? 0})")
-
+            recordFault(currentRequest.sessionData, fault, currentRequest.sessionData.provisions, currentRequest.sessionData.channels)
+            session.clearProvisions(currentRequest.sessionData)
           nextRpc(currentRequest)
         )
       else # CPE sent empty response
-        session.timeoutOperations(currentRequest.sessionData, (err, faults) ->
+        session.timeoutOperations(currentRequest.sessionData, (err, faults, operations) ->
           throw err if err
 
-          for channel, fault of faults
-            if not fault.retries? and Object.keys(faults).length == 1
-              fault.retries = 0
+          for fault, i in faults
+            for k, v of operations[i].retries
+              sessionData.retries[k] = v
 
-            currentRequest.sessionData.faults[channel] = fault
-            util.log("#{currentRequest.sessionData.deviceId}: Fault response for channel #{channel} (retries: #{fault.retries ? 0})")
+            recordFault(currentRequest.sessionData, fault, operations[i].provisions, operations[i].channels)
 
           nextRpc(currentRequest)
         )

@@ -527,6 +527,7 @@ getFaults = (deviceId, callback) ->
       delete r.device
       r.timestamp = +r.timestamp
       r.expiry = +r.expiry if r.expiry?
+      r.provisions = JSON.parse(r.provisions)
       faults[channel] = r
 
     CACHE_DURATION = config.get('PRESETS_CACHE_DURATION', deviceId)
@@ -534,6 +535,25 @@ getFaults = (deviceId, callback) ->
     redisClient.setex("#{deviceId}_faults", CACHE_DURATION, JSON.stringify(faults), (err) ->
       callback(err, faults)
     )
+  )
+
+
+saveFault = (deviceId, channel, fault, callback) ->
+  fault._id = "#{deviceId}:#{channel}"
+  fault.device = deviceId
+  fault.channel = channel
+  fault.timestamp = new Date(fault.timestamp)
+  fault.provisions = JSON.stringify(fault.provisions)
+  faultsCollection.save(fault, (err) ->
+    return callback(err) if err
+    redisClient.del("#{deviceId}_faults", callback)
+  )
+
+
+deleteFault = (deviceId, channel, callback) ->
+  faultsCollection.remove({_id: "#{deviceId}:#{channel}"}, (err) ->
+    return callback(err) if err
+    redisClient.del("#{deviceId}_faults", callback)
   )
 
 
@@ -586,61 +606,6 @@ clearTasks = (taskIds, callback) ->
   tasksCollection.remove({'_id' : {'$in' : (new mongodb.ObjectID(id) for id in taskIds)}}, callback)
 
 
-syncFaults = (deviceId, faults, callback) ->
-  getFaults(deviceId, (err, existingFaults) ->
-    return callback(err) if err
-
-    counter = 1
-    toDelete = []
-    for k of existingFaults
-      if k not of faults
-        toDelete.push("#{deviceId}:#{k}")
-
-    if toDelete.length
-      ++ counter
-      faultsCollection.remove({'_id' : {'$in' : toDelete}}, (err) ->
-        if err
-          callback(err) if counter
-          return counter = 0
-
-        if -- counter == 0
-          return redisClient.del("#{deviceId}_faults", callback)
-      )
-
-    for channel, fault of faults
-      continue if existingFaults[channel]? and fault.retries == existingFaults[channel].retries
-      do (channel, fault) ->
-        ++ counter
-        fault._id = "#{deviceId}:#{channel}"
-        fault.device = deviceId
-        fault.channel = channel
-        fault.timestamp = new Date(fault.timestamp)
-        fault.expiry = new Date(fault.expiry) if fault.expiry?
-
-        faultsCollection.save(fault, (err) ->
-          if err
-            callback(err) if counter
-            return counter = 0
-
-          if channel.startsWith('_task_')
-            return tasksCollection.update({_id: new mongodb.ObjectID(channel.slice(6))}, {$set: {fault: fault.fault, retries: fault.retries}}, (err) ->
-              if err
-                callback(err) if counter
-                return counter = 0
-
-              if -- counter == 0
-                return redisClient.del("#{deviceId}_faults", callback)
-            )
-          else
-            if -- counter == 0
-              return redisClient.del("#{deviceId}_faults", callback)
-        )
-
-    if -- counter == 0
-      return callback()
-  )
-
-
 getOperations = (deviceId, callback) ->
   operationsCollection.find({'_id' : {'$regex' : "^#{common.escapeRegExp(deviceId)}\\:"}}).toArray((err, res) ->
     return callback(err) if err
@@ -687,7 +652,9 @@ exports.disconnect = disconnect
 exports.fetchDevice = fetchDevice
 exports.saveDevice = saveDevice
 exports.getDueTasksAndFaultsAndOperations = getDueTasksAndFaultsAndOperations
+exports.getFaults = getFaults
+exports.saveFault = saveFault
+exports.deleteFault = deleteFault
 exports.clearTasks = clearTasks
-exports.syncFaults = syncFaults
 exports.saveOperation = saveOperation
 exports.deleteOperation = deleteOperation

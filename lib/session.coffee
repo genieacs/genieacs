@@ -47,8 +47,9 @@ init = (deviceId, cwmpVersion, timeout, callback) ->
     cwmpVersion : cwmpVersion
     timeout : timeout
     provisions: []
-    channels: []
-    revisions: []
+    channels: {}
+    virtualParameters: []
+    revisions: [0]
     rpcCount: 0
     iteration: 0
     extensionsCache: {}
@@ -159,7 +160,6 @@ transferComplete = (sessionData, rpcReq, callback) ->
     # TODO Show a warning instead
     throw new Error('Invalid command key')
   instance = operation.args.instance
-  faults = {}
 
   delete sessionData.operations[commandKey]
   sessionData.operationsTouched ?= {}
@@ -167,19 +167,14 @@ transferComplete = (sessionData, rpcReq, callback) ->
 
   if rpcReq.faultStruct? and rpcReq.faultStruct.faultCode != '0'
     return revertDownloadParameters(sessionData, operation.args.instance, (err) ->
-      for channel, provisions of operation.provisions
-        faults[channel] = {
-          provisions: provisions
-          timestamp: sessionData.timestamp
-          code: "cwmp.#{rpcReq.faultStruct.faultCode}"
-          message: rpcReq.faultStruct.faultString
-          detail: rpcReq.faultStruct
-        }
+      fault = {
+        code: "cwmp.#{rpcReq.faultStruct.faultCode}"
+        message: rpcReq.faultStruct.faultString
+        detail: rpcReq.faultStruct
+        timestamp: operation.timestamp
+      }
 
-        if operation.retries[channel]?
-          faults[channel].retries = operation.retries[channel] + 1
-
-      return callback(err, {type : 'TransferCompleteResponse'}, faults)
+      return callback(err, {type : 'TransferCompleteResponse'}, fault, operation)
     )
 
   loadPath(sessionData, ['Downloads', instance, '*'])
@@ -215,7 +210,7 @@ transferComplete = (sessionData, rpcReq, callback) ->
       {value: [timestamp, [+rpcReq.completeTime, 'xsd:dateTime']]}, toClear)
 
     clear(sessionData, toClear, (err) ->
-      return callback(err, {type : 'TransferCompleteResponse'}, faults)
+      return callback(err, {type : 'TransferCompleteResponse'})
     )
   )
 
@@ -240,7 +235,8 @@ revertDownloadParameters = (sessionData, instance, callback) ->
 
 
 timeoutOperations = (sessionData, callback) ->
-  faults = {}
+  faults = []
+  operations = []
   counter = 1
 
   for commandKey, operation of sessionData.operations
@@ -254,16 +250,13 @@ timeoutOperations = (sessionData, callback) ->
       sessionData.operationsTouched ?= {}
       sessionData.operationsTouched[commandKey] = 1
 
-      for channel, provisions of operation.provisions
-        faults[channel] = {
-          provisions: provisions
-          timestamp: sessionData.timestamp
-          code: 'timeout'
-          message: 'Download operation timeed out'
-        }
+      faults.push({
+        code: 'timeout'
+        message: 'Download operation timed out'
+        timestamp: operation.timestamp
+      })
 
-        if operation.retries[channel]?
-          faults[channel].retries = operation.retries[channel] + 1
+      operations.push(operation)
 
       ++ counter
       revertDownloadParameters(sessionData, operation.args.instance, (err) ->
@@ -271,36 +264,41 @@ timeoutOperations = (sessionData, callback) ->
         if err and counter > 0
           counter = 0
 
-        return callback(err, faults) if counter == 0
+        return callback(err, faults, operations) if counter == 0
       )
 
   -- counter
-  return callback(null, faults) if counter == 0
+  return callback(null, faults, operations) if counter == 0
 
 
 addProvisions = (sessionData, channel, provisions) ->
-  if sessionData.revisions[0] > 0
-    sessionData.deviceData.timestamps.collapse(1)
-    sessionData.deviceData.attributes.collapse(1)
-
   delete sessionData.syncState
   delete sessionData.rpcRequest
   sessionData.declarations = []
   sessionData.doneProvisions = 0
-  sessionData.provisions[0] ?= []
-  sessionData.provisions.length = 1
-  sessionData.revisions = [0]
-  sessionData.extensionsCache = {}
+  if sessionData.revisions[sessionData.revisions.length - 1] > 0
+    sessionData.deviceData.timestamps.collapse(1)
+    sessionData.deviceData.attributes.collapse(1)
+    sessionData.revisions = [0]
+    sessionData.extensionsCache = {}
+
+  channels = [channel]
 
   for provision, i in provisions
     # Remove duplicate provisions
-    for p, j in sessionData.provisions[0]
-      if channel == sessionData.channels[j] and JSON.stringify(p) == JSON.stringify(provision)
-        sessionData.provisions[0].splice(j, 1)
-        sessionData.channels.splice(j, 1)
+    provisionStr = JSON.stringify(provision)
+    for p, j in sessionData.provisions
+      if JSON.stringify(p) == provisionStr
+        sessionData.provisions.splice(j, 1)
+        for c of sessionData.channels
+          channels.push(c) if sessionData.channels[c] & (1 << j)
+          a = sessionData.channels[c] >> (j + 1)
+          sessionData.channels[c] &= ((1 << j) - 1)
+          sessionData.channels[c] |= (a << j)
 
-    sessionData.provisions[0].push(provision)
-    sessionData.channels.push(channel)
+    for c in channels
+      sessionData.channels[channel] |= (1 << sessionData.provisions.length)
+    sessionData.provisions.push(provision)
 
 
 clearProvisions = (sessionData) ->
@@ -311,10 +309,10 @@ clearProvisions = (sessionData) ->
   delete sessionData.syncState
   delete sessionData.rpcRequest
   sessionData.provisions = []
-  sessionData.channels = []
+  sessionData.channels = {}
   sessionData.declarations = []
   sessionData.doneProvisions = 0
-  sessionData.revisions = []
+  sessionData.revisions = [0]
   sessionData.extensionsCache = {}
 
 
@@ -584,39 +582,32 @@ rpcRequest = (sessionData, _declarations, callback) ->
   if sessionData.rpcRequest?
     return callback(null, null, generateRpcId(sessionData), sessionData.rpcRequest)
 
-  if sessionData.declarations.length < sessionData.provisions.length
+  if sessionData.virtualParameters.length == 0 and
+      sessionData.declarations.length == 0 and
+      sessionData.doneProvisions
+    return callback()
+
+  if sessionData.declarations.length <= sessionData.virtualParameters.length
     inception = sessionData.declarations.length
     revision = sessionData.revisions[inception] + 1
     sessionData.deviceData.timestamps.revision = revision
     sessionData.deviceData.attributes.revision = revision
-    run = if inception == 0 then runProvisions else runVirtualParameters
 
-    return run(sessionData, sessionData.provisions[inception], sessionData.revisions[inception - 1] ? 0, sessionData.revisions[inception], (err, fault, done, decs, toClear) ->
+    if inception == 0
+      run = runProvisions
+      provisions = sessionData.provisions
+    else
+      run = runVirtualParameters
+      provisions = sessionData.virtualParameters[inception - 1]
+
+    return run(sessionData, provisions, sessionData.revisions[inception - 1] or 0, sessionData.revisions[inception], (err, fault, done, decs, toClear) ->
       return callback(err) if err
 
       if fault
-        faults = {}
-        for p, i in sessionData.provisions[0]
-          channel = sessionData.channels[i]
-          f = faults[channel]
-          if not f?
-            f = {
-              provisions: []
-              timestamp: sessionData.timestamp
-              code: fault.code
-              message: fault.message
-              detail: fault.detail
-            }
-
-            if sessionData.retries[channel]?
-              f.retries = sessionData.retries[channel] + 1
-
-            faults[channel] = f
-
-          f.provisions.push(p)
-
-        clearProvisions(sessionData)
-        return callback(null, faults)
+        fault.timestamp = sessionData.timestamp
+        fault.provisions = sessionData.provisions
+        fault.channels = sessionData.channels
+        return callback(null, fault)
 
       sessionData.declarations.push(decs)
       sessionData.doneProvisions |= 1 << inception if done or not decs.length
@@ -638,8 +629,6 @@ rpcRequest = (sessionData, _declarations, callback) ->
     delete sessionData.syncState
     sessionData.declarations[0] ?= []
     sessionData.declarations[0] = sessionData.declarations[0].concat(_declarations)
-    sessionData.provisions[0] ?= []
-    sessionData.revisions[0] ?= 0
 
     for d in _declarations
       for ad in device.getAliasDeclarations(d[0], 1)
@@ -687,27 +676,12 @@ rpcRequest = (sessionData, _declarations, callback) ->
       sessionData.revisions.length >= 8 or
       sessionData.iteration >= 64
 
-    faults = {}
-    for p, i in sessionData.provisions[0]
-      channel = sessionData.channels[i]
-      fault = faults[channel]
-      if not fault?
-        fault = {
-          provisions: []
-          timestamp: sessionData.timestamp
-          code: 'endless_cycle'
-          message: 'The provision seems to be repeating indefinitely'
-        }
-
-        if sessionData.retries[channel]?
-          fault.retries = sessionData.retries[channel] + 1
-
-        faults[channel] = fault
-
-      fault.provisions.push(p)
-
-    clearProvisions(sessionData)
-    return callback(null, faults)
+    fault = {
+      code: 'endless_cycle'
+      message: 'The provision seems to be repeating indefinitely'
+      timestmap: sessionData.timestamp
+    }
+    return callback(null, fault)
 
   inception = sessionData.declarations.length - 1
 
@@ -818,7 +792,7 @@ rpcRequest = (sessionData, _declarations, callback) ->
         sessionData.rpcRequest = generateSetRpcRequest(sessionData)
 
   if provisions
-    sessionData.provisions.push(provisions)
+    sessionData.virtualParameters.push(provisions)
     sessionData.revisions.push(sessionData.revisions[inception])
     return rpcRequest(sessionData, null, callback)
 
@@ -827,18 +801,12 @@ rpcRequest = (sessionData, _declarations, callback) ->
 
   ++ sessionData.revisions[inception]
   sessionData.declarations.pop()
-  while sessionData.doneProvisions & (1 << (sessionData.provisions.length - 1))
-    doneProvisions = sessionData.provisions.pop()
+
+  while sessionData.doneProvisions & (2 << (sessionData.virtualParameters.length - 1))
+    doneProvisions = sessionData.virtualParameters.pop()
     sessionData.revisions.pop()
     sessionData.declarations.pop()
-    sessionData.doneProvisions &= (1 << sessionData.provisions.length) - 1
-    if not sessionData.provisions.length
-      delete sessionData.syncState
-      sessionData.deviceData.timestamps.collapse(1)
-      sessionData.deviceData.attributes.collapse(1)
-      sessionData.extensionsCache = {}
-      return callback(null, null, null, null, doneProvisions)
-
+    sessionData.doneProvisions &= (2 << sessionData.virtualParameters.length) - 1
     rev = sessionData.revisions[sessionData.revisions.length - 1]
     sessionData.deviceData.timestamps.collapse(rev + 1)
     sessionData.deviceData.attributes.collapse(rev + 1)
@@ -1527,7 +1495,8 @@ rpcResponse = (sessionData, id, rpcRes, callback) ->
         operation = {
           type: 'Download'
           timestamp: sessionData.timestamp
-          provisions: {}
+          provisions: sessionData.provisions
+          channels: sessionData.channels
           retries: {}
           args: {
             instance: rpcReq.instance
@@ -1537,12 +1506,9 @@ rpcResponse = (sessionData, id, rpcRes, callback) ->
           }
         }
 
-        for provision, i in sessionData.provisions[0]
-          channel = sessionData.channels[i]
-          operation.provisions[channel] ?= []
-          operation.provisions[channel].push(provision)
-          if sessionData.faults[channel]?
-            operation.retries[channel] = sessionData.faults[channel].retries or 0
+        for channel of sessionData.channels
+          if sessionData.retries[channel]?
+            operation.retries[channel] = sessionData.retries[channel]
 
         sessionData.operations[rpcReq.commandKey] = operation
         sessionData.operationsTouched ?= {}
@@ -1558,31 +1524,15 @@ rpcFault = (sessionData, id, faultResponse, callback) ->
   # TODO Consider handling invalid parameter faults by automatically refreshing
   # relevant data model portions
 
-  if not sessionData.provisions[0]?.length
-    throw new Error('A fault occured while trying to discover parameters to test preset preconditions: ' + JSON.stringify(flt))
+  fault = {
+    code: "cwmp.#{faultResponse.detail.faultCode}"
+    message: faultResponse.detail.faultString
+    detail: faultResponse.detail
+    timestamp: sessionData.timestamp
+  }
 
-  faults = {}
-  for p, i in sessionData.provisions[0]
-    channel = sessionData.channels[i]
-    fault = faults[channel]
-    if not fault?
-      fault = {
-        provisions: []
-        timestamp: sessionData.timestamp
-        code: "cwmp.#{faultResponse.detail.faultCode}"
-        message: faultResponse.detail.faultString
-        detail: faultResponse.detail
-      }
-
-      if sessionData.retries[channel]?
-        fault.retries = sessionData.retries[channel] + 1
-
-      faults[channel] = fault
-
-    fault.provisions.push(p)
-
-  clearProvisions(sessionData)
-  return callback(null, faults)
+  delete sessionData.syncState
+  return callback(null, fault)
 
 
 deserialize = (sessionDataString, callback) ->
