@@ -92,6 +92,7 @@ refresh = (callback) ->
       return callback()
 
     lock('presets_hash_lock', 3000, (err, unlockOrExtend) ->
+      return callback(err) if err
       counter = 4
       db.presetsCollection.find().toArray((err, res) ->
         if err
@@ -145,7 +146,9 @@ refresh = (callback) ->
               when 'provision'
                 _provisions.push([c.name].concat(c.args or []))
               else
-                throw new Error("Unknown configuration type #{c.type}")
+                callback(new Error("Unknown configuration type #{c.type}")) if -- counter >= 0
+                counter = 0
+                return
 
           presets.push({name: preset._id, channel: preset.channel or 'default', schedule: schedule, events: events, precondition: precondition, provisions: _provisions})
 

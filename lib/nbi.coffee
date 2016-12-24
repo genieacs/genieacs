@@ -63,8 +63,13 @@ VIRTUAL_PARAMETERS_REGEX = /^\/virtual_parameters\/([a-zA-Z0-9\-\_\%]+)\/?$/
 FAULTS_REGEX = /^\/faults\/([a-zA-Z0-9\-\_\%\:]+)\/?$/
 
 
-errorToString = (err) ->
-  "#{err.name}: #{err.message}"
+
+throwError = (err, httpResponse) ->
+  if httpResponse
+    httpResponse.writeHead(500, {'Connection' : 'close'})
+    httpResponse.end("#{err.name}: #{err.message}")
+
+  throw err
 
 
 listener = (request, response) ->
@@ -95,27 +100,21 @@ listener = (request, response) ->
         preset._id = presetName
 
         db.presetsCollection.save(preset, (err) ->
+          return throwError(err, response) if err
           db.redisClient.del('presets_hash', (err) ->
-            throw err if err
+            return throwError(err, response) if err
+            response.writeHead(200)
+            response.end()
           )
-          if err
-            response.writeHead(500)
-            response.end(errorToString(err))
-            return
-          response.writeHead(200)
-          response.end()
         )
       else if request.method == 'DELETE'
         db.presetsCollection.remove({'_id' : presetName}, (err) ->
+          return throwError(err, response) if err
           db.redisClient.del('presets_hash', (err) ->
-            throw err if err
+            return throwError(err, response) if err
+            response.writeHead(200)
+            response.end()
           )
-          if err
-            response.writeHead(500)
-            response.end(errorToString(err))
-            return
-          response.writeHead(200)
-          response.end()
         )
       else
         response.writeHead 405, {'Allow': 'PUT, DELETE'}
@@ -127,27 +126,21 @@ listener = (request, response) ->
         object._id = objectName
 
         db.objectsCollection.save(object, (err) ->
+          return throwError(err, response) if err
           db.redisClient.del('objects', 'presets_hash', (err) ->
-            throw err if err
+            return throwError(err, response) if err
+            response.writeHead(200)
+            response.end()
           )
-          if err
-            response.writeHead(500)
-            response.end(errorToString(err))
-            return
-          response.writeHead(200)
-          response.end()
         )
       else if request.method == 'DELETE'
         db.objectsCollection.remove({'_id' : objectName}, (err) ->
+          return throwError(err, response) if err
           db.redisClient.del('objects', 'presets_hash', (err) ->
-            throw err if err
+            return throwError(err, response) if err
+            response.writeHead(200)
+            response.end()
           )
-          if err
-            response.writeHead(500)
-            response.end(errorToString(err))
-            return
-          response.writeHead(200)
-          response.end()
         )
       else
         response.writeHead 405, {'Allow': 'PUT, DELETE'}
@@ -161,27 +154,21 @@ listener = (request, response) ->
         }
 
         db.provisionsCollection.save(object, (err) ->
+          return throwError(err, response) if err
           db.redisClient.del('presets_hash', (err) ->
-            throw err if err
+            return throwError(err, response) if err
+            response.writeHead(200)
+            response.end()
           )
-          if err
-            response.writeHead(500)
-            response.end(errorToString(err))
-            return
-          response.writeHead(200)
-          response.end()
         )
       else if request.method == 'DELETE'
         db.provisionsCollection.remove({'_id' : provisionName}, (err) ->
+          return throwError(err, response) if err
           db.redisClient.del('presets_hash', (err) ->
-            throw err if err
+            return throwError(err, response) if err
+            response.writeHead(200)
+            response.end()
           )
-          if err
-            response.writeHead(500)
-            response.end(errorToString(err))
-            return
-          response.writeHead(200)
-          response.end()
         )
       else
         response.writeHead 405, {'Allow': 'PUT, DELETE'}
@@ -195,27 +182,21 @@ listener = (request, response) ->
         }
 
         db.virtualParametersCollection.save(object, (err) ->
+          return throwError(err, response) if err
           db.redisClient.del('presets_hash', (err) ->
-            throw err if err
+            return throwError(err, response) if err
+            response.writeHead(200)
+            response.end()
           )
-          if err
-            response.writeHead(500)
-            response.end(errorToString(err))
-            return
-          response.writeHead(200)
-          response.end()
         )
       else if request.method == 'DELETE'
         db.virtualParametersCollection.remove({'_id' : virtualParameterName}, (err) ->
+          return throwError(err, response) if err
           db.redisClient.del('presets_hash', (err) ->
-            throw err if err
+            return throwError(err, response) if err
+            response.writeHead(200)
+            response.end()
           )
-          if err
-            response.writeHead(500)
-            response.end(errorToString(err))
-            return
-          response.writeHead(200)
-          response.end()
         )
       else
         response.writeHead 405, {'Allow': 'PUT, DELETE'}
@@ -226,27 +207,21 @@ listener = (request, response) ->
       tag = querystring.unescape(r[2])
       if request.method == 'POST'
         db.devicesCollection.update({'_id' : deviceId}, {'$addToSet' : {'_tags' : tag}}, {safe: true}, (err) ->
+          return throwError(err, response) if err
           db.redisClient.del("#{deviceId}_presets_hash", (err) ->
-            throw err if err
+            return throwError(err, response) if err
+            response.writeHead(200)
+            response.end()
           )
-          if err
-            response.writeHead(500)
-            response.end(errorToString(err))
-            return
-          response.writeHead(200)
-          response.end()
         )
       else if request.method == 'DELETE'
         db.devicesCollection.update({'_id' : deviceId}, {'$pull' : {'_tags' : tag}}, {safe: true}, (err) ->
+          return throwError(err, response) if err
           db.redisClient.del("#{deviceId}_presets_hash", (err) ->
-            throw err if err
+            return throwError(err, response) if err
+            response.writeHead(200)
+            response.end()
           )
-          if err
-            response.writeHead(500)
-            response.end(errorToString(err))
-            return
-          response.writeHead(200)
-          response.end()
         )
       else
         response.writeHead 405, {'Allow': 'POST, DELETE'}
@@ -257,12 +232,16 @@ listener = (request, response) ->
         deviceId = faultId.split(':', 1)[0]
         channel = faultId.slice(deviceId.length + 1)
         db.redisClient.del("#{deviceId}_faults", (err) ->
+          return throwError(err, response) if err
           db.faultsCollection.remove({_id : faultId}, (err) ->
-            throw err if err
+            return throwError(err, response) if err
             if channel.startsWith('_task_')
               return db.tasksCollection.remove({_id : new mongodb.ObjectID(channel.slice(6))}, (err) ->
-                throw err if err
+                return throwError(err, response) if err
+                response.writeHead(200)
+                response.end()
               )
+
             response.writeHead(200)
             response.end()
           )
@@ -277,9 +256,9 @@ listener = (request, response) ->
           task = JSON.parse(body)
           task.device = deviceId
           apiFunctions.insertTasks(task, (err) ->
-            throw err if err
+            return throwError(err, response) if err
             db.redisClient.del("#{deviceId}_no_tasks", (err) ->
-              throw err if err
+              return throwError(err, response) if err
 
               if urlParts.query.connection_request?
                 apiFunctions.connectionRequest(deviceId, (err) ->
@@ -288,20 +267,14 @@ listener = (request, response) ->
                     response.end(JSON.stringify(task))
                   else
                     apiFunctions.watchTask(task._id, config.get('DEVICE_ONLINE_THRESHOLD', deviceId), (err, status) ->
-                      if err
-                        response.writeHead(500)
-                        response.end(errorToString(err))
-                        return
+                      return throwError(err, response) if err
 
                       if status is 'timeout'
                         response.writeHead(202, 'Task queued but not processed', {'Content-Type' : 'application/json'})
                         response.end(JSON.stringify(task))
                       else if status is 'fault'
                         db.tasksCollection.findOne({_id : task._id}, (err, task) ->
-                          if err
-                            response.writeHead(500)
-                            response.end(errorToString(err))
-                            return
+                          return throwError(err, response) if err
 
                           response.writeHead(202, 'Task faulted', {'Content-Type' : 'application/json'})
                           response.end(JSON.stringify(task))
@@ -321,7 +294,7 @@ listener = (request, response) ->
           apiFunctions.connectionRequest(deviceId, (err) ->
             if err
               response.writeHead 504
-              response.end(errorToString(err))
+              response.end("#{err.name}: #{err.message}")
               return
             response.writeHead 200
             response.end()
@@ -339,12 +312,12 @@ listener = (request, response) ->
       if not action? or action is '/'
         if request.method == 'DELETE'
           db.tasksCollection.findOne({'_id' : taskId}, {'device' : 1}, (err, task) ->
-            throw err if err
+            return throwError(err, response) if err
             deviceId = task.device
             db.tasksCollection.remove({'_id' : taskId}, (err) ->
-              throw err if err
+              return throwError(err, response) if err
               db.faultsCollection.remove({_id : "#{deviceId}:_task_#{String(taskId)}"}, (err) ->
-                throw err if err
+                return throwError(err, response) if err
                 response.writeHead(200)
                 response.end()
               )
@@ -356,14 +329,14 @@ listener = (request, response) ->
       else if action is '/retry'
         if request.method == 'POST'
           db.tasksCollection.findOne({'_id' : taskId}, {'device' : 1}, (err, task) ->
-            throw err if err
+            return throwError(err, response) if err
             deviceId = task.device
             db.tasksCollection.update({_id : taskId}, {$unset : {fault : 1}, $set : {timestamp : new Date()}}, (err, count) ->
-              throw err if err
+              return throwError(err, response) if err
               db.faultsCollection.remove({_id : "#{deviceId}:_task_#{String(taskId)}"}, (err) ->
-                throw err if err
+                return throwError(err, response) if err
                 db.redisClient.del("#{deviceId}_no_tasks", "#{deviceId}_faults", (err) ->
-                  throw err if err
+                  return throwError(err, response) if err
                   response.writeHead(200)
                   response.end()
                 )
@@ -389,9 +362,9 @@ listener = (request, response) ->
         gs = new mongodb.GridStore(db.mongoDb, filename, filename, 'w', {metadata : metadata})
         gs.open((err, gs) ->
           gs.write(body, (err, res) ->
-            throw err if err
+            return throwError(err, response) if err
             gs.close((err) ->
-              throw err if err
+              return throwError(err, response) if err
               response.writeHead(201)
               response.end()
             )
@@ -410,7 +383,7 @@ listener = (request, response) ->
       require('child_process').exec("ping -w 1 -i 0.2 -c 3 #{host}", (err, stdout, stderr) ->
         if err
           response.writeHead(404, {'Cache-Control' : 'no-cache'})
-          response.end(errorToString(err))
+          response.end("#{err.name}: #{err.message}")
           return
         response.writeHead(200, {'Content-Type' : 'text/plain', 'Cache-Control' : 'no-cache'})
         response.end(stdout)
@@ -423,10 +396,7 @@ listener = (request, response) ->
 
       deviceId = querystring.unescape(DELETE_DEVICE_REGEX.exec(urlParts.pathname)[1])
       apiFunctions.deleteDevice(deviceId, (err) ->
-        if err
-          response.writeHead(500)
-          response.end(errorToString(err))
-          return
+        return throwError(err, response) if err
         response.writeHead(200)
         response.end()
       )
@@ -456,7 +426,7 @@ listener = (request, response) ->
           q = JSON.parse(urlParts.query.query)
         catch err
           response.writeHead(400)
-          response.end(errorToString(err))
+          response.end("#{err.name}: #{err.message}")
           return
       else
         q = {}
@@ -503,7 +473,9 @@ listener = (request, response) ->
         response.write("[\n")
         i = 0
         cur.each((err, item) ->
-          throw err if err
+          if err
+            throwError(err, response)
+            return false
 
           if item?
             response.write(",\n") if i++

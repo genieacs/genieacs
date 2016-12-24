@@ -53,11 +53,19 @@ cache = require './cache'
 db = require './db'
 
 
+throwError = (err, httpResponse) ->
+  if httpResponse
+    httpResponse.writeHead(500, {'Connection' : 'close'})
+    httpResponse.end("#{err.name}: #{err.message}")
+
+  throw err
+
+
 writeResponse = (currentRequest, res) ->
   if config.get('DEBUG', currentRequest.sessionData.deviceId)
     dump = "# RESPONSE #{new Date(Date.now())}\n" + JSON.stringify(res.headers) + "\n#{res.data}\n\n"
     require('fs').appendFile("./debug/#{currentRequest.sessionData.deviceId}.dump", dump, (err) ->
-      throw err if err
+      throwError(err) if err
     )
 
   # respond using the same content-encoding as the request
@@ -72,7 +80,7 @@ writeResponse = (currentRequest, res) ->
 
   if compress?
     compress(res.data, (err, data) ->
-      throw err if err
+      return throwError(err, currentRequest.httpResponse) if err
       res.headers['Content-Length'] = data.length
       currentRequest.httpResponse.writeHead(res.code, res.headers)
       currentRequest.httpResponse.end(data)
@@ -123,7 +131,7 @@ inform = (currentRequest, cwmpRequest) ->
     util.log("#{currentRequest.sessionData.deviceId}: Inform (#{cwmpRequest.methodRequest.event}); retry count #{cwmpRequest.methodRequest.retryCount}")
 
   session.inform(currentRequest.sessionData, cwmpRequest.methodRequest, (err, rpcResponse) ->
-    throw err if err
+    return throwError(err, currentRequest.httpResponse) if err
     res = soap.response({
       id : cwmpRequest.id,
       methodResponse : rpcResponse,
@@ -141,7 +149,7 @@ inform = (currentRequest, cwmpRequest) ->
 
 transferComplete = (currentRequest, cwmpRequest) ->
   session.transferComplete(currentRequest.sessionData, cwmpRequest.methodRequest, (err, rpcResponse, fault, operation) ->
-    throw err if err
+    return throwError(err, currentRequest.httpResponse) if err
 
     if fault
       for k, v of operation.retries
@@ -207,7 +215,7 @@ appendProvisions = (original, toAppend) ->
 
 applyPresets = (currentRequest) ->
   cache.getPresets((err, presetsHash, presets) ->
-    throw err if err
+    return throwError(err, currentRequest.httpResponse) if err
 
     # Filter presets based on existing faults
     blackList = {}
@@ -267,7 +275,7 @@ applyPresets = (currentRequest) ->
       declarations.push([v, 1, {value: 1}])
 
     session.rpcRequest(currentRequest.sessionData, declarations, (err, fault, id, rpcRequest) ->
-      throw err if err
+      return throwError(err, currentRequest.httpResponse) if err
 
       if fault
         recordFault(currentRequest.sessionData, fault, currentRequest.sessionData.provisions, currentRequest.sessionData.channels)
@@ -304,7 +312,7 @@ applyPresets = (currentRequest) ->
           currentRequest.sessionData.faultsTouched[channel] = true
 
       session.rpcRequest(currentRequest.sessionData, null, (err, fault, id, rpcRequest) ->
-        throw err if err
+        return throwError(err, currentRequest.httpResponse) if err
 
         if fault
           recordFault(currentRequest.sessionData, fault, currentRequest.sessionData.provisions, currentRequest.sessionData.channels)
@@ -329,7 +337,7 @@ applyPresets = (currentRequest) ->
 
 nextRpc = (currentRequest) ->
   session.rpcRequest(currentRequest.sessionData, null, (err, fault, id, rpcRequest) ->
-    throw err if err
+    return throwError(err, currentRequest.httpResponse) if err
 
     if fault
       for channel of currentRequest.sessionData.channels
@@ -392,7 +400,7 @@ nextRpc = (currentRequest) ->
         when 'download'
           session.addProvisions(currentRequest.sessionData, "_task_#{task._id}", [['_task', task._id, 'download', task.fileType, task.fileName, task.targetFileName]])
         else
-          throw new Error('Task name not recognized')
+          return throwError(new Error('Task name not recognized'), currentRequest.httpResponse) if err
 
       return nextRpc(currentRequest)
 
@@ -403,14 +411,14 @@ nextRpc = (currentRequest) ->
 sendRpcRequest = (currentRequest, id, rpcRequest) ->
   if not rpcRequest?
     session.end(currentRequest.sessionData, (err, isNew) ->
-      throw err if err
+      return throwError(err, currentRequest.httpResponse) if err
 
       delete currentSessions.get(currentRequest.httpRequest.connection)[currentRequest.sessionData.sessionId]
       if isNew
         util.log("#{currentRequest.sessionData.deviceId}: New device registered")
 
       db.clearTasks(currentRequest.sessionData.doneTasks, (err) ->
-        throw err if err
+        return throwError(err, currentRequest.httpResponse) if err
 
         counter = 1
 
@@ -421,7 +429,7 @@ sendRpcRequest = (currentRequest, id, rpcRequest) ->
             db.saveFault(currentRequest.sessionData.deviceId, k, currentRequest.sessionData.faults[k], (err) ->
               -- counter
               if err and counter >= 0
-                throw err
+                return throwError(err, currentRequest.httpResponse) if err
 
               if counter == 0
                 return writeResponse(currentRequest, soap.response(null))
@@ -430,7 +438,7 @@ sendRpcRequest = (currentRequest, id, rpcRequest) ->
             db.deleteFault(currentRequest.sessionData.deviceId, k, (err) ->
               -- counter
               if err and counter >= 0
-                throw err
+                return throwError(err, currentRequest.httpResponse) if err
 
               if counter == 0
                 return writeResponse(currentRequest, soap.response(null))
@@ -454,7 +462,7 @@ sendRpcRequest = (currentRequest, id, rpcRequest) ->
 
     if not rpcRequest.fileSize?
       return cache.getFiles((err, hash, files) ->
-        throw err if err
+        return throwError(err, currentRequest.httpResponse) if err
 
         if rpcRequest.fileName of files
           rpcRequest.fileSize = files[rpcRequest.fileName].length
@@ -510,10 +518,10 @@ onConnection = (socket) ->
     sessions = currentSessions.get(socket)
     for sessionId, sessionData of sessions
       session.serialize(sessionData, (err, sessionDataString) ->
-        throw err if err
+        return throwError(err) if err
         # TODO don't set if process is shutting down
         db.redisClient.setex("session_#{sessionId}", sessionData.timeout, sessionDataString, (err) ->
-          throw err if err
+          return throwError(err) if err
         )
       )
   )
@@ -559,7 +567,7 @@ listener = (httpRequest, httpResponse) ->
   stream.on('end', () ->
     cwmpRequest = null
     getSession(httpRequest, f = (err, sessionData) ->
-      throw err if err
+      return throwError(err, httpResponse) if err
       cwmpRequest ?= soap.request(httpRequest, sessionData?.cwmpVersion)
       if not sessionData?
         if cwmpRequest.methodRequest?.type isnt 'Inform'
@@ -569,7 +577,7 @@ listener = (httpRequest, httpResponse) ->
 
         deviceId = common.generateDeviceId(cwmpRequest.methodRequest.deviceId)
         return session.init(deviceId, cwmpRequest.cwmpVersion, cwmpRequest.sessionTimeout ? config.get('SESSION_TIMEOUT', deviceId), (err, sessionData) ->
-          throw err if err
+          return throwError(err, httpResponse) if err
 
           sessionData.sessionId = crypto.randomBytes(8).toString('hex')
 
@@ -578,7 +586,7 @@ listener = (httpRequest, httpResponse) ->
           httpRequest.connection.setTimeout(sessionData.timeout * 1000)
 
           db.getDueTasksAndFaultsAndOperations(deviceId, sessionData.timestamp, (err, dueTasks, faults, operations) ->
-            throw err if err
+            return throwError(err, httpResponse) if err
             sessionData.tasks = dueTasks
             sessionData.faults = faults
             sessionData.retries = {}
@@ -606,7 +614,7 @@ listener = (httpRequest, httpResponse) ->
       if config.get('DEBUG', currentRequest.sessionData.deviceId)
         dump = "# REQUEST #{new Date(Date.now())}\n" + JSON.stringify(httpRequest.headers) + "\n#{httpRequest.getBody()}\n\n"
         require('fs').appendFile("./debug/#{currentRequest.sessionData.deviceId}.dump", dump, (err) ->
-          throw err if err
+          return throwError(err) if err
         )
 
       if cwmpRequest.methodRequest?
@@ -623,15 +631,15 @@ listener = (httpRequest, httpResponse) ->
           })
           writeResponse(currentRequest, res)
         else if cwmpRequest.methodRequest.type is 'TransferComplete'
-          throw new Error('ACS method not supported')
+          return throwError(new Error('ACS method not supported'), currentRequest.httpResponse) if err
       else if cwmpRequest.methodResponse?
         session.rpcResponse(currentRequest.sessionData, cwmpRequest.id, cwmpRequest.methodResponse, (err) ->
-          throw err if err
+          return throwError(err, currentRequest.httpResponse) if err
           nextRpc(currentRequest)
         )
       else if cwmpRequest.fault?
         session.rpcFault(currentRequest.sessionData, cwmpRequest.id, cwmpRequest.fault, (err, fault) ->
-          throw err if err
+          return throwError(err, currentRequest.httpResponse) if err
 
           if fault
             for channel of currentRequest.sessionData.channels
@@ -649,7 +657,7 @@ listener = (httpRequest, httpResponse) ->
         )
       else # CPE sent empty response
         session.timeoutOperations(currentRequest.sessionData, (err, faults, operations) ->
-          throw err if err
+          return throwError(err, currentRequest.httpResponse) if err
 
           for fault, i in faults
             for k, v of operations[i].retries

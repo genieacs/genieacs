@@ -15,7 +15,6 @@
 # along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
 ###
 
-domain = require 'domain'
 util = require 'util'
 cluster = require 'cluster'
 config = require './config'
@@ -31,7 +30,7 @@ networkInterface = config.get("#{service.toUpperCase()}_INTERFACE")
 port = config.get("#{service.toUpperCase()}_PORT")
 useHttps = config.get("#{service.toUpperCase()}_SSL")
 
-serviceListener = require("./#{service}").listener
+listener = require("./#{service}").listener
 onConnection = require("./#{service}").onConnection
 
 server = null
@@ -48,25 +47,14 @@ exit = () ->
   )
 
 
-listener = (httpRequest, httpResponse) ->
-  d = domain.create()
-
-  d.on('error', (err) ->
+process.on('uncaughtException', (err) ->
+  try
     util.error("#{new Date().toISOString()} - #{err.stack}\n")
-    try
-      exit()
-      httpResponse.writeHead(500, {'Connection' : 'close'})
-      httpResponse.end("#{err.name}: #{err.message}")
-    catch err2
-      util.error("#{new Date().toISOString()} - #{err2.stack}\n")
-  )
-
-  d.add(httpRequest)
-  d.add(httpResponse)
-
-  d.run(() ->
-    serviceListener(httpRequest, httpResponse)
-  )
+    exit()
+  catch err
+    util.error("#{new Date().toISOString()} - #{err2.stack}\n")
+  throw err
+)
 
 
 if useHttps
