@@ -639,6 +639,20 @@ rpcRequest = (sessionData, _declarations, callback) ->
       return rpcRequest(sessionData, null, callback)
     )
 
+  if not sessionData.declarations[0].length
+    return callback()
+
+  if sessionData.rpcCount >= 255 or
+      sessionData.revisions.length >= 8 or
+      sessionData.iteration >= 128
+
+    fault = {
+      code: 'endless_cycle'
+      message: 'The provision seems to be repeating indefinitely'
+      timestmap: sessionData.timestamp
+    }
+    return callback(null, fault)
+
   if (sessionData.syncState?.virtualParameterDeclarations?.length or 0) < sessionData.declarations.length
     inception = sessionData.syncState?.virtualParameterDeclarations?.length or 0
     vpd = runDeclarations(sessionData, sessionData.declarations[inception])
@@ -671,17 +685,6 @@ rpcRequest = (sessionData, _declarations, callback) ->
 
   if not sessionData.syncState?
     return callback()
-
-  if sessionData.rpcCount >= 255 or
-      sessionData.revisions.length >= 8 or
-      sessionData.iteration >= 64
-
-    fault = {
-      code: 'endless_cycle'
-      message: 'The provision seems to be repeating indefinitely'
-      timestmap: sessionData.timestamp
-    }
-    return callback(null, fault)
 
   inception = sessionData.declarations.length - 1
 
