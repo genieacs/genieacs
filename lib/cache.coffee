@@ -136,7 +136,7 @@ refresh = (callback) ->
           for c in preset.configurations
             switch c.type
               when 'age'
-                _provisions.push(['refresh', c.name, c.age * -1000])
+                _provisions.push(['refresh', c.name, c.age])
               when 'value'
                 _provisions.push(['value', c.name, c.value])
               when 'add_tag'

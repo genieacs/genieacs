@@ -41,7 +41,6 @@
 util = require 'util'
 zlib = require 'zlib'
 crypto = require 'crypto'
-mongodb = require 'mongodb'
 
 config = require './config'
 common = require './common'
@@ -341,8 +340,8 @@ nextRpc = (currentRequest) ->
 
     if fault
       for channel of currentRequest.sessionData.channels
-        if channel.startsWith('_task_')
-          taskId = channel.slice(6)
+        if channel.startsWith('task_')
+          taskId = channel.slice(5)
           for t, j in currentRequest.sessionData.tasks
             if t._id == taskId
               currentRequest.sessionData.tasks.splice(j, 1)
@@ -362,12 +361,12 @@ nextRpc = (currentRequest) ->
         currentRequest.sessionData.faultsTouched ?= {}
         currentRequest.sessionData.faultsTouched[channel] = true
 
-    for p in currentRequest.sessionData.provisions
-      if p[0] == '_task'
+      if channel.startsWith('task_')
+        taskId = channel.slice(5)
         currentRequest.sessionData.doneTasks ?= []
-        currentRequest.sessionData.doneTasks.push(p[1])
+        currentRequest.sessionData.doneTasks.push(taskId)
         for t, j in currentRequest.sessionData.tasks
-          if String(t._id) == p[1]
+          if t._id == taskId
             currentRequest.sessionData.tasks.splice(j, 1)
             break
 
@@ -383,22 +382,25 @@ nextRpc = (currentRequest) ->
 
       switch task.name
         when 'getParameterValues'
-          session.addProvisions(currentRequest.sessionData, "_task_#{task._id}", [['_task', task._id, 'getParameterValues'].concat(task.parameterNames)])
+          for p in task.parameterNames
+            session.addProvisions(currentRequest.sessionData, "task_#{task._id}",
+              [['refresh', p]])
         when 'setParameterValues'
-          t = ['_task', task._id, 'setParameterValues']
           for p in task.parameterValues
-            t.push(p[0])
-            t.push(p[1])
-            t.push(p[2] ? '')
-          session.addProvisions(currentRequest.sessionData, "_task_#{task._id}", [t])
+            session.addProvisions(currentRequest.sessionData, "task_#{task._id}",
+              [['value', p[0], p[1]]])
         when 'refreshObject'
-          session.addProvisions(currentRequest.sessionData, "_task_#{task._id}", [['_task', task._id, 'refreshObject', task.objectName]])
+          session.addProvisions(currentRequest.sessionData, "task_#{task._id}",
+            [['refresh', task.objectName]])
         when 'reboot'
-          session.addProvisions(currentRequest.sessionData, "_task_#{task._id}", [['_task', task._id, 'reboot']])
+          session.addProvisions(currentRequest.sessionData, "task_#{task._id}",
+            [['reboot']])
         when 'factoryReset'
-          session.addProvisions(currentRequest.sessionData, "_task_#{task._id}", [['_task', task._id, 'factoryReset']])
+          session.addProvisions(currentRequest.sessionData, "task_#{task._id}",
+            [['reset']])
         when 'download'
-          session.addProvisions(currentRequest.sessionData, "_task_#{task._id}", [['_task', task._id, 'download', task.fileType, task.fileName, task.targetFileName]])
+          session.addProvisions(currentRequest.sessionData, "task_#{task._id}",
+          [['download', task.fileType, task.fileName, task.targetFileName]])
         else
           return throwError(new Error('Task name not recognized'), currentRequest.httpResponse) if err
 
@@ -643,8 +645,8 @@ listener = (httpRequest, httpResponse) ->
 
           if fault
             for channel of currentRequest.sessionData.channels
-              if channel.startsWith('_task_')
-                taskId = channel.slice(6)
+              if channel.startsWith('task_')
+                taskId = channel.slice(5)
                 for t, j in currentRequest.sessionData.tasks
                   if t._id == taskId
                     currentRequest.sessionData.tasks.splice(j, 1)

@@ -24,6 +24,7 @@ cache = require './cache'
 PathSet = require './path-set'
 VersionedMap = require './versioned-map'
 InstanceSet = require './instance-set'
+defaultProvisions = require './default-provisions'
 
 
 initDeviceData = () ->
@@ -323,50 +324,8 @@ runProvisions = (sessionData, provisions, startRevision, endRevision, callback) 
   counter = 1
   for provision in provisions
     if not sessionData.cache.provisions[provision[0]]?
-      switch provision[0]
-        when 'refresh'
-          path = common.parsePath(provision[1]).slice()
-          l = path.length
-          path.length = config.get('MAX_DEPTH', sessionData.deviceId)
-          path.fill('*', l)
-          t = provision[2]
-          t += sessionData.timestamp if t <= 0
-
-          for i in [l...path.length] by 1
-            p = common.addPathMeta(path.slice(0, i))
-            allDeclarations.push([p, t, {object: 1, writable: 1, value: t}])
-        when 'value'
-          allDeclarations.push([common.parsePath(provision[1]), 1, {value: 1}, null, {value: [provision[2]]}])
-        when 'tag'
-          allDeclarations.push([['Tags', provision[1]], 1, {value: 1}, null, {value: [provision[2], 'xsd:boolean']}])
-        when '_task'
-          # A special provision for tasks compatibility
-          switch provision[2]
-            when 'getParameterValues'
-              for i in [3...provision.length] by 1
-                allDeclarations.push([common.parsePath(provision[i]), 1, {value: sessionData.timestamp}])
-            when 'setParameterValues'
-              for i in [3...provision.length] by 3
-                v = if provision[i + 2] then [provision[i + 1], provision[i + 2]] else [provision[i + 1]]
-                allDeclarations.push([common.parsePath(provision[i]), 1, {value: 1}, null, {value: v}])
-            when 'refreshObject'
-              path = common.parsePath(provision[3]).slice()
-              l = path.length
-              path.length = config.get('MAX_DEPTH', sessionData.deviceId)
-              path.fill('*', l)
-              for i in [l...path.length] by 1
-                p = common.addPathMeta(path.slice(0, i))
-                allDeclarations.push([p, sessionData.timestamp, {object: 1, writable: 1, value: sessionData.timestamp}])
-            when 'reboot'
-              allDeclarations.push([['Reboot'], 1, {value: 1}, null, {value: [sessionData.timestamp]}])
-            when 'factoryReset'
-              allDeclarations.push([['FactoryReset'], 1, {value: 1}, null, {value: [sessionData.timestamp]}])
-            when 'download'
-              alias = "[FileType:#{JSON.stringify(provision[3] or '')},FileName:#{JSON.stringify(provision[4] or '')},TargetFileName:#{JSON.stringify(provision[5] or '')}]"
-              allDeclarations.push([common.parsePath("Downloads.#{alias}"),
-                1, {}, 1, {}])
-              allDeclarations.push([common.parsePath("Downloads.#{alias}.Download"),
-                1, {value: 1}, null, {value: [sessionData.timestamp]}])
+      if defaultProvisions[provision[0]]
+        done = defaultProvisions[provision[0]](sessionData, provision, allDeclarations, startRevision, endRevision) and done
       continue
 
     ++ counter
