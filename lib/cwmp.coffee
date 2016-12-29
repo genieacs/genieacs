@@ -400,7 +400,14 @@ nextRpc = (currentRequest) ->
             [['reset']])
         when 'download'
           session.addProvisions(currentRequest.sessionData, "task_#{task._id}",
-          [['download', task.fileType, task.fileName, task.targetFileName]])
+            [['download', task.fileType, task.fileName, task.targetFileName]])
+        when 'addObject'
+          alias = ("#{p[0]}:#{JSON.stringify(p[1])}" for p in task.parameterValues or []).join(',')
+          session.addProvisions(currentRequest.sessionData, "task_#{task._id}",
+            [['instances', "#{task.objectName}.[#{alias}]", "+1"]]);
+        when 'deleteObject'
+          session.addProvisions(currentRequest.sessionData, "task_#{task._id}",
+            [['instances', task.objectName, 0]]);
         else
           return throwError(new Error('Task name not recognized'), currentRequest.httpResponse) if err
 

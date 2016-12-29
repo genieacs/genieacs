@@ -100,65 +100,87 @@ refresh = (callback) ->
           counter = 0
           return
 
-        res.sort((a, b) ->
-          if a.weight == b.weight
-            return a._id > b._id
-          else
-            return a.weight - b.weight
-        )
+        db.objectsCollection.find().toArray((err, objects) ->
+          if err
+            callback(err) if -- counter >= 0
+            counter = 0
+            return
 
-        presets = []
-
-        for preset in res
-          schedule = null
-          if preset.schedule
-            parts = preset.schedule.trim().split(/\s+/)
-            schedule = {
-              md5: crypto.createHash('md5').update(preset.schedule).digest('hex')
-            }
-
-            try
-              schedule.duration = +(parts.shift()) * 1000
-              parts.unshift('0') if parts.length == 5
-              # TODO later.js doesn't throw erorr if expression is invalid!
-              schedule.schedule = later.schedule(later.parse.cron(parts.join(' '), true))
-            catch err
-              # TODO show a warning
-              schedule.schedule = false
-
-          events = preset.events ? {}
-
-          precondition = query.convertMongoQueryToFilters(JSON.parse(preset.precondition))
-
-          _provisions = preset.provisions or []
-
-          # Generate provisions from the old configuration format
-          for c in preset.configurations
-            switch c.type
-              when 'age'
-                _provisions.push(['refresh', c.name, c.age])
-              when 'value'
-                _provisions.push(['value', c.name, c.value])
-              when 'add_tag'
-                _provisions.push(['tag', c.tag, true])
-              when 'delete_tag'
-                _provisions.push(['tag', c.tag, false])
-              when 'provision'
-                _provisions.push([c.name].concat(c.args or []))
-              else
-                callback(new Error("Unknown configuration type #{c.type}")) if -- counter >= 0
-                counter = 0
-                return
-
-          presets.push({name: preset._id, channel: preset.channel or 'default', schedule: schedule, events: events, precondition: precondition, provisions: _provisions})
-
-        if -- counter == 0
-          computeHash()
-          db.redisClient.setex("presets_hash", 300, hash, (err) ->
-            unlockOrExtend(0)
-            nextRefresh = now + REFRESH
-            return callback()
+          res.sort((a, b) ->
+            if a.weight == b.weight
+              return a._id > b._id
+            else
+              return a.weight - b.weight
           )
+
+          presets = []
+
+          for preset in res
+            schedule = null
+            if preset.schedule
+              parts = preset.schedule.trim().split(/\s+/)
+              schedule = {
+                md5: crypto.createHash('md5').update(preset.schedule).digest('hex')
+              }
+
+              try
+                schedule.duration = +(parts.shift()) * 1000
+                parts.unshift('0') if parts.length == 5
+                # TODO later.js doesn't throw erorr if expression is invalid!
+                schedule.schedule = later.schedule(later.parse.cron(parts.join(' '), true))
+              catch err
+                # TODO show a warning
+                schedule.schedule = false
+
+            events = preset.events ? {}
+
+            precondition = query.convertMongoQueryToFilters(JSON.parse(preset.precondition))
+
+            _provisions = preset.provisions or []
+
+            # Generate provisions from the old configuration format
+            for c in preset.configurations
+              switch c.type
+                when 'age'
+                  _provisions.push(['refresh', c.name, c.age])
+                when 'value'
+                  _provisions.push(['value', c.name, c.value])
+                when 'add_tag'
+                  _provisions.push(['tag', c.tag, true])
+                when 'delete_tag'
+                  _provisions.push(['tag', c.tag, false])
+                when 'provision'
+                  _provisions.push([c.name].concat(c.args or []))
+                when 'add_object'
+                  for obj in objects
+                    if obj['_id'] == c.object
+                      alias = ("#{k}:#{JSON.stringify(obj[k])}" for k in obj['_keys']).join(',')
+                      p = "#{c.name}.[#{alias}]"
+                      _provisions.push(['instances', p, 1])
+                      for k of obj
+                        if k[0] != '_' and k not in obj['_keys']
+                          _provisions.push(['value', "#{p}.#{k}", obj[k]])
+                when 'delete_object'
+                  for obj in objects
+                    if obj['_id'] == c.object
+                      alias = ("#{k}:#{JSON.stringify(obj[k])}" for k in obj['_keys']).join(',')
+                      p = "#{c.name}.[#{alias}]"
+                      _provisions.push(['instances', p, 0])
+                else
+                  callback(new Error("Unknown configuration type #{c.type}")) if -- counter >= 0
+                  counter = 0
+                  return
+
+            presets.push({name: preset._id, channel: preset.channel or 'default', schedule: schedule, events: events, precondition: precondition, provisions: _provisions})
+
+          if -- counter == 0
+            computeHash()
+            db.redisClient.setex("presets_hash", 300, hash, (err) ->
+              unlockOrExtend(0)
+              nextRefresh = now + REFRESH
+              return callback()
+            )
+        )
       )
 
       db.provisionsCollection.find().toArray((err, res) ->
