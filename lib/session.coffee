@@ -453,14 +453,6 @@ runDeclarations = (sessionData, declarations) ->
     if (path.alias | path.wildcard) & 1 or path[0] == 'FactoryReset'
       sessionData.deviceData.paths.add(['FactoryReset'])
 
-    if path[0] == 'Files' and
-        !(path.alias | path.wildcard) and
-        path.length == 3 and
-        path[2] == 'Download' and
-        (declaration[4]?.value? or sessionData.deviceData.attributes.has(path))
-      sessionData.syncState.download ?= new Map()
-      sessionData.syncState.download.set(path, 0)
-
     if path.alias
       aliasDecs = device.getAliasDeclarations(path, declaration[1] or 1)
       for ad in aliasDecs
@@ -526,7 +518,7 @@ runDeclarations = (sessionData, declarations) ->
 
       if ((path.wildcard | path.alias) & ((1 << (path.length - 1)) - 1)) == 0
         parent = sessionData.deviceData.paths.add(parent)
-        unpacked ?= device.unpack(sessionData.device, path)
+        unpacked ?= device.unpack(sessionData.deviceData, path)
         processInstances(sessionData, parent, unpacked, keys, minInstances, maxInstances)
       else
         parentsUnpacked = device.unpack(sessionData.deviceData, parent)
@@ -1092,6 +1084,14 @@ processDeclarations = (sessionData, allDeclareTimestamps, allDeclareAttributeTim
             for attrName of attrs
               declareAttributeValues[attrName] = attrs[attrName]
 
+    if currentAttributes
+      leafParam = currentPath
+      leafIsObject = currentAttributes.object?[1]
+      if leafIsObject == 0
+        leafTimestamp = Math.max(leafTimestamp, currentAttributes.object[0])
+    else
+      leafTimestamp = Math.max(leafTimestamp, currentTimestamp)
+
     switch (if currentPath[0] != '*' then currentPath[0] else leafParam[0])
       when 'Reboot'
         if currentPath.length == 1
@@ -1162,14 +1162,6 @@ processDeclarations = (sessionData, allDeclareTimestamps, allDeclareAttributeTim
 
           if declareAttributeValues.value?
             syncState.spv.set(currentPath, declareAttributeValues.value)
-
-    if currentAttributes
-      leafParam = currentPath
-      leafIsObject = currentAttributes.object?[1]
-      if leafIsObject == 0
-        leafTimestamp = Math.max(leafTimestamp, currentAttributes.object[0])
-    else
-      leafTimestamp = Math.max(leafTimestamp, currentTimestamp)
 
     for child of children
       # This fine expression avoids duplicate visits
