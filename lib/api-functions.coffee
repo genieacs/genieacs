@@ -92,7 +92,11 @@ connectionRequest = (deviceId, callback) ->
 
   proj = {
     'Device.ManagementServer.ConnectionRequestURL._value' : 1,
-    'InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value' : 1
+    'Device.ManagementServer.ConnectionRequestUsername._value',
+    'Device.ManagementServer.ConnectionRequestPassword._value',
+    'InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value' : 1,
+    'InternetGatewayDevice.ManagementServer.ConnectionRequestUsername._value',
+    'InternetGatewayDevice.ManagementServer.ConnectionRequestPassword._value'
   }
 
   db.devicesCollection.findOne({_id : deviceId}, proj, (err, device)->
@@ -102,14 +106,20 @@ connectionRequest = (deviceId, callback) ->
 
     if device.Device? # TR-181 data model
       connectionRequestUrl = device.Device.ManagementServer.ConnectionRequestURL._value
+      username = device.Device.ManagementServer.ConnectionRequestUsername?._value
+      password = device.Device.ManagementServer.ConnectionRequestPassword?._value
     else # TR-098 data model
       connectionRequestUrl = device.InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value
+      username = device.InternetGatewayDevice.ManagementServer.ConnectionRequestUsername?._value
+      password = device.InternetGatewayDevice.ManagementServer.ConnectionRequestPassword?._value
 
     # for testing
     #connectionRequestUrl = connectionRequestUrl.replace(/^(http:\/\/)([0-9\.]+)(\:[0-9]+\/[a-zA-Z0-9]+\/?$)/, '$110.1.1.254$3')
     conReq(connectionRequestUrl, null, (statusCode, authHeader) ->
       if statusCode == 401
-        [username, password] = config.auth.connectionRequest(deviceId)
+        if not (username and password) and config.auth?.connectionRequest
+          [username, password] = config.auth.connectionRequest(deviceId)
+
         if authHeader.method is 'Basic'
           authString = auth.basic(username, password)
         else if authHeader.method is 'Digest'

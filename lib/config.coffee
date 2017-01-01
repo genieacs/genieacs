@@ -160,7 +160,8 @@ get = (option, deviceId) ->
 
 
 # load authentication scripts
-exports.auth = require(path.resolve(allConfig.CONFIG_DIR, 'auth'))
+try
+  exports.auth = require(path.resolve(allConfig.CONFIG_DIR, 'auth'))
 
 exports.get = get
 
