@@ -24,7 +24,8 @@
     "libxmljs": "^0.18.0",
     "redis": "^2.6.2",
     "hiredis": "^0.5.0",
-    "mongodb": "^2.2.4"
+    "mongodb": "^2.2.4",
+    "seedrandom": "^2.4.2"
   },
   "devDependencies": {
     "coffee-script": "^1.10.0"
