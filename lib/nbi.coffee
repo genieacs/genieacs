@@ -48,6 +48,8 @@ db = require './db'
 query = require './query'
 apiFunctions = require './api-functions'
 
+VERSION = require('../package.json').version
+
 # regular expression objects
 DEVICE_TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/tasks\/?$/
 TASKS_REGEX = /^\/tasks\/([a-zA-Z0-9\-\_\%]+)(\/[a-zA-Z_]*)?$/
@@ -75,6 +77,8 @@ throwError = (err, httpResponse) ->
 listener = (request, response) ->
   chunks = []
   bytes = 0
+
+  response.setHeader('GenieACS-Version', VERSION)
 
   request.addListener 'data', (chunk) ->
     chunks.push(chunk)
