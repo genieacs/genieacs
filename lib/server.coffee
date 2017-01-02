@@ -68,10 +68,17 @@ if useHttps
   fs = require 'fs'
   httpsKey = path.resolve(config.get('CONFIG_DIR'), "#{service}.key")
   httpsCert = path.resolve(config.get('CONFIG_DIR'), "#{service}.crt")
+  httpsCa = path.resolve(config.get('CONFIG_DIR'), "#{service}.ca-bundle")
   options = {
     key: fs.readFileSync(httpsKey),
     cert: fs.readFileSync(httpsCert)
   }
+
+  try
+    # Use intermediate certificates if available
+    options.ca = fs.readFileSync(httpsCa).toString()
+      .match(/\-+BEGIN CERTIFICATE\-+[0-9a-zA-Z\+\-\/\=\s]+?\-+END CERTIFICATE\-+/g)
+
   server = require('https').createServer(options, listener)
 else
   server = require('http').createServer(listener)
