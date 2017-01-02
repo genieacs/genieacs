@@ -113,8 +113,8 @@ connect = (callback) ->
 
 
 disconnect = () ->
-  exports.mongoDb.close()
-  redisClient.quit()
+  exports.mongoDb?.close()
+  redisClient?.quit()
 
 
 # Optimize projection by removing overlaps

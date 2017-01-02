@@ -41,6 +41,12 @@ exit = () ->
   , 30000).unref()
 
   cluster.worker?.disconnect()
+
+  if not server
+    db.disconnect()
+    extensions.killAll()
+    return
+
   server.close(() ->
     db.disconnect()
     extensions.killAll()
@@ -52,7 +58,7 @@ process.on('uncaughtException', (err) ->
     util.error("#{new Date().toISOString()} - #{err.stack}\n")
     exit()
   catch err
-    util.error("#{new Date().toISOString()} - #{err2.stack}\n")
+    util.error("#{new Date().toISOString()} - #{err.stack}\n")
   throw err
 )
 
