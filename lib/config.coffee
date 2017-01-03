@@ -47,20 +47,19 @@ options = {
   LOG_INFORMS : {type : 'bool', default : true},
   DEBUG : {type : 'bool', default : false},
   RETRY_DELAY : {type : 'int', default : 300},
-  IGNORE_XML_NAMESPACES : {type : 'bool', default : false},
   SESSION_TIMEOUT : {type : 'int', default : 30},
   GET_PARAMETER_NAMES_DEPTH_THRESHOLD : {type : 'int', default : 0},
   TASK_PARAMETERS_BATCH_SIZE : {type : 'int', default : 32},
   MAX_DEPTH : {type: 'int', default : 16},
   COOKIES_PATH : {type : 'string'},
 
-  # Libxml related configuration
-  XML_PARSE_RECOVER : {type : 'bool'},
-  XML_PARSE_NOENT : {type : 'bool'},
-  XML_PARSE_NOBLANKS : {type : 'bool'},
-  XML_PARSE_NSCLEAN : {type : 'bool'},
-  XML_PARSE_NOCDATA : {type : 'bool'},
-  XML_PARSE_IGNORE_ENC : {type : 'bool'},
+  # XML configuration
+  XML_RECOVER : {type : 'bool', default : false},
+  XML_IGNORE_ENC : {type : 'bool', default : false},
+  XML_FORMAT : {type : 'bool', default : false},
+  XML_NO_DECL : {type : 'bool', default : false},
+  XML_NO_EMPTY : {type : 'bool', default : false},
+  XML_IGNORE_NAMESPACE : {type : 'bool', default : false},
 
   # Should probably never be changed
   PRESETS_TIME_PADDING : {type : 'int', default : 1},
