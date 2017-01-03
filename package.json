@@ -1,11 +1,12 @@
 {
   "name": "genieacs",
   "version": "1.1.0-alpha",
-  "description": "A blazing fast TR-069 auto configuration server (ACS) built with Node.js, Redis, and MongoDB",
+  "description": "A TR-069 Auto Configuration Server (ACS)",
   "repository": {
     "type": "git",
     "url": "https://github.com/zaidka/genieacs.git"
   },
+  "homepage": "https://genieacs.com",
   "keywords": [
     "TR-069",
     "CWMP",
@@ -36,7 +37,7 @@
   "scripts": {
     "prepublish": "npm run compile",
     "compile": "coffee -cb lib/*.coffee test/*.coffee tools/*.coffee",
-    "configure": "cp ./config/config-sample.json ./config/config.json; cp ./config/parameters-sample.json ./config/parameters.json; cp ./config/custom_commands-sample.json ./config/custom_commands.json; cp ./config/auth-sample.js ./config/auth.js",
+    "configure": "cp ./config/config-sample.json ./config/config.json",
     "install": "npm run configure",
     "test": "node test"
   }
