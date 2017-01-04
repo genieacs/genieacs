@@ -15,8 +15,6 @@
 # along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
 ###
 
-common = require '../lib/common'
-
 NAMESPACES = {
   'soap-enc' : 'http://schemas.xmlsoap.org/soap/encoding/',
   'soap-env' : 'http://schemas.xmlsoap.org/soap/envelope/',
@@ -68,13 +66,13 @@ exports.GetParameterNames = (device, xmlIn, xmlOut, callback) ->
   parameterList = []
   if nextLevel
     for p in parameterNames
-      if common.startsWith(p, parameterPath) and p.length > parameterPath.length + 1
+      if p.startsWith(parameterPath) and p.length > parameterPath.length + 1
         i = p.indexOf('.', parameterPath.length + 1)
         if i == -1 or i == p.length - 1
           parameterList.push(p)
   else
     for p in parameterNames
-      if common.startsWith(p, parameterPath)
+      if p.startsWith(parameterPath)
         parameterList.push(p)
 
   getParameterNamesResponseNode = xmlOut.root().childNodes()[1].node('cwmp:GetParameterNamesResponse')
@@ -130,7 +128,7 @@ exports.AddObject = (device, xmlIn, xmlOut, callback) ->
     instanceNumber += 1
 
   for p in Object.keys(device).sort()
-    if common.startsWith(p, objectName) and p.length > objectName.length
+    if p.startsWith(objectName) and p.length > objectName.length
       n = objectName + instanceNumber + p.slice(p.indexOf('.', objectName.length))
       if not device[n]?
         device[n] = [device[p][0], '', device[p][2]]
@@ -146,7 +144,7 @@ exports.DeleteObject = (device, xmlIn, xmlOut, callback) ->
   objectName = xmlIn.get('/soap-env:Envelope/soap-env:Body/cwmp:DeleteObject/ObjectName', NAMESPACES).text()
 
   for p in Object.keys(device)
-    if common.startsWith(p, objectName)
+    if p.startsWith(objectName)
       delete device[p]
 
   responseNode = xmlOut.root().childNodes()[1].node('cwmp:DeleteObjectResponse')
