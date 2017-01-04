@@ -301,6 +301,14 @@ escapeRegExp = (str) ->
   return str.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, "\\$&")
 
 
+# djb2 hashing algorithm adapted from http://www.cse.yorku.ca/~oz/hash.html
+djb2 = (str) ->
+  hash = 5381
+  for i in [0...str.length]
+    hash = ((hash << 5) + hash) ^ str.charCodeAt(i)
+  return hash
+
+
 exports.UNDEFINED_TYPE = UNDEFINED_TYPE
 exports.NULL_TYPE = NULL_TYPE
 exports.NUMBER_TYPE = NUMBER_TYPE
@@ -315,3 +323,4 @@ exports.parsePath = parsePath
 exports.addPathMeta = addPathMeta
 exports.hammingWeight = hammingWeight
 exports.escapeRegExp = escapeRegExp
+exports.djb2 = djb2
