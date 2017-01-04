@@ -283,9 +283,10 @@ addProvisions = (sessionData, channel, provisions) ->
     sessionData.revisions = [0]
     sessionData.extensionsCache = {}
 
-  channels = [channel]
+  sessionData.channels[channel] |= 0
 
   for provision, i in provisions
+    channels = [channel]
     # Remove duplicate provisions
     provisionStr = JSON.stringify(provision)
     for p, j in sessionData.provisions
@@ -535,7 +536,7 @@ rpcRequest = (sessionData, _declarations, callback) ->
 
   if sessionData.virtualParameters.length == 0 and
       sessionData.declarations.length == 0 and
-      sessionData.doneProvisions
+      (sessionData.doneProvisions or sessionData.provisions.length == 0)
     return callback()
 
   if sessionData.declarations.length <= sessionData.virtualParameters.length
@@ -600,7 +601,7 @@ rpcRequest = (sessionData, _declarations, callback) ->
     fault = {
       code: 'endless_cycle'
       message: 'The provision seems to be repeating indefinitely'
-      timestmap: sessionData.timestamp
+      timestamp: sessionData.timestamp
     }
     return callback(null, fault)
 
@@ -1372,7 +1373,9 @@ rpcResponse = (sessionData, id, rpcRes, callback) ->
 
       for k, v of missing when v == 0
         # TODO consider showing a warning
-        params.push([common.parsePath(k), timestamp, {object: [timestamp, 1], writable: [timestamp, 0]}])
+        path = common.parsePath(k)
+        params.push([path, timestamp, {object: [timestamp, 1], writable: [timestamp, 0]}])
+        params.push([path.concat('*'), timestamp])
 
       # Sort such that actual parameters are set before wildcard ones
       params.sort((a, b) ->

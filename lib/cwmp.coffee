@@ -320,7 +320,7 @@ applyPresets = (currentRequest) ->
 
         if not rpcRequest?
           for channel, flags of currentRequest.sessionData.channels
-            if flags and channel of currentRequest.sessionData.faults
+            if channel of currentRequest.sessionData.faults
               delete currentRequest.sessionData.faults[channel]
               currentRequest.sessionData.faultsTouched ?= {}
               currentRequest.sessionData.faultsTouched[channel] = true
