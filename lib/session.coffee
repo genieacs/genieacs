@@ -1356,7 +1356,7 @@ rpcResponse = (sessionData, id, rpcRes, callback) ->
         while (i = p[0].lastIndexOf('.', i - 1)) > rpcReq.parameterPath.length
           missing[p[0].slice(0, i)] |= 0
 
-        if common.endsWith(p[0], '.')
+        if p[0].endsWith('.')
           missing[p[0][0...-1]] |= 1
           path = common.parsePath(p[0][0...-1])
           if not rpcReq.nextLevel

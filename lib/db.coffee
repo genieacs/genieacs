@@ -126,7 +126,7 @@ optimizeProjection = (obj) ->
   while i < keys.length
     a = keys[i-1]
     b = keys[i]
-    if common.startsWith(b, a)
+    if b.startsWith(a)
       if b.charAt(a.length) == '.' or b.charAt(a.length - 1) == '.'
         delete obj[b]
         keys.splice(i--, 1)

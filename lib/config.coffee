@@ -62,7 +62,6 @@ options = {
   XML_IGNORE_NAMESPACE : {type : 'bool', default : false},
 
   # Should probably never be changed
-  PRESETS_TIME_PADDING : {type : 'int', default : 1},
   DEVICE_ONLINE_THRESHOLD : {type : 'int', default : 4000}
 }
 
@@ -95,7 +94,7 @@ setConfig = (name, value, commandLineArgument) ->
     if name == n
       _value = cast(value, optionDetails.type)
       n = optionName
-    else if common.startsWith(name, "#{n}-")
+    else if name.startsWith("#{n}-")
       _value = cast(value, optionDetails.type)
       n = "#{optionName}-#{name[optionName.length+1..]}"
 
@@ -163,5 +162,3 @@ try
   exports.auth = require(path.resolve(allConfig.CONFIG_DIR, 'auth'))
 
 exports.get = get
-
-exports.allConfig = allConfig

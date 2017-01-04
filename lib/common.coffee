@@ -56,21 +56,6 @@ typeOf = (obj) ->
   Object.prototype.toString.call(obj)
 
 
-exports.endsWith = (str, suffix) ->
-  str.indexOf(suffix, str.length - suffix.length) isnt -1
-
-
-exports.startsWith = (str, prefix) ->
-  str.substring(0, prefix.length) == prefix
-
-
-exports.arrayToHash = (arr) ->
-  hash = {}
-  for i in arr
-    hash[i[0]] = i[1]
-  return hash
-
-
 exports.generateDeviceId = (deviceIdStruct) ->
   # Percent escaping function. Escapes everything except alphanumerics and underscore
   esc = (str) ->
@@ -86,34 +71,6 @@ exports.generateDeviceId = (deviceIdStruct) ->
     return "#{esc(deviceIdStruct['OUI'])}-#{esc(deviceIdStruct['ProductClass'])}-#{esc(deviceIdStruct['SerialNumber'])}"
 
   return "#{esc(deviceIdStruct['OUI'])}-#{esc(deviceIdStruct['SerialNumber'])}"
-
-
-exports.parseDeviceId = (deviceId) ->
-  parts = deviceId.split('-')
-  ret = {oui : querystring.unescape(parts[0])}
-  if parts.length == 3
-    ret.productClass = querystring.unescape(parts[1])
-    ret.serialNumber = querystring.unescape(parts[2])
-  else
-    ret.serialNumber = querystring.unescape(parts[1])
-  return ret
-
-
-exports.extend = (obj, mixin) ->
-  obj[name] = method for name, method of mixin
-  obj
-
-
-exports.flattenObject = (object) ->
-  newObj = {}
-  f = (obj, prefix) ->
-    for k, v of obj
-      if typeof(v) is 'object'
-        f(v, "#{prefix}#{k}.")
-      else
-        newObj["#{prefix}#{k}"] = v
-  f(object, '')
-  return newObj
 
 
 exports.getParamValueFromPath = (obj, path) ->

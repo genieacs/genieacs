@@ -154,7 +154,7 @@ expand = (query) ->
         else
           new_query['$and'].push({'$or' : conditions})
       else
-        common.extend(new_query, conditions[0])
+        Object.assign(new_query, conditions[0])
 
   return new_query
 
