@@ -536,6 +536,7 @@ rpcRequest = (sessionData, _declarations, callback) ->
 
   if sessionData.virtualParameters.length == 0 and
       sessionData.declarations.length == 0 and
+      not _declarations?.length and
       (sessionData.doneProvisions or sessionData.provisions.length == 0)
     return callback()
 
