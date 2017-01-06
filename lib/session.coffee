@@ -558,8 +558,6 @@ rpcRequest = (sessionData, _declarations, callback) ->
 
       if fault
         fault.timestamp = sessionData.timestamp
-        fault.provisions = sessionData.provisions
-        fault.channels = sessionData.channels
         return callback(null, fault)
 
       sessionData.declarations.push(decs)
