@@ -429,31 +429,31 @@ sendRpcRequest = (currentRequest, id, rpcRequest) ->
       db.clearTasks(currentRequest.sessionData.doneTasks, (err) ->
         return throwError(err, currentRequest.httpResponse) if err
 
-        counter = 1
+        counter = 3
 
         for k of currentRequest.sessionData.faultsTouched
-          ++ counter
+          counter += 2
           if currentRequest.sessionData.faults[k]
             currentRequest.sessionData.faults[k].retries = currentRequest.sessionData.retries[k]
             db.saveFault(currentRequest.sessionData.deviceId, k, currentRequest.sessionData.faults[k], (err) ->
-              -- counter
-              if err and counter >= 0
-                return throwError(err, currentRequest.httpResponse) if err
+              if err
+                throwError(err, currentRequest.httpResponse) if counter & 1
+                return counter = 0
 
-              if counter == 0
+              if (counter -= 2) == 1
                 return writeResponse(currentRequest, soap.response(null))
             )
           else
             db.deleteFault(currentRequest.sessionData.deviceId, k, (err) ->
-              -- counter
-              if err and counter >= 0
-                return throwError(err, currentRequest.httpResponse) if err
+              if err
+                throwError(err, currentRequest.httpResponse) if counter & 1
+                return counter = 0
 
-              if counter == 0
+              if (counter -= 2) == 1
                 return writeResponse(currentRequest, soap.response(null))
             )
 
-        if -- counter == 0
+        if (counter -= 2) == 1
           return writeResponse(currentRequest, soap.response(null))
       )
     )

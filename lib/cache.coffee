@@ -93,18 +93,18 @@ refresh = (callback) ->
 
     lock('presets_hash_lock', 3000, (err, unlockOrExtend) ->
       return callback(err) if err
-      counter = 4
+      counter = 3
+
+      counter += 2
       db.presetsCollection.find().toArray((err, res) ->
         if err
-          callback(err) if -- counter >= 0
-          counter = 0
-          return
+          callback(err) if counter & 1
+          return counter = 0
 
         db.objectsCollection.find().toArray((err, objects) ->
           if err
-            callback(err) if -- counter >= 0
-            counter = 0
-            return
+            callback(err) if (counter & 1)
+            return counter = 0
 
           res.sort((a, b) ->
             if a.weight == b.weight
@@ -167,13 +167,12 @@ refresh = (callback) ->
                       p = "#{c.name}.[#{alias}]"
                       _provisions.push(['instances', p, 0])
                 else
-                  callback(new Error("Unknown configuration type #{c.type}")) if -- counter >= 0
-                  counter = 0
-                  return
+                  callback(new Error("Unknown configuration type #{c.type}")) if counter & 1
+                  return counter = 0
 
             presets.push({name: preset._id, channel: preset.channel or 'default', schedule: schedule, events: events, precondition: precondition, provisions: _provisions})
 
-          if -- counter == 0
+          if (counter -= 2) == 1
             computeHash()
             db.redisClient.setex("presets_hash", 300, hash, (err) ->
               unlockOrExtend(0)
@@ -183,11 +182,11 @@ refresh = (callback) ->
         )
       )
 
+      counter += 2
       db.provisionsCollection.find().toArray((err, res) ->
         if err
-          callback(err) if -- counter >= 0
-          counter = 0
-          return
+          callback(err) if counter & 1
+          return counter = 0
 
         provisions = {}
         for r in res
@@ -195,7 +194,7 @@ refresh = (callback) ->
           provisions[r._id].md5 = crypto.createHash('md5').update(r.script).digest('hex')
           provisions[r._id].script = new vm.Script("\"use strict\";(function(){\n#{r.script}\n})();", {filename: r._id, lineOffset: 1, timeout: 50})
 
-        if -- counter == 0
+        if (counter -= 2) == 1
           computeHash()
           db.redisClient.setex("presets_hash", 300, hash, (err) ->
             unlockOrExtend(0)
@@ -204,11 +203,11 @@ refresh = (callback) ->
           )
       )
 
+      counter += 2
       db.virtualParametersCollection.find().toArray((err, res) ->
         if err
-          callback(err) if -- counter >= 0
-          counter = 0
-          return
+          callback(err) if counter & 1
+          return counter = 0
 
         virtualParameters = {}
         for r in res
@@ -216,7 +215,7 @@ refresh = (callback) ->
           virtualParameters[r._id].md5 = crypto.createHash('md5').update(r.script).digest('hex')
           virtualParameters[r._id].script = new vm.Script("\"use strict\";(function(){\n#{r.script}\n})();", {filename: r._id, lineOffset: 1, timeout: 50})
 
-        if -- counter == 0
+        if (counter -= 2) == 1
           computeHash()
           db.redisClient.setex("presets_hash", 300, hash, (err) ->
             unlockOrExtend(0)
@@ -225,11 +224,11 @@ refresh = (callback) ->
           )
       )
 
+      counter += 2
       db.filesCollection.find().toArray((err, res) ->
         if err
-          callback(err) if -- counter >= 0
-          counter = 0
-          return
+          callback(err) if counter & 1
+          return counter = 0
 
         files = {}
         for r in res
@@ -239,7 +238,7 @@ refresh = (callback) ->
           files[id].md5 = r.md5
           files[id].contentType = r.contentType
 
-        if -- counter == 0
+        if (counter -= 2) == 1
           computeHash()
           db.redisClient.setex("presets_hash", 300, hash, (err) ->
             unlockOrExtend(0)
@@ -247,6 +246,14 @@ refresh = (callback) ->
             return callback()
           )
       )
+
+      if (counter -= 2) == 1
+        computeHash()
+        db.redisClient.setex("presets_hash", 300, hash, (err) ->
+          unlockOrExtend(0)
+          nextRefresh = now + REFRESH
+          return callback()
+        )
     )
   )
 

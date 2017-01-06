@@ -238,7 +238,7 @@ revertDownloadParameters = (sessionData, instance, callback) ->
 timeoutOperations = (sessionData, callback) ->
   faults = []
   operations = []
-  counter = 1
+  counter = 3
 
   for commandKey, operation of sessionData.operations
     if operation.type isnt 'Download'
@@ -259,17 +259,16 @@ timeoutOperations = (sessionData, callback) ->
 
       operations.push(operation)
 
-      ++ counter
+      counter += 2
       revertDownloadParameters(sessionData, operation.args.instance, (err) ->
-        -- counter
-        if err and counter > 0
-          counter = 0
+        if err
+          callback(err) if counter & 1
+          return counter = 0
 
-        return callback(err, faults, operations) if counter == 0
+        return callback(null, faults, operations) if (counter -= 2) == 1
       )
 
-  -- counter
-  return callback(null, faults, operations) if counter == 0
+  return callback(null, faults, operations) if (counter -= 2) == 1
 
 
 addProvisions = (sessionData, channel, provisions) ->
@@ -322,24 +321,21 @@ runProvisions = (sessionData, provisions, startRevision, endRevision, callback) 
   done = true
   allDeclarations = []
   allClear = []
-  counter = 1
+  counter = 3
   for provision in provisions
     if not sessionData.cache.provisions[provision[0]]?
       if defaultProvisions[provision[0]]
         done = defaultProvisions[provision[0]](sessionData, provision, allDeclarations, startRevision, endRevision) and done
       continue
 
-    ++ counter
+    counter += 2
     sandbox.run(sessionData.cache.provisions[provision[0]].script,
       {args: provision[1]}, sessionData.timestamp, sessionData.deviceData,
       sessionData.extensionsCache, startRevision, endRevision,
       (err, _fault, _clear, _declarations, _done) ->
-        -- counter
         if err or _fault
-          if counter >= 0
-            counter = 0
-            return callback(err, _fault)
-          return
+          callback(err, _fault) if counter & 1
+          return counter = 0
 
         done &&= _done
 
@@ -349,11 +345,11 @@ runProvisions = (sessionData, provisions, startRevision, endRevision, callback) 
         if _clear
           allClear = allClear.concat(_clear)
 
-        if counter == 0
+        if (counter -= 2) == 1
           return callback(null, null, done, allDeclarations, allClear)
       )
 
-  if -- counter == 0
+  if (counter -= 2) == 1
     return callback(null, null, done, allDeclarations, allClear)
 
 
@@ -362,20 +358,17 @@ runVirtualParameters = (sessionData, provisions, startRevision, endRevision, cal
   virtualParameterUpdates = []
   allDeclarations = []
   allClear = []
-  counter = 1
+  counter = 3
   for provision in provisions
-    ++ counter
+    counter += 2
     globals = {TIMESTAMPS: provision[1], VALUES: provision[2]}
     sandbox.run(sessionData.cache.virtualParameters[provision[0]].script, globals,
       sessionData.timestamp, sessionData.deviceData,
       sessionData.extensionsCache, startRevision, endRevision,
       (err, _fault, _clear, _declarations, _done, _returnValue) ->
-        -- counter
         if err or _fault
-          if counter >= 0
-            counter = 0
-            return callback(err, _fault)
-          return
+          callback(err, _fault) if counter & 1
+          return counter = 0
 
         done &&= _done
 
@@ -388,7 +381,7 @@ runVirtualParameters = (sessionData, provisions, startRevision, endRevision, cal
         if _done
           virtualParameterUpdates.push(_returnValue)
 
-        if counter == 0
+        if (counter -= 2) == 1
           toClear = null
           if virtualParameterUpdates.length == provisions.length
             for vpu, i in virtualParameterUpdates
@@ -399,7 +392,7 @@ runVirtualParameters = (sessionData, provisions, startRevision, endRevision, cal
           )
       )
 
-  if -- counter == 0
+  if (counter -= 2) == 1
     toClear = null
     if virtualParameterUpdates.length == provisions.length
       for vpu, i in virtualParameterUpdates
@@ -1566,38 +1559,46 @@ serialize = (sessionData, callback) ->
 
 
 end = (sessionData, callback) ->
-  counter = 2
+  counter = 3
+
+  counter += 2
   db.saveDevice(sessionData.deviceId, sessionData.deviceData, sessionData.new, (err) ->
-    -- counter
-    if err and counter > 0
-      counter = 0
-    return callback(err, sessionData.new) if counter == 0
+    if err
+      callback(err) if counter & 1
+      return counter = 0
+
+    return callback(null, sessionData.new) if (counter -= 2) == 1
   )
 
+  counter += 2
   db.redisClient.del("session_#{sessionData.id}", (err) ->
-    -- counter
-    if err and counter > 0
-      counter = 0
-    return callback(err, sessionData.new) if counter == 0
+    if err
+      callback(err) if counter & 1
+      return counter = 0
+
+    return callback(null, sessionData.new) if (counter -= 2) == 1
   )
 
   for k of sessionData.operationsTouched
-    ++ counter
+    counter += 2
     if sessionData.operations[k]?
       db.saveOperation(sessionData.deviceId, k, sessionData.operations[k], (err) ->
-        -- counter
-        if err and counter > 0
-          counter = 0
-        return callback(err, sessionData.new) if counter == 0
+        if err
+          callback(err) if counter & 1
+          return counter = 0
+
+        return callback(null, sessionData.new) if (counter -= 2) == 1
       )
     else
       db.deleteOperation(sessionData.deviceId, k, (err) ->
-        -- counter
-        if err and counter > 0
-          counter = 0
-        return callback(err, sessionData.new) if counter == 0
+        if err
+          callback(err) if counter & 1
+          return counter = 0
+
+        return callback(null, sessionData.new) if (counter -= 2) == 1
       )
 
+  callback(null, sessionData.new) if (counter -= 2) == 1
 
 exports.init = init
 exports.timeoutOperations = timeoutOperations
