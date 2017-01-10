@@ -451,10 +451,10 @@ saveDevice = (deviceId, deviceData, isNew, callback) ->
 
 
 getDueTasksAndFaultsAndOperations = (deviceId, timestamp, callback) ->
-  redisClient.mget("#{deviceId}_no_tasks", "#{deviceId}_faults", "#{deviceId}_operations", (err, res) ->
+  redisClient.mget("#{deviceId}_tasks", "#{deviceId}_faults", "#{deviceId}_operations", (err, res) ->
     return callback(err) if err
 
-    if res[0]?
+    if res[0]
       tasks = JSON.parse(res[0])
 
     if res[1]?
@@ -490,7 +490,7 @@ getDueTasksAndFaultsAndOperations = (deviceId, timestamp, callback) ->
         else
           exp = CACHE_DURATION
 
-        redisClient.setex("#{deviceId}_no_tasks", exp, 1, (err) ->
+        redisClient.setex("#{deviceId}_tasks", exp, JSON.stringify(dueTasks), (err) ->
           if err
             callback?(err)
             return callback = null
@@ -526,7 +526,6 @@ getFaults = (deviceId, callback) ->
       delete r.channel
       delete r.device
       r.timestamp = +r.timestamp
-      r.expiry = +r.expiry if r.expiry?
       r.provisions = JSON.parse(r.provisions)
       faults[channel] = r
 
@@ -559,10 +558,7 @@ deleteFault = (deviceId, channel, callback) ->
 
 
 getDueTasks = (deviceId, timestamp, callback) ->
-  cur = tasksCollection.find({
-    'device' : deviceId,
-    'fault' : {'$exists': false}
-    }).sort(['timestamp'])
+  cur = tasksCollection.find({'device' : deviceId}).sort(['timestamp'])
 
   tasks = []
 
@@ -573,6 +569,7 @@ getDueTasks = (deviceId, timestamp, callback) ->
       return callback(null, tasks, null)
 
     task.timestamp = +task.timestamp if task.timestamp?
+    task.expiry = +task.expiry if task.expiry?
 
     if task.timestamp >= timestamp
       return callback(null, tasks, +task.timestamp)
@@ -599,11 +596,14 @@ getDueTasks = (deviceId, timestamp, callback) ->
   )
 
 
-clearTasks = (taskIds, callback) ->
+clearTasks = (deviceId, taskIds, callback) ->
   if not taskIds?.length
     return callback()
 
-  tasksCollection.remove({'_id' : {'$in' : (new mongodb.ObjectID(id) for id in taskIds)}}, callback)
+  tasksCollection.remove({'_id' : {'$in' : (new mongodb.ObjectID(id) for id in taskIds)}}, (err) ->
+    return callback(err) if err
+    redisClient.del("#{deviceId}_tasks", callback)
+  )
 
 
 getOperations = (deviceId, callback) ->

@@ -171,21 +171,25 @@ connectionRequest = (deviceId, callback) ->
   )
 
 
-watchTask = (taskId, timeout, callback) ->
-  setTimeout( () ->
-    db.tasksCollection.findOne({_id : taskId}, {'_id' : 1, 'fault' : 1}, (err, task) ->
+watchTask = (deviceId, taskId, timeout, callback) ->
+  setTimeout(() ->
+    db.tasksCollection.findOne({_id : taskId}, {'_id' : 1}, (err, task) ->
       return callback(err) if err
 
-      if task
-        timeout -= 500
-        if task.fault?
-          callback(null, 'fault')
-        else if timeout <= 0
-          callback(null, 'timeout')
-        else
-          watchTask(taskId, timeout, callback)
-      else
-        callback(null, 'completed')
+      if not task
+        return callback(null, 'completed')
+
+      db.faultsCollection.findOne({_id : "#{deviceId}:task_#{taskId}"}, {'_id' : 1}, (err, fault) ->
+        return callback(err) if err
+
+        if fault
+          return callback(null, 'fault')
+
+        if (timeout -= 500) <= 0
+          return callback(null, 'timeout')
+
+        watchTask(deviceId, taskId, timeout, callback)
+      )
     )
   , 500)
 
@@ -263,7 +267,12 @@ deleteDevice = (deviceId, callback) ->
         return callback(err) if err
         db.operationsCollection.remove({'_id' : {'$regex' : "^#{common.escapeRegExp(deviceId)}\\:"}}, (err) ->
           return callback(err) if err
-          db.redisClient.del("#{deviceId}_presets_hash", "#{deviceId}_inform_hash", "#{deviceId}_faults", "#{deviceId}_no_tasks", callback)
+          db.redisClient.del("#{deviceId}_presets_hash",
+            "#{deviceId}_inform_hash",
+            "#{deviceId}_faults",
+            "#{deviceId}_tasks",
+            "#{deviceId}_operations",
+            callback)
         )
       )
     )

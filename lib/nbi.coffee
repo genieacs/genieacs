@@ -235,17 +235,20 @@ listener = (request, response) ->
         faultId = querystring.unescape(FAULTS_REGEX.exec(urlParts.pathname)[1])
         deviceId = faultId.split(':', 1)[0]
         channel = faultId.slice(deviceId.length + 1)
-        db.redisClient.del("#{deviceId}_faults", (err) ->
+        db.faultsCollection.remove({_id : faultId}, (err) ->
           return throwError(err, response) if err
-          db.faultsCollection.remove({_id : faultId}, (err) ->
-            return throwError(err, response) if err
-            if channel.startsWith('_task_')
-              return db.tasksCollection.remove({_id : new mongodb.ObjectID(channel.slice(6))}, (err) ->
+          if channel.startsWith('task_')
+            return db.tasksCollection.remove({_id : new mongodb.ObjectID(channel.slice(5))}, (err) ->
+              return throwError(err, response) if err
+              db.redisClient.del("#{deviceId}_tasks", "#{deviceId}_faults", (err) ->
                 return throwError(err, response) if err
                 response.writeHead(200)
                 response.end()
               )
+            )
 
+          db.redisClient.del("#{deviceId}_faults", (err) ->
+            return throwError(err, response) if err
             response.writeHead(200)
             response.end()
           )
@@ -261,7 +264,7 @@ listener = (request, response) ->
           task.device = deviceId
           apiFunctions.insertTasks(task, (err) ->
             return throwError(err, response) if err
-            db.redisClient.del("#{deviceId}_no_tasks", (err) ->
+            db.redisClient.del("#{deviceId}_tasks", (err) ->
               return throwError(err, response) if err
 
               if urlParts.query.connection_request?
@@ -270,7 +273,7 @@ listener = (request, response) ->
                     response.writeHead(202, err.message, {'Content-Type' : 'application/json'})
                     response.end(JSON.stringify(task))
                   else
-                    apiFunctions.watchTask(task._id, config.get('DEVICE_ONLINE_THRESHOLD', deviceId), (err, status) ->
+                    apiFunctions.watchTask(deviceId, task._id, config.get('DEVICE_ONLINE_THRESHOLD', deviceId), (err, status) ->
                       return throwError(err, response) if err
 
                       if status is 'timeout'
@@ -320,10 +323,13 @@ listener = (request, response) ->
             deviceId = task.device
             db.tasksCollection.remove({'_id' : taskId}, (err) ->
               return throwError(err, response) if err
-              db.faultsCollection.remove({_id : "#{deviceId}:_task_#{String(taskId)}"}, (err) ->
+              db.faultsCollection.remove({_id : "#{deviceId}:task_#{String(taskId)}"}, (err) ->
                 return throwError(err, response) if err
-                response.writeHead(200)
-                response.end()
+                db.redisClient.del("#{deviceId}_tasks", "#{deviceId}_faults", (err) ->
+                  return throwError(err, response) if err
+                  response.writeHead(200)
+                  response.end()
+                )
               )
             )
           )
@@ -335,15 +341,12 @@ listener = (request, response) ->
           db.tasksCollection.findOne({'_id' : taskId}, {'device' : 1}, (err, task) ->
             return throwError(err, response) if err
             deviceId = task.device
-            db.tasksCollection.update({_id : taskId}, {$unset : {fault : 1}, $set : {timestamp : new Date()}}, (err, count) ->
+            db.faultsCollection.remove({_id : "#{deviceId}:task_#{String(taskId)}"}, (err) ->
               return throwError(err, response) if err
-              db.faultsCollection.remove({_id : "#{deviceId}:_task_#{String(taskId)}"}, (err) ->
+              db.redisClient.del("#{deviceId}_faults", (err) ->
                 return throwError(err, response) if err
-                db.redisClient.del("#{deviceId}_no_tasks", "#{deviceId}_faults", (err) ->
-                  return throwError(err, response) if err
-                  response.writeHead(200)
-                  response.end()
-                )
+                response.writeHead(200)
+                response.end()
               )
             )
           )

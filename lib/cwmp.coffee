@@ -339,15 +339,6 @@ nextRpc = (currentRequest) ->
     return throwError(err, currentRequest.httpResponse) if err
 
     if fault
-      for channel of currentRequest.sessionData.channels
-        if channel.startsWith('task_')
-          taskId = channel.slice(5)
-          for t, j in currentRequest.sessionData.tasks
-            if t._id == taskId
-              currentRequest.sessionData.tasks.splice(j, 1)
-              fault.expiry = t.expiry if t.expiry?
-              break
-
       recordFault(currentRequest.sessionData, fault, currentRequest.sessionData.provisions, currentRequest.sessionData.channels)
       session.clearProvisions(currentRequest.sessionData)
       return nextRpc(currentRequest)
@@ -373,11 +364,20 @@ nextRpc = (currentRequest) ->
     session.clearProvisions(currentRequest.sessionData)
 
     for task in currentRequest.sessionData.tasks
+      channel = "task_#{task._id}"
+
       # Delete if expired
       if task.expiry <= currentRequest.sessionData.timestamp
         util.log("#{currentRequest.sessionData.deviceId}: Task is expired #{task.name}(#{task._id})")
         currentRequest.sessionData.doneTasks ?= []
         currentRequest.sessionData.doneTasks.push(String(task._id))
+        if channel of currentRequest.sessionData.faults
+          delete currentRequest.sessionData.faults[channel]
+          currentRequest.sessionData.faultsTouched ?= {}
+          currentRequest.sessionData.faultsTouched[channel] = true
+        continue
+
+      if currentRequest.sessionData.faults[channel]
         continue
 
       switch task.name
@@ -426,7 +426,7 @@ sendRpcRequest = (currentRequest, id, rpcRequest) ->
       if isNew
         util.log("#{currentRequest.sessionData.deviceId}: New device registered")
 
-      db.clearTasks(currentRequest.sessionData.doneTasks, (err) ->
+      db.clearTasks(currentRequest.sessionData.deviceId, currentRequest.sessionData.doneTasks, (err) ->
         return throwError(err, currentRequest.httpResponse) if err
 
         counter = 3
@@ -651,15 +651,6 @@ listener = (httpRequest, httpResponse) ->
           return throwError(err, currentRequest.httpResponse) if err
 
           if fault
-            for channel of currentRequest.sessionData.channels
-              if channel.startsWith('task_')
-                taskId = channel.slice(5)
-                for t, j in currentRequest.sessionData.tasks
-                  if t._id == taskId
-                    currentRequest.sessionData.tasks.splice(j, 1)
-                    fault.expiry = t.expiry if t.expiry?
-                    break
-
             recordFault(currentRequest.sessionData, fault, currentRequest.sessionData.provisions, currentRequest.sessionData.channels)
             session.clearProvisions(currentRequest.sessionData)
           nextRpc(currentRequest)
