@@ -51,6 +51,8 @@ device = require './device'
 cache = require './cache'
 db = require './db'
 
+MAX_CYCLES = 4
+
 
 throwError = (err, httpResponse) ->
   if httpResponse
@@ -213,6 +215,8 @@ appendProvisions = (original, toAppend) ->
 
 
 applyPresets = (currentRequest) ->
+  sessionData = currentRequest.sessionData
+
   cache.getPresets((err, presetsHash, presets) ->
     return throwError(err, currentRequest.httpResponse) if err
 
@@ -221,28 +225,28 @@ applyPresets = (currentRequest) ->
     whiteList = null
     whiteListProvisions = null
 
-    RETRY_DELAY = config.get('RETRY_DELAY', currentRequest.sessionData.deviceId)
+    RETRY_DELAY = config.get('RETRY_DELAY', sessionData.deviceId)
 
-    if currentRequest.sessionData.faults?
-      for channel, fault of currentRequest.sessionData.faults
+    if sessionData.faults?
+      for channel, fault of sessionData.faults
         if fault.retryNow
           retryTimestamp = 0
         else
-          retryTimestamp = fault.timestamp + (RETRY_DELAY * Math.pow(2, currentRequest.sessionData.retries[channel])) * 1000
+          retryTimestamp = fault.timestamp + (RETRY_DELAY * Math.pow(2, sessionData.retries[channel])) * 1000
 
-        if retryTimestamp <= currentRequest.sessionData.timestamp
+        if retryTimestamp <= sessionData.timestamp
           whiteList = channel
           whiteListProvisions = fault.provisions
           break
 
         blackList[channel] = if fault.precondition then 1 else 2
 
-    currentRequest.sessionData.presetsHash = presetsHash
+    sessionData.presetsHash = presetsHash
 
     deviceEvents = {}
-    iter = currentRequest.sessionData.deviceData.paths.subset(['Events', '*'])
+    iter = sessionData.deviceData.paths.subset(['Events', '*'])
     while (p = iter.next().value)
-      if currentRequest.sessionData.timestamp <= currentRequest.sessionData.deviceData.attributes.get(p)?.value?[1][0]
+      if sessionData.timestamp <= sessionData.deviceData.attributes.get(p)?.value?[1][0]
         deviceEvents[p[1]] = true
 
     parameters = {}
@@ -251,7 +255,7 @@ applyPresets = (currentRequest) ->
     for preset in presets
       if whiteList?
         continue if preset.channel != whiteList
-      else if blackList[channel] == 1
+      else if blackList[preset.channel] == 1
         continue
 
       eventsMatch = true
@@ -261,11 +265,11 @@ applyPresets = (currentRequest) ->
           break
 
       continue if (not eventsMatch) or (preset.schedule and not
-        (preset.schedule.schedule and testSchedule(preset.schedule, currentRequest.sessionData.timestamp)[0]))
+        (preset.schedule.schedule and testSchedule(preset.schedule, sessionData.timestamp)[0]))
 
       filteredPresets.push(preset)
       for k of preset.precondition
-        currentRequest.sessionData.channels[preset.channel] = 0
+        sessionData.channels[preset.channel] = 0
         p = k.split(/([^a-zA-Z0-9\-\_\.].*)/, 1)[0]
         parameters[p] = common.parsePath(p)
 
@@ -273,28 +277,28 @@ applyPresets = (currentRequest) ->
     for k, v of parameters
       declarations.push([v, 1, {value: 1}])
 
-    session.rpcRequest(currentRequest.sessionData, declarations, (err, fault, id, rpcRequest) ->
+    session.rpcRequest(sessionData, declarations, (err, fault, id, rpcRequest) ->
       return throwError(err, currentRequest.httpResponse) if err
 
       if fault
-        recordFault(currentRequest.sessionData, fault, currentRequest.sessionData.provisions, currentRequest.sessionData.channels)
-        session.clearProvisions(currentRequest.sessionData)
+        recordFault(sessionData, fault, sessionData.provisions, sessionData.channels)
+        session.clearProvisions(sessionData)
         return applyPresets(currentRequest)
 
       if rpcRequest?
         return sendRpcRequest(currentRequest, id, rpcRequest)
 
-      session.clearProvisions(currentRequest.sessionData)
+      session.clearProvisions(sessionData)
 
       for k, v of parameters
-        unpacked = device.unpack(currentRequest.sessionData.deviceData, v)
-        if unpacked[0] and (vv = currentRequest.sessionData.deviceData.attributes.get(unpacked[0]).value?[1])?
+        unpacked = device.unpack(sessionData.deviceData, v)
+        if unpacked[0] and (vv = sessionData.deviceData.attributes.get(unpacked[0]).value?[1])?
           parameters[k] = vv[0]
         else
           delete parameters[k]
 
       if whiteList?
-        session.addProvisions(currentRequest.sessionData, whiteList, whiteListProvisions)
+        session.addProvisions(sessionData, whiteList, whiteListProvisions)
 
       appendProvisionsToFaults = {}
       for p in filteredPresets
@@ -303,27 +307,39 @@ applyPresets = (currentRequest) ->
             appendProvisionsToFaults[p.channel] =
               (appendProvisionsToFaults[p.channel] or []).concat(p.provisions)
           else
-            session.addProvisions(currentRequest.sessionData, p.channel, p.provisions)
+            session.addProvisions(sessionData, p.channel, p.provisions)
 
       for channel, provisions of appendProvisionsToFaults
-        if appendProvisions(currentRequest.sessionData.faults[channel].provisions, provisions)
-          currentRequest.sessionData.faultsTouched ?= {}
-          currentRequest.sessionData.faultsTouched[channel] = true
+        if appendProvisions(sessionData.faults[channel].provisions, provisions)
+          sessionData.faultsTouched ?= {}
+          sessionData.faultsTouched[channel] = true
 
-      session.rpcRequest(currentRequest.sessionData, null, (err, fault, id, rpcRequest) ->
+      sessionData.presetCycles = (sessionData.presetCycles or 0) + 1
+
+      if sessionData.presetCycles > MAX_CYCLES
+        fault = {
+          code: 'endless_cycle'
+          message: 'The provision seems to be repeating indefinitely'
+          timestamp: sessionData.timestamp
+        }
+        recordFault(sessionData, fault, sessionData.provisions, sessionData.channels)
+        session.clearProvisions(sessionData)
+        return sendRpcRequest(currentRequest)
+
+      session.rpcRequest(sessionData, null, (err, fault, id, rpcRequest) ->
         return throwError(err, currentRequest.httpResponse) if err
 
         if fault
-          recordFault(currentRequest.sessionData, fault, currentRequest.sessionData.provisions, currentRequest.sessionData.channels)
-          session.clearProvisions(currentRequest.sessionData)
+          recordFault(sessionData, fault, sessionData.provisions, sessionData.channels)
+          session.clearProvisions(sessionData)
           return applyPresets(currentRequest)
 
         if not rpcRequest?
-          for channel, flags of currentRequest.sessionData.channels
-            if channel of currentRequest.sessionData.faults
-              delete currentRequest.sessionData.faults[channel]
-              currentRequest.sessionData.faultsTouched ?= {}
-              currentRequest.sessionData.faultsTouched[channel] = true
+          for channel, flags of sessionData.channels
+            if channel of sessionData.faults
+              delete sessionData.faults[channel]
+              sessionData.faultsTouched ?= {}
+              sessionData.faultsTouched[channel] = true
 
           if whiteList?
             return applyPresets(currentRequest)

@@ -26,6 +26,8 @@ VersionedMap = require './versioned-map'
 InstanceSet = require './instance-set'
 defaultProvisions = require './default-provisions'
 
+MAX_ITERATIONS = 64
+
 
 initDeviceData = () ->
   return {
@@ -53,6 +55,7 @@ init = (deviceId, cwmpVersion, timeout, callback) ->
     revisions: [0]
     rpcCount: 0
     iteration: 0
+    cycle: 0
     extensionsCache: {}
     declarations: []
   }
@@ -105,7 +108,9 @@ loadParameters = (sessionData, callback) ->
 
 
 generateRpcId = (sessionData) ->
-  return sessionData.timestamp.toString(16) + "0#{sessionData.rpcCount.toString(16)}".slice(-2)
+  return sessionData.timestamp.toString(16) +
+    sessionData.cycle.toString(16).slice(-1) +
+    "0#{sessionData.rpcCount.toString(16)}".slice(-2)
 
 
 inform = (sessionData, rpcReq, callback) ->
@@ -282,6 +287,11 @@ addProvisions = (sessionData, channel, provisions) ->
     sessionData.revisions = [0]
     sessionData.extensionsCache = {}
 
+  if sessionData.iteration != sessionData.cycle * MAX_ITERATIONS
+    sessionData.cycle += 1
+    sessionData.rpcCount = 0
+    sessionData.iteration = sessionData.cycle * MAX_ITERATIONS
+
   sessionData.channels[channel] |= 0
 
   for provision, i in provisions
@@ -307,9 +317,15 @@ clearProvisions = (sessionData) ->
     sessionData.deviceData.timestamps.collapse(1)
     sessionData.deviceData.attributes.collapse(1)
 
+  if sessionData.iteration != sessionData.cycle * MAX_ITERATIONS
+    sessionData.cycle += 1
+    sessionData.rpcCount = 0
+    sessionData.iteration = sessionData.cycle * MAX_ITERATIONS
+
   delete sessionData.syncState
   delete sessionData.rpcRequest
   sessionData.provisions = []
+  sessionData.virtualParameters = []
   sessionData.channels = {}
   sessionData.declarations = []
   sessionData.doneProvisions = 0
@@ -588,7 +604,8 @@ rpcRequest = (sessionData, _declarations, callback) ->
 
   if sessionData.rpcCount >= 255 or
       sessionData.revisions.length >= 8 or
-      sessionData.iteration >= 128
+      sessionData.cycle >= 16 or
+      sessionData.iteration >= MAX_ITERATIONS * (sessionData.cycle + 1)
 
     fault = {
       code: 'endless_cycle'
