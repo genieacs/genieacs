@@ -202,37 +202,7 @@ sanitizeTask = (task, callback) ->
     else
       task.expiry = new Date(task.timestamp.getTime() + +task.expiry * 1000)
 
-  switch task.name
-    when 'getParameterValues'
-      projection = {}
-      for p in task.parameterNames
-        projection[p] = 1
-      db.devicesCollection.findOne({_id : task.device}, projection, (err, device) ->
-        parameterNames = []
-        for k of projection
-          if common.getParamValueFromPath(device, k)?
-            parameterNames.push(k)
-        task.parameterNames = parameterNames
-        callback(task)
-      )
-    when 'setParameterValues'
-      projection = {}
-      values = {}
-      for p in task.parameterValues
-        projection[p[0]] = 1
-        values[p[0]] = p[1]
-      db.devicesCollection.findOne({_id : task.device}, projection, (err, device) ->
-        parameterValues = []
-        for k of projection
-          param = common.getParamValueFromPath(device, k)
-          if param?
-            parameterValues.push([k, values[k], param._type])
-        task.parameterValues = parameterValues
-        callback(task)
-      )
-    else
-      # TODO implement setParameterValues
-      callback(task)
+  callback(task)
 
 
 insertTasks = (tasks, callback) ->
