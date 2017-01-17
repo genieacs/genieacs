@@ -398,10 +398,14 @@ nextRpc = (currentRequest) ->
 
       switch task.name
         when 'getParameterValues'
+          # Set channel in case params array is empty
+          currentRequest.sessionData.channels["task_#{task._id}"] = 0
           for p in task.parameterNames
             session.addProvisions(currentRequest.sessionData, "task_#{task._id}",
               [['refresh', p]])
         when 'setParameterValues'
+          # Set channel in case params array is empty
+          currentRequest.sessionData.channels["task_#{task._id}"] = 0
           for p in task.parameterValues
             session.addProvisions(currentRequest.sessionData, "task_#{task._id}",
               [['value', p[0], p[1]]])
