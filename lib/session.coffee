@@ -346,7 +346,7 @@ runProvisions = (sessionData, provisions, startRevision, endRevision, callback) 
 
     counter += 2
     sandbox.run(sessionData.cache.provisions[provision[0]].script,
-      {args: provision[1]}, sessionData.timestamp, sessionData.deviceData,
+      {args: provision.slice(1)}, sessionData.timestamp, sessionData.deviceData,
       sessionData.extensionsCache, startRevision, endRevision,
       (err, _fault, _clear, _declarations, _done) ->
         if err or _fault
