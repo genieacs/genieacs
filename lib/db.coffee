@@ -272,7 +272,7 @@ fetchDevice = (id, timestamp, patterns, callback) ->
           res.push([['Events', 'Inform'], +v,
             {object: [+v, 0], writable: [+v, 0], value: [+v, [+v, 'xsd:dateTime']]}])
           delete device[k]
-        when '_lastInform'
+        when '_lastBoot'
           res.push([['Events'], timestamp,
             {object: [timestamp, 1], writable: [timestamp, 0]}])
           res.push([['Events', '1_BOOT'], +v,
