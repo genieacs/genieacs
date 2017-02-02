@@ -1,4 +1,5 @@
 FROM node:0.10.48
+LABEL maintainer "binary4bytes@gmail.com"
 
 WORKDIR /usr/src/app
 
