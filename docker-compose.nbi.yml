@@ -1,0 +1,19 @@
+version: '2'
+
+services:
+
+    nbi:
+        extends:
+            file: common-genieacs.yml
+            service: genieacs
+        links:
+            - redis
+            - mongodb
+        depends_on:
+            - redis
+            - mongodb
+        ports:
+            - "7557:7777"
+        command: npm run start-nbi
+        environment:
+            - GENIEACS_NBI_PORT=7777
