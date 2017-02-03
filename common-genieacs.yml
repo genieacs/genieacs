@@ -2,7 +2,7 @@ version: '2'
 
 services:
     genieacs:
-        image: thebinary/geneiacs
+        image: thebinary/genieacs
         environment:
             - GENIEACS_MONGODB_CONNECTION_URL=mongodb://mongodb/genieacs
             - GENIEACS_REDIS_HOST=redis
