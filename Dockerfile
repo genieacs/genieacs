@@ -8,9 +8,9 @@ RUN npm install && npm run configure && npm run compile
 
 EXPOSE 7777
 
-ENV GENIEACS_MONGODB_CONNECTION_URL mongodb://127.0.0.1/genieacs
+ENV GENIEACS_MONGODB_CONNECTION_URL mongodb://mongodb/genieacs
 ENV GENIEACS_REDIS_PORT 6379
-ENV GENIEACS_REDIS_HOST 127.0.0.1
+ENV GENIEACS_REDIS_HOST redis
 ENV GENIEACS_CWMP_INTERFACE 0.0.0.0
 ENV GENIEACS_CWMP_PORT 7777
 ENV GENIEACS_CWMP_SSL false
@@ -25,3 +25,6 @@ ENV GENIEACS_DEBUG false
 # Cleanup
 RUN npm cache clear
 RUN rm -rf /root/.node-gyp /tmp/npm-*
+
+ENTRYPOINT [ "npm", "run" ]
+CMD [ "start-cwmp" ]
