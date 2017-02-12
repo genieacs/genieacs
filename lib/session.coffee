@@ -162,9 +162,11 @@ inform = (sessionData, rpcReq, callback) ->
 transferComplete = (sessionData, rpcReq, callback) ->
   commandKey = rpcReq.commandKey
   operation = sessionData.operations[commandKey]
+
   if not operation?
-    # TODO Show a warning instead
-    throw new Error('Invalid command key')
+    # TODO Show a warning
+    return callback(null, {type : 'TransferCompleteResponse'})
+
   instance = operation.args.instance
 
   delete sessionData.operations[commandKey]
