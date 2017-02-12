@@ -136,6 +136,7 @@ httpConReq = (url, username, password, timeout, callback) ->
 
 
 connectionRequest = (deviceId, callback) ->
+  CONNECTION_REQUEST_TIMEOUT = config.get('CONNECTION_REQUEST_TIMEOUT', deviceId)
   proj = {
     'Device.ManagementServer.ConnectionRequestURL._value' : 1,
     'Device.ManagementServer.UDPConnectionRequestAddress._value' : 1,
@@ -165,7 +166,7 @@ connectionRequest = (deviceId, callback) ->
       if udpConnectionRequestAddress
         udpConReq(udpConnectionRequestAddress, username, password, (err) -> throw err if err)
 
-      httpConReq(connectionRequestUrl, username, password, 2000, (err) ->
+      httpConReq(connectionRequestUrl, username, password, CONNECTION_REQUEST_TIMEOUT, (err) ->
         if udpConnectionRequestAddress
           return callback()
         callback(err)
