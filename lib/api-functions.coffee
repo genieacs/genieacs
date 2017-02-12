@@ -49,6 +49,7 @@ util = require 'util'
 URL = require 'url'
 auth = require './auth'
 
+
 udpConReq = (address, un, key, callback) ->
   [host, port] = address.split(':', 2)
 
@@ -71,8 +72,9 @@ udpConReq = (address, un, key, callback) ->
   )
 
 
-connectionRequest = (deviceId, callback) ->
-  # ensure socket is reused in case of digest authentication
+httpConReq = (url, username, password, timeout, callback) ->
+  options = URL.parse(url)
+  # Ensure socket is reused in case of digest authentication
   agent = new http.Agent({maxSockets : 1})
 
   statusToError = (statusCode) ->
@@ -86,34 +88,54 @@ connectionRequest = (deviceId, callback) ->
       else
         new Error("Unexpected response code from device: #{statusCode}")
 
-  conReq = (url, authString, callback) ->
-    options = URL.parse(url)
-    options.agent = agent
+  request = http.get(options, (res) ->
+    if res.statusCode == 401 and res.headers['www-authenticate']?
+      authHeader = auth.parseAuthHeader(res.headers['www-authenticate'])
+      if authHeader.method is 'Basic'
+        options.headers = {'Authorization' : auth.basic(username, password)}
+      else if authHeader.method is 'Digest'
+        options.headers = {
+          'Authorization' : auth.digest(username, password, options.path, 'GET', null, authHeader)
+        }
 
-    if authString
-      options.headers = {'Authorization' : authString}
-
-    request = http.get(options, (res) ->
-      if res.statusCode == 401 and res.headers['www-authenticate']?
-        authHeader = auth.parseAuthHeader(res.headers['www-authenticate'])
-      callback(res.statusCode, authHeader)
-      # don't need body, go ahead and emit events to free up the socket for possible reuse
-      res.resume()
-    )
-
-    request.on('error', (err) ->
-      # error event when request is aborted
-      request.abort()
-      callback(0)
-    )
-
-    request.on('socket', (socket) ->
-      socket.setTimeout(2000)
-      socket.on('timeout', () ->
+      request = http.get(options, (res) ->
+        if res.statusCode == 0
+          # Workaround for some devices unexpectedly closing the connection
+          request = http.get(options, (res) ->
+            callback(statusToError(res.statusCode))
+            res.resume()
+          ).on('error', (err) ->
+            request.abort()
+            callback(statusToError(0))
+          ).on('socket', (socket) ->
+            socket.setTimeout(timeout)
+            socket.on('timeout', () -> request.abort())
+          )
+        else
+          callback(statusToError(res.statusCode))
+        res.resume()
+      ).on('error', (err) ->
         request.abort()
+        callback(statusToError(0))
+      ).on('socket', (socket) ->
+        socket.setTimeout(timeout)
+        socket.on('timeout', () -> request.abort())
       )
-    )
+    else
+      callback(statusToError(res.statusCode))
 
+    # No listener for data so emit resume
+    res.resume()
+  ).on('error', (err) ->
+    request.abort()
+    callback(statusToError(0))
+  ).on('socket', (socket) ->
+    socket.setTimeout(timeout)
+    socket.on('timeout', () -> request.abort())
+  )
+
+
+connectionRequest = (deviceId, callback) ->
   proj = {
     'Device.ManagementServer.ConnectionRequestURL._value' : 1,
     'Device.ManagementServer.UDPConnectionRequestAddress._value' : 1,
@@ -126,9 +148,7 @@ connectionRequest = (deviceId, callback) ->
   }
 
   db.devicesCollection.findOne({_id : deviceId}, proj, (err, device)->
-    if err
-      callback(err)
-      return
+    return callback(err) if err
 
     if device.Device? # TR-181 data model
       connectionRequestUrl = device.Device.ManagementServer.ConnectionRequestURL._value
@@ -141,33 +161,26 @@ connectionRequest = (deviceId, callback) ->
       username = device.InternetGatewayDevice.ManagementServer.ConnectionRequestUsername?._value
       password = device.InternetGatewayDevice.ManagementServer.ConnectionRequestPassword?._value
 
-    if not (username and password) and config.auth?.connectionRequest
-      [username, password] = config.auth.connectionRequest(deviceId)
+    conReq = () ->
+      if udpConnectionRequestAddress
+        udpConReq(udpConnectionRequestAddress, username, password, (err) -> throw err if err)
 
-    if udpConnectionRequestAddress
-      udpConReq(udpConnectionRequestAddress, username, password, (err) -> throw err if err)
+      httpConReq(connectionRequestUrl, username, password, 2000, (err) ->
+        if udpConnectionRequestAddress
+          return callback()
+        callback(err)
+      )
 
-    # for testing
-    #connectionRequestUrl = connectionRequestUrl.replace(/^(http:\/\/)([0-9\.]+)(\:[0-9]+\/[a-zA-Z0-9]+\/?$)/, '$110.1.1.254$3')
-    conReq(connectionRequestUrl, null, (statusCode, authHeader) ->
-      if statusCode == 401
-        if authHeader.method is 'Basic'
-          authString = auth.basic(username, password)
-        else if authHeader.method is 'Digest'
-          uri = URL.parse(connectionRequestUrl)
-          authString = auth.digest(username, password, uri.path, 'GET', null, authHeader)
-
-        conReq(connectionRequestUrl, authString, (statusCode, authHeader) ->
-          if statusCode == 0
-            # Workaround for some devices unexpectedly closing the connection
-            return conReq(connectionRequestUrl, authString, (statusCode) -> callback(statusToError(statusCode)))
-          callback(statusToError(statusCode))
+    if config.auth?.connectionRequest?
+      # Callback is optional for backward compatibility
+      if config.auth.connectionRequest.length > 4
+        return config.auth.connectionRequest(deviceId, connectionRequestUrl, username, password, (u, p) ->
+          username = u
+          password = p
+          conReq()
         )
-      else if udpConnectionRequestAddress
-        return callback()
-      else
-        callback(statusToError(statusCode))
-    )
+      [username, password] = config.auth.connectionRequest(deviceId, connectionRequestUrl, username, password)
+    conReq()
   )
 
 
