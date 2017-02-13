@@ -14,6 +14,6 @@ services:
             - mongodb
         ports:
         - "7567:7777"
-        command: npm run start-fs
+        command: start-fs
         environment:
             - GENIEACS_FS_PORT=7777

@@ -14,6 +14,6 @@ services:
             - mongodb
         ports:
             - "7557:7777"
-        command: npm run start-nbi
+        command: start-nbi
         environment:
             - GENIEACS_NBI_PORT=7777

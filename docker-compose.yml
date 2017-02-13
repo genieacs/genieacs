@@ -14,7 +14,7 @@ services:
             - mongodb
         ports:
             - "7547:7777"
-        command: npm run start-cwmp
+        command: start-cwmp
         environment:
             - GENIEACS_CWMP_PORT=7777
 
