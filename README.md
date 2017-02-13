@@ -61,10 +61,11 @@ docker build . -t genieacs
 ```
 
 ### Configuration (Environment Variables)
-All configuration variables of config.json have been exposed as environment variable for the docker image with prefix "GENIEACS\_" \
+All configuration variables of config.json have been exposed as environment variable for the docker image with prefix "GENIEACS_"
+
 Refer: [GenieACS General Config](https://github.com/zaidka/genieacs/wiki/GenieACS-General-Config)
 
-You can view the Dockerfile for the default parameters set for this image. As, the configuration parameters are exposed as environment variables, they can be overridden at rutime. This is will briefly described later in this documentation.
+You can view the "Dockerfile" for the default parameters set for this image. As, the configuration parameters are exposed as environment variables, they can be overridden at rutime. This is will briefly described later in this documentation.
 
 ### Running GenieACS Services (with default env vars)
 #### 1. Run redis and mongod services
