@@ -76,16 +76,16 @@ docker run -d --name mongodb mongo
 
 #### 2. Run genieacs services
 ```
-docker run -d --name genie-cwmp --link mongodb:mongodb --link redis:redis genieacs [start-cwmp]
-docker run -d --name genie-nbi --link mongodb:mongodb --link redis:redis genieacs start-nbi
-docker run -d --name genie-fs --link mongodb:mongodb --link redis:redis genieacs start-fs
+docker run -d --name genie-cwmp -p7547:7777 --link mongodb:mongodb --link redis:redis genieacs [start-cwmp]
+docker run -d --name genie-nbi -p7557:7777 --link mongodb:mongodb --link redis:redis genieacs start-nbi
+docker run -d --name genie-fs -p7567:7777 --link mongodb:mongodb --link redis:redis genieacs start-fs
 ```
 
 ### Running GenieACS Services (overriding defaults)
 ```
-docker run -d --name genie-cwmp -e GENIEACS_MONGODB_CONNECTION_URL="< MONGODB_CONNECTION_URL >" -e GENIEACS_REDIS_HOST="< REDIS_HOST >" [ -e .... ] [start-cwmp]
-docker run -d --name genie-nbi -e GENIEACS_MONGODB_CONNECTION_URL="< MONGODB_CONNECTION_URL >" -e GENIEACS_REDIS_HOST="< REDIS_HOST >" [ -e .... ] [start-nbi]
-docker run -d --name genie-fs -e GENIEACS_MONGODB_CONNECTION_URL="< MONGODB_CONNECTION_URL >" -e GENIEACS_REDIS_HOST="< REDIS_HOST >" [ -e .... ] [start-fs]
+docker run -d --name genie-cwmp -p7547:7777 -e GENIEACS_MONGODB_CONNECTION_URL="< MONGODB_CONNECTION_URL >" -e GENIEACS_REDIS_HOST="< REDIS_HOST >" [ -e .... ] [start-cwmp]
+docker run -d --name genie-nbi -p7557:7777 -e GENIEACS_MONGODB_CONNECTION_URL="< MONGODB_CONNECTION_URL >" -e GENIEACS_REDIS_HOST="< REDIS_HOST >" [ -e .... ] [start-nbi]
+docker run -d --name genie-fs -p7567:7777 -e GENIEACS_MONGODB_CONNECTION_URL="< MONGODB_CONNECTION_URL >" -e GENIEACS_REDIS_HOST="< REDIS_HOST >" [ -e .... ] [start-fs]
 ```
 
 ## Docker Compose
