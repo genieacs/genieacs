@@ -1,0 +1,25 @@
+version: '2'
+
+services:
+
+    cwmp:
+        extends:
+            file: common-genieacs.yml
+            service: genieacs
+        links:
+            - redis
+            - mongodb
+        depends_on:
+            - redis
+            - mongodb
+        ports:
+            - "7547:7777"
+        command: start-cwmp
+        environment:
+            - GENIEACS_CWMP_PORT=7777
+
+    redis:
+        image: redis:alpine
+    
+    mongodb:
+        image: mongo

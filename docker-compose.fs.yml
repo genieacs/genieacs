@@ -1,0 +1,19 @@
+version: '2'
+
+services:
+
+    fs:
+        extends:
+            file: common-genieacs.yml
+            service: genieacs
+        links:
+            - redis
+            - mongodb
+        depends_on:
+            - redis
+            - mongodb
+        ports:
+        - "7567:7777"
+        command: start-fs
+        environment:
+            - GENIEACS_FS_PORT=7777

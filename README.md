@@ -52,6 +52,58 @@ For further details about installation and configuration, refer to the [wiki sec
 
 You may now proceed with installing [GenieACS GUI front end](https://github.com/zaidka/genieacs-gui).
 
+## Docker Image
+### Build
+```
+git clone https://github.com/zaidka/genieacs.git --branch v1.0
+cd genieacs/
+docker build . -t genieacs
+```
+
+### Configuration (Environment Variables)
+All configuration variables of config.json have been exposed as environment variable for the docker image with prefix "GENIEACS_"
+
+Refer: [GenieACS General Config](https://github.com/zaidka/genieacs/wiki/GenieACS-General-Config)
+
+You can view the "Dockerfile" for the default parameters set for this image. As, the configuration parameters are exposed as environment variables, they can be overridden at rutime. This is will briefly described later in this documentation.
+
+### Running GenieACS Services (with default env vars)
+#### 1. Run redis and mongod services
+```
+docker run -d --name redis redis:alpine
+docker run -d --name mongodb mongo
+```
+
+#### 2. Run genieacs services
+```
+docker run -d --name genie-cwmp -p7547:7777 --link mongodb:mongodb --link redis:redis genieacs [start-cwmp]
+docker run -d --name genie-nbi -p7557:7777 --link mongodb:mongodb --link redis:redis genieacs start-nbi
+docker run -d --name genie-fs -p7567:7777 --link mongodb:mongodb --link redis:redis genieacs start-fs
+```
+
+### Running GenieACS Services (overriding defaults)
+```
+docker run -d --name genie-cwmp -p7547:7777 -e GENIEACS_MONGODB_CONNECTION_URL="< MONGODB_CONNECTION_URL >" -e GENIEACS_REDIS_HOST="< REDIS_HOST >" [ -e .... ] [start-cwmp]
+docker run -d --name genie-nbi -p7557:7777 -e GENIEACS_MONGODB_CONNECTION_URL="< MONGODB_CONNECTION_URL >" -e GENIEACS_REDIS_HOST="< REDIS_HOST >" [ -e .... ] [start-nbi]
+docker run -d --name genie-fs -p7567:7777 -e GENIEACS_MONGODB_CONNECTION_URL="< MONGODB_CONNECTION_URL >" -e GENIEACS_REDIS_HOST="< REDIS_HOST >" [ -e .... ] [start-fs]
+```
+
+## Docker Compose
+#### Examples:
+1. Run CWMP
+```
+docker-compose up -d [ -f docker-compose.yml ]
+```
+2. Run NBI
+```
+docker-compose up -d -f docker-compose.nbi.yml
+```
+3. Run CWMP + NBI + FS
+```
+docker-compose up -d -f docker-compose.yml -f docker-compose.nbi.yml -f docker-compose.fs.yml
+```
+
+
 ## Support
 
 The [Users mailing list](http://lists.genieacs.com) is a good place to get guidance and help from the community. Head on over and join the conversation! In addition, the [wiki](https://github.com/zaidka/genieacs/wiki) provides useful documentation and tips from GenieACS users.
