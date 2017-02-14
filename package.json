@@ -36,6 +36,9 @@
     "compile": "coffee -cb lib/*.coffee test/*.coffee tools/*.coffee",
     "configure": "cp ./config/config-sample.json ./config/config.json; cp ./config/parameters-sample.json ./config/parameters.json; cp ./config/custom_commands-sample.json ./config/custom_commands.json; cp ./config/auth-sample.js ./config/auth.js",
     "install": "npm run configure",
-    "test": "node test"
+    "test": "node test",
+    "start-cwmp": "node ./bin/genieacs-cwmp",
+    "start-nbi": "node ./bin/genieacs-nbi",
+    "start-fs": "node ./bin/genieacs-fs"
   }
 }
