@@ -71,7 +71,8 @@ if useHttps
   httpsCa = path.resolve(config.get('CONFIG_DIR'), "#{service}.ca-bundle")
   options = {
     key: fs.readFileSync(httpsKey),
-    cert: fs.readFileSync(httpsCert)
+    cert: fs.readFileSync(httpsCert),
+    passphrase: config.get(service.toUpperCase()+'_PASSPHRASE')
   }
 
   try

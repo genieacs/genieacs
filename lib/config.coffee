@@ -29,6 +29,7 @@ options = {
   CWMP_PORT : {type : 'int', default : 7547},
   CWMP_INTERFACE : {type : 'string', default : '0.0.0.0'},
   CWMP_SSL : {type : 'bool', default : false},
+  CWMP_PASSPHRASE: {type: 'string', default : '' },
 
   NBI_WORKER_PROCESSES : {type : 'int', default : 2},
   NBI_PORT : {type : 'int', default : 7557},
