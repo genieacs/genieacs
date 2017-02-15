@@ -339,7 +339,7 @@ saveDevice = (deviceId, deviceData, isNew, callback) ->
     if not diff[2]? and diff[1]?
       update['$unset'][diff[0].slice(0, -1).concat('_timestamp').join('.')] = 1
     else if diff[2] != diff[1]
-      parent = deviceData.paths.subset(diff[0].slice(0, -1)).next().value
+      parent = deviceData.paths.get(diff[0].slice(0, -1))
       if parent and (parent.length == 0 or deviceData.attributes.has(parent))
         update['$set'][diff[0].slice(0, -1).concat('_timestamp').join('.')] = new Date(diff[2])
 

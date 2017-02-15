@@ -671,8 +671,7 @@ rpcRequest = (sessionData, _declarations, callback) ->
         else if c? and not v
           toClear = device.set(sessionData.deviceData, p, timestamp, toClear)
           noMoreTags = true
-          iter = sessionData.deviceData.paths.subset(['Tags', '*'])
-          while p = iter.next().value
+          for p in sessionData.deviceData.paths.find(['Tags', '*'], false, true)
             if sessionData.deviceData.attributes.has(p)
               noMoreTags = false
               break
@@ -685,8 +684,7 @@ rpcRequest = (sessionData, _declarations, callback) ->
       sessionData.syncState.downloadsToCreate.forEach((instance) ->
         if not index?
           index = 0
-          iter = sessionData.deviceData.paths.subset(['Downloads', '*'])
-          while p = iter.next().value
+          for p in sessionData.deviceData.paths.find(['Downloads', '*'], false, true)
             if +p[1] > index and sessionData.deviceData.attributes.has(p)
               index = +p[1]
 
@@ -831,9 +829,8 @@ generateGetRpcRequest = (sessionData) ->
 
   iter = syncState.refreshAttributes.exist.values()
   while (path = iter.next().value)
-    descendantIter = sessionData.deviceData.paths.subset(path, 99)
     found = false
-    while (p = descendantIter.next().value)?
+    for p in sessionData.deviceData.paths.find(path, false, true, 99)
       if syncState.refreshAttributes.value.has(p) or
           syncState.refreshAttributes.object.has(p) or
           syncState.refreshAttributes.writable.has(p) or
@@ -849,9 +846,8 @@ generateGetRpcRequest = (sessionData) ->
 
   iter = syncState.refreshAttributes.object.values()
   while (path = iter.next().value)
-    descendantIter = sessionData.deviceData.paths.subset(path, 99)
     found = false
-    while (p = descendantIter.next().value)?
+    for p in sessionData.deviceData.paths.find(path, false, true, 99)
       if syncState.refreshAttributes.value.has(p) or
           (p.length > path.length and
           (syncState.refreshAttributes.object.has(p) or
@@ -885,8 +881,7 @@ generateGetRpcRequest = (sessionData) ->
 
     if path
       patterns = []
-      iter = sessionData.deviceData.paths.superset(path, 99)
-      while p = iter.next().value
+      for p in sessionData.deviceData.paths.find(path, true, false, 99)
         if v = syncState.gpnPatterns.get(p)
           patterns.push([p, (v >> path.length) << path.length])
 
@@ -900,8 +895,7 @@ generateGetRpcRequest = (sessionData) ->
         syncState.gpn.delete(path)
       else
         nextLevel = false
-        iter = sessionData.deviceData.paths.subset(path, 99)
-        while p = iter.next().value
+        for p in sessionData.deviceData.paths.find(path, false, true, 99)
           syncState.gpn.delete(p)
 
       return {
@@ -985,7 +979,7 @@ generateSetRpcRequest = (sessionData) ->
 
   # Reboot
   if syncState.reboot?
-    p = sessionData.deviceData.paths.subset(['Reboot']).next().value
+    p = sessionData.deviceData.paths.get(['Reboot'])
     if not (p? and sessionData.deviceData.attributes.get(p)?.value?[1][0] >= syncState.reboot)
       delete syncState.reboot
       return {
@@ -994,7 +988,7 @@ generateSetRpcRequest = (sessionData) ->
 
   # Factory reset
   if syncState.factoryReset?
-    p = sessionData.deviceData.paths.subset(['FactoryReset']).next().value
+    p = sessionData.deviceData.paths.get(['FactoryReset'])
     if not (p? and sessionData.deviceData.attributes.get(p)?.value?[1][0] >= syncState.factoryReset)
       delete syncState.factoryReset
       return {
@@ -1005,9 +999,9 @@ generateSetRpcRequest = (sessionData) ->
   iter = syncState.downloadsDownload.entries()
   while pair = iter.next().value
     if not (pair[1] <= deviceData.attributes.get(pair[0])?.value?[1][0])
-      fileTypePath = deviceData.paths.subset(pair[0].slice(0, -1).concat('FileType')).next().value
-      fileNamePath = deviceData.paths.subset(pair[0].slice(0, -1).concat('FileName')).next().value
-      targetFileNamePath = deviceData.paths.subset(pair[0].slice(0, -1).concat('TargetFileName')).next().value
+      fileTypePath = deviceData.paths.get(pair[0].slice(0, -1).concat('FileType'))
+      fileNamePath = deviceData.paths.get(pair[0].slice(0, -1).concat('FileName'))
+      targetFileNamePath = deviceData.paths.get(pair[0].slice(0, -1).concat('TargetFileName'))
       return {
         type: 'Download'
         commandKey: generateRpcId(sessionData)
@@ -1054,7 +1048,7 @@ processDeclarations = (sessionData, allDeclareTimestamps, allDeclareAttributeTim
   syncState = sessionData.syncState
 
   root = sessionData.deviceData.paths.add([])
-  paths = Array.from(sessionData.deviceData.paths.subset([], 99))
+  paths = sessionData.deviceData.paths.find([], false, true, 99)
   paths.sort((a, b) ->
     if a.wildcard == b.wildcard
       return a.length - b.length
@@ -1196,9 +1190,7 @@ loadPath = (sessionData, path, depth) ->
   path = path.slice(0, trimWildcard) if trimWildcard < path.length
 
   for i in [0..path.length] by 1
-    iter = sessionData.deviceData.paths.superset(path.slice(0, i))
-
-    while sup = iter.next().value
+    for sup in sessionData.deviceData.paths.find(path.slice(0, i), true, false)
       v = sessionData.deviceData.loaded.get(sup)
       depth &= depth ^ sessionData.deviceData.loaded.get(sup)
 
@@ -1259,7 +1251,7 @@ clear = (sessionData, toClear, callback) ->
   MAX_DEPTH = config.get('MAX_DEPTH', sessionData.deviceId)
 
   toClear.forEach((c) ->
-    loadPath(sessionData, c[0], ((1 << c[0].length) - 1) ^ (1 << MAX_DEPTH) - 1)
+    loadPath(sessionData, c[0], ((1 << c[0].length) - 1) ^ ((1 << MAX_DEPTH) - 1))
   )
 
   loadParameters(sessionData, (err) ->
@@ -1400,14 +1392,14 @@ rpcResponse = (sessionData, id, rpcRes, callback) ->
       if rpcReq.nextLevel
         loadPath(sessionData, root, (1 << (root.length + 1)) - 1)
       else
-        loadPath(sessionData, root, (1 << config.get('MAX_DEPTH', sessionData.deviceId) - 1))
+        loadPath(sessionData, root, (1 << config.get('MAX_DEPTH', sessionData.deviceId)) - 1)
 
       loadParameters(sessionData, (err) ->
         return callback(err) if err
 
         if root.length == 0
           for n in ['DeviceID', 'Events', 'Tags', 'Reboot', 'FactoryReset', 'VirtualParameters']
-            if p = sessionData.deviceData.paths.subset([n]).next().value
+            if p = sessionData.deviceData.paths.get([n])
               if sessionData.deviceData.attributes.has(p)
                 sessionData.deviceData.timestamps.set(p, timestamp)
 
@@ -1546,9 +1538,7 @@ deserialize = (sessionDataString, callback) ->
 serialize = (sessionData, callback) ->
   deviceData = []
 
-  iter = sessionData.deviceData.paths.find([], 99)
-  while not (p = iter.next()).done
-    path = p.value
+  for path in sessionData.deviceData.paths.find([], false, false, 99)
     e = [path]
     e[1] = sessionData.deviceData.loaded.get(path) || 0
     e[2] = sessionData.deviceData.trackers.get(path) || null

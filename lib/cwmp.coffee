@@ -244,8 +244,7 @@ applyPresets = (currentRequest) ->
     sessionData.presetsHash = presetsHash
 
     deviceEvents = {}
-    iter = sessionData.deviceData.paths.subset(['Events', '*'])
-    while (p = iter.next().value)
+    for p in sessionData.deviceData.paths.find(['Events', '*'], false, true)
       if sessionData.timestamp <= sessionData.deviceData.attributes.get(p)?.value?[1][0]
         deviceEvents[p[1]] = true
 
