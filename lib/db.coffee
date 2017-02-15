@@ -34,7 +34,7 @@ operationsCollection = null
 
 connect = (callback) ->
   callbackCounter = 10
-  mongodb.MongoClient.connect(config.get('MONGODB_CONNECTION_URL'), {db:{w:1},server:{autoReconnect:true}}, (err, db) ->
+  mongodb.MongoClient.connect(config.get('MONGODB_CONNECTION_URL'), (err, db) ->
     return callback(err) if err
     exports.mongoDb = db
     db.collection('tasks', (err, collection) ->
