@@ -164,7 +164,6 @@ transferComplete = (sessionData, rpcReq, callback) ->
   operation = sessionData.operations[commandKey]
 
   if not operation?
-    # TODO Show a warning
     return callback(null, {type : 'TransferCompleteResponse'})
 
   instance = operation.args.instance
@@ -182,7 +181,7 @@ transferComplete = (sessionData, rpcReq, callback) ->
         timestamp: operation.timestamp
       }
 
-      return callback(err, {type : 'TransferCompleteResponse'}, fault, operation)
+      return callback(err, {type : 'TransferCompleteResponse'}, operation, fault)
     )
 
   loadPath(sessionData, ['Downloads', instance, '*'])
@@ -218,7 +217,7 @@ transferComplete = (sessionData, rpcReq, callback) ->
       {value: [timestamp, [+rpcReq.completeTime, 'xsd:dateTime']]}, toClear)
 
     clear(sessionData, toClear, (err) ->
-      return callback(err, {type : 'TransferCompleteResponse'})
+      return callback(err, {type : 'TransferCompleteResponse'}, operation)
     )
   )
 

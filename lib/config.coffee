@@ -29,22 +29,27 @@ options = {
   CWMP_PORT : {type : 'int', default : 7547},
   CWMP_INTERFACE : {type : 'string', default : '0.0.0.0'},
   CWMP_SSL : {type : 'bool', default : false},
+  CWMP_LOG_FILE : {type: 'path', default : ''},
+  CWMP_ACCESS_LOG_FILE : {type : 'path', default : ''},
 
   NBI_WORKER_PROCESSES : {type : 'int', default : 2},
   NBI_PORT : {type : 'int', default : 7557},
   NBI_INTERFACE : {type : 'string', default : '0.0.0.0'},
   NBI_SSL : {type : 'bool', default : false},
+  NBI_LOG_FILE : {type: 'path', default : ''},
+  NBI_ACCESS_LOG_FILE : {type : 'path', default : ''},
 
   FS_WORKER_PROCESSES : {type : 'int', default : 2},
   FS_PORT : {type : 'int', default : 7567},
   FS_INTERFACE : {type : 'string', default : '0.0.0.0'},
   FS_SSL : {type : 'bool', default : false},
   FS_IP : {type : 'string', default : '192.168.0.1'},
+  FS_LOG_FILE : {type: 'path', default : ''},
+  FS_ACCESS_LOG_FILE : {type : 'path', default : ''},
 
   DOWNLOAD_TIMEOUT: {type : 'int', default : 3600},
   EXT_TIMEOUT: {type: 'int', default: 3000},
   PRESETS_CACHE_DURATION : {type : 'int', default : 86400},
-  LOG_INFORMS : {type : 'bool', default : true},
   DEBUG : {type : 'bool', default : false},
   RETRY_DELAY : {type : 'int', default : 300},
   SESSION_TIMEOUT : {type : 'int', default : 30},
@@ -53,6 +58,8 @@ options = {
   TASK_PARAMETERS_BATCH_SIZE : {type : 'int', default : 32},
   MAX_DEPTH : {type: 'int', default : 16},
   COOKIES_PATH : {type : 'string'},
+  LOG_FORMAT : {type : 'string', default : 'simple'},
+  ACCESS_LOG_FORMAT : {type : 'string', default : ''},
 
   # XML configuration
   XML_RECOVER : {type : 'bool', default : false},
@@ -81,7 +88,7 @@ setConfig = (name, value, commandLineArgument) ->
       when 'string'
         String(val)
       when 'path'
-        path.resolve(val)
+        if val then path.resolve(val) else ''
       else
         null
 
@@ -109,16 +116,12 @@ setConfig = (name, value, commandLineArgument) ->
 
 
 # Command line arguments
-exports.argv = []
 argv = process.argv[2..]
 while argv.length
   arg = argv.shift()
   if arg[0] == '-'
     v = argv.shift()
-    exports.argv[arg] = v
     setConfig(arg[2..], v, true)
-  else
-    exports.argv.push(arg)
 
 
 # Environment variable

@@ -50,6 +50,7 @@ query = require './query'
 device = require './device'
 cache = require './cache'
 db = require './db'
+logger = require './logger'
 
 MAX_CYCLES = 4
 
@@ -92,7 +93,8 @@ writeResponse = (currentRequest, res) ->
     currentRequest.httpResponse.end(res.data)
 
 
-recordFault = (sessionData, fault, provisions, channels) ->
+recordFault = (currentRequest, fault, provisions, channels) ->
+  sessionData = currentRequest.sessionData
   faults = sessionData.faults
 
   for channel of channels
@@ -111,7 +113,14 @@ recordFault = (sessionData, fault, provisions, channels) ->
 
     sessionData.faultsTouched ?= {}
     sessionData.faultsTouched[channel] = true
-    util.log("#{sessionData.deviceId}: Fault occurred in channel #{channel} (retries: #{sessionData.retries[channel]})")
+
+    logger.accessError({
+      currentRequest: currentRequest
+      message: 'Channel has faulted'
+      fault: fault
+      channel: channel
+      retries: sessionData.retries[channel]
+    })
 
   for provision, i in provisions
     for channel of channels
@@ -128,9 +137,6 @@ recordFault = (sessionData, fault, provisions, channels) ->
 
 
 inform = (currentRequest, cwmpRequest) ->
-  if config.get('LOG_INFORMS', currentRequest.sessionData.deviceId)
-    util.log("#{currentRequest.sessionData.deviceId}: Inform (#{cwmpRequest.methodRequest.event}); retry count #{cwmpRequest.methodRequest.retryCount}")
-
   session.inform(currentRequest.sessionData, cwmpRequest.methodRequest, (err, rpcResponse) ->
     return throwError(err, currentRequest.httpResponse) if err
     res = soap.response({
@@ -149,14 +155,21 @@ inform = (currentRequest, cwmpRequest) ->
 
 
 transferComplete = (currentRequest, cwmpRequest) ->
-  session.transferComplete(currentRequest.sessionData, cwmpRequest.methodRequest, (err, rpcResponse, fault, operation) ->
+  session.transferComplete(currentRequest.sessionData, cwmpRequest.methodRequest, (err, rpcResponse, operation, fault) ->
     return throwError(err, currentRequest.httpResponse) if err
+
+    if not operation?
+      logger.accessWarn({
+        currentRequest: currentRequest
+        message: 'Unrecognized command key'
+        cpeRequest: cwmpRequest.methodRequest
+      })
 
     if fault
       for k, v of operation.retries
         currentRequest.sessionData.retries[k] = v
 
-      recordFault(currentRequest.sessionData, fault, operation.provisions, operation.channels)
+      recordFault(currentRequest, fault, operation.provisions, operation.channels)
 
     res = soap.response({
       id : cwmpRequest.id,
@@ -280,7 +293,7 @@ applyPresets = (currentRequest) ->
       return throwError(err, currentRequest.httpResponse) if err
 
       if fault
-        recordFault(sessionData, fault, sessionData.provisions, sessionData.channels)
+        recordFault(currentRequest, fault, sessionData.provisions, sessionData.channels)
         session.clearProvisions(sessionData)
         return applyPresets(currentRequest)
 
@@ -321,7 +334,7 @@ applyPresets = (currentRequest) ->
           message: 'The provision seems to be repeating indefinitely'
           timestamp: sessionData.timestamp
         }
-        recordFault(sessionData, fault, sessionData.provisions, sessionData.channels)
+        recordFault(currentRequest, fault, sessionData.provisions, sessionData.channels)
         session.clearProvisions(sessionData)
         return sendRpcRequest(currentRequest)
 
@@ -329,7 +342,7 @@ applyPresets = (currentRequest) ->
         return throwError(err, currentRequest.httpResponse) if err
 
         if fault
-          recordFault(sessionData, fault, sessionData.provisions, sessionData.channels)
+          recordFault(currentRequest, fault, sessionData.provisions, sessionData.channels)
           session.clearProvisions(sessionData)
           return applyPresets(currentRequest)
 
@@ -354,7 +367,7 @@ nextRpc = (currentRequest) ->
     return throwError(err, currentRequest.httpResponse) if err
 
     if fault
-      recordFault(currentRequest.sessionData, fault, currentRequest.sessionData.provisions, currentRequest.sessionData.channels)
+      recordFault(currentRequest, fault, currentRequest.sessionData.provisions, currentRequest.sessionData.channels)
       session.clearProvisions(currentRequest.sessionData)
       return nextRpc(currentRequest)
 
@@ -383,7 +396,11 @@ nextRpc = (currentRequest) ->
 
       # Delete if expired
       if task.expiry <= currentRequest.sessionData.timestamp
-        util.log("#{currentRequest.sessionData.deviceId}: Task is expired #{task.name}(#{task._id})")
+        logger.accessInfo({
+          currentRequest: currentRequest
+          message: 'Task expired'
+          task: task
+        })
         currentRequest.sessionData.doneTasks ?= []
         currentRequest.sessionData.doneTasks.push(String(task._id))
         if channel of currentRequest.sessionData.faults
@@ -443,7 +460,10 @@ sendRpcRequest = (currentRequest, id, rpcRequest) ->
 
       delete currentSessions.get(currentRequest.httpRequest.connection)[currentRequest.sessionData.sessionId]
       if isNew
-        util.log("#{currentRequest.sessionData.deviceId}: New device registered")
+        logger.accessInfo({
+          currentRequest: currentRequest
+          message: 'New device registered'
+        })
 
       db.clearTasks(currentRequest.sessionData.deviceId, currentRequest.sessionData.doneTasks, (err) ->
         return throwError(err, currentRequest.httpResponse) if err
@@ -500,7 +520,12 @@ sendRpcRequest = (currentRequest, id, rpcRequest) ->
         return sendRpcRequest(currentRequest, id, rpcRequest)
       )
 
-  util.log("#{currentRequest.sessionData.deviceId}: #{rpcRequest.type} (#{id})")
+  logger.accessInfo({
+    currentRequest: currentRequest
+    message: 'ACS request'
+    acsRequest: rpcRequest
+    acsRequestId: id
+  })
 
   res = soap.response({
     id : id,
@@ -647,30 +672,53 @@ listener = (httpRequest, httpResponse) ->
 
       if cwmpRequest.methodRequest?
         if cwmpRequest.methodRequest.type is 'Inform'
+          logger.accessInfo({
+            currentRequest: currentRequest
+            message: 'Inform'
+            cpeRequest: cwmpRequest.methodRequest
+            cpeRequestId: cwmpRequest.id
+          });
           inform(currentRequest, cwmpRequest)
         else if cwmpRequest.methodRequest.type is 'TransferComplete'
+          logger.accessInfo({
+            currentRequest: currentRequest
+            message: 'CPE request'
+            cpeRequest: cwmpRequest.methodRequest
+            cpeRequestId: cwmpRequest.id
+          });
           transferComplete(currentRequest, cwmpRequest)
         else if cwmpRequest.methodRequest.type is 'GetRPCMethods'
-          util.log("#{currentRequest.sessionData.deviceId}: GetRPCMethods")
+          logger.accessInfo({
+            currentRequest: currentRequest
+            message: 'CPE request'
+            cpeRequest: cwmpRequest.methodRequest
+            cpeRequestId: cwmpRequest.id
+          });
           res = soap.response({
             id : cwmpRequest.id,
             methodResponse : {type : 'GetRPCMethodsResponse', methodList : ['Inform', 'GetRPCMethods', 'TransferComplete', 'RequestDownload']},
             cwmpVersion : currentRequest.sessionData.cwmpVersion
           })
           writeResponse(currentRequest, res)
-        else if cwmpRequest.methodRequest.type is 'TransferComplete'
-          return throwError(new Error('ACS method not supported'), currentRequest.httpResponse) if err
+        else
+          return throwError(new Error('ACS method not supported'), currentRequest.httpResponse)
       else if cwmpRequest.methodResponse?
         session.rpcResponse(currentRequest.sessionData, cwmpRequest.id, cwmpRequest.methodResponse, (err) ->
           return throwError(err, currentRequest.httpResponse) if err
           nextRpc(currentRequest)
         )
       else if cwmpRequest.fault?
+        logger.accessWarn({
+          currentRequest: currentRequest
+          message: 'CPE fault'
+          cpeFault: cwmpRequest.fault.detail
+          cpeRequestId: cwmpRequest.id
+        });
         session.rpcFault(currentRequest.sessionData, cwmpRequest.id, cwmpRequest.fault, (err, fault) ->
           return throwError(err, currentRequest.httpResponse) if err
 
           if fault
-            recordFault(currentRequest.sessionData, fault, currentRequest.sessionData.provisions, currentRequest.sessionData.channels)
+            recordFault(currentRequest, fault, currentRequest.sessionData.provisions, currentRequest.sessionData.channels)
             session.clearProvisions(currentRequest.sessionData)
           nextRpc(currentRequest)
         )
@@ -682,7 +730,7 @@ listener = (httpRequest, httpResponse) ->
             for k, v of operations[i].retries
               sessionData.retries[k] = v
 
-            recordFault(currentRequest.sessionData, fault, operations[i].provisions, operations[i].channels)
+            recordFault(currentRequest, fault, operations[i].provisions, operations[i].channels)
 
           nextRpc(currentRequest)
         )

@@ -15,16 +15,17 @@
 # along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
 ###
 
+service = process.argv[2]
+if not service?
+  throw new Error('Missing argument cwmp, fs, or nbi')
+
 util = require 'util'
 cluster = require 'cluster'
+logger = require './logger'
+logger.init(service, require('../package.json').version)
 config = require './config'
 db = require './db'
 extensions = require './extensions'
-
-
-service = config.argv[0]
-if not service?
-  throw new Error('Missing argument cwmp, fs, or nbi')
 
 networkInterface = config.get("#{service.toUpperCase()}_INTERFACE")
 port = config.get("#{service.toUpperCase()}_PORT")
@@ -45,21 +46,22 @@ exit = () ->
   if not server
     db.disconnect()
     extensions.killAll()
+    logger.close()
     return
 
   server.close(() ->
     db.disconnect()
     extensions.killAll()
+    logger.close()
   )
 
 
 process.on('uncaughtException', (err) ->
-  try
-    util.error("#{new Date().toISOString()} - #{err.stack}\n")
-    exit()
-  catch err
-    util.error("#{new Date().toISOString()} - #{err.stack}\n")
-  throw err
+  logger.error({
+    message: 'Uncaught exception'
+    exception: err
+  })
+  exit()
 )
 
 
