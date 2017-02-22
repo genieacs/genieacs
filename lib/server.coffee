@@ -82,11 +82,10 @@ if useHttps
       .match(/\-+BEGIN CERTIFICATE\-+[0-9a-zA-Z\+\-\/\=\s]+?\-+END CERTIFICATE\-+/g)
 
   server = require('https').createServer(options, listener)
+  server.on('secureConnection', onConnection) if onConnection?
 else
   server = require('http').createServer(listener)
-
-if onConnection?
-  server.on('connection', onConnection)
+  server.on('connection', onConnection) if onConnection?
 
 db.connect((err) ->
   throw err if err
