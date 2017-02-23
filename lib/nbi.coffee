@@ -41,6 +41,7 @@
 url = require 'url'
 mongodb = require 'mongodb'
 querystring = require 'querystring'
+vm = require 'vm'
 
 config = require './config'
 common = require './common'
@@ -156,6 +157,12 @@ listener = (request, response) ->
           _id: provisionName
           script: body.toString()
         }
+        try
+          new vm.Script("\"use strict\";(function(){\n#{object.script}\n})();")
+        catch err
+          response.writeHead(400)
+          response.end("#{err.name}: #{err.message}")
+          return
 
         db.provisionsCollection.save(object, (err) ->
           return throwError(err, response) if err
@@ -184,6 +191,12 @@ listener = (request, response) ->
           _id: virtualParameterName
           script: body.toString()
         }
+        try
+          new vm.Script("\"use strict\";(function(){\n#{object.script}\n})();")
+        catch err
+          response.writeHead(400)
+          response.end("#{err.name}: #{err.message}")
+          return
 
         db.virtualParametersCollection.save(object, (err) ->
           return throwError(err, response) if err
