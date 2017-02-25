@@ -28,6 +28,9 @@ defaultProvisions = require './default-provisions'
 
 MAX_ITERATIONS = 64
 
+provisionsCache = new WeakMap()
+virtualParametersCache = new WeakMap()
+
 
 initDeviceData = () ->
   return {
@@ -43,7 +46,7 @@ initDeviceData = () ->
 init = (deviceId, cwmpVersion, timeout, callback) ->
   timestamp = Date.now()
 
-  sessionData = {
+  sessionContext = {
     timestamp : timestamp
     deviceId : deviceId
     deviceData : initDeviceData()
@@ -63,58 +66,56 @@ init = (deviceId, cwmpVersion, timeout, callback) ->
   cache.getProvisionsAndVirtualParameters((err, hash, provisions, virtualParameters) ->
     return callback(err) if err
 
-    sessionData.cache = {
-      hash: hash
-      provisions: provisions
-      virtualParameters: virtualParameters
-    }
+    sessionContext.presetsHash = hash
+    provisionsCache.set(sessionContext, provisions)
+    virtualParametersCache.set(sessionContext, virtualParameters)
 
-    return callback(null, sessionData)
+    return callback(null, sessionContext)
   )
 
 
-loadParameters = (sessionData, callback) ->
-  if not sessionData.toLoad?.length
+loadParameters = (sessionContext, callback) ->
+  if not sessionContext.toLoad?.length
     return callback()
 
-  db.fetchDevice(sessionData.deviceId, sessionData.timestamp, sessionData.toLoad, (err, parameters, loaded) ->
+  db.fetchDevice(sessionContext.deviceId, sessionContext.timestamp, sessionContext.toLoad, (err, parameters, loaded) ->
     return callback(err) if err
 
     if not parameters?
       # Device not available in database, mark as new
-      sessionData.new = true
-      loaded = [[[], (1 << config.get('MAX_DEPTH', sessionData.deviceId)) - 1]]
+      sessionContext.new = true
+      loaded = [[[], (1 << config.get('MAX_DEPTH', sessionContext.deviceId)) - 1]]
       parameters = []
 
     for p in loaded
-      path = sessionData.deviceData.paths.add(p[0])
+      path = sessionContext.deviceData.paths.add(p[0])
 
       if p[1]
-        l = sessionData.deviceData.loaded.get(path) | 0
-        sessionData.deviceData.loaded.set(path, l | p[1])
+        l = sessionContext.deviceData.loaded.get(path) | 0
+        sessionContext.deviceData.loaded.set(path, l | p[1])
 
     for p in parameters
-      path = sessionData.deviceData.paths.add(p[0])
+      path = sessionContext.deviceData.paths.add(p[0])
 
-      sessionData.deviceData.timestamps.set(path, p[1], 0)
+      sessionContext.deviceData.timestamps.set(path, p[1], 0)
 
       if p[2]
-        sessionData.deviceData.attributes.set(path, p[2], 0)
+        sessionContext.deviceData.attributes.set(path, p[2], 0)
 
-    delete sessionData.toLoad
+    delete sessionContext.toLoad
 
     return callback()
   )
 
 
-generateRpcId = (sessionData) ->
-  return sessionData.timestamp.toString(16) +
-    sessionData.cycle.toString(16).slice(-1) +
-    "0#{sessionData.rpcCount.toString(16)}".slice(-2)
+generateRpcId = (sessionContext) ->
+  return sessionContext.timestamp.toString(16) +
+    sessionContext.cycle.toString(16).slice(-1) +
+    "0#{sessionContext.rpcCount.toString(16)}".slice(-2)
 
 
-inform = (sessionData, rpcReq, callback) ->
-  timestamp = sessionData.timestamp + sessionData.iteration + 1
+inform = (sessionContext, rpcReq, callback) ->
+  timestamp = sessionContext.timestamp + sessionContext.iteration + 1
 
   params = []
   params.push([['DeviceID', 'Manufacturer'], timestamp,
@@ -141,39 +142,39 @@ inform = (sessionData, rpcReq, callback) ->
       {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [timestamp, 'xsd:dateTime']]}])
 
   for p in params
-    loadPath(sessionData, p[0])
+    loadPath(sessionContext, p[0])
 
-  loadParameters(sessionData, (err) ->
+  loadParameters(sessionContext, (err) ->
     return callback(err) if err
 
-    sessionData.deviceData.timestamps.revision = 1
-    sessionData.deviceData.attributes.revision = 1
+    sessionContext.deviceData.timestamps.revision = 1
+    sessionContext.deviceData.attributes.revision = 1
 
     toClear = null
     for p in params
-      toClear = device.set(sessionData.deviceData, p[0], p[1], p[2], toClear)
+      toClear = device.set(sessionContext.deviceData, p[0], p[1], p[2], toClear)
 
-    clear(sessionData, toClear, (err) ->
-      return callback(err, {type : 'InformResponse'})
+    clear(sessionContext, toClear, (err) ->
+      return callback(err, {name: 'InformResponse'})
     )
   )
 
 
-transferComplete = (sessionData, rpcReq, callback) ->
+transferComplete = (sessionContext, rpcReq, callback) ->
   commandKey = rpcReq.commandKey
-  operation = sessionData.operations[commandKey]
+  operation = sessionContext.operations[commandKey]
 
   if not operation?
-    return callback(null, {type : 'TransferCompleteResponse'})
+    return callback(null, {name: 'TransferCompleteResponse'})
 
   instance = operation.args.instance
 
-  delete sessionData.operations[commandKey]
-  sessionData.operationsTouched ?= {}
-  sessionData.operationsTouched[commandKey] = 1
+  delete sessionContext.operations[commandKey]
+  sessionContext.operationsTouched ?= {}
+  sessionContext.operationsTouched[commandKey] = 1
 
   if rpcReq.faultStruct? and rpcReq.faultStruct.faultCode != '0'
-    return revertDownloadParameters(sessionData, operation.args.instance, (err) ->
+    return revertDownloadParameters(sessionContext, operation.args.instance, (err) ->
       fault = {
         code: "cwmp.#{rpcReq.faultStruct.faultCode}"
         message: rpcReq.faultStruct.faultString
@@ -181,81 +182,80 @@ transferComplete = (sessionData, rpcReq, callback) ->
         timestamp: operation.timestamp
       }
 
-      return callback(err, {type : 'TransferCompleteResponse'}, operation, fault)
+      return callback(err, {name: 'TransferCompleteResponse'}, operation, fault)
     )
 
-  loadPath(sessionData, ['Downloads', instance, '*'])
+  loadPath(sessionContext, ['Downloads', instance, '*'])
 
-  loadParameters(sessionData, (err) ->
+  loadParameters(sessionContext, (err) ->
     return callback(err) if err
 
     toClear = null
-    timestamp = sessionData.timestamp + sessionData.iteration + 1
+    timestamp = sessionContext.timestamp + sessionContext.iteration + 1
 
-    p = sessionData.deviceData.paths.add(['Downloads', instance, 'LastDownload'])
-    toClear = device.set(sessionData.deviceData, p, timestamp,
+    p = sessionContext.deviceData.paths.add(['Downloads', instance, 'LastDownload'])
+    toClear = device.set(sessionContext.deviceData, p, timestamp,
       {value: [timestamp, [operation.timestamp, 'xsd:dateTime']]}, toClear)
 
-    p = sessionData.deviceData.paths.add(['Downloads', instance, 'LastFileType'])
-    toClear = device.set(sessionData.deviceData, p, timestamp,
+    p = sessionContext.deviceData.paths.add(['Downloads', instance, 'LastFileType'])
+    toClear = device.set(sessionContext.deviceData, p, timestamp,
       {value: [timestamp, [operation.args.fileType, 'xsd:string']]}, toClear)
 
-    p = sessionData.deviceData.paths.add(['Downloads', instance, 'LastFileName'])
-    toClear = device.set(sessionData.deviceData, p, timestamp,
+    p = sessionContext.deviceData.paths.add(['Downloads', instance, 'LastFileName'])
+    toClear = device.set(sessionContext.deviceData, p, timestamp,
       {value: [timestamp, [operation.args.fileName, 'xsd:string']]}, toClear)
 
-    p = sessionData.deviceData.paths.add(['Downloads', instance, 'LastTargetFileName'])
-    toClear = device.set(sessionData.deviceData, p, timestamp,
+    p = sessionContext.deviceData.paths.add(['Downloads', instance, 'LastTargetFileName'])
+    toClear = device.set(sessionContext.deviceData, p, timestamp,
       {value: [timestamp, [operation.args.targetFileName, 'xsd:string']]}, toClear)
 
-    p = sessionData.deviceData.paths.add(['Downloads', instance, 'StartTime'])
-    toClear = device.set(sessionData.deviceData, p, timestamp,
+    p = sessionContext.deviceData.paths.add(['Downloads', instance, 'StartTime'])
+    toClear = device.set(sessionContext.deviceData, p, timestamp,
       {value: [timestamp, [+rpcReq.startTime, 'xsd:dateTime']]}, toClear)
 
-    p = sessionData.deviceData.paths.add(['Downloads', instance, 'CompleteTime'])
-    toClear = device.set(sessionData.deviceData, p, timestamp,
+    p = sessionContext.deviceData.paths.add(['Downloads', instance, 'CompleteTime'])
+    toClear = device.set(sessionContext.deviceData, p, timestamp,
       {value: [timestamp, [+rpcReq.completeTime, 'xsd:dateTime']]}, toClear)
 
-    clear(sessionData, toClear, (err) ->
-      return callback(err, {type : 'TransferCompleteResponse'}, operation)
+    clear(sessionContext, toClear, (err) ->
+      return callback(err, {name: 'TransferCompleteResponse'}, operation)
     )
   )
 
 
-revertDownloadParameters = (sessionData, instance, callback) ->
-  loadPath(sessionData, ['Downloads', instance, '*'])
+revertDownloadParameters = (sessionContext, instance, callback) ->
+  loadPath(sessionContext, ['Downloads', instance, '*'])
 
-  loadParameters(sessionData, (err) ->
+  loadParameters(sessionContext, (err) ->
     return callback(err) if err
 
-    timestamp = sessionData.timestamp + sessionData.iteration + 1
+    timestamp = sessionContext.timestamp + sessionContext.iteration + 1
 
-    p = sessionData.deviceData.paths.add(['Downloads', instance, 'LastDownload'])
-    LastDownload = sessionData.deviceData.attributes.get(p)
+    p = sessionContext.deviceData.paths.add(['Downloads', instance, 'LastDownload'])
+    LastDownload = sessionContext.deviceData.attributes.get(p)
 
-    p = sessionData.deviceData.paths.add(['Downloads', instance, 'Download'])
-    toClear = device.set(sessionData.deviceData, p, timestamp,
+    p = sessionContext.deviceData.paths.add(['Downloads', instance, 'Download'])
+    toClear = device.set(sessionContext.deviceData, p, timestamp,
       {value: [timestamp, [LastDownload?.value[1]?[0] or 0, 'xsd:dateTime']]}, toClear)
 
-    clear(sessionData, toClear, callback)
+    clear(sessionContext, toClear, callback)
   )
 
-
-timeoutOperations = (sessionData, callback) ->
+timeoutOperations = (sessionContext, callback) ->
   faults = []
   operations = []
   counter = 3
 
-  for commandKey, operation of sessionData.operations
-    if operation.type isnt 'Download'
-      return callback(new Error("Unknown operation type #{operation.type}"))
+  for commandKey, operation of sessionContext.operations
+    if operation.name isnt 'Download'
+      return callback(new Error("Unknown operation name #{operation.name}"))
 
-    DOWNLOAD_TIMEOUT = config.get('DOWNLOAD_TIMEOUT', sessionData.deviceId) * 1000
+    DOWNLOAD_TIMEOUT = config.get('DOWNLOAD_TIMEOUT', sessionContext.deviceId) * 1000
 
-    if sessionData.timestamp > operation.timestamp + DOWNLOAD_TIMEOUT
-      delete sessionData.operations[commandKey]
-      sessionData.operationsTouched ?= {}
-      sessionData.operationsTouched[commandKey] = 1
+    if sessionContext.timestamp > operation.timestamp + DOWNLOAD_TIMEOUT
+      delete sessionContext.operations[commandKey]
+      sessionContext.operationsTouched ?= {}
+      sessionContext.operationsTouched[commandKey] = 1
 
       faults.push({
         code: 'timeout'
@@ -266,7 +266,7 @@ timeoutOperations = (sessionData, callback) ->
       operations.push(operation)
 
       counter += 2
-      revertDownloadParameters(sessionData, operation.args.instance, (err) ->
+      revertDownloadParameters(sessionContext, operation.args.instance, (err) ->
         if err
           callback(err) if counter & 1
           return counter = 0
@@ -277,78 +277,79 @@ timeoutOperations = (sessionData, callback) ->
   return callback(null, faults, operations) if (counter -= 2) == 1
 
 
-addProvisions = (sessionData, channel, provisions) ->
-  delete sessionData.syncState
-  delete sessionData.rpcRequest
-  sessionData.declarations = []
-  sessionData.doneProvisions = 0
-  if sessionData.revisions[sessionData.revisions.length - 1] > 0
-    sessionData.deviceData.timestamps.collapse(1)
-    sessionData.deviceData.attributes.collapse(1)
-    sessionData.revisions = [0]
-    sessionData.extensionsCache = {}
+addProvisions = (sessionContext, channel, provisions) ->
+  delete sessionContext.syncState
+  delete sessionContext.rpcRequest
+  sessionContext.declarations = []
+  sessionContext.doneProvisions = 0
+  if sessionContext.revisions[sessionContext.revisions.length - 1] > 0
+    sessionContext.deviceData.timestamps.collapse(1)
+    sessionContext.deviceData.attributes.collapse(1)
+    sessionContext.revisions = [0]
+    sessionContext.extensionsCache = {}
 
-  if sessionData.iteration != sessionData.cycle * MAX_ITERATIONS
-    sessionData.cycle += 1
-    sessionData.rpcCount = 0
-    sessionData.iteration = sessionData.cycle * MAX_ITERATIONS
+  if sessionContext.iteration != sessionContext.cycle * MAX_ITERATIONS
+    sessionContext.cycle += 1
+    sessionContext.rpcCount = 0
+    sessionContext.iteration = sessionContext.cycle * MAX_ITERATIONS
 
-  sessionData.channels[channel] |= 0
+  sessionContext.channels[channel] |= 0
 
   for provision, i in provisions
     channels = [channel]
     # Remove duplicate provisions
     provisionStr = JSON.stringify(provision)
-    for p, j in sessionData.provisions
+    for p, j in sessionContext.provisions
       if JSON.stringify(p) == provisionStr
-        sessionData.provisions.splice(j, 1)
-        for c of sessionData.channels
-          channels.push(c) if sessionData.channels[c] & (1 << j)
-          a = sessionData.channels[c] >> (j + 1)
-          sessionData.channels[c] &= ((1 << j) - 1)
-          sessionData.channels[c] |= (a << j)
+        sessionContext.provisions.splice(j, 1)
+        for c of sessionContext.channels
+          channels.push(c) if sessionContext.channels[c] & (1 << j)
+          a = sessionContext.channels[c] >> (j + 1)
+          sessionContext.channels[c] &= ((1 << j) - 1)
+          sessionContext.channels[c] |= (a << j)
 
     for c in channels
-      sessionData.channels[channel] |= (1 << sessionData.provisions.length)
-    sessionData.provisions.push(provision)
+      sessionContext.channels[channel] |= (1 << sessionContext.provisions.length)
+    sessionContext.provisions.push(provision)
 
 
-clearProvisions = (sessionData) ->
-  if sessionData.revisions[sessionData.revisions.length - 1] > 0
-    sessionData.deviceData.timestamps.collapse(1)
-    sessionData.deviceData.attributes.collapse(1)
+clearProvisions = (sessionContext) ->
+  if sessionContext.revisions[sessionContext.revisions.length - 1] > 0
+    sessionContext.deviceData.timestamps.collapse(1)
+    sessionContext.deviceData.attributes.collapse(1)
 
-  if sessionData.iteration != sessionData.cycle * MAX_ITERATIONS
-    sessionData.cycle += 1
-    sessionData.rpcCount = 0
-    sessionData.iteration = sessionData.cycle * MAX_ITERATIONS
+  if sessionContext.iteration != sessionContext.cycle * MAX_ITERATIONS
+    sessionContext.cycle += 1
+    sessionContext.rpcCount = 0
+    sessionContext.iteration = sessionContext.cycle * MAX_ITERATIONS
 
-  delete sessionData.syncState
-  delete sessionData.rpcRequest
-  sessionData.provisions = []
-  sessionData.virtualParameters = []
-  sessionData.channels = {}
-  sessionData.declarations = []
-  sessionData.doneProvisions = 0
-  sessionData.revisions = [0]
-  sessionData.extensionsCache = {}
+  delete sessionContext.syncState
+  delete sessionContext.rpcRequest
+  sessionContext.provisions = []
+  sessionContext.virtualParameters = []
+  sessionContext.channels = {}
+  sessionContext.declarations = []
+  sessionContext.doneProvisions = 0
+  sessionContext.revisions = [0]
+  sessionContext.extensionsCache = {}
 
 
-runProvisions = (sessionData, provisions, startRevision, endRevision, callback) ->
+runProvisions = (sessionContext, provisions, startRevision, endRevision, callback) ->
   done = true
   allDeclarations = []
   allClear = []
   counter = 3
+  allProvisions = provisionsCache.get(sessionContext)
   for provision in provisions
-    if not sessionData.cache.provisions[provision[0]]?
+    if not allProvisions[provision[0]]?
       if defaultProvisions[provision[0]]
-        done = defaultProvisions[provision[0]](sessionData, provision, allDeclarations, startRevision, endRevision) and done
+        done = defaultProvisions[provision[0]](sessionContext, provision, allDeclarations, startRevision, endRevision) and done
       continue
 
     counter += 2
-    sandbox.run(sessionData.cache.provisions[provision[0]].script,
-      {args: provision.slice(1)}, sessionData.timestamp, sessionData.deviceData,
-      sessionData.extensionsCache, startRevision, endRevision,
+    sandbox.run(allProvisions[provision[0]].script,
+      {args: provision.slice(1)}, sessionContext.timestamp, sessionContext.deviceData,
+      sessionContext.extensionsCache, startRevision, endRevision,
       (err, _fault, _clear, _declarations, _done) ->
         if err or _fault
           callback(err, _fault) if counter & 1
@@ -370,18 +371,19 @@ runProvisions = (sessionData, provisions, startRevision, endRevision, callback) 
     return callback(null, null, done, allDeclarations, allClear)
 
 
-runVirtualParameters = (sessionData, provisions, startRevision, endRevision, callback) ->
+runVirtualParameters = (sessionContext, provisions, startRevision, endRevision, callback) ->
   done = true
   virtualParameterUpdates = []
   allDeclarations = []
   allClear = []
   counter = 3
+  allVirtualParameters = virtualParametersCache.get(sessionContext)
   for provision in provisions
     counter += 2
     globals = {TIMESTAMPS: provision[1], VALUES: provision[2]}
-    sandbox.run(sessionData.cache.virtualParameters[provision[0]].script, globals,
-      sessionData.timestamp, sessionData.deviceData,
-      sessionData.extensionsCache, startRevision, endRevision,
+    sandbox.run(allVirtualParameters[provision[0]].script, globals,
+      sessionContext.timestamp, sessionContext.deviceData,
+      sessionContext.extensionsCache, startRevision, endRevision,
       (err, _fault, _clear, _declarations, _done, _returnValue) ->
         if err or _fault
           callback(err, _fault) if counter & 1
@@ -402,9 +404,9 @@ runVirtualParameters = (sessionData, provisions, startRevision, endRevision, cal
           toClear = null
           if virtualParameterUpdates.length == provisions.length
             for vpu, i in virtualParameterUpdates
-              toClear = commitVirtualParameter(sessionData, provisions[i], vpu, toClear)
+              toClear = commitVirtualParameter(sessionContext, provisions[i], vpu, toClear)
 
-          clear(sessionData, toClear, (err) ->
+          clear(sessionContext, toClear, (err) ->
             return callback(err, null, done, allDeclarations, allClear)
           )
       )
@@ -413,16 +415,16 @@ runVirtualParameters = (sessionData, provisions, startRevision, endRevision, cal
     toClear = null
     if virtualParameterUpdates.length == provisions.length
       for vpu, i in virtualParameterUpdates
-        toClear = commitVirtualParameter(sessionData, provisions[i], vpu, toClear)
+        toClear = commitVirtualParameter(sessionContext, provisions[i], vpu, toClear)
 
-    clear(sessionData, toClear, (err) ->
+    clear(sessionContext, toClear, (err) ->
       return callback(err, null, done, allDeclarations, allClear)
     )
 
 
-runDeclarations = (sessionData, declarations) ->
-  sessionData.iteration += 2
-  sessionData.syncState ?= {
+runDeclarations = (sessionContext, declarations) ->
+  sessionContext.iteration += 2
+  sessionContext.syncState ?= {
     refreshAttributes: {
       exist: new Set()
       object: new Set()
@@ -448,26 +450,28 @@ runDeclarations = (sessionData, declarations) ->
   allDeclareAttributeTimestamps = new Map()
   allDeclareAttributeValues = new Map()
 
+  allVirtualParameters = virtualParametersCache.get(sessionContext)
+
   for declaration, i in declarations
     path = common.addPathMeta(declaration[0])
 
     if (path.alias | path.wildcard) & 1 or path[0] == 'VirtualParameters'
-      sessionData.deviceData.paths.add(['VirtualParameters'])
+      sessionContext.deviceData.paths.add(['VirtualParameters'])
       if (path.alias | path.wildcard) & 2
-        sessionData.deviceData.paths.add(['VirtualParameters', '*'])
-        for k of sessionData.cache.virtualParameters
-          sessionData.deviceData.paths.add(['VirtualParameters', k])
+        sessionContext.deviceData.paths.add(['VirtualParameters', '*'])
+        for k of allVirtualParameters
+          sessionContext.deviceData.paths.add(['VirtualParameters', k])
 
     if (path.alias | path.wildcard) & 1 or path[0] == 'Reboot'
-      sessionData.deviceData.paths.add(['Reboot'])
+      sessionContext.deviceData.paths.add(['Reboot'])
 
     if (path.alias | path.wildcard) & 1 or path[0] == 'FactoryReset'
-      sessionData.deviceData.paths.add(['FactoryReset'])
+      sessionContext.deviceData.paths.add(['FactoryReset'])
 
     if path.alias
       aliasDecs = device.getAliasDeclarations(path, declaration[1] or 1)
       for ad in aliasDecs
-        p = sessionData.deviceData.paths.add(ad[0])
+        p = sessionContext.deviceData.paths.add(ad[0])
         allDeclareTimestamps.set(p, Math.max(ad[1] or 1, allDeclareTimestamps.get(p) or 0))
         attrTrackers = []
         if ad[2]
@@ -477,9 +481,9 @@ runDeclarations = (sessionData, declarations) ->
             attrTrackers.push(k)
             cur[k] = Math.max(v, cur[k] or 0)
 
-        device.track(sessionData.deviceData, p, 'prerequisite', false, null, true, attrTrackers)
+        device.track(sessionContext.deviceData, p, 'prerequisite', false, null, true, attrTrackers)
 
-      unpacked = device.unpack(sessionData.deviceData, path)
+      unpacked = device.unpack(sessionContext.deviceData, path)
       for u in unpacked
         allDeclareTimestamps.set(u, Math.max(declaration[1] or 1, allDeclareTimestamps.get(u) or 0))
         if declaration[2]
@@ -494,7 +498,7 @@ runDeclarations = (sessionData, declarations) ->
           for k, v of declaration[4]
             cur[k] = v
     else
-      path = sessionData.deviceData.paths.add(path)
+      path = sessionContext.deviceData.paths.add(path)
       allDeclareTimestamps.set(path, Math.max(declaration[1] or 1, allDeclareTimestamps.get(path) or 0))
       if declaration[2]
         cur = allDeclareAttributeTimestamps.get(path)
@@ -509,7 +513,7 @@ runDeclarations = (sessionData, declarations) ->
           for k, v of declaration[4]
             cur[k] = v
 
-      device.track(sessionData.deviceData, path, 'prerequisite', false, null, true)
+      device.track(sessionContext.deviceData, path, 'prerequisite', false, null, true)
 
     if declaration[3]?
       if Array.isArray(declaration[3])
@@ -528,172 +532,174 @@ runDeclarations = (sessionData, declarations) ->
         keys = {}
 
       if ((path.wildcard | path.alias) & ((1 << (path.length - 1)) - 1)) == 0
-        parent = sessionData.deviceData.paths.add(parent)
-        unpacked ?= device.unpack(sessionData.deviceData, path)
-        processInstances(sessionData, parent, unpacked, keys, minInstances, maxInstances)
+        parent = sessionContext.deviceData.paths.add(parent)
+        unpacked ?= device.unpack(sessionContext.deviceData, path)
+        processInstances(sessionContext, parent, unpacked, keys, minInstances, maxInstances)
       else
-        parentsUnpacked = device.unpack(sessionData.deviceData, parent)
+        parentsUnpacked = device.unpack(sessionContext.deviceData, parent)
         for parent in parentsUnpacked
-          parent = sessionData.deviceData.paths.add(parent)
-          processInstances(sessionData, parent, device.unpack(sessionData.deviceData, common.addPathMeta(parent.concat([path[parent.length]]))), keys, minInstances, maxInstances)
+          parent = sessionContext.deviceData.paths.add(parent)
+          processInstances(sessionContext, parent, device.unpack(sessionContext.deviceData, common.addPathMeta(parent.concat([path[parent.length]]))), keys, minInstances, maxInstances)
 
-  return processDeclarations(sessionData, allDeclareTimestamps, allDeclareAttributeTimestamps, allDeclareAttributeValues)
+  return processDeclarations(sessionContext, allDeclareTimestamps, allDeclareAttributeTimestamps, allDeclareAttributeValues)
 
 
-rpcRequest = (sessionData, _declarations, callback) ->
-  if sessionData.rpcRequest?
-    return callback(null, null, generateRpcId(sessionData), sessionData.rpcRequest)
+rpcRequest = (sessionContext, _declarations, callback) ->
+  if sessionContext.rpcRequest?
+    return callback(null, null, generateRpcId(sessionContext), sessionContext.rpcRequest)
 
-  if sessionData.virtualParameters.length == 0 and
-      sessionData.declarations.length == 0 and
+  if sessionContext.virtualParameters.length == 0 and
+      sessionContext.declarations.length == 0 and
       not _declarations?.length and
-      (sessionData.doneProvisions or sessionData.provisions.length == 0)
+      (sessionContext.doneProvisions or sessionContext.provisions.length == 0)
     return callback()
 
-  if sessionData.declarations.length <= sessionData.virtualParameters.length
-    inception = sessionData.declarations.length
-    revision = sessionData.revisions[inception] + 1
-    sessionData.deviceData.timestamps.revision = revision
-    sessionData.deviceData.attributes.revision = revision
+  if sessionContext.declarations.length <= sessionContext.virtualParameters.length
+    inception = sessionContext.declarations.length
+    revision = sessionContext.revisions[inception] + 1
+    sessionContext.deviceData.timestamps.revision = revision
+    sessionContext.deviceData.attributes.revision = revision
 
     if inception == 0
       run = runProvisions
-      provisions = sessionData.provisions
+      provisions = sessionContext.provisions
     else
       run = runVirtualParameters
-      provisions = sessionData.virtualParameters[inception - 1]
+      provisions = sessionContext.virtualParameters[inception - 1]
 
-    return run(sessionData, provisions, sessionData.revisions[inception - 1] or 0, sessionData.revisions[inception], (err, fault, done, decs, toClear) ->
+    return run(sessionContext, provisions, sessionContext.revisions[inception - 1] or 0, sessionContext.revisions[inception], (err, fault, done, decs, toClear) ->
       return callback(err) if err
 
       if fault
-        fault.timestamp = sessionData.timestamp
+        fault.timestamp = sessionContext.timestamp
         return callback(null, fault)
 
-      sessionData.declarations.push(decs)
-      sessionData.doneProvisions |= 1 << inception if done or not decs.length
+      sessionContext.declarations.push(decs)
+      sessionContext.doneProvisions |= 1 << inception if done or not decs.length
 
       for d in decs
         for ad in device.getAliasDeclarations(d[0], 1)
-          loadPath(sessionData, ad[0])
+          loadPath(sessionContext, ad[0])
 
-      return clear(sessionData, toClear, (err) ->
+      return clear(sessionContext, toClear, (err) ->
         return callback(err) if err
-        loadParameters(sessionData, (err) ->
+        loadParameters(sessionContext, (err) ->
           return callback(err) if err
-          rpcRequest(sessionData, _declarations, callback)
+          rpcRequest(sessionContext, _declarations, callback)
         )
       )
     )
 
   if _declarations?.length
-    delete sessionData.syncState
-    sessionData.declarations[0] ?= []
-    sessionData.declarations[0] = sessionData.declarations[0].concat(_declarations)
+    delete sessionContext.syncState
+    sessionContext.declarations[0] ?= []
+    sessionContext.declarations[0] = sessionContext.declarations[0].concat(_declarations)
 
     for d in _declarations
       for ad in device.getAliasDeclarations(d[0], 1)
-        loadPath(sessionData, ad[0])
+        loadPath(sessionContext, ad[0])
 
-    return loadParameters(sessionData, (err) ->
+    return loadParameters(sessionContext, (err) ->
       return callback(err) if err
-      return rpcRequest(sessionData, null, callback)
+      return rpcRequest(sessionContext, null, callback)
     )
 
-  if not sessionData.declarations[0].length
+  if not sessionContext.declarations[0].length
     return callback()
 
-  if sessionData.rpcCount >= 255 or
-      sessionData.revisions.length >= 8 or
-      sessionData.cycle >= 16 or
-      sessionData.iteration >= MAX_ITERATIONS * (sessionData.cycle + 1)
+  if sessionContext.rpcCount >= 255 or
+      sessionContext.revisions.length >= 8 or
+      sessionContext.cycle >= 16 or
+      sessionContext.iteration >= MAX_ITERATIONS * (sessionContext.cycle + 1)
 
     fault = {
       code: 'endless_cycle'
       message: 'The provision seems to be repeating indefinitely'
-      timestamp: sessionData.timestamp
+      timestamp: sessionContext.timestamp
     }
     return callback(null, fault)
 
-  if (sessionData.syncState?.virtualParameterDeclarations?.length or 0) < sessionData.declarations.length
-    inception = sessionData.syncState?.virtualParameterDeclarations?.length or 0
-    vpd = runDeclarations(sessionData, sessionData.declarations[inception])
-    timestamp = sessionData.timestamp + sessionData.iteration
+  if (sessionContext.syncState?.virtualParameterDeclarations?.length or 0) < sessionContext.declarations.length
+    inception = sessionContext.syncState?.virtualParameterDeclarations?.length or 0
+    vpd = runDeclarations(sessionContext, sessionContext.declarations[inception])
+    timestamp = sessionContext.timestamp + sessionContext.iteration
     toClear = null
+
+    allVirtualParameters = virtualParametersCache.get(sessionContext)
 
     vpd = vpd.filter((declaration) ->
       if declaration[0].length == 1
-        if Object.keys(sessionData.cache.virtualParameters).length
-          toClear = device.set(sessionData.deviceData, declaration[0], timestamp, {object: [timestamp, 1], writable: [timestamp, 0]}, toClear)
+        if Object.keys(allVirtualParameters).length
+          toClear = device.set(sessionContext.deviceData, declaration[0], timestamp, {object: [timestamp, 1], writable: [timestamp, 0]}, toClear)
         else
-          toClear = device.set(sessionData.deviceData, declaration[0], timestamp, null, toClear)
+          toClear = device.set(sessionContext.deviceData, declaration[0], timestamp, null, toClear)
       else if declaration[0].length == 2
         if declaration[0][1] == '*'
-          for k, v of sessionData.cache.virtualParameters
-            toClear = device.set(sessionData.deviceData, ['VirtualParameters', k], timestamp, {object: [timestamp, 0]}, toClear)
-          toClear = device.set(sessionData.deviceData, declaration[0], timestamp, null, toClear)
-        else if not (declaration[0][1] of sessionData.cache.virtualParameters)
-          toClear = device.set(sessionData.deviceData, declaration[0], timestamp, null, toClear)
+          for k, v of allVirtualParameters
+            toClear = device.set(sessionContext.deviceData, ['VirtualParameters', k], timestamp, {object: [timestamp, 0]}, toClear)
+          toClear = device.set(sessionContext.deviceData, declaration[0], timestamp, null, toClear)
+        else if not (declaration[0][1] of allVirtualParameters)
+          toClear = device.set(sessionContext.deviceData, declaration[0], timestamp, null, toClear)
         else
           return true
       return false
     )
 
-    return clear(sessionData, toClear, (err) ->
+    return clear(sessionContext, toClear, (err) ->
       return callback(err) if err
-      sessionData.syncState.virtualParameterDeclarations[inception] = vpd
-      return rpcRequest(sessionData, null, callback)
+      sessionContext.syncState.virtualParameterDeclarations[inception] = vpd
+      return rpcRequest(sessionContext, null, callback)
     )
 
-  if not sessionData.syncState?
+  if not sessionContext.syncState?
     return callback()
 
-  inception = sessionData.declarations.length - 1
+  inception = sessionContext.declarations.length - 1
 
-  provisions = generateGetVirtualParameterProvisions(sessionData, sessionData.syncState.virtualParameterDeclarations[inception])
+  provisions = generateGetVirtualParameterProvisions(sessionContext, sessionContext.syncState.virtualParameterDeclarations[inception])
   if not provisions
-    sessionData.rpcRequest = generateGetRpcRequest(sessionData)
-    if not sessionData.rpcRequest
-      if sessionData.deviceData.changes.has('prerequisite')
-        delete sessionData.syncState
-        device.clearTrackers(sessionData.deviceData, 'prerequisite')
-        return rpcRequest(sessionData, null, callback)
+    sessionContext.rpcRequest = generateGetRpcRequest(sessionContext)
+    if not sessionContext.rpcRequest
+      if sessionContext.deviceData.changes.has('prerequisite')
+        delete sessionContext.syncState
+        device.clearTrackers(sessionContext.deviceData, 'prerequisite')
+        return rpcRequest(sessionContext, null, callback)
 
       toClear = null
-      timestamp = sessionData.timestamp + sessionData.iteration + 1
+      timestamp = sessionContext.timestamp + sessionContext.iteration + 1
 
       # Update tags
-      sessionData.syncState.tags.forEach((v, p) ->
-        c = sessionData.deviceData.attributes.get(p)
+      sessionContext.syncState.tags.forEach((v, p) ->
+        c = sessionContext.deviceData.attributes.get(p)
         if v and not c?
-          toClear = device.set(sessionData.deviceData, p, timestamp, {object: [timestamp, false], writable: [timestamp, true], value: [timestamp, [true, 'xsd:boolean']]}, toClear)
+          toClear = device.set(sessionContext.deviceData, p, timestamp, {object: [timestamp, false], writable: [timestamp, true], value: [timestamp, [true, 'xsd:boolean']]}, toClear)
         else if c? and not v
-          toClear = device.set(sessionData.deviceData, p, timestamp, toClear)
+          toClear = device.set(sessionContext.deviceData, p, timestamp, toClear)
           noMoreTags = true
-          for p in sessionData.deviceData.paths.find(['Tags', '*'], false, true)
-            if sessionData.deviceData.attributes.has(p)
+          for p in sessionContext.deviceData.paths.find(['Tags', '*'], false, true)
+            if sessionContext.deviceData.attributes.has(p)
               noMoreTags = false
               break
           if noMoreTags
-            toClear = device.set(sessionData.deviceData, ['Tags'], timestamp, null, toClear)
+            toClear = device.set(sessionContext.deviceData, ['Tags'], timestamp, null, toClear)
       )
 
       # Downloads
       index = null
-      sessionData.syncState.downloadsToCreate.forEach((instance) ->
+      sessionContext.syncState.downloadsToCreate.forEach((instance) ->
         if not index?
           index = 0
-          for p in sessionData.deviceData.paths.find(['Downloads', '*'], false, true)
-            if +p[1] > index and sessionData.deviceData.attributes.has(p)
+          for p in sessionContext.deviceData.paths.find(['Downloads', '*'], false, true)
+            if +p[1] > index and sessionContext.deviceData.attributes.has(p)
               index = +p[1]
 
         ++ index
 
-        toClear = device.set(sessionData.deviceData, ['Downloads'],
+        toClear = device.set(sessionContext.deviceData, ['Downloads'],
           timestamp,
           {object: [timestamp, 1], writable: [timestamp, 1]}, toClear)
 
-        toClear = device.set(sessionData.deviceData, ['Downloads', "#{index}"],
+        toClear = device.set(sessionContext.deviceData, ['Downloads', "#{index}"],
           timestamp,
           {object: [timestamp, 1], writable: [timestamp, 1]}, toClear)
 
@@ -711,75 +717,75 @@ rpcRequest = (sessionData, _declarations, callback) ->
         }
 
         for k, v of params
-          toClear = device.set(sessionData.deviceData, ['Downloads', "#{index}", k],
+          toClear = device.set(sessionContext.deviceData, ['Downloads', "#{index}", k],
             timestamp, {object: [timestamp, 0], writable: [timestamp, v.writable], value: [timestamp, v.value]}, toClear)
 
-        toClear = device.set(sessionData.deviceData, ['Downloads', "#{index}", '*'],
+        toClear = device.set(sessionContext.deviceData, ['Downloads', "#{index}", '*'],
           timestamp, null, toClear)
       )
-      sessionData.syncState.downloadsToCreate.clear()
+      sessionContext.syncState.downloadsToCreate.clear()
 
-      sessionData.syncState.downloadsToDelete.forEach((instance) ->
-        toClear = device.set(sessionData.deviceData, instance, timestamp, null, toClear)
-        sessionData.syncState.downloadsValues.forEach((v, p) ->
+      sessionContext.syncState.downloadsToDelete.forEach((instance) ->
+        toClear = device.set(sessionContext.deviceData, instance, timestamp, null, toClear)
+        sessionContext.syncState.downloadsValues.forEach((v, p) ->
           if p[1] == instance[1]
-            sessionData.syncState.downloadsValues.delete(p)
+            sessionContext.syncState.downloadsValues.delete(p)
         )
       )
-      sessionData.syncState.downloadsToDelete.clear()
+      sessionContext.syncState.downloadsToDelete.clear()
 
-      sessionData.syncState.downloadsValues.forEach((v, p) ->
-        if attrs = sessionData.deviceData.attributes.get(p)
+      sessionContext.syncState.downloadsValues.forEach((v, p) ->
+        if attrs = sessionContext.deviceData.attributes.get(p)
           if attrs.writable?[1] and attrs.value?
             v = device.sanitizeParameterValue([v, attrs.value[1][1]])
             if v[0] != attrs.value[1][0]
-              toClear = device.set(sessionData.deviceData, p, timestamp, {value: [timestamp, v]}, toClear)
+              toClear = device.set(sessionContext.deviceData, p, timestamp, {value: [timestamp, v]}, toClear)
       )
 
       if toClear
-        return clear(sessionData, toClear, (err) ->
+        return clear(sessionContext, toClear, (err) ->
           return callback(err) if err
-          if sessionData.deviceData.changes.has('prerequisite')
-            delete sessionData.syncState
-            device.clearTrackers(sessionData.deviceData, 'prerequisite')
-          return rpcRequest(sessionData, null, callback)
+          if sessionContext.deviceData.changes.has('prerequisite')
+            delete sessionContext.syncState
+            device.clearTrackers(sessionContext.deviceData, 'prerequisite')
+          return rpcRequest(sessionContext, null, callback)
         )
 
-      if sessionData.deviceData.changes.has('prerequisite')
-        delete sessionData.syncState
-        device.clearTrackers(sessionData.deviceData, 'prerequisite')
-        return rpcRequest(sessionData, null, callback)
+      if sessionContext.deviceData.changes.has('prerequisite')
+        delete sessionContext.syncState
+        device.clearTrackers(sessionContext.deviceData, 'prerequisite')
+        return rpcRequest(sessionContext, null, callback)
 
-      provisions = generateSetVirtualParameterProvisions(sessionData, sessionData.syncState.virtualParameterDeclarations[inception])
+      provisions = generateSetVirtualParameterProvisions(sessionContext, sessionContext.syncState.virtualParameterDeclarations[inception])
       if not provisions
-        sessionData.rpcRequest = generateSetRpcRequest(sessionData)
+        sessionContext.rpcRequest = generateSetRpcRequest(sessionContext)
 
   if provisions
-    sessionData.virtualParameters.push(provisions)
-    sessionData.revisions.push(sessionData.revisions[inception])
-    return rpcRequest(sessionData, null, callback)
+    sessionContext.virtualParameters.push(provisions)
+    sessionContext.revisions.push(sessionContext.revisions[inception])
+    return rpcRequest(sessionContext, null, callback)
 
-  if sessionData.rpcRequest
-    return callback(null, null, generateRpcId(sessionData), sessionData.rpcRequest)
+  if sessionContext.rpcRequest
+    return callback(null, null, generateRpcId(sessionContext), sessionContext.rpcRequest)
 
-  ++ sessionData.revisions[inception]
-  sessionData.declarations.pop()
+  ++ sessionContext.revisions[inception]
+  sessionContext.declarations.pop()
 
-  while sessionData.doneProvisions & (2 << (sessionData.virtualParameters.length - 1))
-    doneProvisions = sessionData.virtualParameters.pop()
-    sessionData.revisions.pop()
-    sessionData.declarations.pop()
-    sessionData.doneProvisions &= (2 << sessionData.virtualParameters.length) - 1
-    rev = sessionData.revisions[sessionData.revisions.length - 1]
-    sessionData.deviceData.timestamps.collapse(rev + 1)
-    sessionData.deviceData.attributes.collapse(rev + 1)
-    for k of sessionData.extensionsCache
+  while sessionContext.doneProvisions & (2 << (sessionContext.virtualParameters.length - 1))
+    doneProvisions = sessionContext.virtualParameters.pop()
+    sessionContext.revisions.pop()
+    sessionContext.declarations.pop()
+    sessionContext.doneProvisions &= (2 << sessionContext.virtualParameters.length) - 1
+    rev = sessionContext.revisions[sessionContext.revisions.length - 1]
+    sessionContext.deviceData.timestamps.collapse(rev + 1)
+    sessionContext.deviceData.attributes.collapse(rev + 1)
+    for k of sessionContext.extensionsCache
       if rev < Number(k.split(':', 1)[0])
-        delete sessionData.extensionsCache[k]
+        delete sessionContext.extensionsCache[k]
 
-  sessionData.syncState.virtualParameterDeclarations.length = sessionData.declarations.length
+  sessionContext.syncState.virtualParameterDeclarations.length = sessionContext.declarations.length
 
-  return rpcRequest(sessionData, null, callback)
+  return rpcRequest(sessionContext, null, callback)
 
 
 # Simple algorithm to estimate GPN count in a set of patterns used
@@ -822,14 +828,14 @@ estimateGpnCount = (patterns) ->
   return Math.round(count)
 
 
-generateGetRpcRequest = (sessionData) ->
-  if not (syncState = sessionData.syncState)?
+generateGetRpcRequest = (sessionContext) ->
+  if not (syncState = sessionContext.syncState)?
     return
 
   iter = syncState.refreshAttributes.exist.values()
   while (path = iter.next().value)
     found = false
-    for p in sessionData.deviceData.paths.find(path, false, true, 99)
+    for p in sessionContext.deviceData.paths.find(path, false, true, 99)
       if syncState.refreshAttributes.value.has(p) or
           syncState.refreshAttributes.object.has(p) or
           syncState.refreshAttributes.writable.has(p) or
@@ -837,7 +843,7 @@ generateGetRpcRequest = (sessionData) ->
         found = true
         break
     if not found
-      p = sessionData.deviceData.paths.add(path.slice(0, -1))
+      p = sessionContext.deviceData.paths.add(path.slice(0, -1))
       syncState.gpn.add(p)
       f = 1 << p.length
       syncState.gpnPatterns.set(p, f | syncState.gpnPatterns.get(p))
@@ -846,7 +852,7 @@ generateGetRpcRequest = (sessionData) ->
   iter = syncState.refreshAttributes.object.values()
   while (path = iter.next().value)
     found = false
-    for p in sessionData.deviceData.paths.find(path, false, true, 99)
+    for p in sessionContext.deviceData.paths.find(path, false, true, 99)
       if syncState.refreshAttributes.value.has(p) or
           (p.length > path.length and
           (syncState.refreshAttributes.object.has(p) or
@@ -854,7 +860,7 @@ generateGetRpcRequest = (sessionData) ->
         found = true
         break
     if not found
-      p = sessionData.deviceData.paths.add(path.slice(0, -1))
+      p = sessionContext.deviceData.paths.add(path.slice(0, -1))
       syncState.gpn.add(p)
       f = 1 << p.length
       syncState.gpnPatterns.set(p, f | syncState.gpnPatterns.get(p))
@@ -862,7 +868,7 @@ generateGetRpcRequest = (sessionData) ->
 
   iter = syncState.refreshAttributes.writable.values()
   while (path = iter.next().value)
-    p = sessionData.deviceData.paths.add(path.slice(0, -1))
+    p = sessionContext.deviceData.paths.add(path.slice(0, -1))
     syncState.gpn.add(p)
     f = 1 << p.length
     syncState.gpnPatterns.set(p, f | syncState.gpnPatterns.get(p))
@@ -870,17 +876,17 @@ generateGetRpcRequest = (sessionData) ->
 
   if syncState.gpn.size
     GET_PARAMETER_NAMES_DEPTH_THRESHOLD =
-      config.get('GET_PARAMETER_NAMES_DEPTH_THRESHOLD', sessionData.deviceId)
+      config.get('GET_PARAMETER_NAMES_DEPTH_THRESHOLD', sessionContext.deviceId)
 
     paths = Array.from(syncState.gpn.keys()).sort((a,b) -> b.length - a.length)
     path = paths.pop()
-    while path and not sessionData.deviceData.attributes.has(path)
+    while path and not sessionContext.deviceData.attributes.has(path)
       syncState.gpn.delete(path)
       path = paths.pop()
 
     if path
       patterns = []
-      for p in sessionData.deviceData.paths.find(path, true, false, 99)
+      for p in sessionContext.deviceData.paths.find(path, true, false, 99)
         if v = syncState.gpnPatterns.get(p)
           patterns.push([p, (v >> path.length) << path.length])
 
@@ -894,59 +900,59 @@ generateGetRpcRequest = (sessionData) ->
         syncState.gpn.delete(path)
       else
         nextLevel = false
-        for p in sessionData.deviceData.paths.find(path, false, true, 99)
+        for p in sessionContext.deviceData.paths.find(path, false, true, 99)
           syncState.gpn.delete(p)
 
       return {
-        type: 'GetParameterNames'
+        name: 'GetParameterNames'
         parameterPath: path.concat('').join('.')
         nextLevel: nextLevel
       }
 
   if syncState.refreshAttributes.value.size
     TASK_PARAMETERS_BATCH_SIZE =
-      config.get('TASK_PARAMETERS_BATCH_SIZE', sessionData.deviceId)
+      config.get('TASK_PARAMETERS_BATCH_SIZE', sessionContext.deviceId)
 
     parameterNames = []
     iter = syncState.refreshAttributes.value.values()
     while (path = iter.next().value) and
         parameterNames.length < TASK_PARAMETERS_BATCH_SIZE
       syncState.refreshAttributes.value.delete(path)
-      if sessionData.deviceData.attributes.has(path)
+      if sessionContext.deviceData.attributes.has(path)
         parameterNames.push(path)
 
     return {
-      type: 'GetParameterValues'
+      name: 'GetParameterValues'
       parameterNames: (p.join('.') for p in parameterNames)
     }
 
   return null
 
 
-generateSetRpcRequest = (sessionData) ->
-  if not (syncState = sessionData.syncState)?
+generateSetRpcRequest = (sessionContext) ->
+  if not (syncState = sessionContext.syncState)?
     return
 
-  deviceData = sessionData.deviceData
+  deviceData = sessionContext.deviceData
 
   # Delete instance
   iter = syncState.instancesToDelete.values()
   while instances = iter.next().value
     if (instance = instances.values().next().value) and
-        sessionData.deviceData.attributes.has(instance)
+        sessionContext.deviceData.attributes.has(instance)
       return {
-        type: 'DeleteObject'
+        name: 'DeleteObject'
         objectName: instance.concat('').join('.')
       }
 
   # Create instance
   iter = syncState.instancesToCreate.entries()
   while pair = iter.next().value
-    if sessionData.deviceData.attributes.has(pair[0]) and
+    if sessionContext.deviceData.attributes.has(pair[0]) and
         instance = pair[1].values().next().value
       pair[1].delete(instance)
       return {
-        type: 'AddObject'
+        name: 'AddObject'
         objectName: pair[0].concat('').join('.')
         instanceValues: instance
         next: 'getInstanceKeys'
@@ -954,12 +960,12 @@ generateSetRpcRequest = (sessionData) ->
 
   # Set values
   TASK_PARAMETERS_BATCH_SIZE =
-    config.get('TASK_PARAMETERS_BATCH_SIZE', sessionData.deviceId)
+    config.get('TASK_PARAMETERS_BATCH_SIZE', sessionContext.deviceId)
 
   parameterValues = []
   syncState.spv.forEach((v, k) ->
     return if parameterValues.length >= TASK_PARAMETERS_BATCH_SIZE
-    attrs = sessionData.deviceData.attributes.get(k)
+    attrs = sessionContext.deviceData.attributes.get(k)
     if (curVal = attrs.value?[1])? and attrs.writable?[1]
       val = v.slice()
       val[1] = curVal[1] if not val[1]?
@@ -972,26 +978,26 @@ generateSetRpcRequest = (sessionData) ->
 
   if parameterValues.length
     return {
-      type: 'SetParameterValues'
+      name: 'SetParameterValues'
       parameterList: ([p[0].join('.'), p[1], p[2]] for p in parameterValues)
     }
 
   # Reboot
   if syncState.reboot?
-    p = sessionData.deviceData.paths.get(['Reboot'])
-    if not (p? and sessionData.deviceData.attributes.get(p)?.value?[1][0] >= syncState.reboot)
+    p = sessionContext.deviceData.paths.get(['Reboot'])
+    if not (p? and sessionContext.deviceData.attributes.get(p)?.value?[1][0] >= syncState.reboot)
       delete syncState.reboot
       return {
-        type: 'Reboot'
+        name: 'Reboot'
       }
 
   # Factory reset
   if syncState.factoryReset?
-    p = sessionData.deviceData.paths.get(['FactoryReset'])
-    if not (p? and sessionData.deviceData.attributes.get(p)?.value?[1][0] >= syncState.factoryReset)
+    p = sessionContext.deviceData.paths.get(['FactoryReset'])
+    if not (p? and sessionContext.deviceData.attributes.get(p)?.value?[1][0] >= syncState.factoryReset)
       delete syncState.factoryReset
       return {
-        type: 'FactoryReset'
+        name: 'FactoryReset'
       }
 
   # Download
@@ -1002,8 +1008,8 @@ generateSetRpcRequest = (sessionData) ->
       fileNamePath = deviceData.paths.get(pair[0].slice(0, -1).concat('FileName'))
       targetFileNamePath = deviceData.paths.get(pair[0].slice(0, -1).concat('TargetFileName'))
       return {
-        type: 'Download'
-        commandKey: generateRpcId(sessionData)
+        name: 'Download'
+        commandKey: generateRpcId(sessionContext)
         instance: pair[0][1]
         fileType: deviceData.attributes.get(fileTypePath)?.value?[1][0]
         fileName: deviceData.attributes.get(fileNamePath)?.value?[1][0]
@@ -1013,7 +1019,7 @@ generateSetRpcRequest = (sessionData) ->
   return null
 
 
-generateGetVirtualParameterProvisions = (sessionData, virtualParameterDeclarations) ->
+generateGetVirtualParameterProvisions = (sessionContext, virtualParameterDeclarations) ->
   provisions = null
   for declaration in virtualParameterDeclarations
     if declaration[1]
@@ -1024,11 +1030,11 @@ generateGetVirtualParameterProvisions = (sessionData, virtualParameterDeclaratio
   return provisions
 
 
-generateSetVirtualParameterProvisions = (sessionData, virtualParameterDeclarations) ->
+generateSetVirtualParameterProvisions = (sessionContext, virtualParameterDeclarations) ->
   provisions = null
   for declaration in virtualParameterDeclarations
     if declaration[2]?.value?
-      attrs = sessionData.deviceData.attributes.get(declaration[0])
+      attrs = sessionContext.deviceData.attributes.get(declaration[0])
       if (curVal = attrs.value?[1])? and attrs.writable?[1]
         val = declaration[2].value.slice()
         val[1] = curVal[1] if not val[1]?
@@ -1042,12 +1048,12 @@ generateSetVirtualParameterProvisions = (sessionData, virtualParameterDeclaratio
   return provisions
 
 
-processDeclarations = (sessionData, allDeclareTimestamps, allDeclareAttributeTimestamps, allDeclareAttributeValues) ->
-  deviceData = sessionData.deviceData
-  syncState = sessionData.syncState
+processDeclarations = (sessionContext, allDeclareTimestamps, allDeclareAttributeTimestamps, allDeclareAttributeValues) ->
+  deviceData = sessionContext.deviceData
+  syncState = sessionContext.syncState
 
-  root = sessionData.deviceData.paths.add([])
-  paths = sessionData.deviceData.paths.find([], false, true, 99)
+  root = sessionContext.deviceData.paths.add([])
+  paths = sessionContext.deviceData.paths.find([], false, true, 99)
   paths.sort((a, b) ->
     if a.wildcard == b.wildcard
       return a.length - b.length
@@ -1179,8 +1185,8 @@ processDeclarations = (sessionData, allDeclareTimestamps, allDeclareAttributeTim
   return virtualParameterDeclarations
 
 
-loadPath = (sessionData, path, depth) ->
-  return true if sessionData.new
+loadPath = (sessionContext, path, depth) ->
+  return true if sessionContext.new
   depth ?= (1 << path.length) - 1
 
   # Trim trailing wildcards
@@ -1189,32 +1195,32 @@ loadPath = (sessionData, path, depth) ->
   path = path.slice(0, trimWildcard) if trimWildcard < path.length
 
   for i in [0..path.length] by 1
-    for sup in sessionData.deviceData.paths.find(path.slice(0, i), true, false)
-      v = sessionData.deviceData.loaded.get(sup)
-      depth &= depth ^ sessionData.deviceData.loaded.get(sup)
+    for sup in sessionContext.deviceData.paths.find(path.slice(0, i), true, false)
+      v = sessionContext.deviceData.loaded.get(sup)
+      depth &= depth ^ sessionContext.deviceData.loaded.get(sup)
 
     return true if depth == 0
 
-  sessionData.toLoad ?= []
-  sessionData.toLoad.push([path, depth])
+  sessionContext.toLoad ?= []
+  sessionContext.toLoad.push([path, depth])
   return false
 
 
-processInstances = (sessionData, parent, parameters, keys, minInstances, maxInstances) ->
+processInstances = (sessionContext, parent, parameters, keys, minInstances, maxInstances) ->
   if parent[0] == 'Downloads'
     return if parent.length != 1
-    instancesToDelete = sessionData.syncState.downloadsToDelete
-    instancesToCreate = sessionData.syncState.downloadsToCreate
+    instancesToDelete = sessionContext.syncState.downloadsToDelete
+    instancesToCreate = sessionContext.syncState.downloadsToCreate
   else
-    instancesToDelete = sessionData.syncState.instancesToDelete.get(parent)
+    instancesToDelete = sessionContext.syncState.instancesToDelete.get(parent)
     if not instancesToDelete?
       instancesToDelete = new Set()
-      sessionData.syncState.instancesToDelete.set(parent, instancesToDelete)
+      sessionContext.syncState.instancesToDelete.set(parent, instancesToDelete)
 
-    instancesToCreate = sessionData.syncState.instancesToCreate.get(parent)
+    instancesToCreate = sessionContext.syncState.instancesToCreate.get(parent)
     if not instancesToCreate?
       instancesToCreate = new InstanceSet()
-      sessionData.syncState.instancesToCreate.set(parent, instancesToCreate)
+      sessionContext.syncState.instancesToCreate.set(parent, instancesToCreate)
 
   counter = 0
   for p in parameters
@@ -1244,29 +1250,29 @@ processInstances = (sessionData, parent, parameters, keys, minInstances, maxInst
   return
 
 
-clear = (sessionData, toClear, callback) ->
+clear = (sessionContext, toClear, callback) ->
   return callback() if not toClear?.length
 
-  MAX_DEPTH = config.get('MAX_DEPTH', sessionData.deviceId)
+  MAX_DEPTH = config.get('MAX_DEPTH', sessionContext.deviceId)
 
   toClear.forEach((c) ->
-    loadPath(sessionData, c[0], ((1 << c[0].length) - 1) ^ ((1 << MAX_DEPTH) - 1))
+    loadPath(sessionContext, c[0], ((1 << c[0].length) - 1) ^ ((1 << MAX_DEPTH) - 1))
   )
 
-  loadParameters(sessionData, (err) ->
+  loadParameters(sessionContext, (err) ->
     return callback(err) if err
 
     toClear.forEach((c) ->
-      device.clear(sessionData.deviceData, c[0], c[1], c[2])
+      device.clear(sessionContext.deviceData, c[0], c[1], c[2])
     )
     return callback()
   )
 
 
-commitVirtualParameter = (sessionData, provision, update, toClear) ->
+commitVirtualParameter = (sessionContext, provision, update, toClear) ->
   attributes = {}
 
-  timestamp = sessionData.timestamp + sessionData.iteration
+  timestamp = sessionContext.timestamp + sessionContext.iteration
   timestamp += 1 if provision[2]?
 
   if update.writable?
@@ -1279,18 +1285,18 @@ commitVirtualParameter = (sessionData, provision, update, toClear) ->
   else if provision[1]?.value? or provision[2]?.value?
     throw new Error('Virtual parameter must provide declared attributes')
 
-  return device.set(sessionData.deviceData, ['VirtualParameters', provision[0]], timestamp, attributes, toClear)
+  return device.set(sessionContext.deviceData, ['VirtualParameters', provision[0]], timestamp, attributes, toClear)
 
 
-rpcResponse = (sessionData, id, rpcRes, callback) ->
-  if id != generateRpcId(sessionData)
+rpcResponse = (sessionContext, id, rpcRes, callback) ->
+  if id != generateRpcId(sessionContext)
     return callback(new Error('Request ID not recognized'))
 
-  ++ sessionData.rpcCount
+  ++ sessionContext.rpcCount
 
-  rpcReq = sessionData.rpcRequest
+  rpcReq = sessionContext.rpcRequest
   if not rpcReq.next?
-    sessionData.rpcRequest = null
+    sessionContext.rpcRequest = null
   else if rpcReq.next == 'getInstanceKeys'
     instanceNumber = rpcRes.instanceNumber
     parameterNames = []
@@ -1301,10 +1307,10 @@ rpcResponse = (sessionData, id, rpcRes, callback) ->
       instanceValues[n] = v
 
     if parameterNames.length == 0
-      sessionData.rpcRequest = null
+      sessionContext.rpcRequest = null
     else
-      sessionData.rpcRequest = {
-        type: 'GetParameterValues'
+      sessionContext.rpcRequest = {
+        name: 'GetParameterValues'
         parameterNames: parameterNames
         next: 'setInstanceKeys'
         instanceValues: instanceValues
@@ -1317,31 +1323,31 @@ rpcResponse = (sessionData, id, rpcRes, callback) ->
           [p[0]].concat(device.sanitizeParameterValue([rpcReq.instanceValues[p[0]], p[2]])))
 
     if not parameterList.length
-      sessionData.rpcRequest = null
+      sessionContext.rpcRequest = null
     else
-      sessionData.rpcRequest = {
-        type: 'SetParameterValues'
+      sessionContext.rpcRequest = {
+        name: 'SetParameterValues'
         parameterList: parameterList
       }
 
-  timestamp = sessionData.timestamp + sessionData.iteration
+  timestamp = sessionContext.timestamp + sessionContext.iteration
 
-  revision = sessionData.revisions[sessionData.revisions.length - 1] + 1
-  sessionData.deviceData.timestamps.revision = revision
-  sessionData.deviceData.attributes.revision = revision
+  revision = sessionContext.revisions[sessionContext.revisions.length - 1] + 1
+  sessionContext.deviceData.timestamps.revision = revision
+  sessionContext.deviceData.attributes.revision = revision
 
   toClear = null
 
-  switch rpcRes.type
+  switch rpcRes.name
     when 'GetParameterValuesResponse'
-      return callback(new Error('Response type does not match request type')) if rpcReq.type isnt 'GetParameterValues'
+      return callback(new Error('Response name does not match request name')) if rpcReq.name isnt 'GetParameterValues'
 
       for p in rpcRes.parameterList
-        toClear = device.set(sessionData.deviceData, common.parsePath(p[0]), timestamp,
+        toClear = device.set(sessionContext.deviceData, common.parsePath(p[0]), timestamp,
           {object: [timestamp, 0], value: [timestamp, p.slice(1)]}, toClear)
 
     when 'GetParameterNamesResponse'
-      return callback(new Error('Response type does not match request type')) if rpcReq.type isnt 'GetParameterNames'
+      return callback(new Error('Response name does not match request name')) if rpcReq.name isnt 'GetParameterNames'
 
       if rpcReq.parameterPath.endsWith('.')
         root = common.parsePath(rpcReq.parameterPath.slice(0, -1))
@@ -1389,73 +1395,73 @@ rpcResponse = (sessionData, id, rpcRes, callback) ->
       )
 
       if rpcReq.nextLevel
-        loadPath(sessionData, root, (1 << (root.length + 1)) - 1)
+        loadPath(sessionContext, root, (1 << (root.length + 1)) - 1)
       else
-        loadPath(sessionData, root, (1 << config.get('MAX_DEPTH', sessionData.deviceId)) - 1)
+        loadPath(sessionContext, root, (1 << config.get('MAX_DEPTH', sessionContext.deviceId)) - 1)
 
-      loadParameters(sessionData, (err) ->
+      loadParameters(sessionContext, (err) ->
         return callback(err) if err
 
         if root.length == 0
           for n in ['DeviceID', 'Events', 'Tags', 'Reboot', 'FactoryReset', 'VirtualParameters']
-            if p = sessionData.deviceData.paths.get([n])
-              if sessionData.deviceData.attributes.has(p)
-                sessionData.deviceData.timestamps.set(p, timestamp)
+            if p = sessionContext.deviceData.paths.get([n])
+              if sessionContext.deviceData.attributes.has(p)
+                sessionContext.deviceData.timestamps.set(p, timestamp)
 
         for p in params
-          toClear = device.set(sessionData.deviceData, p[0], p[1], p[2], toClear)
+          toClear = device.set(sessionContext.deviceData, p[0], p[1], p[2], toClear)
 
-        clear(sessionData, toClear, callback)
+        clear(sessionContext, toClear, callback)
       )
       return
 
     when 'SetParameterValuesResponse'
-      return callback(new Error('Response type does not match request type')) if rpcReq.type isnt 'SetParameterValues'
+      return callback(new Error('Response name does not match request name')) if rpcReq.name isnt 'SetParameterValues'
 
       for p in rpcReq.parameterList
-        toClear = device.set(sessionData.deviceData, common.parsePath(p[0]), timestamp + 1,
+        toClear = device.set(sessionContext.deviceData, common.parsePath(p[0]), timestamp + 1,
           {object: [timestamp + 1, 0], writable: [timestamp + 1, 1], value: [timestamp + 1, p.slice(1)]}, toClear)
 
     when 'AddObjectResponse'
-      toClear = device.set(sessionData.deviceData, common.parsePath(rpcReq.objectName + rpcRes.instanceNumber),
+      toClear = device.set(sessionContext.deviceData, common.parsePath(rpcReq.objectName + rpcRes.instanceNumber),
         timestamp + 1, {object: [timestamp + 1, 1]}, toClear)
 
     when 'DeleteObjectResponse'
-      toClear = device.set(sessionData.deviceData, common.parsePath(rpcReq.objectName.slice(0, -1)),
+      toClear = device.set(sessionContext.deviceData, common.parsePath(rpcReq.objectName.slice(0, -1)),
         timestamp + 1, null, toClear)
 
     when 'RebootResponse'
-      toClear = device.set(sessionData.deviceData, common.parsePath('Reboot'),
+      toClear = device.set(sessionContext.deviceData, common.parsePath('Reboot'),
         timestamp + 1, {value: [timestamp + 1, [timestamp + 1, 'xsd:dateTime']]}, toClear)
 
     when 'FactoryResetResponse'
-      toClear = device.set(sessionData.deviceData, common.parsePath('FactoryReset'),
+      toClear = device.set(sessionContext.deviceData, common.parsePath('FactoryReset'),
         timestamp + 1, {value: [timestamp + 1, [timestamp + 1, 'xsd:dateTime']]}, toClear)
 
     when 'DownloadResponse'
-      toClear = device.set(sessionData.deviceData, ['Downloads', rpcReq.instance, 'Download'],
+      toClear = device.set(sessionContext.deviceData, ['Downloads', rpcReq.instance, 'Download'],
         timestamp + 1, {value: [timestamp + 1, [timestamp + 1, 'xsd:dateTime']]}, toClear)
 
       if rpcRes.status == 0
-        toClear = device.set(sessionData.deviceData, ['Downloads', rpcReq.instance, 'LastDownload'],
+        toClear = device.set(sessionContext.deviceData, ['Downloads', rpcReq.instance, 'LastDownload'],
           timestamp + 1, {value: [timestamp + 1, [timestamp + 1, 'xsd:dateTime']]}, toClear)
-        toClear = device.set(sessionData.deviceData, ['Downloads', rpcReq.instance, 'LastFileType'],
+        toClear = device.set(sessionContext.deviceData, ['Downloads', rpcReq.instance, 'LastFileType'],
           timestamp + 1, {value: [timestamp + 1, [rpcReq.fileType, 'xsd:dateTime']]}, toClear)
-        toClear = device.set(sessionData.deviceData, ['Downloads', rpcReq.instance, 'LastFileName'],
+        toClear = device.set(sessionContext.deviceData, ['Downloads', rpcReq.instance, 'LastFileName'],
           timestamp + 1, {value: [timestamp + 1, [rpcReq.fileType, 'xsd:dateTime']]}, toClear)
-        toClear = device.set(sessionData.deviceData, ['Downloads', rpcReq.instance, 'LastTargetFileName'],
+        toClear = device.set(sessionContext.deviceData, ['Downloads', rpcReq.instance, 'LastTargetFileName'],
           timestamp + 1, {value: [timestamp + 1, [rpcReq.fileType, 'xsd:dateTime']]}, toClear)
 
-        toClear = device.set(sessionData.deviceData, ['Downloads', rpcReq.instance, 'StartTime'],
+        toClear = device.set(sessionContext.deviceData, ['Downloads', rpcReq.instance, 'StartTime'],
           timestamp + 1, {value: [timestamp + 1, [+rpcRes.startTime, 'xsd:dateTime']]}, toClear)
-        toClear = device.set(sessionData.deviceData, ['Downloads', rpcReq.instance, 'CompleteTime'],
+        toClear = device.set(sessionContext.deviceData, ['Downloads', rpcReq.instance, 'CompleteTime'],
           timestamp + 1, {value: [timestamp + 1, [+rpcRes.completeTime, 'xsd:dateTime']]}, toClear)
       else
         operation = {
-          type: 'Download'
-          timestamp: sessionData.timestamp
-          provisions: sessionData.provisions
-          channels: sessionData.channels
+          name: 'Download'
+          timestamp: sessionContext.timestamp
+          provisions: sessionContext.provisions
+          channels: sessionContext.channels
           retries: {}
           args: {
             instance: rpcReq.instance
@@ -1465,21 +1471,21 @@ rpcResponse = (sessionData, id, rpcRes, callback) ->
           }
         }
 
-        for channel of sessionData.channels
-          if sessionData.retries[channel]?
-            operation.retries[channel] = sessionData.retries[channel]
+        for channel of sessionContext.channels
+          if sessionContext.retries[channel]?
+            operation.retries[channel] = sessionContext.retries[channel]
 
-        sessionData.operations[rpcReq.commandKey] = operation
-        sessionData.operationsTouched ?= {}
-        sessionData.operationsTouched[rpcReq.commandKey] = 1
+        sessionContext.operations[rpcReq.commandKey] = operation
+        sessionContext.operationsTouched ?= {}
+        sessionContext.operationsTouched[rpcReq.commandKey] = 1
 
     else
-      return callback(new Error('Response type not recognized'))
+      return callback(new Error('Response name not recognized'))
 
-  return clear(sessionData, toClear, callback)
+  return clear(sessionContext, toClear, callback)
 
 
-rpcFault = (sessionData, id, faultResponse, callback) ->
+rpcFault = (sessionContext, id, faultResponse, callback) ->
   # TODO Consider handling invalid parameter faults by automatically refreshing
   # relevant data model portions
 
@@ -1487,33 +1493,31 @@ rpcFault = (sessionData, id, faultResponse, callback) ->
     code: "cwmp.#{faultResponse.detail.faultCode}"
     message: faultResponse.detail.faultString
     detail: faultResponse.detail
-    timestamp: sessionData.timestamp
+    timestamp: sessionContext.timestamp
   }
 
-  delete sessionData.syncState
+  delete sessionContext.syncState
   return callback(null, fault)
 
 
-deserialize = (sessionDataString, callback) ->
+deserialize = (sessionContextString, callback) ->
   cache.getProvisionsAndVirtualParameters((err, hash, provisions, virtualParameters) ->
     return callback(err) if err
 
-    sessionData = JSON.parse(sessionDataString)
+    sessionContext = JSON.parse(sessionContextString)
 
-    if sessionData.presetsHash? and sessionData.presetsHash != hash
+    if sessionContext.presetsHash? and sessionContext.presetsHash != hash
       return callback(new Error('Preset hash mismatch'))
 
-    sessionData.cache = {
-      provisions: provisions
-      virtualParameters: virtualParameters
-    }
+    provisionsCache.set(sessionContext, provisions)
+    virtualParametersCache.set(sessionContext, virtualParameters)
 
-    for d in sessionData.declarations
+    for d in sessionContext.declarations
       common.addPathMeta(d[0])
 
     deviceData = initDeviceData()
 
-    for r in sessionData.deviceData
+    for r in sessionContext.deviceData
       path = deviceData.paths.add(r[0])
 
       if r[1]
@@ -1528,85 +1532,82 @@ deserialize = (sessionDataString, callback) ->
         if r[4]
           deviceData.attributes.setRevisions(path, r[4])
 
-    sessionData.deviceData = deviceData
+    sessionContext.deviceData = deviceData
 
-    return callback(null, sessionData)
+    return callback(null, sessionContext)
   )
 
 
-serialize = (sessionData, callback) ->
+serialize = (sessionContext, callback) ->
   deviceData = []
 
-  for path in sessionData.deviceData.paths.find([], false, false, 99)
+  for path in sessionContext.deviceData.paths.find([], false, false, 99)
     e = [path]
-    e[1] = sessionData.deviceData.loaded.get(path) || 0
-    e[2] = sessionData.deviceData.trackers.get(path) || null
-    e[3] = sessionData.deviceData.timestamps.getRevisions(path) || null
-    e[4] = sessionData.deviceData.attributes.getRevisions(path) || null
+    e[1] = sessionContext.deviceData.loaded.get(path) || 0
+    e[2] = sessionContext.deviceData.trackers.get(path) || null
+    e[3] = sessionContext.deviceData.timestamps.getRevisions(path) || null
+    e[4] = sessionContext.deviceData.attributes.getRevisions(path) || null
 
     deviceData.push(e)
 
-  oldDeviceData = sessionData.deviceData
-  oldSyncState = sessionData.syncState
-  oldToLoad = sessionData.toLoad
-  oldCache = sessionData.cache
+  oldDeviceData = sessionContext.deviceData
+  oldSyncState = sessionContext.syncState
+  oldToLoad = sessionContext.toLoad
 
-  sessionData.deviceData = deviceData
-  delete sessionData.syncState
-  delete sessionData.toLoad
-  delete sessionData.cache
+  sessionContext.deviceData = deviceData
+  delete sessionContext.syncState
+  delete sessionContext.toLoad
 
-  sessionDataString = JSON.stringify(sessionData)
+  sessionContextString = JSON.stringify(sessionContext)
 
-  sessionData.deviceData = oldDeviceData
-  sessionData.syncState = oldSyncState
-  sessionData.toLoad = oldToLoad
-  sessionData.cache = oldCache
+  sessionContext.deviceData = oldDeviceData
+  sessionContext.syncState = oldSyncState
+  sessionContext.toLoad = oldToLoad
 
-  return callback(null, sessionDataString)
+  return callback(null, sessionContextString)
 
 
-end = (sessionData, callback) ->
+end = (sessionContext, callback) ->
   counter = 3
 
   counter += 2
-  db.saveDevice(sessionData.deviceId, sessionData.deviceData, sessionData.new, (err) ->
+  db.saveDevice(sessionContext.deviceId, sessionContext.deviceData, sessionContext.new, (err) ->
     if err
       callback(err) if counter & 1
       return counter = 0
 
-    return callback(null, sessionData.new) if (counter -= 2) == 1
+    return callback(null, sessionContext.new) if (counter -= 2) == 1
   )
 
   counter += 2
-  db.redisClient.del("session_#{sessionData.id}", (err) ->
+  db.redisClient.del("session_#{sessionContext.id}", (err) ->
     if err
       callback(err) if counter & 1
       return counter = 0
 
-    return callback(null, sessionData.new) if (counter -= 2) == 1
+    return callback(null, sessionContext.new) if (counter -= 2) == 1
   )
 
-  for k of sessionData.operationsTouched
+  for k of sessionContext.operationsTouched
     counter += 2
-    if sessionData.operations[k]?
-      db.saveOperation(sessionData.deviceId, k, sessionData.operations[k], (err) ->
+    if sessionContext.operations[k]?
+      db.saveOperation(sessionContext.deviceId, k, sessionContext.operations[k], (err) ->
         if err
           callback(err) if counter & 1
           return counter = 0
 
-        return callback(null, sessionData.new) if (counter -= 2) == 1
+        return callback(null, sessionContext.new) if (counter -= 2) == 1
       )
     else
-      db.deleteOperation(sessionData.deviceId, k, (err) ->
+      db.deleteOperation(sessionContext.deviceId, k, (err) ->
         if err
           callback(err) if counter & 1
           return counter = 0
 
-        return callback(null, sessionData.new) if (counter -= 2) == 1
+        return callback(null, sessionContext.new) if (counter -= 2) == 1
       )
 
-  callback(null, sessionData.new) if (counter -= 2) == 1
+  callback(null, sessionContext.new) if (counter -= 2) == 1
 
 exports.init = init
 exports.timeoutOperations = timeoutOperations
