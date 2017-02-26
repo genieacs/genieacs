@@ -348,8 +348,7 @@ runProvisions = (sessionContext, provisions, startRevision, endRevision, callbac
 
     counter += 2
     sandbox.run(allProvisions[provision[0]].script,
-      {args: provision.slice(1)}, sessionContext.timestamp, sessionContext.deviceData,
-      sessionContext.extensionsCache, startRevision, endRevision,
+      {args: provision.slice(1)}, sessionContext, startRevision, endRevision,
       (err, _fault, _clear, _declarations, _done) ->
         if err or _fault
           callback(err, _fault) if counter & 1
@@ -357,10 +356,10 @@ runProvisions = (sessionContext, provisions, startRevision, endRevision, callbac
 
         done &&= _done
 
-        if _declarations
+        if _declarations.length
           allDeclarations = allDeclarations.concat(_declarations)
 
-        if _clear
+        if _clear.length
           allClear = allClear.concat(_clear)
 
         if (counter -= 2) == 1
@@ -382,8 +381,7 @@ runVirtualParameters = (sessionContext, provisions, startRevision, endRevision, 
     counter += 2
     globals = {TIMESTAMPS: provision[1], VALUES: provision[2]}
     sandbox.run(allVirtualParameters[provision[0]].script, globals,
-      sessionContext.timestamp, sessionContext.deviceData,
-      sessionContext.extensionsCache, startRevision, endRevision,
+      sessionContext, startRevision, endRevision,
       (err, _fault, _clear, _declarations, _done, _returnValue) ->
         if err or _fault
           callback(err, _fault) if counter & 1
@@ -391,10 +389,10 @@ runVirtualParameters = (sessionContext, provisions, startRevision, endRevision, 
 
         done &&= _done
 
-        if _declarations
+        if _declarations.length
           allDeclarations = allDeclarations.concat(_declarations)
 
-        if _clear
+        if _clear.length
           allClear = allClear.concat(_clear)
 
         if _done
@@ -575,7 +573,7 @@ rpcRequest = (sessionContext, _declarations, callback) ->
         return callback(null, fault)
 
       sessionContext.declarations.push(decs)
-      sessionContext.doneProvisions |= 1 << inception if done or not decs.length
+      sessionContext.doneProvisions |= 1 << inception if done
 
       for d in decs
         for ad in device.getAliasDeclarations(d[0], 1)
