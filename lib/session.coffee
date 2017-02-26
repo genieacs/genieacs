@@ -602,7 +602,7 @@ rpcRequest = (sessionContext, _declarations, callback) ->
       return rpcRequest(sessionContext, null, callback)
     )
 
-  if not sessionContext.declarations[0].length
+  if sessionContext.doneProvisions[0] & 1
     return callback()
 
   if sessionContext.rpcCount >= 255 or
