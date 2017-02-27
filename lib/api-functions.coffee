@@ -51,7 +51,13 @@ auth = require './auth'
 
 
 udpConReq = (address, un, key, callback) ->
+  return false if not address
   [host, port] = address.split(':', 2)
+  if port is undefined
+    port = 80
+  else
+    port = parseInt(port)
+    return false if isNaN(port)
 
   ts = Math.trunc(Date.now() / 1000)
   id = Math.trunc(Math.random() * 4294967295)
@@ -59,7 +65,7 @@ udpConReq = (address, un, key, callback) ->
   sig = crypto.createHmac('sha1', key).update("#{ts}#{id}#{un}#{cn}").digest('hex')
   uri = "http://#{address}?ts=#{ts}&id=#{id}&un=#{un}&cn=#{cn}&sig=#{sig}"
 
-  message = Buffer.from("GET #{uri} HTTP/1.1\r\nHost: #{host}:#{port}\r\n\r\n")
+  message = Buffer.from("GET #{uri} HTTP/1.1\r\nHost: #{address}\r\n\r\n")
 
   client = dgram.createSocket('udp4')
 
@@ -70,6 +76,7 @@ udpConReq = (address, un, key, callback) ->
       return callback(err)
     client.send(message, 0, message.length, port, host, f)
   )
+  return true
 
 
 httpConReq = (url, username, password, timeout, callback) ->
@@ -163,11 +170,10 @@ connectionRequest = (deviceId, callback) ->
       password = device.InternetGatewayDevice.ManagementServer.ConnectionRequestPassword?._value
 
     conReq = () ->
-      if udpConnectionRequestAddress
-        udpConReq(udpConnectionRequestAddress, username, password, (err) -> throw err if err)
+      udpSent = udpConReq(udpConnectionRequestAddress, username, password, (err) -> throw err if err)
 
       httpConReq(connectionRequestUrl, username, password, CONNECTION_REQUEST_TIMEOUT, (err) ->
-        if udpConnectionRequestAddress
+        if udpSent
           return callback()
         callback(err)
       )
