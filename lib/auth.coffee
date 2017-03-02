@@ -72,9 +72,7 @@ exports.digest = (username, password, uri, httpMethod, body, authHeader) ->
   authString += ",nonce=\"#{authHeader.nonce}\""
   authString += ",uri=\"#{uri}\""
   authString += ",algorithm=#{authHeader.algorithm}" if authHeader.algorithm?
-  authString += ",qop=#{qop}"
-  authString += ",nc=#{nc}"
-  authString += ",cnonce=\"#{cnonce}\""
+  authString += ",qop=#{qop},nc=#{nc},cnonce=\"#{cnonce}\"" if qop?
   authString += ",response=\"#{response}\""
-  authString += ",opaque=\"#{authHeader.opaque}\""
+  authString += ",opaque=\"#{authHeader.opaque}\"" if authHeader.opaque?
   return authString

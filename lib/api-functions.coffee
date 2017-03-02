@@ -82,7 +82,7 @@ udpConReq = (address, un, key, callback) ->
 httpConReq = (url, username, password, timeout, callback) ->
   options = URL.parse(url)
   # Ensure socket is reused in case of digest authentication
-  agent = new http.Agent({maxSockets : 1})
+  options.agent = new http.Agent({maxSockets : 1})
 
   statusToError = (statusCode) ->
     switch statusCode
