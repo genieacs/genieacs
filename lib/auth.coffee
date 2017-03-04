@@ -19,18 +19,10 @@ crypto = require 'crypto'
 
 
 exports.parseAuthHeader = (authHeader) ->
-  res = {}
-  i = authHeader.indexOf(' ')
-  res['method'] = authHeader.slice(0, i)
-
-  options = authHeader.slice(i + 1)
-  regex = /([a-z]+)="([a-zA-Z0-9\/\.@\-\+,= ]+)"/g
-  while (r = regex.exec(options)) != null
-    res[r[1]] = r[2]
-
-  regex = /([a-z]+)=([a-zA-Z0-9\/\.@\-\+]+)/g
-  while (r = regex.exec(options)) != null
-    res[r[1]] = r[2]
+  res = {method: authHeader.slice(0, authHeader.indexOf(' '))}
+  re = /([a-z0-9_-]+)=(?:"([^"]+)"|([a-z0-9_-]+))/gi
+  while match = re.exec(authHeader)
+    res[match[1]] = match[2] or match[3]
   return res
 
 
