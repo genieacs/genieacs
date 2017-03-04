@@ -1077,7 +1077,12 @@ processDeclarations = (sessionContext, allDeclareTimestamps, allDeclareAttribute
     for path in paths
       if path.length > currentPath.length
         fragment = path[currentPath.length]
-        children[fragment] ?= []
+        if not children[fragment]
+          children[fragment] = []
+          if path.length > currentPath.length + 1
+            # This is to ensure we don't descend more than one step at a time
+            p = common.addPathMeta(path.slice(0, currentPath.length + 1))
+            children[fragment].push(p)
         children[fragment].push(path)
         continue
 
