@@ -49,13 +49,13 @@ options = {
 
   DOWNLOAD_TIMEOUT: {type : 'int', default : 3600},
   EXT_TIMEOUT: {type: 'int', default: 3000},
-  PRESETS_CACHE_DURATION : {type : 'int', default : 86400},
+  MAX_CACHE_TTL : {type : 'int', default : 86400},
   DEBUG : {type : 'bool', default : false},
   RETRY_DELAY : {type : 'int', default : 300},
   SESSION_TIMEOUT : {type : 'int', default : 30},
   CONNECTION_REQUEST_TIMEOUT : {type : 'int', default: 2000},
-  GET_PARAMETER_NAMES_DEPTH_THRESHOLD : {type : 'int', default : 0},
-  TASK_PARAMETERS_BATCH_SIZE : {type : 'int', default : 32},
+  GPN_NEXT_LEVEL : {type : 'int', default : 0},
+  GPV_BATCH_SIZE : {type : 'int', default : 32},
   MAX_DEPTH : {type: 'int', default : 16},
   COOKIES_PATH : {type : 'string'},
   LOG_FORMAT : {type : 'string', default : 'simple'},
@@ -78,6 +78,25 @@ allConfig = {}
 
 setConfig = (name, value, commandLineArgument) ->
   return true if allConfig[name]?
+
+  # For compatibility with v1.0
+  if name in ['PRESETS_CACHE_DURATION', 'presets-cache-duration']
+    setConfig('MAX_CACHE_TTL', value)
+
+  if name in ['GET_PARAMETER_NAMES_DEPTH_THRESHOLD', 'get-parameter-names-depth-threshold']
+    setConfig('GPN_NEXT_LEVEL', value)
+
+  if name in ['TASK_PARAMETERS_BATCH_SIZE', 'task-parameters-batch-size']
+    setConfig('GPV_BATCH_SIZE', value)
+
+  if name in ['IGNORE_XML_NAMESPACES', 'ignore-xml-namespaces']
+    setConfig('XML_IGNORE_NAMESPACE', value)
+
+  if name in ['XML_PARSE_IGNORE_ENC', 'xml-parse-ignore-enc']
+    setConfig('XML_IGNORE_ENC', value)
+
+  if name in ['XML_PARSE_RECOVER', 'xml-parse-recover']
+    setConfig('XML_RECOVER', value)
 
   cast = (val, type) ->
     switch type

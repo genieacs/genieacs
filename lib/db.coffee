@@ -466,7 +466,7 @@ getDueTasksAndFaultsAndOperations = (deviceId, timestamp, callback) ->
     if tasks? and faults? and operations?
       return callback(null, tasks, faults, operations)
 
-    CACHE_DURATION = config.get('PRESETS_CACHE_DURATION', deviceId)
+    MAX_CACHE_TTL = config.get('MAX_CACHE_TTL', deviceId)
 
     if not faults?
       getFaults(deviceId, (err, flts) ->
@@ -488,7 +488,7 @@ getDueTasksAndFaultsAndOperations = (deviceId, timestamp, callback) ->
         if nextTimestamp?
           exp = Math.min(0, Math.trunc((nextTimestamp - Date.now()) / 1000))
         else
-          exp = CACHE_DURATION
+          exp = MAX_CACHE_TTL
 
         redisClient.setex("#{deviceId}_tasks", exp, JSON.stringify(dueTasks), (err) ->
           if err
@@ -529,9 +529,9 @@ getFaults = (deviceId, callback) ->
       r.provisions = JSON.parse(r.provisions)
       faults[channel] = r
 
-    CACHE_DURATION = config.get('PRESETS_CACHE_DURATION', deviceId)
+    MAX_CACHE_TTL = config.get('MAX_CACHE_TTL', deviceId)
 
-    redisClient.setex("#{deviceId}_faults", CACHE_DURATION, JSON.stringify(faults), (err) ->
+    redisClient.setex("#{deviceId}_faults", MAX_CACHE_TTL, JSON.stringify(faults), (err) ->
       callback(err, faults)
     )
   )
@@ -620,9 +620,9 @@ getOperations = (deviceId, callback) ->
       r.retries = JSON.parse(r.retries)
       operations[commandKey] = r
 
-    CACHE_DURATION = config.get('PRESETS_CACHE_DURATION', deviceId)
+    MAX_CACHE_TTL = config.get('MAX_CACHE_TTL', deviceId)
 
-    redisClient.setex("#{deviceId}_operations", CACHE_DURATION, JSON.stringify(operations), (err) ->
+    redisClient.setex("#{deviceId}_operations", MAX_CACHE_TTL, JSON.stringify(operations), (err) ->
       callback(err, operations)
     )
   )

@@ -873,8 +873,7 @@ generateGetRpcRequest = (sessionContext) ->
   syncState.refreshAttributes.writable.clear()
 
   if syncState.gpn.size
-    GET_PARAMETER_NAMES_DEPTH_THRESHOLD =
-      config.get('GET_PARAMETER_NAMES_DEPTH_THRESHOLD', sessionContext.deviceId)
+    GPN_NEXT_LEVEL = config.get('GPN_NEXT_LEVEL', sessionContext.deviceId)
 
     paths = Array.from(syncState.gpn.keys()).sort((a,b) -> b.length - a.length)
     path = paths.pop()
@@ -888,7 +887,7 @@ generateGetRpcRequest = (sessionContext) ->
         if v = syncState.gpnPatterns.get(p)
           patterns.push([p, (v >> path.length) << path.length])
 
-      if path.length >= GET_PARAMETER_NAMES_DEPTH_THRESHOLD
+      if path.length >= GPN_NEXT_LEVEL
         est = estimateGpnCount(patterns)
       else
         est = 0
@@ -908,13 +907,12 @@ generateGetRpcRequest = (sessionContext) ->
       }
 
   if syncState.refreshAttributes.value.size
-    TASK_PARAMETERS_BATCH_SIZE =
-      config.get('TASK_PARAMETERS_BATCH_SIZE', sessionContext.deviceId)
+    GPV_BATCH_SIZE = config.get('GPV_BATCH_SIZE', sessionContext.deviceId)
 
     parameterNames = []
     iter = syncState.refreshAttributes.value.values()
     while (path = iter.next().value) and
-        parameterNames.length < TASK_PARAMETERS_BATCH_SIZE
+        parameterNames.length < GPV_BATCH_SIZE
       syncState.refreshAttributes.value.delete(path)
       if sessionContext.deviceData.attributes.has(path)
         parameterNames.push(path)
@@ -957,12 +955,11 @@ generateSetRpcRequest = (sessionContext) ->
       }
 
   # Set values
-  TASK_PARAMETERS_BATCH_SIZE =
-    config.get('TASK_PARAMETERS_BATCH_SIZE', sessionContext.deviceId)
+  GPV_BATCH_SIZE = config.get('GPV_BATCH_SIZE', sessionContext.deviceId)
 
   parameterValues = []
   syncState.spv.forEach((v, k) ->
-    return if parameterValues.length >= TASK_PARAMETERS_BATCH_SIZE
+    return if parameterValues.length >= GPV_BATCH_SIZE
     attrs = sessionContext.deviceData.attributes.get(k)
     if (curVal = attrs.value?[1])? and attrs.writable?[1]
       val = v.slice()
