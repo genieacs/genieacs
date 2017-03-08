@@ -156,6 +156,7 @@ fetchDevice = (id, timestamp, patterns, callback) ->
         projection[path.concat([fragment, '_value']).join('.')] = 1
         projection[path.concat([fragment, '_type']).join('.')] = 1
         projection[path.concat([fragment, '_object']).join('.')] = 1
+        projection[path.concat([fragment, '_instance']).join('.')] = 1
         projection[path.concat([fragment, '_writable']).join('.')] = 1
         projection[path.concat([fragment, '_orig']).join('.')] = 1
 
@@ -243,8 +244,8 @@ fetchDevice = (id, timestamp, patterns, callback) ->
         if obj['_writable']?
           attrs.writable = [timestamp, if obj['_writable'] then 1 else 0]
 
-        if obj['_object']?
-          attrs.object = [t, if obj['_object'] then 1 else 0]
+        if obj['_object']? or obj['_instance']?
+          attrs.object = [t, if (obj['_object'] or obj['_instance']) then 1 else 0]
 
         res.push([path, t, attrs])
 
@@ -255,7 +256,7 @@ fetchDevice = (id, timestamp, patterns, callback) ->
           storeParams(v, path.concat(k), obj['_timestamp'] or 1, descendantsFetched, projTree?[k])
           delete projTree[kk] if projTree
 
-      if obj['_object']
+      if obj['_object'] or obj['_instance']
         if descendantsFetched
           res.push([path.concat('*'), obj['_timestamp']]) if obj['_timestamp']
         else
