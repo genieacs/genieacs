@@ -1,14 +1,21 @@
 *~
 .npmignore
 
-config/*
-!config/*-sample.*
-!config/custom_commands
+config/auth.js
+config/config.json
+config/cwmp.key
+config/cwmp.crt
+config/cwmp.ca-bundle
+config/nbi.key
+config/nbi.crt
+config/nbi.ca-bundle
+config/fs.key
+config/fs.crt
+config/fs.ca-bundle
+config/ext
 
 debug/*
 !debug/.gitkeep
 
 lib/*.coffee
-tools/*.coffee
-test/*.coffee
-
+lib/*.map
