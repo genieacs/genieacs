@@ -917,10 +917,11 @@ generateGetRpcRequest = (sessionContext) ->
       if sessionContext.deviceData.attributes.has(path)
         parameterNames.push(path)
 
-    return {
-      name: 'GetParameterValues'
-      parameterNames: (p.join('.') for p in parameterNames)
-    }
+    if parameterNames.length
+      return {
+        name: 'GetParameterValues'
+        parameterNames: (p.join('.') for p in parameterNames)
+      }
 
   return null
 
