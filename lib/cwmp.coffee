@@ -695,7 +695,7 @@ listener = (httpRequest, httpResponse) ->
           })
           res = soap.response({
             id : rpc.id
-            acsResponse : {name: 'GetRPCMethodsResponse', methodList: ['Inform', 'GetRPCMethods', 'TransferComplete', 'RequestDownload']}
+            acsResponse : {name: 'GetRPCMethodsResponse', methodList: ['Inform', 'GetRPCMethods', 'TransferComplete']}
             cwmpVersion : sessionContext.cwmpVersion
           })
           writeResponse(sessionContext, res)
