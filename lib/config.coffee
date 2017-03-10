@@ -43,7 +43,7 @@ options = {
   FS_PORT : {type : 'int', default : 7567},
   FS_INTERFACE : {type : 'string', default : '0.0.0.0'},
   FS_SSL : {type : 'bool', default : false},
-  FS_IP : {type : 'string', default : '192.168.0.1'},
+  FS_HOSTNAME : {type : 'string', default : 'acs.example.com'},
   FS_LOG_FILE : {type: 'path', default : ''},
   FS_ACCESS_LOG_FILE : {type : 'path', default : ''},
 
@@ -97,6 +97,9 @@ setConfig = (name, value, commandLineArgument) ->
 
   if name in ['XML_PARSE_RECOVER', 'xml-parse-recover']
     setConfig('XML_RECOVER', value)
+
+  if name in ['FS_IP', 'fs-ip']
+    setConfig('FS_HOSTNAME', value)
 
   cast = (val, type) ->
     switch type

@@ -503,10 +503,10 @@ sendAcsRequest = (sessionContext, id, acsRequest) ->
   if acsRequest.name is 'Download'
     if not acsRequest.url?
       FS_PORT = config.get('FS_PORT')
-      FS_IP = config.get('FS_IP')
+      FS_HOSTNAME = config.get('FS_HOSTNAME')
       FS_SSL = config.get('FS_SSL')
       acsRequest.url = if FS_SSL then 'https://' else 'http://'
-      acsRequest.url += FS_IP
+      acsRequest.url += FS_HOSTNAME
       acsRequest.url += ":#{FS_PORT}" if FS_PORT != 80
       acsRequest.url += "/#{encodeURIComponent(acsRequest.fileName)}"
 
