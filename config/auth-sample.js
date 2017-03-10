@@ -1,4 +1,7 @@
-exports.connectionRequest = function(deviceId) {
-  // return username/password pair for a given device
-  return ["", ""];
+"use strict";
+
+function connectionRequest(deviceId, url, username, password, callback) {
+  return callback(username || deviceId, password || "");
 }
+
+exports.connectionRequest = connectionRequest;
