@@ -12,32 +12,30 @@
     "CWMP",
     "ACS"
   ],
-  "author": "Zaid Abdulla",
+  "author": "Zaid Abdulla <zaid@genieacs.com>",
   "license": "AGPL-3.0",
-  "readmeFilename": "README.md",
   "preferGlobal": true,
   "directories": {
-    "test": "test",
     "bin": "bin"
   },
   "dependencies": {
     "hiredis": "^0.5.0",
     "later": "^1.2.0",
-    "libxmljs": "^0.18.0",
-    "mongodb": "^2.2.16",
-    "redis": "^2.6.3",
+    "libxmljs": "^0.18.4",
+    "mongodb": "^2.2.24",
+    "redis": "^2.6.5",
     "seedrandom": "^2.4.2"
   },
   "devDependencies": {
-    "coffee-script": "^1.12.2"
+    "coffeescript": "^1.12.4"
   },
   "engines": {
-    "node": ">=6.9.2 <7.0"
+    "node": ">=6.9.2 <8.0"
   },
   "scripts": {
     "prepublish": "npm run compile",
     "compile": "coffee -cb lib/*.coffee",
-    "configure": "cp ./config/config-sample.json ./config/config.json",
+    "configure": "cp -n ./config/config-sample.json ./config/config.json",
     "install": "npm run configure",
     "test": "node test"
   }
