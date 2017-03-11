@@ -1,5 +1,7 @@
 ###
-# Copyright 2013-2016  Zaid Abdulla
+# Copyright 2013-2017  Zaid Abdulla
+#
+# This file is part of GenieACS.
 #
 # GenieACS is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
