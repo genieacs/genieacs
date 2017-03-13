@@ -149,6 +149,10 @@ inform = (sessionContext, rpcReq, callback) ->
   loadParameters(sessionContext, (err) ->
     return callback(err) if err
 
+    if sessionContext.new
+      params.push([['Events', 'Registered'], timestamp,
+        {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [timestamp, 'xsd:dateTime']]}])
+
     sessionContext.deviceData.timestamps.revision = 1
     sessionContext.deviceData.attributes.revision = 1
 
