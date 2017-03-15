@@ -78,10 +78,10 @@ httpConReq = (url, username, password, timeout, callback) ->
     if res.statusCode == 401 and res.headers['www-authenticate']?
       authHeader = auth.parseAuthHeader(res.headers['www-authenticate'])
       if authHeader.method is 'Basic'
-        options.headers = {'Authorization' : auth.basic(username, password)}
+        options.headers = {'Authorization' : auth.basic(username or '', password or '')}
       else if authHeader.method is 'Digest'
         options.headers = {
-          'Authorization' : auth.digest(username, password, options.path, 'GET', null, authHeader)
+          'Authorization' : auth.digest(username or '', password or '', options.path, 'GET', null, authHeader)
         }
 
       request = http.get(options, (res) ->
