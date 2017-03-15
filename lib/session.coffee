@@ -458,6 +458,7 @@ runDeclarations = (sessionContext, declarations) ->
 
   for declaration, i in declarations
     path = common.addPathMeta(declaration[0])
+    unpacked = null
 
     if (path.alias | path.wildcard) & 1 or path[0] == 'VirtualParameters'
       sessionContext.deviceData.paths.add(['VirtualParameters'])
