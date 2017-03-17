@@ -264,7 +264,7 @@ fetchDevice = (id, timestamp, patterns, callback) ->
         else
           for k, v of projTree
             p = path.concat(k)
-            res.push([p, +(obj['_timestamp'] ? 1)])
+            res.push([p, obj['_timestamp']]) if obj['_timestamp']
             loaded.push([p, ((1 << path.length) - 1) ^ ((1 << MAX_DEPTH) - 1)])
 
     for k, v of device
