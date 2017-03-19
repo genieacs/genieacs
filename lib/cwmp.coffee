@@ -603,9 +603,10 @@ listener = (httpRequest, httpResponse) ->
 
   stream.on('end', () ->
     rpc = null
+    parseWarnings = []
     getSession(httpRequest, f = (err, sessionContext) ->
       return throwError(err, httpResponse) if err
-      rpc ?= soap.request(httpRequest, sessionContext?.cwmpVersion)
+      rpc ?= soap.request(httpRequest, sessionContext?.cwmpVersion, parseWarnings)
       if not sessionContext?
         if rpc.cpeRequest?.name isnt 'Inform'
           httpResponse.writeHead(400)
@@ -644,6 +645,11 @@ listener = (httpRequest, httpResponse) ->
 
       sessionContext.httpRequest = httpRequest
       sessionContext.httpResponse = httpResponse
+
+      for w in parseWarnings
+        w.sessionContext = sessionContext
+        w.rpc = rpc;
+        logger.accessWarn(w)
 
       if config.get('DEBUG', sessionContext.deviceId)
         dump = "# REQUEST #{new Date(Date.now())}\n" + JSON.stringify(httpRequest.headers) + "\n#{httpRequest.getBody()}\n\n"
