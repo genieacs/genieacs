@@ -289,6 +289,17 @@ convertMongoQueryToFilters = (query, filters) ->
         v = v.replace(/[^a-zA-Z0-9\-]+/g, '_')
         filters["Tags.#{v}"] = true
     else
+      switch k
+        when '_id' then k = 'DeviceID.ID'
+        when '_deviceId._Manufacturer' then k = 'DeviceID.Manufacturer'
+        when '_deviceId._OUI' then k = 'DeviceID.OUI'
+        when '_deviceId._ProductClass' then k = 'DeviceID.ProductClass'
+        when '_deviceId._SerialNumber' then k = 'DeviceID.SerialNumber'
+        when '_lastInform' then k = 'Events.Inform'
+        when '_lastBootstrap' then k = 'Events.0_BOOTSTRAP'
+        when '_lastBoot' then k = 'Events.1_BOOT'
+        when '_registered' then k = 'Events.Registered'
+
       if common.typeOf(v) is common.OBJECT_TYPE
         for kk, vv of v
           switch kk
