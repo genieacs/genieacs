@@ -63,19 +63,6 @@ exports.getParamValueFromPath = (obj, path) ->
     return undefined
 
 
-exports.matchType = (src, dst) ->
-  switch typeOf(src)
-    when STRING_TYPE
-      String(dst)
-    when NUMBER_TYPE
-      Number(dst)
-    when BOOLEAN_TYPE
-      v = String(dst).trim().toLowerCase()
-      v == 'true' or v == 'on' or v == 'yes' or v == '1'
-    else
-      dst
-
-
 pathOverlap = (a, b, start) ->
   if a.length == b.length
     res = 3

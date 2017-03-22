@@ -244,10 +244,28 @@ test = (params, query) ->
   return true
 
 
+matchType = (src, dst) ->
+  if typeof src is 'string'
+    return String(dst)
+  else if typeof src is 'number'
+    if +dst == parseFloat(dst)
+      return +dst
+    else if not isNaN(Date.parse(dst))
+      return Date.parse(dst)
+  else if typeof src is 'boolean'
+    v = String(dst).trim()
+    if v is 'true' or v is 'TRUE' or v is 'True' or v is '1'
+      return true
+    else if v is 'false' or v is 'FALSE' or v is 'False' or v is '0'
+      return false
+
+  return dst
+
+
 testFilter = (obj, filter) ->
   for k, v of filter
     [param, op] = k.split(/([^a-zA-Z0-9\-\_\.].*)/, 2)
-    val = common.matchType(obj[param], v)
+    val = matchType(obj[param], v)
     switch op
       when '=', undefined
         return false if obj[param] != val
