@@ -292,7 +292,7 @@ fetchDevice = (id, timestamp, patterns, callback) ->
             {object: [timestamp, 1], writable: [timestamp, 0]}])
           # Use current timestamp for registered event attribute timestamps
           res.push([['Events', 'Registered'], timestamp,
-            {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [v, 'xsd:dateTime']]}])
+            {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [+v, 'xsd:dateTime']]}])
           delete device[k]
         when '_id'
           res.push([['DeviceID'], timestamp,
