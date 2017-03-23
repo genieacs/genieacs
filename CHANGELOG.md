@@ -1,5 +1,16 @@
 # Change Log
 
+## 1.1.1 (2017-03-23)
+
+- Avoid crashing when connection request credentials are missing.
+- Show a warning instead of crashing when failing to parse parameter values
+according to the expected value type.
+- Add missing "Registered" event.
+- Fix bug where in certain cases many more instances than declared are created.
+- Fix parameter discovery bug when declared path timestamp is 1 or is not set.
+- Fix preset precondition failing when testing against datetime parameters and
+certain other parameters like \_deviceId.\_ProductClass.
+
 ## 1.1.0 (2017-03-10)
 
 - Provisions enable implementing dynamic device configuration or complex device
