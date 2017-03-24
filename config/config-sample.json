@@ -9,7 +9,6 @@
   "NBI_PORT" : 7557,
   "FS_INTERFACE" : "0.0.0.0",
   "FS_PORT" : 7567,
-  "FS_HOSTNAME" : "192.168.0.1",
-  "LOG_INFORMS" : true,
+  "FS_HOSTNAME" : "acs.example.com",
   "DEBUG" : false
 }
