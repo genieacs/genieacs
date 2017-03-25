@@ -10,5 +10,7 @@
   "FS_INTERFACE" : "0.0.0.0",
   "FS_PORT" : 7567,
   "FS_HOSTNAME" : "acs.example.com",
+  "UDP_PORT_BIND": false,
+  "UDP_PORT": 3478,
   "DEBUG" : false
 }

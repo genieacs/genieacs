@@ -46,7 +46,12 @@ udpConReq = (address, un, key, callback) ->
 
   message = Buffer.from("GET #{uri} HTTP/1.1\r\nHost: #{address}\r\n\r\n")
 
-  client = dgram.createSocket('udp4')
+  client = dgram.createSocket({type:'udp4', reuseAddr:true})
+  if config.get("UDP_PORT_BIND")
+    # When a device is NAT'ed, the UDP Connection Request must originate from the same address and port used by the STUN server, in order to traverse the firewall.
+    # This does require that the Genieacs NBI and STUN server are allowed to bind to the same address and port.
+    # The STUN server needs to open its UDP port with the SO_REUSEADDR option, allowing the NBI to also bind to the same port.
+    client.bind({port: config.get("UDP_PORT")})
 
   count = 3
   client.send(message, 0, message.length, port, host, f = (err) ->
