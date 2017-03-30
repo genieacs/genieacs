@@ -179,6 +179,7 @@ watchTask = (deviceId, taskId, options, callback) ->
   options = options || {}
   delay = options.delay || 500
   timeout = options.timeout || 3600
+  makeConnectionRequest = options.makeConnectionRequest || false
 
   setTimeout(() ->
     db.tasksCollection.findOne({_id : taskId}, {'_id' : 1}, (err, task) ->
@@ -196,7 +197,7 @@ watchTask = (deviceId, taskId, options, callback) ->
         if (timeout -= delay) <= 0
           return callback(null, 'timeout')
 
-        if (options.makeFollowUpConnectionRequest)
+        if (makeConnectionRequest)
           connectionRequest(deviceId, () ->)
 
         options.timeout = timeout
