@@ -46,7 +46,12 @@ udpConReq = (address, un, key, callback) ->
 
   message = Buffer.from("GET #{uri} HTTP/1.1\r\nHost: #{address}\r\n\r\n")
 
-  client = dgram.createSocket('udp4')
+  client = dgram.createSocket({type:'udp4', reuseAddr:true})
+  if config.get("UDP_CONNECTION_REQUEST_PORT")
+    # When a device is NAT'ed, the UDP Connection Request must originate from the same address and port used by the STUN server, in order to traverse the firewall.
+    # This does require that the Genieacs NBI and STUN server are allowed to bind to the same address and port.
+    # The STUN server needs to open its UDP port with the SO_REUSEADDR option, allowing the NBI to also bind to the same port.
+    client.bind({port: config.get("UDP_CONNECTION_REQUEST_PORT")})
 
   count = 3
   client.send(message, 0, message.length, port, host, f = (err) ->
@@ -170,7 +175,12 @@ connectionRequest = (deviceId, callback) ->
   )
 
 
-watchTask = (deviceId, taskId, timeout, callback) ->
+watchTask = (deviceId, taskId, options, callback) ->
+  options = options || {}
+  delay = options.delay || 500
+  timeout = options.timeout || 3600
+  makeConnectionRequest = options.makeConnectionRequest || false
+
   setTimeout(() ->
     db.tasksCollection.findOne({_id : taskId}, {'_id' : 1}, (err, task) ->
       return callback(err) if err
@@ -184,13 +194,17 @@ watchTask = (deviceId, taskId, timeout, callback) ->
         if fault
           return callback(null, 'fault')
 
-        if (timeout -= 500) <= 0
+        if (timeout -= delay) <= 0
           return callback(null, 'timeout')
 
-        watchTask(deviceId, taskId, timeout, callback)
+        if (makeConnectionRequest)
+          connectionRequest(deviceId, () ->)
+
+        options.timeout = timeout
+        watchTask(deviceId, taskId, options, callback)
       )
     )
-  , 500)
+  , delay)
 
 
 sanitizeTask = (task, callback) ->
