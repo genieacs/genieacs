@@ -295,6 +295,7 @@ listener = (request, response) ->
                         response.writeHead(202, 'Task queued but not processed', {'Content-Type' : 'application/json'})
                         response.end(JSON.stringify(task))
                         if config.get('BG_TASK_WATCHER')
+                          # This watch makes follow up connection requests after a 202 reply.
                           apiFunctions.watchTask(deviceId, task._id, {timeout: config.get('BG_TASK_WATCHER_TIMEOUT'), delay: config.get('BG_TASK_WATCHER_DELAY'), makeFollowUpConnectionRequest: true}, () ->)
                       else if status is 'fault'
                         db.tasksCollection.findOne({_id : task._id}, (err, task) ->
