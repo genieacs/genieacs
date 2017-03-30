@@ -288,13 +288,14 @@ listener = (request, response) ->
                     response.writeHead(202, err.message, {'Content-Type' : 'application/json'})
                     response.end(JSON.stringify(task))
                   else
-                    apiFunctions.watchTask(deviceId, task._id, config.get('DEVICE_ONLINE_THRESHOLD', deviceId), {}, (err, status) ->
+                    apiFunctions.watchTask(deviceId, task._id, {timeout: config.get('DEVICE_ONLINE_THRESHOLD', deviceId)}, (err, status) ->
                       return throwError(err, response) if err
 
                       if status is 'timeout'
                         response.writeHead(202, 'Task queued but not processed', {'Content-Type' : 'application/json'})
                         response.end(JSON.stringify(task))
-                        apiFunctions.watchTask(deviceId, task._id, 300000, {delay: 45000, makeFollowUpConnectionRequest: true}, () ->)
+                        if config.get('BG_TASK_WATCHER')
+                          apiFunctions.watchTask(deviceId, task._id, {timeout: config.get('BG_TASK_WATCHER_TIMEOUT'), delay: config.get('BG_TASK_WATCHER_DELAY'), makeFollowUpConnectionRequest: true}, () ->)
                       else if status is 'fault'
                         db.tasksCollection.findOne({_id : task._id}, (err, task) ->
                           return throwError(err, response) if err
