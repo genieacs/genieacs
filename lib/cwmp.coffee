@@ -237,6 +237,9 @@ applyPresets = (sessionContext) ->
 
         blackList[channel] = if fault.precondition then 1 else 2
 
+    sessionContext.deviceData.timestamps.revision = 1
+    sessionContext.deviceData.attributes.revision = 1
+
     deviceEvents = {}
     for p in sessionContext.deviceData.paths.find(['Events', '*'], false, true)
       if sessionContext.timestamp <= sessionContext.deviceData.attributes.get(p)?.value?[1][0]
