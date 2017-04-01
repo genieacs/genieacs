@@ -49,6 +49,8 @@ options = {
   FS_LOG_FILE : {type: 'path', default : ''},
   FS_ACCESS_LOG_FILE : {type : 'path', default : ''},
 
+  UDP_CONNECTION_REQUEST_PORT : {type : 'int', default : 0},
+
   DOWNLOAD_TIMEOUT: {type : 'int', default : 3600},
   EXT_TIMEOUT: {type: 'int', default: 3000},
   MAX_CACHE_TTL : {type : 'int', default : 86400},
