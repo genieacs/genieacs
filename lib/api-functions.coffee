@@ -152,6 +152,7 @@ connectionRequest = (deviceId, callback) ->
 
   db.devicesCollection.findOne({_id : deviceId}, proj, (err, device)->
     return callback(err) if err
+    return callback(new Error("No such device")) if !device
 
     if device.Device? # TR-181 data model
       connectionRequestUrl = device.Device.ManagementServer.ConnectionRequestURL._value
