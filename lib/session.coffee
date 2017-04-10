@@ -346,14 +346,14 @@ runProvisions = (sessionContext, provisions, startRevision, endRevision, callbac
   allClear = []
   counter = 3
   allProvisions = provisionsCache.get(sessionContext)
-  for provision in provisions
+  for provision, j in provisions
     if not allProvisions[provision[0]]?
       if defaultProvisions[provision[0]]
-        done = defaultProvisions[provision[0]](sessionContext, provision, allDeclarations, startRevision, endRevision) and done
+        done = defaultProvisions[provision[0]](sessionContext, provision, allDeclarations[j] = [], startRevision, endRevision) and done
       continue
 
     counter += 2
-    sandbox.run(allProvisions[provision[0]].script,
+    do (j) -> sandbox.run(allProvisions[provision[0]].script,
       {args: provision.slice(1)}, sessionContext, startRevision, endRevision,
       (err, _fault, _clear, _declarations, _done) ->
         if err or _fault
@@ -361,18 +361,18 @@ runProvisions = (sessionContext, provisions, startRevision, endRevision, callbac
           return counter = 0
 
         done &&= _done
-
-        if _declarations.length
-          allDeclarations = allDeclarations.concat(_declarations)
-
-        if _clear.length
-          allClear = allClear.concat(_clear)
+        allDeclarations[j] = _declarations or []
+        allClear[j] = _clear or []
 
         if (counter -= 2) == 1
+          allDeclarations = Array.prototype.concat.apply([], allDeclarations)
+          allClear = Array.prototype.concat.apply([], allClear)
           return callback(null, null, done, allDeclarations, allClear)
       )
 
   if (counter -= 2) == 1
+    allDeclarations = Array.prototype.concat.apply([], allDeclarations)
+    allClear = Array.prototype.concat.apply([], allClear)
     return callback(null, null, done, allDeclarations, allClear)
 
 
@@ -383,10 +383,10 @@ runVirtualParameters = (sessionContext, provisions, startRevision, endRevision, 
   allClear = []
   counter = 3
   allVirtualParameters = virtualParametersCache.get(sessionContext)
-  for provision in provisions
+  for provision, j in provisions
     counter += 2
     globals = {TIMESTAMPS: provision[1], VALUES: provision[2]}
-    sandbox.run(allVirtualParameters[provision[0]].script, globals,
+    do (j) -> sandbox.run(allVirtualParameters[provision[0]].script, globals,
       sessionContext, startRevision, endRevision,
       (err, _fault, _clear, _declarations, _done, _returnValue) ->
         if err or _fault
@@ -394,34 +394,32 @@ runVirtualParameters = (sessionContext, provisions, startRevision, endRevision, 
           return counter = 0
 
         done &&= _done
-
-        if _declarations.length
-          allDeclarations = allDeclarations.concat(_declarations)
-
-        if _clear.length
-          allClear = allClear.concat(_clear)
-
-        if _done
-          virtualParameterUpdates.push(_returnValue)
+        allDeclarations[j] = _declarations or []
+        allClear[j] = _clear or []
+        virtualParameterUpdates[j] = _returnValue if _done
 
         if (counter -= 2) == 1
           toClear = null
-          if virtualParameterUpdates.length == provisions.length
+          if done
             for vpu, i in virtualParameterUpdates
               toClear = commitVirtualParameter(sessionContext, provisions[i], vpu, toClear)
 
           clear(sessionContext, toClear, (err) ->
+            allDeclarations = Array.prototype.concat.apply([], allDeclarations)
+            allClear = Array.prototype.concat.apply([], allClear)
             return callback(err, null, done, allDeclarations, allClear)
           )
       )
 
   if (counter -= 2) == 1
     toClear = null
-    if virtualParameterUpdates.length == provisions.length
+    if done
       for vpu, i in virtualParameterUpdates
         toClear = commitVirtualParameter(sessionContext, provisions[i], vpu, toClear)
 
     clear(sessionContext, toClear, (err) ->
+      allDeclarations = Array.prototype.concat.apply([], allDeclarations)
+      allClear = Array.prototype.concat.apply([], allClear)
       return callback(err, null, done, allDeclarations, allClear)
     )
 
