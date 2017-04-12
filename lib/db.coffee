@@ -407,7 +407,7 @@ saveDevice = (deviceId, deviceData, isNew, callback) ->
             switch attrName
               when 'value'
                 if not diff[1] or diff[2].value[1][0] != diff[1].value?[1][0]
-                  if diff[2].value[1][1] == 'xsd:dateTime'
+                  if diff[2].value[1][1] == 'xsd:dateTime' and Number.isInteger(diff[2].value[1][0])
                     update['$set'][path.concat('_value').join('.')] = new Date(diff[2].value[1][0])
                   else
                     update['$set'][path.concat('_value').join('.')] = diff[2].value[1][0]
