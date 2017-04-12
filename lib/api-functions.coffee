@@ -214,7 +214,7 @@ insertTasks = (tasks, callback) ->
   if tasks? and common.typeOf(tasks) isnt common.ARRAY_TYPE
     tasks = [tasks]
   else if not tasks? or tasks.length == 0
-    return callback(tasks)
+    return callback(null, tasks or [])
 
   counter = tasks.length
 
