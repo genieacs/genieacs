@@ -348,8 +348,10 @@ runProvisions = (sessionContext, provisions, startRevision, endRevision, callbac
   allProvisions = provisionsCache.get(sessionContext)
   for provision, j in provisions
     if not allProvisions[provision[0]]?
+      allDeclarations[j] = []
+      allClear[j] = []
       if defaultProvisions[provision[0]]
-        done = defaultProvisions[provision[0]](sessionContext, provision, allDeclarations[j] = [], startRevision, endRevision) and done
+        done = defaultProvisions[provision[0]](sessionContext, provision, allDeclarations[j], startRevision, endRevision) and done
       continue
 
     counter += 2
