@@ -445,9 +445,17 @@ saveDevice = (deviceId, deviceData, isNew, callback) ->
   if (update['$unset']?)
     optimizeProjection(update['$unset'])
 
+  if update['$addToSet'] and update['$pull']
+    # Mongo doesn't allow $addToSet and $pull at the same time
+    update2 = {'$pull': update['$pull']}
+    delete update['$pull']
+
   devicesCollection.update({'_id' : deviceId}, update, {upsert: isNew}, (err, result) ->
     if not err and result.result.n != 1
       return callback(new Error("Device #{deviceId} not found in database"))
+
+    if update2
+      return devicesCollection.update({'_id': deviceId}, update2, callback)
 
     return callback(err)
   )
