@@ -387,7 +387,7 @@ runVirtualParameters = (sessionContext, provisions, startRevision, endRevision, 
   allVirtualParameters = virtualParametersCache.get(sessionContext)
   for provision, j in provisions
     counter += 2
-    globals = {TIMESTAMPS: provision[1], VALUES: provision[2]}
+    globals = {args: provision.slice(1)}
     do (j) -> sandbox.run(allVirtualParameters[provision[0]].script, globals,
       sessionContext, startRevision, endRevision,
       (err, _fault, _clear, _declarations, _done, _returnValue) ->
