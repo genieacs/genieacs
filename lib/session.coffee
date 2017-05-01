@@ -609,9 +609,6 @@ rpcRequest = (sessionContext, _declarations, callback) ->
       return rpcRequest(sessionContext, null, callback)
     )
 
-  if sessionContext.doneProvisions[0] & 1
-    return callback()
-
   if sessionContext.rpcCount >= 255 or
       sessionContext.revisions.length >= 8 or
       sessionContext.cycle >= 16 or
@@ -775,11 +772,11 @@ rpcRequest = (sessionContext, _declarations, callback) ->
 
   ++ sessionContext.revisions[inception]
   sessionContext.declarations.pop()
+  sessionContext.syncState.virtualParameterDeclarations.pop()
 
-  while sessionContext.doneProvisions & (2 << (sessionContext.virtualParameters.length - 1))
+  if sessionContext.doneProvisions & (2 << (sessionContext.virtualParameters.length - 1))
     doneProvisions = sessionContext.virtualParameters.pop()
     sessionContext.revisions.pop()
-    sessionContext.declarations.pop()
     sessionContext.doneProvisions &= (2 << sessionContext.virtualParameters.length) - 1
     rev = sessionContext.revisions[sessionContext.revisions.length - 1]
     sessionContext.deviceData.timestamps.collapse(rev + 1)
@@ -787,8 +784,6 @@ rpcRequest = (sessionContext, _declarations, callback) ->
     for k of sessionContext.extensionsCache
       if rev < Number(k.split(':', 1)[0])
         delete sessionContext.extensionsCache[k]
-
-  sessionContext.syncState.virtualParameterDeclarations.length = sessionContext.declarations.length
 
   return rpcRequest(sessionContext, null, callback)
 
@@ -1047,7 +1042,6 @@ generateSetVirtualParameterProvisions = (sessionContext, virtualParameterDeclara
           provisions ?= []
           provisions.push([declaration[0][1], undefined, {value: val}])
 
-  virtualParameterDeclarations.length = 0
   return provisions
 
 
