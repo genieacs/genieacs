@@ -1022,7 +1022,13 @@ generateGetVirtualParameterProvisions = (sessionContext, virtualParameterDeclara
   for declaration in virtualParameterDeclarations
     if declaration[1]
       provisions ?= []
-      provisions.push([declaration[0][1], declaration[1], undefined])
+      currentTimestamps = {}
+      currentValues = {}
+      attrs = sessionContext.deviceData.attributes.get(declaration[0])
+      for k, v of attrs
+        currentTimestamps[k] = v[0]
+        currentValues[k] = v[1]
+      provisions.push([declaration[0][1], declaration[1], {}, currentTimestamps, currentValues])
       delete declaration[1]
 
   return provisions
@@ -1040,7 +1046,12 @@ generateSetVirtualParameterProvisions = (sessionContext, virtualParameterDeclara
 
         if val[0] != curVal[0] or val[1] != curVal[1]
           provisions ?= []
-          provisions.push([declaration[0][1], undefined, {value: val}])
+          currentTimestamps = {}
+          currentValues = {}
+          for k, v of attrs
+            currentTimestamps[k] = v[0]
+            currentValues[k] = v[1]
+          provisions.push([declaration[0][1], {}, {value: val}, currentTimestamps, currentValues])
 
   return provisions
 
