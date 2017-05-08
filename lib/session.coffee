@@ -427,7 +427,6 @@ runVirtualParameters = (sessionContext, provisions, startRevision, endRevision, 
 
 
 runDeclarations = (sessionContext, declarations) ->
-  sessionContext.iteration += 2
   sessionContext.syncState ?= {
     refreshAttributes: {
       exist: new Set()
@@ -623,6 +622,8 @@ rpcRequest = (sessionContext, _declarations, callback) ->
 
   if (sessionContext.syncState?.virtualParameterDeclarations?.length or 0) < sessionContext.declarations.length
     inception = sessionContext.syncState?.virtualParameterDeclarations?.length or 0
+    # Avoid unnecessary increment of iteration when using vparams
+    sessionContext.iteration += 2 if inception == sessionContext.declarations.length - 1
     vpd = runDeclarations(sessionContext, sessionContext.declarations[inception])
     timestamp = sessionContext.timestamp + sessionContext.iteration
     toClear = null
