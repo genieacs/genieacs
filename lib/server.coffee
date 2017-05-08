@@ -27,6 +27,7 @@ logger = require './logger'
 logger.init(service, require('../package.json').version)
 config = require './config'
 db = require './db'
+cache = require './cache'
 extensions = require './extensions'
 
 networkInterface = config.get("#{service.toUpperCase()}_INTERFACE")
@@ -47,12 +48,14 @@ exit = () ->
 
   if not server
     db.disconnect()
+    cache.disconnect()
     extensions.killAll()
     logger.close()
     return
 
   server.close(() ->
     db.disconnect()
+    cache.disconnect()
     extensions.killAll()
     logger.close()
   )
@@ -91,7 +94,10 @@ else
 
 db.connect((err) ->
   throw err if err
-  server.listen(port, networkInterface)
+  cache.connect((err) ->
+    throw err if err
+    server.listen(port, networkInterface)
+  )
 )
 
 

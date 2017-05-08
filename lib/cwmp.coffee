@@ -28,6 +28,7 @@ session = require './session'
 query = require './query'
 device = require './device'
 cache = require './cache'
+localCache = require './local-cache'
 db = require './db'
 logger = require './logger'
 
@@ -213,7 +214,7 @@ appendProvisions = (original, toAppend) ->
 
 
 applyPresets = (sessionContext) ->
-  cache.getPresets((err, presetsHash, presets) ->
+  localCache.getPresets((err, presetsHash, presets) ->
     return throwError(err, sessionContext.httpResponse) if err
 
     # Filter presets based on existing faults
@@ -437,50 +438,100 @@ nextRpc = (sessionContext) ->
   )
 
 
+endSession = (sessionContext, callback) ->
+  delete currentSessions.get(sessionContext.httpRequest.connection)[sessionContext.sessionId]
+
+  saveCache = sessionContext.cacheUntil?
+
+  counter = 3
+
+  counter += 2
+  db.saveDevice(sessionContext.deviceId, sessionContext.deviceData, sessionContext.new, (err) ->
+    if err
+      callback(err) if counter & 1
+      return counter = 0
+
+    return callback(null, sessionContext.new) if (counter -= 2) == 1
+  )
+
+  for k of sessionContext.operationsTouched
+    counter += 2
+    saveCache = true
+    if sessionContext.operations[k]?
+      db.saveOperation(sessionContext.deviceId, k, sessionContext.operations[k], (err) ->
+        if err
+          callback(err) if counter & 1
+          return counter = 0
+
+        return callback(null, sessionContext.new) if (counter -= 2) == 1
+      )
+    else
+      db.deleteOperation(sessionContext.deviceId, k, (err) ->
+        if err
+          callback(err) if counter & 1
+          return counter = 0
+
+        return callback(null, sessionContext.new) if (counter -= 2) == 1
+      )
+
+  if sessionContext.doneTasks?.length
+    counter += 2
+    saveCache = true
+    db.clearTasks(sessionContext.deviceId, sessionContext.doneTasks, (err) ->
+      if err
+        callback(err) if counter & 1
+        return counter = 0
+
+      return callback(null, sessionContext.new) if (counter -= 2) == 1
+    )
+
+  for k of sessionContext.faultsTouched
+    counter += 2
+    saveCache = true
+    if sessionContext.faults[k]
+      sessionContext.faults[k].retries = sessionContext.retries[k]
+      db.saveFault(sessionContext.deviceId, k, sessionContext.faults[k], (err) ->
+        if err
+          callback(err) if counter & 1
+          return counter = 0
+
+        return callback(null, sessionContext.new) if (counter -= 2) == 1
+      )
+    else
+      db.deleteFault(sessionContext.deviceId, k, (err) ->
+        if err
+          callback(err) if counter & 1
+          return counter = 0
+
+        return callback(null, sessionContext.new) if (counter -= 2) == 1
+      )
+
+  if saveCache
+    counter += 2
+    cacheDueTasksAndFaultsAndOperations(sessionContext.deviceId, sessionContext.tasks, sessionContext.faults, sessionContext.operations, sessionContext.cacheUntil, (err) ->
+      if err
+        callback(err) if counter & 1
+        return counter = 0
+
+      return callback(null, sessionContext.new) if (counter -= 2) == 1
+    )
+
+  callback(null, sessionContext.new) if (counter -= 2) == 1
+
+
 sendAcsRequest = (sessionContext, id, acsRequest) ->
   if not acsRequest?
-    session.end(sessionContext, (err, isNew) ->
+    return endSession(sessionContext, (err, isNew) ->
       return throwError(err, sessionContext.httpResponse) if err
 
-      delete currentSessions.get(sessionContext.httpRequest.connection)[sessionContext.sessionId]
       if isNew
         logger.accessInfo({
           sessionContext: sessionContext
           message: 'New device registered'
         })
 
-      db.clearTasks(sessionContext.deviceId, sessionContext.doneTasks, (err) ->
-        return throwError(err, sessionContext.httpResponse) if err
-
-        counter = 3
-
-        for k of sessionContext.faultsTouched
-          counter += 2
-          if sessionContext.faults[k]
-            sessionContext.faults[k].retries = sessionContext.retries[k]
-            db.saveFault(sessionContext.deviceId, k, sessionContext.faults[k], (err) ->
-              if err
-                throwError(err, sessionContext.httpResponse) if counter & 1
-                return counter = 0
-
-              if (counter -= 2) == 1
-                return writeResponse(sessionContext, soap.response(null))
-            )
-          else
-            db.deleteFault(sessionContext.deviceId, k, (err) ->
-              if err
-                throwError(err, sessionContext.httpResponse) if counter & 1
-                return counter = 0
-
-              if (counter -= 2) == 1
-                return writeResponse(sessionContext, soap.response(null))
-            )
-
-        if (counter -= 2) == 1
-          return writeResponse(sessionContext, soap.response(null))
-      )
+      writeResponse(sessionContext, soap.response(null))
     )
-    return
 
   if acsRequest.name is 'Download'
     if not acsRequest.url?
@@ -493,7 +544,7 @@ sendAcsRequest = (sessionContext, id, acsRequest) ->
       acsRequest.url += "/#{encodeURIComponent(acsRequest.fileName)}"
 
     if not acsRequest.fileSize?
-      return cache.getFiles((err, hash, files) ->
+      return localCache.getFiles((err, hash, files) ->
         return throwError(err, sessionContext.httpResponse) if err
 
         if acsRequest.fileName of files
@@ -535,7 +586,7 @@ getSession = (httpRequest, callback) ->
     return callback(null, sessionContext)
 
   setTimeout(() ->
-    db.redisClient.eval('local v=redis.call("get",KEYS[1]);redis.call("del",KEYS[1]);return v;', 1, "session_#{sessionId}", (err, sessionContextString) ->
+    cache.pop("session_#{sessionId}", (err, sessionContextString) ->
       return callback(err) if err or not sessionContextString
       session.deserialize(sessionContextString, (err, sessionContext) ->
         return callback(err) if err
@@ -560,11 +611,73 @@ onConnection = (socket) ->
       session.serialize(sessionContext, (err, sessionContextString) ->
         return throwError(err) if err
         # TODO don't set if process is shutting down
-        db.redisClient.setex("session_#{sessionId}", sessionContext.timeout, sessionContextString, (err) ->
+        cache.set("session_#{sessionId}", sessionContextString, sessionContext.timeout, (err) ->
           return throwError(err) if err
         )
       )
   )
+
+
+getDueTasksAndFaultsAndOperations = (deviceId, timestamp, callback) ->
+  cache.get("#{deviceId}_tasks_faults_operations", (err, res) ->
+    return callback(err) if err
+
+    if res
+      res = JSON.parse(res)
+      return callback(null, res.tasks or [], res.faults or {}, res.operations or {})
+
+    faults = tasks = operations = cacheUntil = null
+
+    db.getFaults(deviceId, (err, _faults) ->
+      if err
+        callback?(err)
+        return callback = null
+
+      faults = _faults
+      if tasks? and operations?
+        return callback(null, tasks, faults, operations, cacheUntil)
+    )
+
+    db.getDueTasks(deviceId, timestamp, (err, dueTasks, nextTimestamp) ->
+      if err
+        callback?(err)
+        return callback = null
+
+      tasks = dueTasks
+      cacheUntil = nextTimestamp or 0
+
+      if faults? and operations?
+        return callback(null, tasks, faults, operations, cacheUntil)
+    )
+
+    db.getOperations(deviceId, (err, _operations) ->
+      if err
+        callback?(err)
+        return callback = null
+
+      operations = _operations
+
+      if faults? and tasks?
+        return callback(null, tasks, faults, operations, cacheUntil)
+    )
+
+    if faults? and tasks? and operations?
+      return callback(null, tasks, faults, operations, cacheUntil)
+  )
+
+
+cacheDueTasksAndFaultsAndOperations = (deviceId, tasks, faults, operations, cacheUntil, callback) ->
+  v = {}
+  v.tasks = tasks if tasks.length
+  v.faults = faults if Object.keys(faults).length
+  v.operations = operations if Object.keys(operations).length
+
+  if cacheUntil
+    ttl = Math.trunc((Date.now() - cacheUntil) / 1000)
+  else
+    ttl = config.get('MAX_CACHE_TTL', deviceId)
+
+  cache.set("#{deviceId}_tasks_faults_operations", JSON.stringify(v), ttl, callback)
 
 
 listener = (httpRequest, httpResponse) ->
@@ -626,7 +739,7 @@ listener = (httpRequest, httpResponse) ->
 
           httpRequest.connection.setTimeout(sessionContext.timeout * 1000)
 
-          db.getDueTasksAndFaultsAndOperations(deviceId, sessionContext.timestamp, (err, dueTasks, faults, operations) ->
+          getDueTasksAndFaultsAndOperations(deviceId, sessionContext.timestamp, (err, dueTasks, faults, operations, cacheUntil) ->
             return throwError(err, httpResponse) if err
             sessionContext.tasks = dueTasks
             sessionContext.faults = faults
@@ -634,6 +747,7 @@ listener = (httpRequest, httpResponse) ->
             for k, v of faults
               sessionContext.retries[k] = v.retries
             sessionContext.operations = operations
+            sessionContext.cacheUntil = cacheUntil
 
             # Delete expired faults
             for k, v of sessionContext.faults

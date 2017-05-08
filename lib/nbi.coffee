@@ -50,6 +50,7 @@ common = require './common'
 db = require './db'
 query = require './query'
 apiFunctions = require './api-functions'
+cache = require './cache'
 
 VERSION = require('../package.json').version
 
@@ -108,7 +109,7 @@ listener = (request, response) ->
 
         db.presetsCollection.save(preset, (err) ->
           return throwError(err, response) if err
-          db.redisClient.del('presets_hash', (err) ->
+          cache.del('presets_hash', (err) ->
             return throwError(err, response) if err
             response.writeHead(200)
             response.end()
@@ -117,7 +118,7 @@ listener = (request, response) ->
       else if request.method == 'DELETE'
         db.presetsCollection.remove({'_id' : presetName}, (err) ->
           return throwError(err, response) if err
-          db.redisClient.del('presets_hash', (err) ->
+          cache.del('presets_hash', (err) ->
             return throwError(err, response) if err
             response.writeHead(200)
             response.end()
@@ -134,7 +135,7 @@ listener = (request, response) ->
 
         db.objectsCollection.save(object, (err) ->
           return throwError(err, response) if err
-          db.redisClient.del('objects', 'presets_hash', (err) ->
+          cache.del('presets_hash', (err) ->
             return throwError(err, response) if err
             response.writeHead(200)
             response.end()
@@ -143,7 +144,7 @@ listener = (request, response) ->
       else if request.method == 'DELETE'
         db.objectsCollection.remove({'_id' : objectName}, (err) ->
           return throwError(err, response) if err
-          db.redisClient.del('objects', 'presets_hash', (err) ->
+          cache.del('presets_hash', (err) ->
             return throwError(err, response) if err
             response.writeHead(200)
             response.end()
@@ -168,7 +169,7 @@ listener = (request, response) ->
 
         db.provisionsCollection.save(object, (err) ->
           return throwError(err, response) if err
-          db.redisClient.del('presets_hash', (err) ->
+          cache.del('presets_hash', (err) ->
             return throwError(err, response) if err
             response.writeHead(200)
             response.end()
@@ -177,7 +178,7 @@ listener = (request, response) ->
       else if request.method == 'DELETE'
         db.provisionsCollection.remove({'_id' : provisionName}, (err) ->
           return throwError(err, response) if err
-          db.redisClient.del('presets_hash', (err) ->
+          cache.del('presets_hash', (err) ->
             return throwError(err, response) if err
             response.writeHead(200)
             response.end()
@@ -202,7 +203,7 @@ listener = (request, response) ->
 
         db.virtualParametersCollection.save(object, (err) ->
           return throwError(err, response) if err
-          db.redisClient.del('presets_hash', (err) ->
+          cache.del('presets_hash', (err) ->
             return throwError(err, response) if err
             response.writeHead(200)
             response.end()
@@ -211,7 +212,7 @@ listener = (request, response) ->
       else if request.method == 'DELETE'
         db.virtualParametersCollection.remove({'_id' : virtualParameterName}, (err) ->
           return throwError(err, response) if err
-          db.redisClient.del('presets_hash', (err) ->
+          cache.del('presets_hash', (err) ->
             return throwError(err, response) if err
             response.writeHead(200)
             response.end()
@@ -227,20 +228,14 @@ listener = (request, response) ->
       if request.method == 'POST'
         db.devicesCollection.update({'_id' : deviceId}, {'$addToSet' : {'_tags' : tag}}, {safe: true}, (err) ->
           return throwError(err, response) if err
-          db.redisClient.del("#{deviceId}_presets_hash", (err) ->
-            return throwError(err, response) if err
-            response.writeHead(200)
-            response.end()
-          )
+          response.writeHead(200)
+          response.end()
         )
       else if request.method == 'DELETE'
         db.devicesCollection.update({'_id' : deviceId}, {'$pull' : {'_tags' : tag}}, {safe: true}, (err) ->
           return throwError(err, response) if err
-          db.redisClient.del("#{deviceId}_presets_hash", (err) ->
-            return throwError(err, response) if err
-            response.writeHead(200)
-            response.end()
-          )
+          response.writeHead(200)
+          response.end()
         )
       else
         response.writeHead 405, {'Allow': 'POST, DELETE'}
@@ -255,14 +250,14 @@ listener = (request, response) ->
           if channel.startsWith('task_')
             return db.tasksCollection.remove({_id : new mongodb.ObjectID(channel.slice(5))}, (err) ->
               return throwError(err, response) if err
-              db.redisClient.del("#{deviceId}_tasks", "#{deviceId}_faults", (err) ->
+              cache.del("#{deviceId}_tasks_faults_operations", (err) ->
                 return throwError(err, response) if err
                 response.writeHead(200)
                 response.end()
               )
             )
 
-          db.redisClient.del("#{deviceId}_faults", (err) ->
+          cache.del("#{deviceId}_tasks_faults_operations", (err) ->
             return throwError(err, response) if err
             response.writeHead(200)
             response.end()
@@ -279,7 +274,7 @@ listener = (request, response) ->
           task.device = deviceId
           apiFunctions.insertTasks(task, (err) ->
             return throwError(err, response) if err
-            db.redisClient.del("#{deviceId}_tasks", (err) ->
+            cache.del("#{deviceId}_tasks_faults_operations", (err) ->
               return throwError(err, response) if err
 
               if urlParts.query.connection_request?
@@ -340,7 +335,7 @@ listener = (request, response) ->
               return throwError(err, response) if err
               db.faultsCollection.remove({_id : "#{deviceId}:task_#{String(taskId)}"}, (err) ->
                 return throwError(err, response) if err
-                db.redisClient.del("#{deviceId}_tasks", "#{deviceId}_faults", (err) ->
+                cache.del("#{deviceId}_tasks_faults_operations", (err) ->
                   return throwError(err, response) if err
                   response.writeHead(200)
                   response.end()
@@ -358,7 +353,7 @@ listener = (request, response) ->
             deviceId = task.device
             db.faultsCollection.remove({_id : "#{deviceId}:task_#{String(taskId)}"}, (err) ->
               return throwError(err, response) if err
-              db.redisClient.del("#{deviceId}_faults", (err) ->
+              cache.del("#{deviceId}_tasks_faults_operations", (err) ->
                 return throwError(err, response) if err
                 response.writeHead(200)
                 response.end()

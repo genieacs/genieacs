@@ -22,7 +22,7 @@ common = require './common'
 db = require './db'
 device = require './device'
 sandbox = require './sandbox'
-cache = require './cache'
+localCache = require './local-cache'
 PathSet = require './path-set'
 VersionedMap = require './versioned-map'
 InstanceSet = require './instance-set'
@@ -65,7 +65,7 @@ init = (deviceId, cwmpVersion, timeout, callback) ->
     declarations: []
   }
 
-  cache.getProvisionsAndVirtualParameters((err, hash, provisions, virtualParameters) ->
+  localCache.getProvisionsAndVirtualParameters((err, hash, provisions, virtualParameters) ->
     return callback(err) if err
 
     sessionContext.presetsHash = hash
@@ -1515,7 +1515,7 @@ rpcFault = (sessionContext, id, faultResponse, callback) ->
 
 
 deserialize = (sessionContextString, callback) ->
-  cache.getProvisionsAndVirtualParameters((err, hash, provisions, virtualParameters) ->
+  localCache.getProvisionsAndVirtualParameters((err, hash, provisions, virtualParameters) ->
     return callback(err) if err
 
     sessionContext = JSON.parse(sessionContextString)
@@ -1581,48 +1581,6 @@ serialize = (sessionContext, callback) ->
   return callback(null, sessionContextString)
 
 
-end = (sessionContext, callback) ->
-  counter = 3
-
-  counter += 2
-  db.saveDevice(sessionContext.deviceId, sessionContext.deviceData, sessionContext.new, (err) ->
-    if err
-      callback(err) if counter & 1
-      return counter = 0
-
-    return callback(null, sessionContext.new) if (counter -= 2) == 1
-  )
-
-  counter += 2
-  db.redisClient.del("session_#{sessionContext.id}", (err) ->
-    if err
-      callback(err) if counter & 1
-      return counter = 0
-
-    return callback(null, sessionContext.new) if (counter -= 2) == 1
-  )
-
-  for k of sessionContext.operationsTouched
-    counter += 2
-    if sessionContext.operations[k]?
-      db.saveOperation(sessionContext.deviceId, k, sessionContext.operations[k], (err) ->
-        if err
-          callback(err) if counter & 1
-          return counter = 0
-
-        return callback(null, sessionContext.new) if (counter -= 2) == 1
-      )
-    else
-      db.deleteOperation(sessionContext.deviceId, k, (err) ->
-        if err
-          callback(err) if counter & 1
-          return counter = 0
-
-        return callback(null, sessionContext.new) if (counter -= 2) == 1
-      )
-
-  callback(null, sessionContext.new) if (counter -= 2) == 1
-
 exports.init = init
 exports.timeoutOperations = timeoutOperations
 exports.inform = inform
@@ -1632,6 +1590,5 @@ exports.clearProvisions = clearProvisions
 exports.rpcRequest = rpcRequest
 exports.rpcResponse = rpcResponse
 exports.rpcFault = rpcFault
-exports.end = end
 exports.serialize = serialize
 exports.deserialize = deserialize
