@@ -155,7 +155,7 @@ transferComplete = (sessionContext, rpc) ->
       for k, v of operation.retries
         sessionContext.retries[k] = v
 
-      recordFault(sessionContext, fault)
+      recordFault(sessionContext, fault, operation.provisions, operation.channels)
 
     res = soap.response({
       id : rpc.id,
