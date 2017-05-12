@@ -167,6 +167,9 @@ inform = (sessionContext, rpcReq, callback) ->
 
 
 transferComplete = (sessionContext, rpcReq, callback) ->
+  revision = (sessionContext.revisions[sessionContext.revisions.length - 1] or 0) + 1
+  sessionContext.deviceData.timestamps.revision = revision
+  sessionContext.deviceData.attributes.revision = revision
   commandKey = rpcReq.commandKey
   operation = sessionContext.operations[commandKey]
 
@@ -248,6 +251,9 @@ revertDownloadParameters = (sessionContext, instance, callback) ->
   )
 
 timeoutOperations = (sessionContext, callback) ->
+  revision = (sessionContext.revisions[sessionContext.revisions.length - 1] or 0) + 1
+  sessionContext.deviceData.timestamps.revision = revision
+  sessionContext.deviceData.attributes.revision = revision
   faults = []
   operations = []
   counter = 3
