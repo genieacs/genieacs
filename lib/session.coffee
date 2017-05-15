@@ -987,6 +987,22 @@ generateSetRpcRequest = (sessionContext) ->
       parameterList: ([p[0].join('.'), p[1], p[2]] for p in parameterValues)
     }
 
+  # Download
+  iter = syncState.downloadsDownload.entries()
+  while pair = iter.next().value
+    if not (pair[1] <= deviceData.attributes.get(pair[0])?.value?[1][0])
+      fileTypePath = deviceData.paths.get(pair[0].slice(0, -1).concat('FileType'))
+      fileNamePath = deviceData.paths.get(pair[0].slice(0, -1).concat('FileName'))
+      targetFileNamePath = deviceData.paths.get(pair[0].slice(0, -1).concat('TargetFileName'))
+      return {
+        name: 'Download'
+        commandKey: generateRpcId(sessionContext)
+        instance: pair[0][1]
+        fileType: deviceData.attributes.get(fileTypePath)?.value?[1][0]
+        fileName: deviceData.attributes.get(fileNamePath)?.value?[1][0]
+        targetFileName: deviceData.attributes.get(targetFileNamePath)?.value?[1][0]
+      }
+
   # Reboot
   if syncState.reboot?
     p = sessionContext.deviceData.paths.get(['Reboot'])
@@ -1003,22 +1019,6 @@ generateSetRpcRequest = (sessionContext) ->
       delete syncState.factoryReset
       return {
         name: 'FactoryReset'
-      }
-
-  # Download
-  iter = syncState.downloadsDownload.entries()
-  while pair = iter.next().value
-    if not (pair[1] <= deviceData.attributes.get(pair[0])?.value?[1][0])
-      fileTypePath = deviceData.paths.get(pair[0].slice(0, -1).concat('FileType'))
-      fileNamePath = deviceData.paths.get(pair[0].slice(0, -1).concat('FileName'))
-      targetFileNamePath = deviceData.paths.get(pair[0].slice(0, -1).concat('TargetFileName'))
-      return {
-        name: 'Download'
-        commandKey: generateRpcId(sessionContext)
-        instance: pair[0][1]
-        fileType: deviceData.attributes.get(fileTypePath)?.value?[1][0]
-        fileName: deviceData.attributes.get(fileNamePath)?.value?[1][0]
-        targetFileName: deviceData.attributes.get(targetFileNamePath)?.value?[1][0]
       }
 
   return null
