@@ -886,7 +886,7 @@ generateGetRpcRequest = (sessionContext) ->
 
     paths = Array.from(syncState.gpn.keys()).sort((a,b) -> b.length - a.length)
     path = paths.pop()
-    while path and not sessionContext.deviceData.attributes.has(path)
+    while path and path.length and not sessionContext.deviceData.attributes.has(path)
       syncState.gpn.delete(path)
       path = paths.pop()
 
