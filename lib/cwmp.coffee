@@ -431,7 +431,7 @@ nextRpc = (sessionContext) ->
           session.addProvisions(sessionContext, "task_#{task._id}",
             [['instances', task.objectName, 0]]);
         else
-          return throwError(new Error('Task name not recognized'), sessionContext.httpResponse) if err
+          return throwError(new Error('Task name not recognized'), sessionContext.httpResponse)
 
       return nextRpc(sessionContext)
 
