@@ -19,10 +19,8 @@
 
 config = require './config'
 mongodb = require 'mongodb'
-redis = require('redis')
 common = require './common'
 
-redisClient = null
 tasksCollection = null
 devicesCollection = null
 presetsCollection = null
@@ -35,7 +33,7 @@ operationsCollection = null
 
 
 connect = (callback) ->
-  callbackCounter = 10
+  callbackCounter = 9
   mongodb.MongoClient.connect(config.get('MONGODB_CONNECTION_URL'), (err, db) ->
     return callback(err) if err
     exports.mongoDb = db
@@ -105,18 +103,11 @@ connect = (callback) ->
         return callback(err)
     )
 
-    exports.redisClient = redisClient = redis.createClient(config.get('REDIS_PORT'), config.get('REDIS_HOST'))
-    redisClient.select(config.get('REDIS_DB'), (err) ->
-      if --callbackCounter == 0 or err
-        callbackCounter = 0
-        return callback(err)
-    )
   )
 
 
 disconnect = () ->
   exports.mongoDb?.close()
-  redisClient?.quit()
 
 
 # Optimize projection by removing overlaps
@@ -407,7 +398,7 @@ saveDevice = (deviceId, deviceData, isNew, callback) ->
             switch attrName
               when 'value'
                 if not diff[1] or diff[2].value[1][0] != diff[1].value?[1][0]
-                  if diff[2].value[1][1] == 'xsd:dateTime'
+                  if diff[2].value[1][1] == 'xsd:dateTime' and Number.isInteger(diff[2].value[1][0])
                     update['$set'][path.concat('_value').join('.')] = new Date(diff[2].value[1][0])
                   else
                     update['$set'][path.concat('_value').join('.')] = diff[2].value[1][0]
@@ -445,76 +436,19 @@ saveDevice = (deviceId, deviceData, isNew, callback) ->
   if (update['$unset']?)
     optimizeProjection(update['$unset'])
 
+  if update['$addToSet'] and update['$pull']
+    # Mongo doesn't allow $addToSet and $pull at the same time
+    update2 = {'$pull': update['$pull']}
+    delete update['$pull']
+
   devicesCollection.update({'_id' : deviceId}, update, {upsert: isNew}, (err, result) ->
     if not err and result.result.n != 1
       return callback(new Error("Device #{deviceId} not found in database"))
 
+    if update2
+      return devicesCollection.update({'_id': deviceId}, update2, callback)
+
     return callback(err)
-  )
-
-
-getDueTasksAndFaultsAndOperations = (deviceId, timestamp, callback) ->
-  redisClient.mget("#{deviceId}_tasks", "#{deviceId}_faults", "#{deviceId}_operations", (err, res) ->
-    return callback(err) if err
-
-    if res[0]
-      tasks = JSON.parse(res[0])
-
-    if res[1]?
-      faults = JSON.parse(res[1])
-
-    if res[2]?
-      operations = JSON.parse(res[2])
-
-    if tasks? and faults? and operations?
-      return callback(null, tasks, faults, operations)
-
-    MAX_CACHE_TTL = config.get('MAX_CACHE_TTL', deviceId)
-
-    if not faults?
-      getFaults(deviceId, (err, flts) ->
-        if err
-          callback?(err)
-          return callback = null
-
-        faults = flts
-        if tasks? and operations?
-          return callback(null, tasks, faults, operations)
-      )
-
-    if not tasks?
-      getDueTasks(deviceId, timestamp, (err, dueTasks, nextTimestamp) ->
-        if err
-          callback?(err)
-          return callback = null
-
-        if nextTimestamp?
-          exp = Math.min(0, Math.trunc((nextTimestamp - Date.now()) / 1000))
-        else
-          exp = MAX_CACHE_TTL
-
-        redisClient.setex("#{deviceId}_tasks", exp, JSON.stringify(dueTasks), (err) ->
-          if err
-            callback?(err)
-            return callback = null
-
-          tasks = dueTasks
-          if faults? and operations?
-            return callback(null, tasks, faults, operations)
-        )
-      )
-
-    if not operations?
-      getOperations(deviceId, (err, _operations) ->
-        if err
-          callback?(err)
-          return callback = null
-
-        operations = _operations
-        if tasks? and faults?
-          return callback(null, tasks, faults, operations)
-      )
-
   )
 
 
@@ -532,32 +466,22 @@ getFaults = (deviceId, callback) ->
       r.provisions = JSON.parse(r.provisions)
       faults[channel] = r
 
-    MAX_CACHE_TTL = config.get('MAX_CACHE_TTL', deviceId)
-
-    redisClient.setex("#{deviceId}_faults", MAX_CACHE_TTL, JSON.stringify(faults), (err) ->
-      callback(err, faults)
-    )
+    callback(err, faults)
   )
 
 
 saveFault = (deviceId, channel, fault, callback) ->
+  fault = Object.assign({}, fault)
   fault._id = "#{deviceId}:#{channel}"
   fault.device = deviceId
   fault.channel = channel
   fault.timestamp = new Date(fault.timestamp)
   fault.provisions = JSON.stringify(fault.provisions)
-  faultsCollection.save(fault, (err) ->
-    return callback(err) if err
-    redisClient.del("#{deviceId}_faults", callback)
-  )
+  faultsCollection.save(fault, callback)
 
 
 deleteFault = (deviceId, channel, callback) ->
-  faultsCollection.remove({_id: "#{deviceId}:#{channel}"}, (err) ->
-    return callback(err) if err
-    redisClient.del("#{deviceId}_faults", callback)
-  )
-
+  faultsCollection.remove({_id: "#{deviceId}:#{channel}"}, callback)
 
 
 getDueTasks = (deviceId, timestamp, callback) ->
@@ -600,13 +524,7 @@ getDueTasks = (deviceId, timestamp, callback) ->
 
 
 clearTasks = (deviceId, taskIds, callback) ->
-  if not taskIds?.length
-    return callback()
-
-  tasksCollection.remove({'_id' : {'$in' : (new mongodb.ObjectID(id) for id in taskIds)}}, (err) ->
-    return callback(err) if err
-    redisClient.del("#{deviceId}_tasks", callback)
-  )
+  tasksCollection.remove({'_id' : {'$in' : (new mongodb.ObjectID(id) for id in taskIds)}}, callback)
 
 
 getOperations = (deviceId, callback) ->
@@ -623,41 +541,58 @@ getOperations = (deviceId, callback) ->
       r.retries = JSON.parse(r.retries)
       operations[commandKey] = r
 
-    MAX_CACHE_TTL = config.get('MAX_CACHE_TTL', deviceId)
-
-    redisClient.setex("#{deviceId}_operations", MAX_CACHE_TTL, JSON.stringify(operations), (err) ->
-      callback(err, operations)
-    )
+    callback(err, operations)
   )
 
 
 saveOperation = (deviceId, commandKey, operation, callback) ->
+  operation = Object.assign({}, operation)
   operation._id = "#{deviceId}:#{commandKey}"
   operation.timestamp = new Date(operation.timestamp)
   operation.provisions = JSON.stringify(operation.provisions)
   operation.retries = JSON.stringify(operation.retries)
   operation.args = JSON.stringify(operation.args)
-  operationsCollection.save(operation, (err) ->
-    return callback(err) if err
-    redisClient.del("#{deviceId}_operations", callback)
-  )
+  operationsCollection.save(operation, callback)
 
 
 deleteOperation = (deviceId, commandKey, callback) ->
-  operationsCollection.remove({_id: "#{deviceId}:#{commandKey}"}, (err) ->
-    return callback(err) if err
-    redisClient.del("#{deviceId}_operations", callback)
-  )
+  operationsCollection.remove({_id: "#{deviceId}:#{commandKey}"}, callback)
+
+
+getPresets = (callback) ->
+  presetsCollection.find().toArray(callback)
+
+
+getObjects = (callback) ->
+  objectsCollection.find().toArray(callback)
+
+
+getProvisions = (callback) ->
+  provisionsCollection.find().toArray(callback)
+
+
+getVirtualParameters = (callback) ->
+  virtualParametersCollection.find().toArray(callback)
+
+
+getFiles = (callback) ->
+  filesCollection.find().toArray(callback)
 
 
 exports.connect = connect
 exports.disconnect = disconnect
 exports.fetchDevice = fetchDevice
 exports.saveDevice = saveDevice
-exports.getDueTasksAndFaultsAndOperations = getDueTasksAndFaultsAndOperations
 exports.getFaults = getFaults
 exports.saveFault = saveFault
 exports.deleteFault = deleteFault
 exports.clearTasks = clearTasks
 exports.saveOperation = saveOperation
 exports.deleteOperation = deleteOperation
+exports.getPresets = getPresets
+exports.getObjects = getObjects
+exports.getProvisions = getProvisions
+exports.getVirtualParameters = getVirtualParameters
+exports.getFiles = getFiles
+exports.getDueTasks = getDueTasks
+exports.getOperations = getOperations

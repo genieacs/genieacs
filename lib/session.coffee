@@ -22,7 +22,7 @@ common = require './common'
 db = require './db'
 device = require './device'
 sandbox = require './sandbox'
-cache = require './cache'
+localCache = require './local-cache'
 PathSet = require './path-set'
 VersionedMap = require './versioned-map'
 InstanceSet = require './instance-set'
@@ -65,7 +65,7 @@ init = (deviceId, cwmpVersion, timeout, callback) ->
     declarations: []
   }
 
-  cache.getProvisionsAndVirtualParameters((err, hash, provisions, virtualParameters) ->
+  localCache.getProvisionsAndVirtualParameters((err, hash, provisions, virtualParameters) ->
     return callback(err) if err
 
     sessionContext.presetsHash = hash
@@ -167,6 +167,9 @@ inform = (sessionContext, rpcReq, callback) ->
 
 
 transferComplete = (sessionContext, rpcReq, callback) ->
+  revision = (sessionContext.revisions[sessionContext.revisions.length - 1] or 0) + 1
+  sessionContext.deviceData.timestamps.revision = revision
+  sessionContext.deviceData.attributes.revision = revision
   commandKey = rpcReq.commandKey
   operation = sessionContext.operations[commandKey]
 
@@ -248,6 +251,9 @@ revertDownloadParameters = (sessionContext, instance, callback) ->
   )
 
 timeoutOperations = (sessionContext, callback) ->
+  revision = (sessionContext.revisions[sessionContext.revisions.length - 1] or 0) + 1
+  sessionContext.deviceData.timestamps.revision = revision
+  sessionContext.deviceData.attributes.revision = revision
   faults = []
   operations = []
   counter = 3
@@ -346,14 +352,16 @@ runProvisions = (sessionContext, provisions, startRevision, endRevision, callbac
   allClear = []
   counter = 3
   allProvisions = provisionsCache.get(sessionContext)
-  for provision in provisions
+  for provision, j in provisions
     if not allProvisions[provision[0]]?
+      allDeclarations[j] = []
+      allClear[j] = []
       if defaultProvisions[provision[0]]
-        done = defaultProvisions[provision[0]](sessionContext, provision, allDeclarations, startRevision, endRevision) and done
+        done = defaultProvisions[provision[0]](sessionContext, provision, allDeclarations[j], startRevision, endRevision) and done
       continue
 
     counter += 2
-    sandbox.run(allProvisions[provision[0]].script,
+    do (j) -> sandbox.run(allProvisions[provision[0]].script,
       {args: provision.slice(1)}, sessionContext, startRevision, endRevision,
       (err, _fault, _clear, _declarations, _done) ->
         if err or _fault
@@ -361,18 +369,18 @@ runProvisions = (sessionContext, provisions, startRevision, endRevision, callbac
           return counter = 0
 
         done &&= _done
-
-        if _declarations.length
-          allDeclarations = allDeclarations.concat(_declarations)
-
-        if _clear.length
-          allClear = allClear.concat(_clear)
+        allDeclarations[j] = _declarations or []
+        allClear[j] = _clear or []
 
         if (counter -= 2) == 1
+          allDeclarations = Array.prototype.concat.apply([], allDeclarations)
+          allClear = Array.prototype.concat.apply([], allClear)
           return callback(null, null, done, allDeclarations, allClear)
       )
 
   if (counter -= 2) == 1
+    allDeclarations = Array.prototype.concat.apply([], allDeclarations)
+    allClear = Array.prototype.concat.apply([], allClear)
     return callback(null, null, done, allDeclarations, allClear)
 
 
@@ -383,10 +391,10 @@ runVirtualParameters = (sessionContext, provisions, startRevision, endRevision, 
   allClear = []
   counter = 3
   allVirtualParameters = virtualParametersCache.get(sessionContext)
-  for provision in provisions
+  for provision, j in provisions
     counter += 2
-    globals = {TIMESTAMPS: provision[1], VALUES: provision[2]}
-    sandbox.run(allVirtualParameters[provision[0]].script, globals,
+    globals = {args: provision.slice(1)}
+    do (j) -> sandbox.run(allVirtualParameters[provision[0]].script, globals,
       sessionContext, startRevision, endRevision,
       (err, _fault, _clear, _declarations, _done, _returnValue) ->
         if err or _fault
@@ -394,40 +402,37 @@ runVirtualParameters = (sessionContext, provisions, startRevision, endRevision, 
           return counter = 0
 
         done &&= _done
-
-        if _declarations.length
-          allDeclarations = allDeclarations.concat(_declarations)
-
-        if _clear.length
-          allClear = allClear.concat(_clear)
-
-        if _done
-          virtualParameterUpdates.push(_returnValue)
+        allDeclarations[j] = _declarations or []
+        allClear[j] = _clear or []
+        virtualParameterUpdates[j] = _returnValue if _done
 
         if (counter -= 2) == 1
           toClear = null
-          if virtualParameterUpdates.length == provisions.length
+          if done
             for vpu, i in virtualParameterUpdates
               toClear = commitVirtualParameter(sessionContext, provisions[i], vpu, toClear)
 
           clear(sessionContext, toClear, (err) ->
+            allDeclarations = Array.prototype.concat.apply([], allDeclarations)
+            allClear = Array.prototype.concat.apply([], allClear)
             return callback(err, null, done, allDeclarations, allClear)
           )
       )
 
   if (counter -= 2) == 1
     toClear = null
-    if virtualParameterUpdates.length == provisions.length
+    if done
       for vpu, i in virtualParameterUpdates
         toClear = commitVirtualParameter(sessionContext, provisions[i], vpu, toClear)
 
     clear(sessionContext, toClear, (err) ->
+      allDeclarations = Array.prototype.concat.apply([], allDeclarations)
+      allClear = Array.prototype.concat.apply([], allClear)
       return callback(err, null, done, allDeclarations, allClear)
     )
 
 
 runDeclarations = (sessionContext, declarations) ->
-  sessionContext.iteration += 2
   sessionContext.syncState ?= {
     refreshAttributes: {
       exist: new Set()
@@ -609,9 +614,6 @@ rpcRequest = (sessionContext, _declarations, callback) ->
       return rpcRequest(sessionContext, null, callback)
     )
 
-  if sessionContext.doneProvisions[0] & 1
-    return callback()
-
   if sessionContext.rpcCount >= 255 or
       sessionContext.revisions.length >= 8 or
       sessionContext.cycle >= 16 or
@@ -626,6 +628,8 @@ rpcRequest = (sessionContext, _declarations, callback) ->
 
   if (sessionContext.syncState?.virtualParameterDeclarations?.length or 0) < sessionContext.declarations.length
     inception = sessionContext.syncState?.virtualParameterDeclarations?.length or 0
+    # Avoid unnecessary increment of iteration when using vparams
+    sessionContext.iteration += 2 if inception == sessionContext.declarations.length - 1
     vpd = runDeclarations(sessionContext, sessionContext.declarations[inception])
     timestamp = sessionContext.timestamp + sessionContext.iteration
     toClear = null
@@ -775,11 +779,11 @@ rpcRequest = (sessionContext, _declarations, callback) ->
 
   ++ sessionContext.revisions[inception]
   sessionContext.declarations.pop()
+  sessionContext.syncState.virtualParameterDeclarations.pop()
 
-  while sessionContext.doneProvisions & (2 << (sessionContext.virtualParameters.length - 1))
+  if sessionContext.doneProvisions & (2 << (sessionContext.virtualParameters.length - 1))
     doneProvisions = sessionContext.virtualParameters.pop()
     sessionContext.revisions.pop()
-    sessionContext.declarations.pop()
     sessionContext.doneProvisions &= (2 << sessionContext.virtualParameters.length) - 1
     rev = sessionContext.revisions[sessionContext.revisions.length - 1]
     sessionContext.deviceData.timestamps.collapse(rev + 1)
@@ -787,8 +791,6 @@ rpcRequest = (sessionContext, _declarations, callback) ->
     for k of sessionContext.extensionsCache
       if rev < Number(k.split(':', 1)[0])
         delete sessionContext.extensionsCache[k]
-
-  sessionContext.syncState.virtualParameterDeclarations.length = sessionContext.declarations.length
 
   return rpcRequest(sessionContext, null, callback)
 
@@ -884,7 +886,7 @@ generateGetRpcRequest = (sessionContext) ->
 
     paths = Array.from(syncState.gpn.keys()).sort((a,b) -> b.length - a.length)
     path = paths.pop()
-    while path and not sessionContext.deviceData.attributes.has(path)
+    while path and path.length and not sessionContext.deviceData.attributes.has(path)
       syncState.gpn.delete(path)
       path = paths.pop()
 
@@ -985,6 +987,22 @@ generateSetRpcRequest = (sessionContext) ->
       parameterList: ([p[0].join('.'), p[1], p[2]] for p in parameterValues)
     }
 
+  # Download
+  iter = syncState.downloadsDownload.entries()
+  while pair = iter.next().value
+    if not (pair[1] <= deviceData.attributes.get(pair[0])?.value?[1][0])
+      fileTypePath = deviceData.paths.get(pair[0].slice(0, -1).concat('FileType'))
+      fileNamePath = deviceData.paths.get(pair[0].slice(0, -1).concat('FileName'))
+      targetFileNamePath = deviceData.paths.get(pair[0].slice(0, -1).concat('TargetFileName'))
+      return {
+        name: 'Download'
+        commandKey: generateRpcId(sessionContext)
+        instance: pair[0][1]
+        fileType: deviceData.attributes.get(fileTypePath)?.value?[1][0]
+        fileName: deviceData.attributes.get(fileNamePath)?.value?[1][0]
+        targetFileName: deviceData.attributes.get(targetFileNamePath)?.value?[1][0]
+      }
+
   # Reboot
   if syncState.reboot?
     p = sessionContext.deviceData.paths.get(['Reboot'])
@@ -1003,22 +1021,6 @@ generateSetRpcRequest = (sessionContext) ->
         name: 'FactoryReset'
       }
 
-  # Download
-  iter = syncState.downloadsDownload.entries()
-  while pair = iter.next().value
-    if not (pair[1] <= deviceData.attributes.get(pair[0])?.value?[1][0])
-      fileTypePath = deviceData.paths.get(pair[0].slice(0, -1).concat('FileType'))
-      fileNamePath = deviceData.paths.get(pair[0].slice(0, -1).concat('FileName'))
-      targetFileNamePath = deviceData.paths.get(pair[0].slice(0, -1).concat('TargetFileName'))
-      return {
-        name: 'Download'
-        commandKey: generateRpcId(sessionContext)
-        instance: pair[0][1]
-        fileType: deviceData.attributes.get(fileTypePath)?.value?[1][0]
-        fileName: deviceData.attributes.get(fileNamePath)?.value?[1][0]
-        targetFileName: deviceData.attributes.get(targetFileNamePath)?.value?[1][0]
-      }
-
   return null
 
 
@@ -1027,7 +1029,13 @@ generateGetVirtualParameterProvisions = (sessionContext, virtualParameterDeclara
   for declaration in virtualParameterDeclarations
     if declaration[1]
       provisions ?= []
-      provisions.push([declaration[0][1], declaration[1], undefined])
+      currentTimestamps = {}
+      currentValues = {}
+      attrs = sessionContext.deviceData.attributes.get(declaration[0])
+      for k, v of attrs
+        currentTimestamps[k] = v[0]
+        currentValues[k] = v[1]
+      provisions.push([declaration[0][1], declaration[1], {}, currentTimestamps, currentValues])
       delete declaration[1]
 
   return provisions
@@ -1045,9 +1053,13 @@ generateSetVirtualParameterProvisions = (sessionContext, virtualParameterDeclara
 
         if val[0] != curVal[0] or val[1] != curVal[1]
           provisions ?= []
-          provisions.push([declaration[0][1], undefined, {value: val}])
+          currentTimestamps = {}
+          currentValues = {}
+          for k, v of attrs
+            currentTimestamps[k] = v[0]
+            currentValues[k] = v[1]
+          provisions.push([declaration[0][1], {}, {value: val}, currentTimestamps, currentValues])
 
-  virtualParameterDeclarations.length = 0
   return provisions
 
 
@@ -1509,7 +1521,7 @@ rpcFault = (sessionContext, id, faultResponse, callback) ->
 
 
 deserialize = (sessionContextString, callback) ->
-  cache.getProvisionsAndVirtualParameters((err, hash, provisions, virtualParameters) ->
+  localCache.getProvisionsAndVirtualParameters((err, hash, provisions, virtualParameters) ->
     return callback(err) if err
 
     sessionContext = JSON.parse(sessionContextString)
@@ -1575,48 +1587,6 @@ serialize = (sessionContext, callback) ->
   return callback(null, sessionContextString)
 
 
-end = (sessionContext, callback) ->
-  counter = 3
-
-  counter += 2
-  db.saveDevice(sessionContext.deviceId, sessionContext.deviceData, sessionContext.new, (err) ->
-    if err
-      callback(err) if counter & 1
-      return counter = 0
-
-    return callback(null, sessionContext.new) if (counter -= 2) == 1
-  )
-
-  counter += 2
-  db.redisClient.del("session_#{sessionContext.id}", (err) ->
-    if err
-      callback(err) if counter & 1
-      return counter = 0
-
-    return callback(null, sessionContext.new) if (counter -= 2) == 1
-  )
-
-  for k of sessionContext.operationsTouched
-    counter += 2
-    if sessionContext.operations[k]?
-      db.saveOperation(sessionContext.deviceId, k, sessionContext.operations[k], (err) ->
-        if err
-          callback(err) if counter & 1
-          return counter = 0
-
-        return callback(null, sessionContext.new) if (counter -= 2) == 1
-      )
-    else
-      db.deleteOperation(sessionContext.deviceId, k, (err) ->
-        if err
-          callback(err) if counter & 1
-          return counter = 0
-
-        return callback(null, sessionContext.new) if (counter -= 2) == 1
-      )
-
-  callback(null, sessionContext.new) if (counter -= 2) == 1
-
 exports.init = init
 exports.timeoutOperations = timeoutOperations
 exports.inform = inform
@@ -1626,6 +1596,5 @@ exports.clearProvisions = clearProvisions
 exports.rpcRequest = rpcRequest
 exports.rpcResponse = rpcResponse
 exports.rpcFault = rpcFault
-exports.end = end
 exports.serialize = serialize
 exports.deserialize = deserialize

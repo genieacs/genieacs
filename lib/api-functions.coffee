@@ -27,6 +27,7 @@ common = require './common'
 util = require 'util'
 URL = require 'url'
 auth = require './auth'
+cache = require './cache'
 
 
 udpConReq = (address, un, key, callback) ->
@@ -214,7 +215,7 @@ insertTasks = (tasks, callback) ->
   if tasks? and common.typeOf(tasks) isnt common.ARRAY_TYPE
     tasks = [tasks]
   else if not tasks? or tasks.length == 0
-    return callback(tasks)
+    return callback(null, tasks or [])
 
   counter = tasks.length
 
@@ -242,12 +243,7 @@ deleteDevice = (deviceId, callback) ->
         return callback(err) if err
         db.operationsCollection.remove({'_id' : {'$regex' : "^#{common.escapeRegExp(deviceId)}\\:"}}, (err) ->
           return callback(err) if err
-          db.redisClient.del("#{deviceId}_presets_hash",
-            "#{deviceId}_inform_hash",
-            "#{deviceId}_faults",
-            "#{deviceId}_tasks",
-            "#{deviceId}_operations",
-            callback)
+          cache.del("#{deviceId}_tasks_faults_operations", callback)
         )
       )
     )
