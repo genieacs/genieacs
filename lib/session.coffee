@@ -537,7 +537,7 @@ runDeclarations = (sessionContext, declarations) ->
       if Array.isArray(path[path.length - 1])
         keys = {}
         for p, i in path[path.length - 1] by 2
-          keys[p] = path[path.length - 1][i + 1]
+          keys[p.join('.')] = path[path.length - 1][i + 1]
       else if path[path.length - 1] == '*'
         keys = {}
 
