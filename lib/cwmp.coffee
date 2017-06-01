@@ -542,7 +542,7 @@ sendAcsRequest = (sessionContext, id, acsRequest) ->
       acsRequest.url = if FS_SSL then 'https://' else 'http://'
       acsRequest.url += FS_HOSTNAME
       acsRequest.url += ":#{FS_PORT}" if FS_PORT != 80
-      acsRequest.url += "/#{encodeURIComponent(acsRequest.fileName)}"
+      acsRequest.url += "/#{encodeURI(acsRequest.fileName)}"
 
     if not acsRequest.fileSize?
       return localCache.getFiles((err, hash, files) ->
