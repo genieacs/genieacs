@@ -20,8 +20,11 @@ Install [Node.js](http://nodejs.org/) and [MongoDB](http://www.mongodb.org/).
 Refer to their corresponding documentation for installation instructions. The
 supported versions are:
 
-- Node.js: 6.x and 7.x (7.x recommended)
+- Node.js: 6.x and 8.x (8.x recommended)
 - MongoDB: 2.6 through 3.4
+
+Install build tools and libxml2 development files from your system's package
+manager.
 
 Then install GenieACS using NPM:
 
@@ -34,6 +37,9 @@ Alternatively, you can install from source by cloning the git repository:
     git checkout $(git tag -l v1.1.* --sort=-v:refname | head -n 1)
     npm install
     npm run compile
+
+Before proceeding, find and review the file "config.json" in "config" directory
+where GenieACS is downloaded.
 
 Finally, run the following (from bin directory if installing from source):
 

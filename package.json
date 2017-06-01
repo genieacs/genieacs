@@ -31,7 +31,7 @@
     "coffeescript": "^1.12.4"
   },
   "engines": {
-    "node": ">=6.9.2 <8.0"
+    "node": ">=6.9.2 <9.0"
   },
   "scripts": {
     "prepublish": "npm run compile",
