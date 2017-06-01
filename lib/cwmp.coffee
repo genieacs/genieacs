@@ -601,7 +601,7 @@ getSession = (httpRequest, callback) ->
 
 currentSessions = new WeakMap()
 
-# When socket closes, store active sessions in redis
+# When socket closes, store active sessions in cache
 onConnection = (socket) ->
   currentSessions.set(socket, {})
   socket.on('close', () ->

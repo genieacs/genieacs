@@ -1,7 +1,5 @@
 {
   "MONGODB_CONNECTION_URL" : "mongodb://127.0.0.1/genieacs",
-  "REDIS_PORT" : "6379",
-  "REDIS_HOST" : "127.0.0.1",
   "CWMP_INTERFACE" : "0.0.0.0",
   "CWMP_PORT" : 7547,
   "CWMP_SSL" : false,

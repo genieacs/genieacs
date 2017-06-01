@@ -24,7 +24,7 @@ options = {
   CONFIG_DIR : {type : 'path', default : 'config'},
   MONGODB_CONNECTION_URL : {type : 'string', default : 'mongodb://127.0.0.1/genieacs'},
   REDIS_PORT : {type : 'int', default : 6379},
-  REDIS_HOST : {type : 'string', default : '127.0.0.1'},
+  REDIS_HOST : {type : 'string', default : ''},
   REDIS_DB : {type : 'int', default : 0},
 
   CWMP_WORKER_PROCESSES : {type : 'int', default : 0},

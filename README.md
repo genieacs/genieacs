@@ -16,12 +16,11 @@ systems
 
 ## Quick Start
 
-Install [Node.js](http://nodejs.org/), [Redis](http://redis.io/), and
-[MongoDB](http://www.mongodb.org/). Refer to the corresponding documentation for
-installation guides. Supported versions are:
+Install [Node.js](http://nodejs.org/) and [MongoDB](http://www.mongodb.org/).
+Refer to their corresponding documentation for installation instructions. The
+supported versions are:
 
 - Node.js: 6.x and 7.x (7.x recommended)
-- Redis: 2.4 through 3.2
 - MongoDB: 2.6 through 3.4
 
 Then install GenieACS using NPM:
