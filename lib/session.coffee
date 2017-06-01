@@ -150,6 +150,9 @@ inform = (sessionContext, rpcReq, callback) ->
     return callback(err) if err
 
     if sessionContext.new
+      params.push([['DeviceID', 'ID'], timestamp,
+        {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [sessionContext.deviceId, 'xsd:string']]}])
+
       params.push([['Events', 'Registered'], timestamp,
         {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [timestamp, 'xsd:dateTime']]}])
 
