@@ -62,7 +62,7 @@ PRESETS_REGEX = /^\/presets\/([a-zA-Z0-9\-\_\%]+)\/?$/
 OBJECTS_REGEX = /^\/objects\/([a-zA-Z0-9\-\_\%]+)\/?$/
 FILES_REGEX = /^\/files\/([a-zA-Z0-9\%\!\*\'\(\)\;\:\@\&\=\+\$\,\?\#\[\]\-\_\.\~]+)\/?$/
 PING_REGEX = /^\/ping\/([a-zA-Z0-9\-\_\.]+)\/?$/
-QUERY_REGEX = /^\/([a-zA-Z0-9_]+s)\/?$/
+QUERY_REGEX = /^\/([a-zA-Z0-9_]+)\/?$/
 DELETE_DEVICE_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/?$/
 PROVISIONS_REGEX = /^\/provisions\/([a-zA-Z0-9\-\_\%]+)\/?$/
 VIRTUAL_PARAMETERS_REGEX = /^\/virtual_parameters\/([a-zA-Z0-9\-\_\%]+)\/?$/
