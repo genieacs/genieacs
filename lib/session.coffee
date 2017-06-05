@@ -296,7 +296,7 @@ addProvisions = (sessionContext, channel, provisions) ->
   delete sessionContext.syncState
   delete sessionContext.rpcRequest
   sessionContext.declarations = []
-  sessionContext.doneProvisions = 0
+  sessionContext.provisionsRet = []
   if sessionContext.revisions[sessionContext.revisions.length - 1] > 0
     sessionContext.deviceData.timestamps.collapse(1)
     sessionContext.deviceData.attributes.collapse(1)
@@ -344,7 +344,7 @@ clearProvisions = (sessionContext) ->
   sessionContext.virtualParameters = []
   sessionContext.channels = {}
   sessionContext.declarations = []
-  sessionContext.doneProvisions = 0
+  sessionContext.provisionsRet = []
   sessionContext.revisions = [0]
   sessionContext.extensionsCache = {}
 
@@ -407,32 +407,18 @@ runVirtualParameters = (sessionContext, provisions, startRevision, endRevision, 
         done &&= _done
         allDeclarations[j] = _declarations or []
         allClear[j] = _clear or []
-        virtualParameterUpdates[j] = _returnValue if _done
+        virtualParameterUpdates[j] = JSON.parse(JSON.stringify(_returnValue)) if _done
 
         if (counter -= 2) == 1
-          toClear = null
-          if done
-            for vpu, i in virtualParameterUpdates
-              toClear = commitVirtualParameter(sessionContext, provisions[i], vpu, toClear)
-
-          clear(sessionContext, toClear, (err) ->
-            allDeclarations = Array.prototype.concat.apply([], allDeclarations)
-            allClear = Array.prototype.concat.apply([], allClear)
-            return callback(err, null, done, allDeclarations, allClear)
-          )
+          allDeclarations = Array.prototype.concat.apply([], allDeclarations)
+          allClear = Array.prototype.concat.apply([], allClear)
+          return callback(null, null, (if done then virtualParameterUpdates else null), allDeclarations, allClear)
       )
 
   if (counter -= 2) == 1
-    toClear = null
-    if done
-      for vpu, i in virtualParameterUpdates
-        toClear = commitVirtualParameter(sessionContext, provisions[i], vpu, toClear)
-
-    clear(sessionContext, toClear, (err) ->
-      allDeclarations = Array.prototype.concat.apply([], allDeclarations)
-      allClear = Array.prototype.concat.apply([], allClear)
-      return callback(err, null, done, allDeclarations, allClear)
-    )
+    allDeclarations = Array.prototype.concat.apply([], allDeclarations)
+    allClear = Array.prototype.concat.apply([], allClear)
+    return callback(null, null, (if done then virtualParameterUpdates else null), allDeclarations, allClear)
 
 
 runDeclarations = (sessionContext, declarations) ->
@@ -564,7 +550,7 @@ rpcRequest = (sessionContext, _declarations, callback) ->
   if sessionContext.virtualParameters.length == 0 and
       sessionContext.declarations.length == 0 and
       not _declarations?.length and
-      (sessionContext.doneProvisions or sessionContext.provisions.length == 0)
+      sessionContext.provisions.length == 0
     return callback()
 
   if sessionContext.declarations.length <= sessionContext.virtualParameters.length
@@ -580,7 +566,7 @@ rpcRequest = (sessionContext, _declarations, callback) ->
       run = runVirtualParameters
       provisions = sessionContext.virtualParameters[inception - 1]
 
-    return run(sessionContext, provisions, sessionContext.revisions[inception - 1] or 0, sessionContext.revisions[inception], (err, fault, done, decs, toClear) ->
+    return run(sessionContext, provisions, sessionContext.revisions[inception - 1] or 0, sessionContext.revisions[inception], (err, fault, ret, decs, toClear) ->
       return callback(err) if err
 
       if fault
@@ -588,7 +574,7 @@ rpcRequest = (sessionContext, _declarations, callback) ->
         return callback(null, fault)
 
       sessionContext.declarations.push(decs)
-      sessionContext.doneProvisions |= 1 << inception if done
+      sessionContext.provisionsRet[inception] = ret
 
       for d in decs
         for ad in device.getAliasDeclarations(d[0], 1)
@@ -784,18 +770,30 @@ rpcRequest = (sessionContext, _declarations, callback) ->
   sessionContext.declarations.pop()
   sessionContext.syncState.virtualParameterDeclarations.pop()
 
-  if sessionContext.doneProvisions & (2 << (sessionContext.virtualParameters.length - 1))
-    doneProvisions = sessionContext.virtualParameters.pop()
-    sessionContext.revisions.pop()
-    sessionContext.doneProvisions &= (2 << sessionContext.virtualParameters.length) - 1
-    rev = sessionContext.revisions[sessionContext.revisions.length - 1]
-    sessionContext.deviceData.timestamps.collapse(rev + 1)
-    sessionContext.deviceData.attributes.collapse(rev + 1)
-    for k of sessionContext.extensionsCache
-      if rev < Number(k.split(':', 1)[0])
-        delete sessionContext.extensionsCache[k]
+  ret = sessionContext.provisionsRet.splice(inception)[0]
+  if not ret
+    return rpcRequest(sessionContext, null, callback)
 
-  return rpcRequest(sessionContext, null, callback)
+  sessionContext.revisions.pop()
+  rev = sessionContext.revisions[sessionContext.revisions.length - 1] or 0
+  sessionContext.deviceData.timestamps.collapse(rev + 1)
+  sessionContext.deviceData.attributes.collapse(rev + 1)
+  for k of sessionContext.extensionsCache
+    if rev < Number(k.split(':', 1)[0])
+      delete sessionContext.extensionsCache[k]
+
+  vparams = sessionContext.virtualParameters.pop()
+
+  if not vparams
+    return callback()
+
+  toClear = null
+  for vpu, i in ret
+    toClear = commitVirtualParameter(sessionContext, vparams[i], vpu, toClear)
+
+  clear(sessionContext, toClear, (err) ->
+    return rpcRequest(sessionContext, null, callback)
+  )
 
 
 # Simple algorithm to estimate GPN count in a set of patterns used
