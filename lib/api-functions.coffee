@@ -177,7 +177,13 @@ connectionRequest = (deviceId, callback) ->
   )
 
 
-watchTask = (deviceId, taskId, timeout, callback) ->
+watchTask = (deviceId, taskId, options, callback) ->
+  # Options defaults
+  options = options || {}
+  options.delay = options.delay || 500
+  options.timeout = options.timeout || 3600
+  options.makeConnectionRequest = options.makeConnectionRequest || false
+
   setTimeout(() ->
     db.tasksCollection.findOne({_id : taskId}, {'_id' : 1}, (err, task) ->
       return callback(err) if err
@@ -191,13 +197,19 @@ watchTask = (deviceId, taskId, timeout, callback) ->
         if fault
           return callback(null, 'fault')
 
-        if (timeout -= 500) <= 0
+        if (options.timeout -= options.delay) <= 0
           return callback(null, 'timeout')
 
-        watchTask(deviceId, taskId, timeout, callback)
+        # This is used for the background watchTask() calls.
+        # The CPE may be offline, ignoring the connection requests, or missing the original connection requests due to packet loss, so we are trying again in hopes that the CPE will get the messsage.
+        # Because this connectionRequest() is happening in the background, there is no one listening for feedback, thus the callback function is empty.
+        if (options.makeConnectionRequest)
+          connectionRequest(deviceId, () ->)
+
+        watchTask(deviceId, taskId, options, callback)
       )
     )
-  , 500)
+  , options.delay)
 
 
 sanitizeTask = (task, callback) ->
