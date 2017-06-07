@@ -1,4 +1,5 @@
 # GenieACS
+[![Gitter](https://badges.gitter.im/Join Chat.svg)](https://gitter.im/zaidka/genieacs?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
 GenieACS is a fast and lightweight TR-069 auto configuration server (ACS). This
 is the core back end component. A GUI front end is available at
