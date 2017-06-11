@@ -397,7 +397,7 @@ runVirtualParameters = (sessionContext, provisions, startRevision, endRevision, 
   for provision, j in provisions
     counter += 2
     globals = {args: provision.slice(1)}
-    do (j) -> sandbox.run(allVirtualParameters[provision[0]].script, globals,
+    do (provision, j) -> sandbox.run(allVirtualParameters[provision[0]].script, globals,
       sessionContext, startRevision, endRevision,
       (err, _fault, _clear, _declarations, _done, _returnValue) ->
         if err or _fault
@@ -407,7 +407,29 @@ runVirtualParameters = (sessionContext, provisions, startRevision, endRevision, 
         done &&= _done
         allDeclarations[j] = _declarations or []
         allClear[j] = _clear or []
-        virtualParameterUpdates[j] = JSON.parse(JSON.stringify(_returnValue)) if _done
+        if _done
+          if not _returnValue
+            if counter & 1
+              callback(null, {code: 'script', message: 'Invalid virtual parameter return value'})
+            return counter = 0
+
+          ret = {}
+
+          if _returnValue.writable?
+            ret.writable = +!!_returnValue.writable
+          else if provision[1].writable? or provision[2].writable?
+            if counter & 1
+              callback(null, {code: 'script', message: 'Virtual parameter must provide declared attributes'})
+            return counter = 0
+
+          if _returnValue.value?
+            ret.value = device.sanitizeParameterValue(_returnValue.value)
+          else if provision[1].value? or provision[2].value?
+            if counter & 1
+              callback(null, {code: 'script', message: 'Virtual parameter must provide declared attributes'})
+            return counter = 0
+
+          virtualParameterUpdates[j] = ret
 
         if (counter -= 2) == 1
           allDeclarations = Array.prototype.concat.apply([], allDeclarations)
@@ -787,9 +809,11 @@ rpcRequest = (sessionContext, _declarations, callback) ->
   if not vparams
     return callback()
 
+  timestamp = sessionContext.timestamp + sessionContext.iteration
   toClear = null
   for vpu, i in ret
-    toClear = commitVirtualParameter(sessionContext, vparams[i], vpu, toClear)
+    vpu[k] = [timestamp + (if vparams[i][2][k]? then 1 else 0), v] for k, v of vpu
+    toClear = device.set(sessionContext.deviceData, ['VirtualParameters', vparams[i][0]], timestamp, vpu, toClear)
 
   clear(sessionContext, toClear, (err) ->
     return rpcRequest(sessionContext, null, callback)
@@ -1288,25 +1312,6 @@ clear = (sessionContext, toClear, callback) ->
     )
     return callback()
   )
-
-
-commitVirtualParameter = (sessionContext, provision, update, toClear) ->
-  attributes = {}
-
-  timestamp = sessionContext.timestamp + sessionContext.iteration
-  timestamp += 1 if provision[2]?
-
-  if update.writable?
-    attributes.writable = [timestamp, +update.writable]
-  else if provision[1]?.writable? or provision[2]?.writable?
-    throw new Error('Virtual parameter must provide declared attributes')
-
-  if update.value?
-    attributes.value = [timestamp, device.sanitizeParameterValue(update.value)]
-  else if provision[1]?.value? or provision[2]?.value?
-    throw new Error('Virtual parameter must provide declared attributes')
-
-  return device.set(sessionContext.deviceData, ['VirtualParameters', provision[0]], timestamp, attributes, toClear)
 
 
 rpcResponse = (sessionContext, id, rpcRes, callback) ->
