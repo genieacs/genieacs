@@ -581,7 +581,7 @@ rpcRequest = (sessionContext, _declarations, callback) ->
 
   if sessionContext.declarations.length <= sessionContext.virtualParameters.length
     inception = sessionContext.declarations.length
-    revision = sessionContext.revisions[inception] + 1
+    revision = (sessionContext.revisions[inception] or 0) + 1
     sessionContext.deviceData.timestamps.revision = revision
     sessionContext.deviceData.attributes.revision = revision
 
@@ -1350,7 +1350,7 @@ rpcResponse = (sessionContext, id, rpcRes, callback) ->
 
   timestamp = sessionContext.timestamp + sessionContext.iteration
 
-  revision = sessionContext.revisions[sessionContext.revisions.length - 1] + 1
+  revision = (sessionContext.revisions[sessionContext.revisions.length - 1] or 0) + 1
   sessionContext.deviceData.timestamps.revision = revision
   sessionContext.deviceData.attributes.revision = revision
 
