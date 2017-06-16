@@ -569,6 +569,10 @@ rpcRequest = (sessionContext, _declarations, callback) ->
   if sessionContext.rpcRequest?
     return callback(null, null, generateRpcId(sessionContext), sessionContext.rpcRequest)
 
+  if sessionContext.deviceData.changes.has('prerequisite')
+    delete sessionContext.syncState
+    device.clearTrackers(sessionContext.deviceData, 'prerequisite')
+
   if sessionContext.virtualParameters.length == 0 and
       sessionContext.declarations.length == 0 and
       not _declarations?.length and
@@ -680,11 +684,6 @@ rpcRequest = (sessionContext, _declarations, callback) ->
   if not provisions
     sessionContext.rpcRequest = generateGetRpcRequest(sessionContext)
     if not sessionContext.rpcRequest
-      if sessionContext.deviceData.changes.has('prerequisite')
-        delete sessionContext.syncState
-        device.clearTrackers(sessionContext.deviceData, 'prerequisite')
-        return rpcRequest(sessionContext, null, callback)
-
       toClear = null
       timestamp = sessionContext.timestamp + sessionContext.iteration + 1
 
@@ -762,19 +761,11 @@ rpcRequest = (sessionContext, _declarations, callback) ->
               toClear = device.set(sessionContext.deviceData, p, timestamp, {value: [timestamp, v]}, toClear)
       )
 
-      if toClear
+      if toClear or sessionContext.deviceData.changes.has('prerequisite')
         return clear(sessionContext, toClear, (err) ->
           return callback(err) if err
-          if sessionContext.deviceData.changes.has('prerequisite')
-            delete sessionContext.syncState
-            device.clearTrackers(sessionContext.deviceData, 'prerequisite')
-          return rpcRequest(sessionContext, null, callback)
+          rpcRequest(sessionContext, null, callback)
         )
-
-      if sessionContext.deviceData.changes.has('prerequisite')
-        delete sessionContext.syncState
-        device.clearTrackers(sessionContext.deviceData, 'prerequisite')
-        return rpcRequest(sessionContext, null, callback)
 
       provisions = generateSetVirtualParameterProvisions(sessionContext, sessionContext.syncState.virtualParameterDeclarations[inception])
       if not provisions
@@ -816,7 +807,8 @@ rpcRequest = (sessionContext, _declarations, callback) ->
     toClear = device.set(sessionContext.deviceData, ['VirtualParameters', vparams[i][0]], timestamp, vpu, toClear)
 
   clear(sessionContext, toClear, (err) ->
-    return rpcRequest(sessionContext, null, callback)
+    return callback(err) if err
+    rpcRequest(sessionContext, null, callback)
   )
 
 
