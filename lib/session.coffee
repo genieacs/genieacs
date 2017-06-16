@@ -1183,7 +1183,9 @@ processDeclarations = (sessionContext, allDeclareTimestamps, allDeclareAttribute
           virtualParameterDeclarations.push(d) if d
       else
         if declareTimestamp > currentTimestamp and declareTimestamp > leafTimestamp
-          if leafIsObject
+          if currentPath == leafParam
+            syncState.refreshAttributes.exist.add(leafParam)
+          else if leafIsObject
             syncState.gpn.add(leafParam)
             if leafTimestamp > 0
               f = 1 << leafParam.length
