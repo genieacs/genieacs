@@ -377,65 +377,66 @@ nextRpc = (sessionContext) ->
 
     session.clearProvisions(sessionContext)
 
-    for task in sessionContext.tasks
+    # Clear expired tasks
+    sessionContext.tasks = sessionContext.tasks.filter((task) ->
+      return true if not (task.expiry <= sessionContext.timestamp)
+
+      logger.accessInfo({
+        sessionContext: sessionContext
+        message: 'Task expired'
+        task: task
+      })
+      sessionContext.doneTasks ?= []
+      sessionContext.doneTasks.push(task._id)
       channel = "task_#{task._id}"
+      if channel of sessionContext.faults
+        delete sessionContext.faults[channel]
+        sessionContext.faultsTouched ?= {}
+        sessionContext.faultsTouched[channel] = true
 
-      # Delete if expired
-      if task.expiry <= sessionContext.timestamp
-        logger.accessInfo({
-          sessionContext: sessionContext
-          message: 'Task expired'
-          task: task
-        })
-        sessionContext.doneTasks ?= []
-        sessionContext.doneTasks.push(String(task._id))
-        if channel of sessionContext.faults
-          delete sessionContext.faults[channel]
-          sessionContext.faultsTouched ?= {}
-          sessionContext.faultsTouched[channel] = true
-        continue
+      return false
+    )
 
-      if sessionContext.faults[channel]
-        continue
+    task = sessionContext.tasks.find((task) -> !sessionContext.faults["task_#{task._id}"])
 
-      switch task.name
-        when 'getParameterValues'
-          # Set channel in case params array is empty
-          sessionContext.channels["task_#{task._id}"] = 0
-          for p in task.parameterNames
-            session.addProvisions(sessionContext, "task_#{task._id}",
-              [['refresh', p]])
-        when 'setParameterValues'
-          # Set channel in case params array is empty
-          sessionContext.channels["task_#{task._id}"] = 0
-          for p in task.parameterValues
-            session.addProvisions(sessionContext, "task_#{task._id}",
-              [['value', p[0], p[1]]])
-        when 'refreshObject'
-          session.addProvisions(sessionContext, "task_#{task._id}",
-            [['refresh', task.objectName]])
-        when 'reboot'
-          session.addProvisions(sessionContext, "task_#{task._id}",
-            [['reboot']])
-        when 'factoryReset'
-          session.addProvisions(sessionContext, "task_#{task._id}",
-            [['reset']])
-        when 'download'
-          session.addProvisions(sessionContext, "task_#{task._id}",
-            [['download', task.fileType, task.fileName, task.targetFileName]])
-        when 'addObject'
-          alias = ("#{p[0]}:#{JSON.stringify(p[1])}" for p in task.parameterValues or []).join(',')
-          session.addProvisions(sessionContext, "task_#{task._id}",
-            [['instances', "#{task.objectName}.[#{alias}]", "+1"]]);
-        when 'deleteObject'
-          session.addProvisions(sessionContext, "task_#{task._id}",
-            [['instances', task.objectName, 0]]);
-        else
-          return throwError(new Error('Task name not recognized'), sessionContext.httpResponse)
+    return applyPresets(sessionContext) if not task
 
-      return nextRpc(sessionContext)
+    switch task.name
+      when 'getParameterValues'
+        # Set channel in case params array is empty
+        sessionContext.channels["task_#{task._id}"] = 0
+        for p in task.parameterNames
+          session.addProvisions(sessionContext, "task_#{task._id}",
+            [['refresh', p]])
+      when 'setParameterValues'
+        # Set channel in case params array is empty
+        sessionContext.channels["task_#{task._id}"] = 0
+        for p in task.parameterValues
+          session.addProvisions(sessionContext, "task_#{task._id}",
+            [['value', p[0], p[1]]])
+      when 'refreshObject'
+        session.addProvisions(sessionContext, "task_#{task._id}",
+          [['refresh', task.objectName]])
+      when 'reboot'
+        session.addProvisions(sessionContext, "task_#{task._id}",
+          [['reboot']])
+      when 'factoryReset'
+        session.addProvisions(sessionContext, "task_#{task._id}",
+          [['reset']])
+      when 'download'
+        session.addProvisions(sessionContext, "task_#{task._id}",
+          [['download', task.fileType, task.fileName, task.targetFileName]])
+      when 'addObject'
+        alias = ("#{p[0]}:#{JSON.stringify(p[1])}" for p in task.parameterValues or []).join(',')
+        session.addProvisions(sessionContext, "task_#{task._id}",
+          [['instances', "#{task.objectName}.[#{alias}]", "+1"]]);
+      when 'deleteObject'
+        session.addProvisions(sessionContext, "task_#{task._id}",
+          [['instances', task.objectName, 0]]);
+      else
+        return throwError(new Error('Task name not recognized'), sessionContext.httpResponse)
 
-    return applyPresets(sessionContext)
+    return nextRpc(sessionContext)
   )
 
 
