@@ -111,10 +111,13 @@ disconnect = () ->
 
 
 # Optimize projection by removing overlaps
-# This modifies given object and returns it
+# This can modify the object
 optimizeProjection = (obj) ->
+  if obj['']
+    return {'': obj['']}
+
   keys = Object.keys(obj).sort()
-  return if keys.length <= 1
+  return obj if keys.length <= 1
   i = 1
   while i < keys.length
     a = keys[i-1]
@@ -130,7 +133,10 @@ optimizeProjection = (obj) ->
 fetchDevice = (id, timestamp, patterns, callback) ->
   MAX_DEPTH = config.get('MAX_DEPTH', id)
 
-  projection = {_id: 1}
+  if not patterns?.length
+    patterns = [[[], (1 << MAX_DEPTH) - 1]]
+
+  projection = {}
   projectionTree = {}
   func = (path, pats, projTree) ->
     children = {}
@@ -166,46 +172,70 @@ fetchDevice = (id, timestamp, patterns, callback) ->
   delete projectionTree['Events']
   delete projectionTree['Tags']
 
-  if projection['']?
-    proj = {}
-  else
-    proj = JSON.parse(JSON.stringify(projection))
-
-  for k, v of proj
-    if k == '' or k == 'Events' or k.startsWith('Events.')
-      if k.length < 7 or k.startsWith('Events.Inform.') or k == 'Events.Inform'
-        proj['_lastInform'] = 1
-      if k.length < 7 or k.startsWith('Events.1_BOOT.') or k == 'Events.1_BOOT'
-        proj['_lastBoot'] = 1
-      if k.length < 7 or k.startsWith('Events.0_BOOTSTRAP.') or k == 'Events.0_BOOTSTRAP'
-        proj['_lastBootstrap'] = 1
-      if k.length < 7 or k.startsWith('Events.Registered.') or k == 'Events.Registered'
-        proj['_registered'] = 1
-      delete proj[k] if k != ''
-
-    if k == '' or k == 'DeviceID' or k.startsWith('DeviceID.')
-      if k.length < 9 or k.startsWith('DeviceID.ID.') or k == 'DeviceID.ID'
-        proj['_id'] = 1
-      if k.length < 9 or k.startsWith('DeviceID.Manufacturer.') or k == 'DeviceID.DeManufacturer'
-        proj['_deviceId._Manufacturer'] = 1
-      if k.length < 9 or k.startsWith('DeviceID.ProductClass.') or k == 'DeviceID.ProductClass'
-        proj['_deviceId._ProductClass'] = 1
-      if k.length < 9 or k.startsWith('DeviceID.OUI.') or k == 'DeviceID.OUI'
-        proj['_deviceId._OUI'] = 1
-      if k.length < 9 or k.startsWith('DeviceID.SerialNumber.') or k == 'DeviceID.SerialNumber'
-        proj['_deviceId._SerialNumber'] = 1
-      if k.length < 9
-        proj['_deviceId'] = 1
-      delete proj[k] if k != ''
-
-    if k == '' or k == 'Tags' or k.startsWith('Tags.')
-      proj['_tags'] = 1
-      delete proj[k] if k != ''
-
-  optimizeProjection(proj)
-
   res = []
   loaded = []
+
+  projection = optimizeProjection(projection)
+
+  for k, v of projection
+    if k == '' or k == 'Events' or k.startsWith('Events.')
+      if k == '' or k == 'Events' or k == 'Events._writable'
+        res.push([['Events'], timestamp,
+          {object: [timestamp, 1], writable: [timestamp, 0]}])
+        loaded.push([['Events'], 1]) if k == 'Events._writable'
+      if k == 'Events'
+        projection['_lastInform'] = 1
+        projection['_lastBoot'] = 1
+        projection['_lastBootstrap'] = 1
+        projection['_registered'] = 1
+        loaded.push([['Events'], ((1 << MAX_DEPTH) - 1)])
+      if k == 'Events.Inform._writable' or k == 'Events.Inform'
+        projection['_lastInform'] = 1
+        loaded.push([['Events', 'Inform'], 1 ^ ((1 << MAX_DEPTH) - 1)])
+      if k == 'Events.1_BOOT._writable' or k == 'Events.1_BOOT'
+        projection['_lastBoot'] = 1
+        loaded.push([['Events', '1_BOOT'], 1 ^ ((1 << MAX_DEPTH) - 1)])
+      if k == 'Events.0_BOOTSTRAP._writable' or k == 'Events.0_BOOTSTRAP'
+        projection['_lastBootstrap'] = 1
+        loaded.push([['Events', '0_BOOTSTRAP'], 1 ^ ((1 << MAX_DEPTH) - 1)])
+      if k == 'Events.Registered._writable' or k == 'Events.Registered'
+        projection['_registered'] = 1
+        loaded.push([['Events', 'Registered'], 1 ^ ((1 << MAX_DEPTH) - 1)])
+      delete projection[k] if k != ''
+
+    if k == '' or k == 'DeviceID' or k.startsWith('DeviceID.')
+      if k == '' or k == 'DeviceID' or k == 'DeviceID._writable'
+        res.push([['DeviceID'], timestamp,
+          {object: [timestamp, 1], writable: [timestamp, 0]}])
+        loaded.push([['DeviceID'], 1]) if k == 'DeviceID._writable'
+      if k == 'DeviceID'
+        projection['_id'] = 1
+        projection['_deviceId'] = 1
+        loaded.push([['DeviceID'], ((1 << MAX_DEPTH) - 1)])
+      if k == 'DeviceID.ID._writable' or k == 'DeviceID.ID'
+        projection['_id'] = 1
+        loaded.push([['DeviceID', 'ID'], 1 ^ ((1 << MAX_DEPTH) - 1)])
+      if k == 'DeviceID.Manufacturer._writable' or k == 'DeviceID.DeManufacturer'
+        projection['_deviceId._Manufacturer'] = 1
+        loaded.push([['DeviceID', 'Manufacturer'], 1 ^ ((1 << MAX_DEPTH) - 1)])
+      if k == 'DeviceID.ProductClass._writable' or k == 'DeviceID.ProductClass'
+        projection['_deviceId._ProductClass'] = 1
+        loaded.push([['DeviceID', 'ProductClass'], 1 ^ ((1 << MAX_DEPTH) - 1)])
+      if k == 'DeviceID.OUI._writable' or k == 'DeviceID.OUI'
+        projection['_deviceId._OUI'] = 1
+        loaded.push([['DeviceID', 'ProductClass'], 1 ^ ((1 << MAX_DEPTH) - 1)])
+      if k == 'DeviceID.SerialNumber._writable' or k == 'DeviceID.SerialNumber'
+        projection['_deviceId._SerialNumber'] = 1
+        loaded.push([['DeviceID', 'SerialNumber'], 1 ^ ((1 << MAX_DEPTH) - 1)])
+      delete projection[k] if k != ''
+
+    if k == 'Tags' or k.startsWith('Tags.')
+      if not projection['_tags']
+        projection['_tags'] = 1
+        loaded.push([['Tags'], ((1 << MAX_DEPTH) - 1)])
+      delete projection[k] if k != ''
+
+  proj = if projection[''] then {} else projection
 
   devicesCollection.findOne({'_id' : id}, proj, (err, device) ->
     return callback(err) if err or not device?
@@ -249,47 +279,38 @@ fetchDevice = (id, timestamp, patterns, callback) ->
           storeParams(v, path.concat(k), obj['_timestamp'] or 1, descendantsFetched, projTree?[k])
           delete projTree[kk] if projTree
 
-      if obj['_object'] or obj['_instance']
+      if obj['_timestamp']
         if descendantsFetched
-          res.push([path.concat('*'), obj['_timestamp']]) if obj['_timestamp']
+          res.push([path.concat('*'), obj['_timestamp']])
         else
           for k, v of projTree
             p = path.concat(k)
-            res.push([p, obj['_timestamp']]) if obj['_timestamp']
+            res.push([p, obj['_timestamp']])
             loaded.push([p, ((1 << path.length) - 1) ^ ((1 << MAX_DEPTH) - 1)])
 
     for k, v of device
       switch k
         when '_lastInform'
-          res.push([['Events'], timestamp,
-            {object: [timestamp, 1], writable: [timestamp, 0]}])
           res.push([['Events', 'Inform'], +v,
             {object: [+v, 0], writable: [+v, 0], value: [+v, [+v, 'xsd:dateTime']]}])
           delete device[k]
         when '_lastBoot'
-          res.push([['Events'], timestamp,
-            {object: [timestamp, 1], writable: [timestamp, 0]}])
           res.push([['Events', '1_BOOT'], +v,
             {object: [+v, 0], writable: [+v, 0], value: [+v, [+v, 'xsd:dateTime']]}])
           delete device[k]
         when '_lastBootstrap'
-          res.push([['Events'], timestamp,
-            {object: [timestamp, 1], writable: [timestamp, 0]}])
           res.push([['Events', '0_BOOTSTRAP'], +v,
             {object: [+v, 0], writable: [+v, 0], value: [+v, [+v, 'xsd:dateTime']]}])
           delete device[k]
         when '_registered'
-          res.push([['Events'], timestamp,
-            {object: [timestamp, 1], writable: [timestamp, 0]}])
           # Use current timestamp for registered event attribute timestamps
           res.push([['Events', 'Registered'], timestamp,
             {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [+v, 'xsd:dateTime']]}])
           delete device[k]
         when '_id'
-          res.push([['DeviceID'], timestamp,
-            {object: [timestamp, 1], writable: [timestamp, 0]}])
-          res.push([['DeviceID', 'ID'], timestamp,
-            {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [v, 'xsd:string']]}])
+          if projection[''] or projection['_id']
+            res.push([['DeviceID', 'ID'], timestamp,
+              {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [v, 'xsd:string']]}])
           delete device[k]
         when '_tags'
           res.push([['Tags'], timestamp,
@@ -300,8 +321,6 @@ fetchDevice = (id, timestamp, patterns, callback) ->
               {object: [timestamp, 0], writable: [timestamp, 1], value: [timestamp, [true, 'xsd:boolean']]}])
           delete device[k]
         when '_deviceId'
-          res.push([['DeviceID'], timestamp,
-            {object: [timestamp, 1], writable: [timestamp, 0]}])
           if v['_Manufacturer']?
             res.push([['DeviceID', 'Manufacturer'], timestamp,
               {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [v['_Manufacturer'], 'xsd:string']]}])
@@ -434,7 +453,7 @@ saveDevice = (deviceId, deviceData, isNew, callback) ->
   return callback() if Object.keys(update).length == 0
 
   if (update['$unset']?)
-    optimizeProjection(update['$unset'])
+    update['$unset'] = optimizeProjection(update['$unset'])
 
   if update['$addToSet'] and update['$pull']
     # Mongo doesn't allow $addToSet and $pull at the same time
