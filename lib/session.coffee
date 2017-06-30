@@ -77,10 +77,11 @@ init = (deviceId, cwmpVersion, timeout, callback) ->
 
 
 loadParameters = (sessionContext, callback) ->
-  if not sessionContext.toLoad?.length
+  if not sessionContext.toLoad?.size
     return callback()
 
-  db.fetchDevice(sessionContext.deviceId, sessionContext.timestamp, sessionContext.toLoad, (err, parameters, loaded) ->
+  toLoad = Array.from(sessionContext.toLoad.entries())
+  db.fetchDevice(sessionContext.deviceId, sessionContext.timestamp, toLoad, (err, parameters, loaded) ->
     return callback(err) if err
 
     if not parameters?
@@ -142,6 +143,9 @@ inform = (sessionContext, rpcReq, callback) ->
   for e in rpcReq.event
     params.push([['Events', e.replace(' ', '_')], timestamp,
       {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [timestamp, 'xsd:dateTime']]}])
+
+  # Preload DeviceID params
+  loadPath(sessionContext, ['DeviceID', '*'])
 
   for p in params
     loadPath(sessionContext, p[0])
@@ -1225,8 +1229,10 @@ processDeclarations = (sessionContext, allDeclareTimestamps, allDeclareAttribute
 
 
 loadPath = (sessionContext, path, depth) ->
-  return true if sessionContext.new
-  depth ?= (1 << path.length) - 1
+  depth = depth or (1 << path.length) - 1
+  return true if sessionContext.new or not depth
+
+  sessionContext.toLoad ?= new Map()
 
   # Trim trailing wildcards
   trimWildcard = path.length
@@ -1234,14 +1240,17 @@ loadPath = (sessionContext, path, depth) ->
   path = path.slice(0, trimWildcard) if trimWildcard < path.length
 
   for i in [0..path.length] by 1
-    for sup in sessionContext.deviceData.paths.find(path.slice(0, i), true, false)
-      v = sessionContext.deviceData.loaded.get(sup)
-      depth &= depth ^ sessionContext.deviceData.loaded.get(sup)
+    d = if i == path.length then 99 else i
+    for sup in sessionContext.deviceData.paths.find(path.slice(0, i), true, false, d)
+      v = sessionContext.deviceData.loaded.get(sup) | sessionContext.toLoad.get(sup)
+      if sup.length > i
+        v &= (1 << i) - 1
+      depth &= depth ^ v
+      return true if depth == 0
 
-    return true if depth == 0
-
-  sessionContext.toLoad ?= []
-  sessionContext.toLoad.push([path, depth])
+  path = sessionContext.deviceData.paths.add(path)
+  depth |= sessionContext.toLoad.get(path)
+  sessionContext.toLoad.set(path, depth)
   return false
 
 
