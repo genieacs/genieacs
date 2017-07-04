@@ -1541,8 +1541,8 @@ deserialize = (sessionContextString, callback) ->
     provisionsCache.set(sessionContext, provisions)
     virtualParametersCache.set(sessionContext, virtualParameters)
 
-    for d in sessionContext.declarations
-      common.addPathMeta(d[0])
+    for decs in sessionContext.declarations
+      common.addPathMeta(d[0]) for d in decs
 
     deviceData = initDeviceData()
 
