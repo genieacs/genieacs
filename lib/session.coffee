@@ -1229,7 +1229,9 @@ processDeclarations = (sessionContext, allDeclareTimestamps, allDeclareAttribute
           children[child] = children[child].concat(children['*'])
         func(leafParam, leafIsObject, leafTimestamp, children[child])
 
-  func(root, 1, 0, paths)
+  if allDeclareTimestamps.size or allDeclareAttributeTimestamps.size or allDeclareAttributeValues.size
+    func(root, 1, 0, paths)
+
   return virtualParameterDeclarations
 
 
