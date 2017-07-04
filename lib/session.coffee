@@ -1049,15 +1049,20 @@ generateGetVirtualParameterProvisions = (sessionContext, virtualParameterDeclara
   provisions = null
   for declaration in virtualParameterDeclarations
     if declaration[1]
-      provisions ?= []
       currentTimestamps = {}
       currentValues = {}
+      dec = {}
       attrs = sessionContext.deviceData.attributes.get(declaration[0])
+      for k, v of declaration[1]
+        continue if k != 'value' and k != 'writable'
+        if not (v < attrs[k][0])
+          dec[k] = v
       for k, v of attrs
         currentTimestamps[k] = v[0]
         currentValues[k] = v[1]
-      provisions.push([declaration[0][1], declaration[1], {}, currentTimestamps, currentValues])
-      delete declaration[1]
+      if (Object.keys(dec).length)
+        provisions ?= []
+        provisions.push([declaration[0][1], dec, {}, currentTimestamps, currentValues])
 
   return provisions
 
