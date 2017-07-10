@@ -1052,10 +1052,10 @@ generateGetVirtualParameterProvisions = (sessionContext, virtualParameterDeclara
       currentTimestamps = {}
       currentValues = {}
       dec = {}
-      attrs = sessionContext.deviceData.attributes.get(declaration[0])
+      attrs = sessionContext.deviceData.attributes.get(declaration[0]) or {}
       for k, v of declaration[1]
         continue if k != 'value' and k != 'writable'
-        if not (v < attrs[k][0])
+        if not attrs[k] or v > attrs[k][0]
           dec[k] = v
       for k, v of attrs
         currentTimestamps[k] = v[0]
