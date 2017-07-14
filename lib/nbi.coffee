@@ -330,6 +330,11 @@ listener = (request, response) ->
         if request.method == 'DELETE'
           db.tasksCollection.findOne({'_id' : taskId}, {'device' : 1}, (err, task) ->
             return throwError(err, response) if err
+            if not task?
+              response.writeHead(404)
+              response.end("Task not found")
+              return
+
             deviceId = task.device
             db.tasksCollection.remove({'_id' : taskId}, (err) ->
               return throwError(err, response) if err
