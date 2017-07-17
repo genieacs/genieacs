@@ -41,7 +41,9 @@ server = null
 
 exit = () ->
   setTimeout(() ->
-    process.exit(1)
+    extensions.killAll(() ->
+      process.exit(1)
+    )
   , 30000).unref()
 
   cluster.worker?.disconnect()
