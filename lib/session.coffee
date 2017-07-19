@@ -1439,7 +1439,7 @@ rpcResponse = (sessionContext, id, rpcRes, callback) ->
         return callback(err) if err
 
         if root.length == 0
-          for n in ['DeviceID', 'Events', 'Tags', 'Reboot', 'FactoryReset', 'VirtualParameters']
+          for n in ['DeviceID', 'Events', 'Tags', 'Reboot', 'FactoryReset', 'VirtualParameters', 'Downloads']
             if p = sessionContext.deviceData.paths.get([n])
               if sessionContext.deviceData.attributes.has(p)
                 sessionContext.deviceData.timestamps.set(p, timestamp)
