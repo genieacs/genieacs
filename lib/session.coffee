@@ -698,13 +698,6 @@ rpcRequest = (sessionContext, _declarations, callback) ->
           toClear = device.set(sessionContext.deviceData, p, timestamp, {object: [timestamp, false], writable: [timestamp, true], value: [timestamp, [true, 'xsd:boolean']]}, toClear)
         else if c? and not v
           toClear = device.set(sessionContext.deviceData, p, timestamp, toClear)
-          noMoreTags = true
-          for p in sessionContext.deviceData.paths.find(['Tags', '*'], false, true)
-            if sessionContext.deviceData.attributes.has(p)
-              noMoreTags = false
-              break
-          if noMoreTags
-            toClear = device.set(sessionContext.deviceData, ['Tags'], timestamp, null, toClear)
       )
 
       # Downloads

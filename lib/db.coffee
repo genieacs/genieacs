@@ -333,8 +333,9 @@ fetchDevice = (id, timestamp, patterns, callback) ->
               {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [v, 'xsd:string']]}])
           delete device[k]
         when '_tags'
-          res.push([['Tags'], timestamp,
-            {object: [timestamp, 1], writable: [timestamp, 0]}])
+          if v.length
+            res.push([['Tags'], timestamp,
+              {object: [timestamp, 1], writable: [timestamp, 0]}])
           for t in v
             t = t.replace(/[^a-zA-Z0-9\-]+/g, '_')
             res.push([['Tags', t], timestamp,
