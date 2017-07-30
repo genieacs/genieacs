@@ -37,7 +37,7 @@ MAX_CYCLES = 4
 
 throwError = (err, httpResponse) ->
   if httpResponse
-    delete currentSessions.delete(httpResponse.connection)
+    currentSessions.delete(httpResponse.connection)
     httpResponse.writeHead(500, {'Connection' : 'close'})
     httpResponse.end("#{err.name}: #{err.message}")
 
