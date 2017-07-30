@@ -506,7 +506,7 @@ runDeclarations = (sessionContext, declarations) ->
             attrTrackers.push(k)
             cur[k] = Math.max(v, cur[k] or 0)
 
-        device.track(sessionContext.deviceData, p, 'prerequisite', false, null, true, attrTrackers)
+        device.track(sessionContext.deviceData, p, 'prerequisite', attrTrackers)
 
       unpacked = device.unpack(sessionContext.deviceData, path)
       for u in unpacked
@@ -538,7 +538,7 @@ runDeclarations = (sessionContext, declarations) ->
           for k, v of declaration[4]
             cur[k] = v
 
-      device.track(sessionContext.deviceData, path, 'prerequisite', false, null, true)
+      device.track(sessionContext.deviceData, path, 'prerequisite')
 
     if declaration[3]?
       if Array.isArray(declaration[3])
@@ -602,6 +602,14 @@ rpcRequest = (sessionContext, _declarations, callback) ->
       if fault
         fault.timestamp = sessionContext.timestamp
         return callback(null, fault)
+
+      # Enforce max clear timestamp
+      for c in toClear
+        if c[1] > sessionContext.timestamp
+          c[1] = sessionContext.timestamp
+        for k, v of c[2]
+          if v > sessionContext.timestamp
+            c[2] = sessionContext.timestamp
 
       sessionContext.declarations.push(decs)
       sessionContext.provisionsRet[inception] = ret
@@ -1307,14 +1315,20 @@ clear = (sessionContext, toClear, callback) ->
   MAX_DEPTH = config.get('MAX_DEPTH', sessionContext.deviceId)
 
   toClear.forEach((c) ->
-    loadPath(sessionContext, c[0], ((1 << c[0].length) - 1) ^ ((1 << MAX_DEPTH) - 1))
+    if c[1]
+      p = c[0].slice(0, -1) # in order to include superset
+      loadPath(sessionContext, p, ((1 << p.length) - 1) ^ ((1 << MAX_DEPTH) - 1))
+    else if (c[2] and c[2].object)
+      loadPath(sessionContext, c[0], (((1 << c[0].length) - 1) >> 1) ^ ((1 << MAX_DEPTH) - 1))
+    else
+      loadPath(sessionContext, c[0], (1 << c[0].length) >> 1)
   )
 
   loadParameters(sessionContext, (err) ->
     return callback(err) if err
 
     toClear.forEach((c) ->
-      device.clear(sessionContext.deviceData, c[0], c[1], c[2])
+      device.clear(sessionContext.deviceData, c[0], c[1], c[2], c[3])
     )
     return callback()
   )
