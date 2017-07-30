@@ -788,6 +788,9 @@ rpcRequest = (sessionContext, _declarations, callback) ->
   rev = sessionContext.revisions[sessionContext.revisions.length - 1] or 0
   sessionContext.deviceData.timestamps.collapse(rev + 1)
   sessionContext.deviceData.attributes.collapse(rev + 1)
+  sessionContext.deviceData.timestamps.revision = rev + 1
+  sessionContext.deviceData.attributes.revision = rev + 1
+
   for k of sessionContext.extensionsCache
     if rev < Number(k.split(':', 1)[0])
       delete sessionContext.extensionsCache[k]
