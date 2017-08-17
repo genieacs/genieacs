@@ -283,7 +283,8 @@ listener = (request, response) ->
                     response.writeHead(202, err.message, {'Content-Type' : 'application/json'})
                     response.end(JSON.stringify(task))
                   else
-                    apiFunctions.watchTask(deviceId, task._id, config.get('DEVICE_ONLINE_THRESHOLD', deviceId), (err, status) ->
+                    taskTimeout = urlParts.query.timeout? and parseInt(urlParts.query.timeout) or config.get('DEVICE_ONLINE_THRESHOLD', deviceId)
+                    apiFunctions.watchTask(deviceId, task._id, taskTimeout, (err, status) ->
                       return throwError(err, response) if err
 
                       if status is 'timeout'
