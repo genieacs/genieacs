@@ -705,7 +705,7 @@ rpcRequest = (sessionContext, _declarations, callback) ->
         if v and not c?
           toClear = device.set(sessionContext.deviceData, p, timestamp, {object: [timestamp, false], writable: [timestamp, true], value: [timestamp, [true, 'xsd:boolean']]}, toClear)
         else if c? and not v
-          toClear = device.set(sessionContext.deviceData, p, timestamp, toClear)
+          toClear = device.set(sessionContext.deviceData, p, timestamp, null, toClear)
       )
 
       # Downloads
