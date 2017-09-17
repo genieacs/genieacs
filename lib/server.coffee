@@ -39,6 +39,30 @@ onConnection = require("./#{service}").onConnection
 
 server = null
 
+closeServer = (timeout, callback) ->
+  return callback() if not server
+
+  setTimeout(() ->
+    return if not callback
+
+    # Ignore HTTP requests from connection that may still be open
+    server.removeListener('request', listener)
+    server.setTimeout(1)
+
+    cb = callback
+    callback = null
+    setTimeout(cb, 1000)
+  , timeout).unref()
+
+  server.close(() ->
+    return if not callback
+
+    cb = callback
+    callback = null
+    cb()
+  )
+
+
 exit = () ->
   setTimeout(() ->
     extensions.killAll(() ->
@@ -48,14 +72,7 @@ exit = () ->
 
   cluster.worker?.disconnect()
 
-  if not server
-    db.disconnect()
-    cache.disconnect()
-    extensions.killAll()
-    logger.close()
-    return
-
-  server.close(() ->
+  closeServer(20000, () ->
     db.disconnect()
     cache.disconnect()
     extensions.killAll()
