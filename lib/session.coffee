@@ -548,6 +548,7 @@ runDeclarations = (sessionContext, declarations) ->
 
       parent = common.addPathMeta(path.slice(0, -1))
 
+      keys = null
       if Array.isArray(path[path.length - 1])
         keys = {}
         for p, i in path[path.length - 1] by 2
@@ -1287,6 +1288,9 @@ processInstances = (sessionContext, parent, parameters, keys, minInstances, maxI
       instancesToDelete.add(p)
     else if counter <= minInstances
       instancesToDelete.delete(p)
+
+  # Key is null if deleting a particular instance rather than use alias
+  return if not keys
 
   superset = instancesToCreate.superset(keys)
   for inst in superset
