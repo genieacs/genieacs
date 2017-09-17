@@ -476,6 +476,21 @@ runDeclarations = (sessionContext, declarations) ->
 
   allVirtualParameters = virtualParametersCache.get(sessionContext)
 
+  mergeAttributeTimestamps = (p, attrs) ->
+    if cur = allDeclareAttributeTimestamps.get(p)
+      cur = Object.assign({}, cur)
+      cur[k] = Math.max(v, cur[k] or 0) for k, v of attrs
+      allDeclareAttributeTimestamps.set(p, cur)
+    else
+      allDeclareAttributeTimestamps.set(p, attrs)
+
+  mergeAttributeValues = (p, attrs) ->
+    if cur = allDeclareAttributeValues.get(p)
+      cur = Object.assign({}, cur, attrs)
+      allDeclareAttributeValues.set(p, cur)
+    else
+      allDeclareAttributeValues.set(p, attrs)
+
   for declaration, i in declarations
     path = common.addPathMeta(declaration[0])
     unpacked = null
@@ -498,47 +513,31 @@ runDeclarations = (sessionContext, declarations) ->
       for ad in aliasDecs
         p = sessionContext.deviceData.paths.add(ad[0])
         allDeclareTimestamps.set(p, Math.max(ad[1] or 1, allDeclareTimestamps.get(p) or 0))
-        attrTrackers = []
+        attrTrackers = null
         if ad[2]
-          cur = allDeclareAttributeTimestamps.get(p)
-          allDeclareAttributeTimestamps.set(p, cur = {}) if not cur
-          for k, v of ad[2]
-            attrTrackers.push(k)
-            cur[k] = Math.max(v, cur[k] or 0)
-
+          attrTrackers = Object.keys(ad[2])
+          mergeAttributeTimestamps(p, ad[2])
         device.track(sessionContext.deviceData, p, 'prerequisite', attrTrackers)
 
       unpacked = device.unpack(sessionContext.deviceData, path)
       for u in unpacked
         allDeclareTimestamps.set(u, Math.max(declaration[1] or 1, allDeclareTimestamps.get(u) or 0))
         if declaration[2]
-          cur = allDeclareAttributeTimestamps.get(u)
-          allDeclareAttributeTimestamps.set(u, cur = {}) if not cur
-          for k, v of declaration[2]
-            cur[k] = Math.max(v, cur[k] or 0)
-
-        if declaration[4]
-          cur = allDeclareAttributeValues.get(u)
-          allDeclareAttributeValues.set(u, cur = {}) if not cur
-          for k, v of declaration[4]
-            cur[k] = v
+          mergeAttributeTimestamps(u, declaration[2])
     else
       path = sessionContext.deviceData.paths.add(path)
       allDeclareTimestamps.set(path, Math.max(declaration[1] or 1, allDeclareTimestamps.get(path) or 0))
       if declaration[2]
-        cur = allDeclareAttributeTimestamps.get(path)
-        allDeclareAttributeTimestamps.set(path, cur = {}) if not cur
-        for k, v of declaration[2]
-          cur[k] = Math.max(v, cur[k] or 0)
-
-      if declaration[4]
-        if declaration[4]
-          cur = allDeclareAttributeValues.get(path)
-          allDeclareAttributeValues.set(path, cur = {}) if not cur
-          for k, v of declaration[4]
-            cur[k] = v
-
+        mergeAttributeTimestamps(path, declaration[2])
       device.track(sessionContext.deviceData, path, 'prerequisite')
+
+    if declaration[4]
+      if path.alias | path.wildcard
+        unpacked ?= device.unpack(sessionContext.deviceData, path)
+        for u in unpacked
+          mergeAttributeValues(u, declaration[4])
+      else
+        mergeAttributeValues(path, declaration[4])
 
     if declaration[3]?
       if Array.isArray(declaration[3])
@@ -1113,8 +1112,8 @@ processDeclarations = (sessionContext, allDeclareTimestamps, allDeclareAttribute
     currentPath = paths[0]
     children = {}
     declareTimestamp = 0
-    declareAttributeTimestamps = {}
-    declareAttributeValues = {}
+    declareAttributeTimestamps = null
+    declareAttributeValues = null
 
     currentTimestamp = 0
     currentAttributes = null
@@ -1138,12 +1137,14 @@ processDeclarations = (sessionContext, allDeclareTimestamps, allDeclareAttribute
 
       if currentPath.wildcard == 0
         if attrs = allDeclareAttributeTimestamps.get(path)
-          for attrName of attrs
-            declareAttributeTimestamps[attrName] = Math.max(attrs[attrName], declareAttributeTimestamps[attrName] or 0)
+          if declareAttributeTimestamps
+            delcareAttributeTimestamps = Object.assign({}, declareAttributeTimestamps)
+            declareAttributeTimestamps[k] = Math.max(v, attrs[k] or 0) for k, v of attrs
+          else
+            declareAttributeTimestamps = attrs
 
-          if attrs = allDeclareAttributeValues.get(path)
-            for attrName of attrs
-              declareAttributeValues[attrName] = attrs[attrName]
+        if attrs = allDeclareAttributeValues.get(path)
+          declareAttributeValues = attrs
 
     if currentAttributes
       leafParam = currentPath
@@ -1156,11 +1157,11 @@ processDeclarations = (sessionContext, allDeclareTimestamps, allDeclareAttribute
     switch (if currentPath[0] != '*' then currentPath[0] else leafParam[0])
       when 'Reboot'
         if currentPath.length == 1
-          if declareAttributeValues.value?
+          if declareAttributeValues?.value?
             syncState.reboot = +(new Date(declareAttributeValues.value[0]))
       when 'FactoryReset'
         if currentPath.length == 1
-          if declareAttributeValues.value?
+          if declareAttributeValues?.value?
             syncState.factoryReset = +(new Date(declareAttributeValues.value[0]))
       when 'Tags'
         if currentPath.length == 2 and currentPath.wildcard == 0 and declareAttributeValues?.value?
@@ -1168,7 +1169,7 @@ processDeclarations = (sessionContext, allDeclareTimestamps, allDeclareAttribute
       when 'Events', 'DeviceID' then
         # Do nothing
       when 'Downloads'
-        if currentPath.length == 3 and currentPath.wildcard == 0 and declareAttributeValues.value?
+        if currentPath.length == 3 and currentPath.wildcard == 0 and declareAttributeValues?.value?
           if currentPath[2] == 'Download'
             syncState.downloadsDownload.set(currentPath, declareAttributeValues.value[0])
           else
@@ -1182,14 +1183,12 @@ processDeclarations = (sessionContext, allDeclareTimestamps, allDeclareAttribute
           if currentPath.wildcard == 0
             if declareAttributeTimestamps
               for attrName of declareAttributeTimestamps
-                if declareAttributeTimestamps[attrName] <= currentAttributes?[attrName]?[0]
-                  delete declareAttributeTimestamps[attrName]
+                if not (declareAttributeTimestamps[attrName] <= currentAttributes?[attrName]?[0])
+                  d ?= [currentPath]
+                  d[1] ?= {}
+                  d[1][attrName] = declareAttributeTimestamps[attrName]
 
-              if Object.keys(declareAttributeTimestamps).length
-                d ?= [currentPath]
-                d[1] = declareAttributeTimestamps
-
-            if Object.keys(declareAttributeValues).length
+            if declareAttributeValues
               d ?= [currentPath]
               d[2] = declareAttributeValues
 
@@ -1223,7 +1222,7 @@ processDeclarations = (sessionContext, allDeclareTimestamps, allDeclareAttribute
               else
                 syncState.refreshAttributes[attrName].add(currentPath)
 
-          if declareAttributeValues.value?
+          if declareAttributeValues?.value?
             syncState.spv.set(currentPath, declareAttributeValues.value)
 
     for child of children
