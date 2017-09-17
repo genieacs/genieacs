@@ -66,7 +66,8 @@ exit = () ->
 process.on('uncaughtException', (err) ->
   logger.error({
     message: 'Uncaught exception'
-    exception: err
+    exception: err,
+    pid: process.pid
   })
   exit()
 )
