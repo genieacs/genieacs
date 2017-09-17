@@ -1599,19 +1599,14 @@ serialize = (sessionContext, callback) ->
 
     deviceData.push(e)
 
-  oldDeviceData = sessionContext.deviceData
-  oldSyncState = sessionContext.syncState
-  oldToLoad = sessionContext.toLoad
-
+  sessionContext = Object.assign({}, sessionContext)
   sessionContext.deviceData = deviceData
   delete sessionContext.syncState
   delete sessionContext.toLoad
+  delete sessionContext.httpRequest
+  delete sessionContext.httpResponse
 
   sessionContextString = JSON.stringify(sessionContext)
-
-  sessionContext.deviceData = oldDeviceData
-  sessionContext.syncState = oldSyncState
-  sessionContext.toLoad = oldToLoad
 
   return callback(null, sessionContextString)
 

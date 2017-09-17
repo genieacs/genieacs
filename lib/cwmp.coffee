@@ -67,14 +67,15 @@ writeResponse = (sessionContext, res) ->
       res.headers['Content-Length'] = data.length
       sessionContext.httpResponse.writeHead(res.code, res.headers)
       sessionContext.httpResponse.end(data)
+      delete sessionContext.httpRequest
+      delete sessionContext.httpResponse
     )
   else
     res.headers['Content-Length'] = res.data.length
     sessionContext.httpResponse.writeHead(res.code, res.headers)
     sessionContext.httpResponse.end(res.data)
-
-  delete sessionContext.httpRequest
-  delete sessionContext.httpResponse
+    delete sessionContext.httpRequest
+    delete sessionContext.httpResponse
 
 
 recordFault = (sessionContext, fault, provisions, channels) ->
@@ -608,8 +609,6 @@ onConnection = (socket) ->
   socket.on('close', () ->
     sessions = currentSessions.get(socket)
     for sessionId, sessionContext of sessions
-      delete sessionContext.httpRequest
-      delete sessionContext.httpResponse
       session.serialize(sessionContext, (err, sessionContextString) ->
         return throwError(err) if err
         # TODO don't set if process is shutting down
