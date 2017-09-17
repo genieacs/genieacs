@@ -64,6 +64,7 @@ options = {
   COOKIES_PATH : {type : 'string'},
   LOG_FORMAT : {type : 'string', default : 'simple'},
   ACCESS_LOG_FORMAT : {type : 'string', default : ''},
+  MAX_CONCURRENT_REQUESTS : {type : 'int', default: 20},
 
   # XML configuration
   XML_RECOVER : {type : 'bool', default : false},

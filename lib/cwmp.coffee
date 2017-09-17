@@ -34,12 +34,20 @@ logger = require './logger'
 
 MAX_CYCLES = 4
 
+MAX_CONCURRENT_REQUESTS = config.get('MAX_CONCURRENT_REQUESTS')
+stats = {
+  concurrentRequests: 0
+  totalRequests: 0
+  droppedRequests: 0
+  initiatedSessions: 0
+}
 
 throwError = (err, httpResponse) ->
   if httpResponse
     currentSessions.delete(httpResponse.connection)
     httpResponse.writeHead(500, {'Connection' : 'close'})
     httpResponse.end("#{err.name}: #{err.message}")
+    stats.concurrentRequests -= 1
 
   throw err
 
@@ -69,6 +77,7 @@ writeResponse = (sessionContext, res) ->
       sessionContext.httpResponse.end(data)
       delete sessionContext.httpRequest
       delete sessionContext.httpResponse
+      stats.concurrentRequests -= 1
     )
   else
     res.headers['Content-Length'] = res.data.length
@@ -76,6 +85,7 @@ writeResponse = (sessionContext, res) ->
     sessionContext.httpResponse.end(res.data)
     delete sessionContext.httpRequest
     delete sessionContext.httpResponse
+    stats.concurrentRequests -= 1
 
 
 recordFault = (sessionContext, fault, provisions, channels) ->
@@ -575,12 +585,7 @@ sendAcsRequest = (sessionContext, id, acsRequest) ->
   writeResponse(sessionContext, res)
 
 
-getSession = (httpRequest, callback) ->
-  # Separation by comma is important as some devices don't comform to standard
-  COOKIE_REGEX = /\s*([a-zA-Z0-9\-_]+?)\s*=\s*"?([a-zA-Z0-9\-_]*?)"?\s*(,|;|$)/g
-  while match = COOKIE_REGEX.exec(httpRequest.headers.cookie)
-    sessionId = match[2] if match[1] == 'session'
-
+getSession = (httpRequest, sessionId, callback) ->
   return callback() if not sessionId?
 
   sessionContext = currentSessions.get(httpRequest.connection)?[sessionId]
@@ -617,6 +622,21 @@ onConnection = (socket) ->
         )
       )
   )
+
+setInterval(() ->
+  if stats.droppedRequests
+    logger.warn({
+      message: 'Worker overloaded'
+      droppedRequests: stats.droppedRequests
+      totalRequests: stats.totalRequests
+      initiatedSessions: stats.initiatedSessions
+      pid: process.pid
+    })
+
+  stats.totalRequests = 0
+  stats.droppedRequests = 0
+  stats.initiatedSessions = 0
+, 10000).unref()
 
 
 getDueTasksAndFaultsAndOperations = (deviceId, timestamp, callback) ->
@@ -682,9 +702,23 @@ cacheDueTasksAndFaultsAndOperations = (deviceId, tasks, faults, operations, cach
 
 
 listener = (httpRequest, httpResponse) ->
+  stats.totalRequests += 1
   if httpRequest.method != 'POST'
     httpResponse.writeHead 405, {'Allow': 'POST'}
     httpResponse.end('405 Method Not Allowed')
+    return
+
+  sessionId = null
+  # Separation by comma is important as some devices don't comform to standard
+  COOKIE_REGEX = /\s*([a-zA-Z0-9\-_]+?)\s*=\s*"?([a-zA-Z0-9\-_]*?)"?\s*(,|;|$)/g
+  while match = COOKIE_REGEX.exec(httpRequest.headers.cookie)
+    sessionId = match[2] if match[1] == 'session'
+
+  # If overloaded, ask CPE to retry in 60 seconds
+  if not sessionId and stats.concurrentRequests > MAX_CONCURRENT_REQUESTS
+    httpResponse.writeHead(503, {'Retry-after': 60})
+    httpResponse.end('503 Service Unavailable')
+    stats.droppedRequests += 1
     return
 
   if httpRequest.headers['content-encoding']?
@@ -700,6 +734,7 @@ listener = (httpRequest, httpResponse) ->
   else
     stream = httpRequest
 
+  stats.concurrentRequests += 1
   chunks = []
   bytes = 0
 
@@ -721,15 +756,18 @@ listener = (httpRequest, httpResponse) ->
   stream.on('end', () ->
     rpc = null
     parseWarnings = []
-    getSession(httpRequest, f = (err, sessionContext) ->
+    getSession(httpRequest, sessionId, f = (err, sessionContext) ->
       return throwError(err, httpResponse) if err
+
       rpc ?= soap.request(httpRequest, sessionContext?.cwmpVersion, parseWarnings)
       if not sessionContext?
         if rpc.cpeRequest?.name isnt 'Inform'
           httpResponse.writeHead(400)
           httpResponse.end('Session is expired')
+          stats.concurrentRequests -= 1
           return
 
+        stats.initiatedSessions += 1
         deviceId = common.generateDeviceId(rpc.cpeRequest.deviceId)
         return session.init(deviceId, rpc.cwmpVersion, rpc.sessionTimeout ? config.get('SESSION_TIMEOUT', deviceId), (err, sessionContext) ->
           return throwError(err, httpResponse) if err
