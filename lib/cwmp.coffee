@@ -734,7 +734,6 @@ listener = (httpRequest, httpResponse) ->
   else
     stream = httpRequest
 
-  stats.concurrentRequests += 1
   chunks = []
   bytes = 0
 
@@ -754,6 +753,7 @@ listener = (httpRequest, httpResponse) ->
     return body
 
   stream.on('end', () ->
+    stats.concurrentRequests += 1
     rpc = null
     parseWarnings = []
     getSession(httpRequest, sessionId, f = (err, sessionContext) ->
