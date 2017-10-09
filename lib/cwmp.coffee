@@ -889,7 +889,21 @@ listener = (httpRequest, httpResponse) ->
         return
 
       parseWarnings = []
-      rpc = soap.request(body, sessionContext?.cwmpVersion, parseWarnings)
+      try
+        rpc = soap.request(body, sessionContext?.cwmpVersion, parseWarnings)
+      catch err
+        msg = {
+          message: 'XML parse error'
+          parseError: err.message.trim()
+          sessionContext: sessionContext or {}
+        }
+        msg.sessionContext.httpRequest = httpRequest
+        msg.sessionContext.httpResponse = httpResponse
+        logger.accessError(msg)
+        httpResponse.writeHead(400, {'Connection': 'close'})
+        httpResponse.end(err.message)
+        stats.concurrentRequests -= 1
+        return
 
       return parsedRpc(sessionContext, rpc, parseWarnings) if sessionContext
 
