@@ -52,12 +52,36 @@ throwError = (err, httpResponse) ->
   throw err
 
 
-writeResponse = (sessionContext, res) ->
+writeResponse = (sessionContext, res, close) ->
+  # Close connection after last request in session
+  res.headers['Connection'] = 'close' if close
+
   if config.get('DEBUG', sessionContext.deviceId)
     dump = "# RESPONSE #{new Date(Date.now())}\n" + JSON.stringify(res.headers) + "\n#{res.data}\n\n"
     require('fs').appendFile("./debug/#{sessionContext.deviceId}.dump", dump, (err) ->
       throwError(err) if err
     )
+
+  finish = () ->
+    stats.concurrentRequests -= 1
+    if sessionContext.httpRequest.connection.destroyed
+      logger.accessError({
+        sessionContext: sessionContext
+        message: 'Connection dropped'
+      })
+    else if close
+      endSession(sessionContext, (err, isNew) ->
+        return throwError(err) if err
+
+        if isNew
+          logger.accessInfo({
+            sessionContext: sessionContext
+            message: 'New device registered'
+          })
+      )
+    else
+      sessionContext.lastActivity = Date.now()
+      currentSessions.set(sessionContext.httpRequest.connection, sessionContext)
 
   # respond using the same content-encoding as the request
   if sessionContext.httpRequest.headers['content-encoding']? and res.data.length > 0
@@ -75,17 +99,13 @@ writeResponse = (sessionContext, res) ->
       res.headers['Content-Length'] = data.length
       sessionContext.httpResponse.writeHead(res.code, res.headers)
       sessionContext.httpResponse.end(data)
-      delete sessionContext.httpRequest
-      delete sessionContext.httpResponse
-      stats.concurrentRequests -= 1
+      finish()
     )
   else
     res.headers['Content-Length'] = res.data.length
     sessionContext.httpResponse.writeHead(res.code, res.headers)
     sessionContext.httpResponse.end(res.data)
-    delete sessionContext.httpRequest
-    delete sessionContext.httpResponse
-    stats.concurrentRequests -= 1
+    finish()
 
 
 recordFault = (sessionContext, fault, provisions, channels) ->
@@ -112,7 +132,7 @@ recordFault = (sessionContext, fault, provisions, channels) ->
     sessionContext.faultsTouched ?= {}
     sessionContext.faultsTouched[channel] = true
 
-    logger.accessError({
+    logger.accessWarn({
       sessionContext: sessionContext
       message: 'Channel has faulted'
       fault: fault
@@ -452,8 +472,6 @@ nextRpc = (sessionContext) ->
 
 
 endSession = (sessionContext, callback) ->
-  delete currentSessions.get(sessionContext.httpRequest.connection)[sessionContext.sessionId]
-
   saveCache = sessionContext.cacheUntil?
 
   counter = 3
@@ -534,17 +552,7 @@ endSession = (sessionContext, callback) ->
 
 sendAcsRequest = (sessionContext, id, acsRequest) ->
   if not acsRequest?
-    return endSession(sessionContext, (err, isNew) ->
-      return throwError(err, sessionContext.httpResponse) if err
-
-      if isNew
-        logger.accessInfo({
-          sessionContext: sessionContext
-          message: 'New device registered'
-        })
-
-      writeResponse(sessionContext, soap.response(null))
-    )
+    return writeResponse(sessionContext, soap.response(null), true)
 
   if acsRequest.name is 'Download'
     if not acsRequest.url?
@@ -585,42 +593,66 @@ sendAcsRequest = (sessionContext, id, acsRequest) ->
   writeResponse(sessionContext, res)
 
 
-getSession = (httpRequest, sessionId, callback) ->
-  return callback() if not sessionId?
+getSession = (connection, sessionId, callback) ->
+  sessionContext = currentSessions.get(connection)
 
-  sessionContext = currentSessions.get(httpRequest.connection)?[sessionId]
-
-  if sessionContext?
+  if sessionContext
+    currentSessions.delete(connection)
     return callback(null, sessionContext)
+
+  return callback() if not sessionId
 
   setTimeout(() ->
     cache.pop("session_#{sessionId}", (err, sessionContextString) ->
       return callback(err) if err or not sessionContextString
-      session.deserialize(sessionContextString, (err, sessionContext) ->
-        return callback(err) if err
-        currentSessions.get(httpRequest.connection)[sessionId] = sessionContext
-        callback(null, sessionContext)
-      )
+      session.deserialize(sessionContextString, callback)
     )
-  , 100
-  )
+  , 100)
 
 
 currentSessions = new WeakMap()
 
 # When socket closes, store active sessions in cache
 onConnection = (socket) ->
-  currentSessions.set(socket, {})
+  # The property remoteAddress may be undefined after the connection is
+  # closed, unless we read it at least once (caching?)
+  socket.remoteAddress
+
   socket.on('close', () ->
-    sessions = currentSessions.get(socket)
-    for sessionId, sessionContext of sessions
-      session.serialize(sessionContext, (err, sessionContextString) ->
+    sessionContext = currentSessions.get(socket)
+    return if not sessionContext
+    currentSessions.delete(socket)
+    now = Date.now()
+
+    lastActivity = sessionContext.lastActivity
+    timeoutMsg = logger.flatten({
+      sessionContext: sessionContext
+      message: 'Session timeout'
+      sessionTimestamp: sessionContext.timestamp
+    })
+
+    timeout = (sessionContext.lastActivity + sessionContext.timeout * 1000) - now
+    if timeout <= 0
+      return logger.accessError(timeoutMsg)
+
+    setTimeout(() ->
+      cache.get("session_#{sessionContext.sessionId}", (err, sessionContextString) ->
         return throwError(err) if err
-        # TODO don't set if process is shutting down
-        cache.set("session_#{sessionId}", sessionContextString, sessionContext.timeout, (err) ->
+        return if not sessionContextString
+        session.deserialize(sessionContextString, (err, sessionContext) ->
           return throwError(err) if err
+          if sessionContext.lastActivity == lastActivity
+            logger.accessError(timeoutMsg)
         )
       )
+    , timeout + 1000).unref()
+
+    session.serialize(sessionContext, (err, sessionContextString) ->
+      return throwError(err) if err
+      cache.set("session_#{sessionContext.sessionId}", sessionContextString, Math.ceil(timeout / 1000) + 3, (err) ->
+        return throwError(err) if err
+      )
+    )
   )
 
 setInterval(() ->
@@ -701,10 +733,73 @@ cacheDueTasksAndFaultsAndOperations = (deviceId, tasks, faults, operations, cach
   cache.set("#{deviceId}_tasks_faults_operations", JSON.stringify(v), ttl, callback)
 
 
+processRequest = (sessionContext, rpc) ->
+  if rpc.cpeRequest?
+    if rpc.cpeRequest.name is 'Inform'
+      logger.accessInfo({
+        sessionContext: sessionContext
+        message: 'Inform'
+        rpc: rpc
+      })
+      inform(sessionContext, rpc)
+    else if rpc.cpeRequest.name is 'TransferComplete'
+      logger.accessInfo({
+        sessionContext: sessionContext
+        message: 'CPE request'
+        rpc: rpc
+      })
+      transferComplete(sessionContext, rpc)
+    else if rpc.cpeRequest.name is 'GetRPCMethods'
+      logger.accessInfo({
+        sessionContext: sessionContext
+        message: 'CPE request'
+        rpc: rpc
+      })
+      res = soap.response({
+        id : rpc.id
+        acsResponse : {name: 'GetRPCMethodsResponse', methodList: ['Inform', 'GetRPCMethods', 'TransferComplete']}
+        cwmpVersion : sessionContext.cwmpVersion
+      })
+      writeResponse(sessionContext, res)
+    else
+      return throwError(new Error('ACS method not supported'), sessionContext.httpResponse)
+  else if rpc.cpeResponse
+    session.rpcResponse(sessionContext, rpc.id, rpc.cpeResponse, (err) ->
+      return throwError(err, sessionContext.httpResponse) if err
+      nextRpc(sessionContext)
+    )
+  else if rpc.cpeFault
+    logger.accessWarn({
+      sessionContext: sessionContext
+      message: 'CPE fault'
+      rpc:rpc
+    })
+    session.rpcFault(sessionContext, rpc.id, rpc.cpeFault, (err, fault) ->
+      return throwError(err, sessionContext.httpResponse) if err
+
+      if fault
+        recordFault(sessionContext, fault)
+        session.clearProvisions(sessionContext)
+      nextRpc(sessionContext)
+    )
+  else # CPE sent empty response
+    session.timeoutOperations(sessionContext, (err, faults, operations) ->
+      return throwError(err, sessionContext.httpResponse) if err
+
+      for fault, i in faults
+        for k, v of operations[i].retries
+          sessionContext.retries[k] = v
+
+        recordFault(sessionContext, fault, operations[i].provisions, operations[i].channels)
+
+      nextRpc(sessionContext)
+    )
+
+
 listener = (httpRequest, httpResponse) ->
   stats.totalRequests += 1
   if httpRequest.method != 'POST'
-    httpResponse.writeHead 405, {'Allow': 'POST'}
+    httpResponse.writeHead 405, {'Allow': 'POST', 'Connection': 'close'}
     httpResponse.end('405 Method Not Allowed')
     return
 
@@ -716,7 +811,7 @@ listener = (httpRequest, httpResponse) ->
 
   # If overloaded, ask CPE to retry in 60 seconds
   if not sessionId and stats.concurrentRequests > MAX_CONCURRENT_REQUESTS
-    httpResponse.writeHead(503, {'Retry-after': 60})
+    httpResponse.writeHead(503, {'Retry-after': 60, 'Connection': 'close'})
     httpResponse.end('503 Service Unavailable')
     stats.droppedRequests += 1
     return
@@ -728,11 +823,18 @@ listener = (httpRequest, httpResponse) ->
       when 'deflate'
         stream = httpRequest.pipe(zlib.createInflate())
       else
-        httpResponse.writeHead(415)
+        httpResponse.writeHead(415, {'Connection': 'close'})
         httpResponse.end('415 Unsupported Media Type')
         return
   else
     stream = httpRequest
+
+  stats.concurrentRequests += 1
+  httpRequest.on('aborted', () ->
+    stats.concurrentRequests -= 1
+    # In some cases event end can be emitted after aborted event
+    httpRequest.removeAllListeners('end')
+  )
 
   chunks = []
   bytes = 0
@@ -742,63 +844,15 @@ listener = (httpRequest, httpResponse) ->
     bytes += chunk.length
   )
 
-  httpRequest.getBody = () ->
-    # Write all chunks into a Buffer
+  stream.on('end', () ->
     body = new Buffer(bytes)
     offset = 0
     chunks.forEach((chunk) ->
       chunk.copy(body, offset, 0, chunk.length)
       offset += chunk.length
     )
-    return body
 
-  stream.on('end', () ->
-    stats.concurrentRequests += 1
-    rpc = null
-    parseWarnings = []
-    getSession(httpRequest, sessionId, f = (err, sessionContext) ->
-      return throwError(err, httpResponse) if err
-
-      rpc ?= soap.request(httpRequest, sessionContext?.cwmpVersion, parseWarnings)
-      if not sessionContext?
-        if rpc.cpeRequest?.name isnt 'Inform'
-          httpResponse.writeHead(400)
-          httpResponse.end('Session is expired')
-          stats.concurrentRequests -= 1
-          return
-
-        stats.initiatedSessions += 1
-        deviceId = common.generateDeviceId(rpc.cpeRequest.deviceId)
-        return session.init(deviceId, rpc.cwmpVersion, rpc.sessionTimeout ? config.get('SESSION_TIMEOUT', deviceId), (err, sessionContext) ->
-          return throwError(err, httpResponse) if err
-
-          sessionContext.sessionId = crypto.randomBytes(8).toString('hex')
-
-          currentSessions.get(httpRequest.connection)[sessionContext.sessionId] = sessionContext
-
-          httpRequest.connection.setTimeout(sessionContext.timeout * 1000)
-
-          getDueTasksAndFaultsAndOperations(deviceId, sessionContext.timestamp, (err, dueTasks, faults, operations, cacheUntil) ->
-            return throwError(err, httpResponse) if err
-            sessionContext.tasks = dueTasks
-            sessionContext.faults = faults
-            sessionContext.retries = {}
-            for k, v of faults
-              sessionContext.retries[k] = v.retries
-            sessionContext.operations = operations
-            sessionContext.cacheUntil = cacheUntil
-
-            # Delete expired faults
-            for k, v of sessionContext.faults
-              if v.expiry >= sessionContext.timestamp
-                delete sessionContext.faults[k]
-                sessionContext.faultsTouched ?= {}
-                sessionContext.faultsTouched[k] = true
-
-            f(null, sessionContext)
-          )
-        )
-
+    parsedRpc = (sessionContext, rpc, parseWarnings) ->
       sessionContext.httpRequest = httpRequest
       sessionContext.httpResponse = httpResponse
 
@@ -808,71 +862,79 @@ listener = (httpRequest, httpResponse) ->
         logger.accessWarn(w)
 
       if config.get('DEBUG', sessionContext.deviceId)
-        dump = "# REQUEST #{new Date(Date.now())}\n" + JSON.stringify(httpRequest.headers) + "\n#{httpRequest.getBody()}\n\n"
+        dump = "# REQUEST #{new Date(Date.now())}\n" + JSON.stringify(httpRequest.headers) + "\n#{body}\n\n"
         require('fs').appendFile("./debug/#{sessionContext.deviceId}.dump", dump, (err) ->
           return throwError(err) if err
         )
 
-      if rpc.cpeRequest?
-        if rpc.cpeRequest.name is 'Inform'
-          logger.accessInfo({
-            sessionContext: sessionContext
-            message: 'Inform'
-            rpc: rpc
-          })
-          inform(sessionContext, rpc)
-        else if rpc.cpeRequest.name is 'TransferComplete'
-          logger.accessInfo({
-            sessionContext: sessionContext
-            message: 'CPE request'
-            rpc: rpc
-          })
-          transferComplete(sessionContext, rpc)
-        else if rpc.cpeRequest.name is 'GetRPCMethods'
-          logger.accessInfo({
-            sessionContext: sessionContext
-            message: 'CPE request'
-            rpc: rpc
-          })
-          res = soap.response({
-            id : rpc.id
-            acsResponse : {name: 'GetRPCMethodsResponse', methodList: ['Inform', 'GetRPCMethods', 'TransferComplete']}
-            cwmpVersion : sessionContext.cwmpVersion
-          })
-          writeResponse(sessionContext, res)
-        else
-          return throwError(new Error('ACS method not supported'), sessionContext.httpResponse)
-      else if rpc.cpeResponse
-        session.rpcResponse(sessionContext, rpc.id, rpc.cpeResponse, (err) ->
-          return throwError(err, sessionContext.httpResponse) if err
-          nextRpc(sessionContext)
+      processRequest(sessionContext, rpc)
+
+    getSession(httpRequest.connection, sessionId, (err, sessionContext) ->
+      return throwError(err, httpResponse) if err
+
+      if sessionContext and (sessionContext.sessionId != sessionId or
+          sessionContext.lastActivity + sessionContext.timeout * 1000 < Date.now())
+        logger.accessError({message: 'Invalid session', sessionContext: sessionContext})
+        httpResponse.writeHead(400, {'Connection': 'close'})
+        httpResponse.end('Invalid session')
+        stats.concurrentRequests -= 1
+        return
+
+      # Check again just in case device included old session ID from the previous session
+      if not sessionContext and stats.concurrentRequests > MAX_CONCURRENT_REQUESTS
+        httpResponse.writeHead(503, {'Retry-after': 60, 'Connection': 'close'})
+        httpResponse.end('503 Service Unavailable')
+        stats.droppedRequests += 1
+        stats.concurrentRequests -= 1
+        return
+
+      parseWarnings = []
+      rpc = soap.request(body, sessionContext?.cwmpVersion, parseWarnings)
+
+      return parsedRpc(sessionContext, rpc, parseWarnings) if sessionContext
+
+      if rpc.cpeRequest?.name isnt 'Inform'
+        msg = {
+          message: 'Invalid session'
+          sessionContext: sessionContext or {}
+        }
+        msg.sessionContext.httpRequest = httpRequest
+        msg.sessionContext.httpResponse = httpResponse
+        logger.accessError(msg)
+        httpResponse.writeHead(400, {'Connection': 'close'})
+        httpResponse.end('Invalid session')
+        stats.concurrentRequests -= 1
+        return
+
+      stats.initiatedSessions += 1
+      deviceId = common.generateDeviceId(rpc.cpeRequest.deviceId)
+      return session.init(deviceId, rpc.cwmpVersion, rpc.sessionTimeout ? config.get('SESSION_TIMEOUT', deviceId), (err, sessionContext) ->
+        return throwError(err, httpResponse) if err
+
+        sessionContext.sessionId = crypto.randomBytes(8).toString('hex')
+        httpRequest.connection.setTimeout(sessionContext.timeout * 1000)
+
+        getDueTasksAndFaultsAndOperations(deviceId, sessionContext.timestamp, (err, dueTasks, faults, operations, cacheUntil) ->
+          return throwError(err, httpResponse) if err
+
+          sessionContext.tasks = dueTasks
+          sessionContext.faults = faults
+          sessionContext.retries = {}
+          for k, v of faults
+            sessionContext.retries[k] = v.retries
+          sessionContext.operations = operations
+          sessionContext.cacheUntil = cacheUntil
+
+          # Delete expired faults
+          for k, v of sessionContext.faults
+            if v.expiry >= sessionContext.timestamp
+              delete sessionContext.faults[k]
+              sessionContext.faultsTouched ?= {}
+              sessionContext.faultsTouched[k] = true
+
+          parsedRpc(sessionContext, rpc, parseWarnings)
         )
-      else if rpc.cpeFault
-        logger.accessWarn({
-          sessionContext: sessionContext
-          message: 'CPE fault'
-          rpc:rpc
-        })
-        session.rpcFault(sessionContext, rpc.id, rpc.cpeFault, (err, fault) ->
-          return throwError(err, sessionContext.httpResponse) if err
-
-          if fault
-            recordFault(sessionContext, fault)
-            session.clearProvisions(sessionContext)
-          nextRpc(sessionContext)
-        )
-      else # CPE sent empty response
-        session.timeoutOperations(sessionContext, (err, faults, operations) ->
-          return throwError(err, sessionContext.httpResponse) if err
-
-          for fault, i in faults
-            for k, v of operations[i].retries
-              sessionContext.retries[k] = v
-
-            recordFault(sessionContext, fault, operations[i].provisions, operations[i].channels)
-
-          nextRpc(sessionContext)
-        )
+      )
     )
   )
 
