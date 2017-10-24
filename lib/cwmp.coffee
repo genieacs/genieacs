@@ -853,9 +853,6 @@ listener = (httpRequest, httpResponse) ->
     )
 
     parsedRpc = (sessionContext, rpc, parseWarnings) ->
-      sessionContext.httpRequest = httpRequest
-      sessionContext.httpResponse = httpResponse
-
       for w in parseWarnings
         w.sessionContext = sessionContext
         w.rpc = rpc;
@@ -872,16 +869,19 @@ listener = (httpRequest, httpResponse) ->
     getSession(httpRequest.connection, sessionId, (err, sessionContext) ->
       return throwError(err, httpResponse) if err
 
-      if sessionContext and (sessionContext.sessionId != sessionId or
-          sessionContext.lastActivity + sessionContext.timeout * 1000 < Date.now())
-        logger.accessError({message: 'Invalid session', sessionContext: sessionContext})
-        httpResponse.writeHead(400, {'Connection': 'close'})
-        httpResponse.end('Invalid session')
-        stats.concurrentRequests -= 1
-        return
+      if sessionContext
+        sessionContext.httpRequest = httpRequest
+        sessionContext.httpResponse = httpResponse
 
-      # Check again just in case device included old session ID from the previous session
-      if not sessionContext and stats.concurrentRequests > MAX_CONCURRENT_REQUESTS
+        if sessionContext.sessionId != sessionId or
+            sessionContext.lastActivity + sessionContext.timeout * 1000 < Date.now()
+          logger.accessError({message: 'Invalid session', sessionContext: sessionContext})
+          httpResponse.writeHead(400, {'Connection': 'close'})
+          httpResponse.end('Invalid session')
+          stats.concurrentRequests -= 1
+          return
+      else if stats.concurrentRequests > MAX_CONCURRENT_REQUESTS
+        # Check again just in case device included old session ID from the previous session
         httpResponse.writeHead(503, {'Retry-after': 60, 'Connection': 'close'})
         httpResponse.end('503 Service Unavailable')
         stats.droppedRequests += 1
@@ -892,14 +892,11 @@ listener = (httpRequest, httpResponse) ->
       try
         rpc = soap.request(body, sessionContext?.cwmpVersion, parseWarnings)
       catch err
-        msg = {
+        logger.accessError({
           message: 'XML parse error'
           parseError: err.message.trim()
-          sessionContext: sessionContext or {}
-        }
-        msg.sessionContext.httpRequest = httpRequest
-        msg.sessionContext.httpResponse = httpResponse
-        logger.accessError(msg)
+          sessionContext: sessionContext or {httpRequest: httpRequest, httpResponse: httpResponse}
+        })
         httpResponse.writeHead(400, {'Connection': 'close'})
         httpResponse.end(err.message)
         stats.concurrentRequests -= 1
@@ -908,13 +905,10 @@ listener = (httpRequest, httpResponse) ->
       return parsedRpc(sessionContext, rpc, parseWarnings) if sessionContext
 
       if rpc.cpeRequest?.name isnt 'Inform'
-        msg = {
+        logger.accessError({
           message: 'Invalid session'
-          sessionContext: sessionContext or {}
-        }
-        msg.sessionContext.httpRequest = httpRequest
-        msg.sessionContext.httpResponse = httpResponse
-        logger.accessError(msg)
+          sessionContext: sessionContext or {httpRequest: httpRequest, httpResponse: httpResponse}
+        })
         httpResponse.writeHead(400, {'Connection': 'close'})
         httpResponse.end('Invalid session')
         stats.concurrentRequests -= 1
@@ -925,6 +919,8 @@ listener = (httpRequest, httpResponse) ->
       return session.init(deviceId, rpc.cwmpVersion, rpc.sessionTimeout ? config.get('SESSION_TIMEOUT', deviceId), (err, sessionContext) ->
         return throwError(err, httpResponse) if err
 
+        sessionContext.httpRequest = httpRequest
+        sessionContext.httpResponse = httpResponse
         sessionContext.sessionId = crypto.randomBytes(8).toString('hex')
         httpRequest.connection.setTimeout(sessionContext.timeout * 1000)
 
