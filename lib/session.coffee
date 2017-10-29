@@ -328,7 +328,7 @@ addProvisions = (sessionContext, channel, provisions) ->
           sessionContext.channels[c] |= (a << j)
 
     for c in channels
-      sessionContext.channels[channel] |= (1 << sessionContext.provisions.length)
+      sessionContext.channels[c] |= (1 << sessionContext.provisions.length)
     sessionContext.provisions.push(provision)
 
 
