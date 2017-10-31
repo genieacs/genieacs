@@ -113,7 +113,7 @@ loadParameters = (sessionContext, callback) ->
 
 generateRpcId = (sessionContext) ->
   return sessionContext.timestamp.toString(16) +
-    sessionContext.cycle.toString(16).slice(-1) +
+    "0#{sessionContext.cycle.toString(16)}".slice(-2) +
     "0#{sessionContext.rpcCount.toString(16)}".slice(-2)
 
 
@@ -641,17 +641,33 @@ rpcRequest = (sessionContext, _declarations, callback) ->
       return rpcRequest(sessionContext, null, callback)
     )
 
-  if sessionContext.rpcCount >= 255 or
-      sessionContext.revisions.length >= 8 or
-      sessionContext.cycle >= 16 or
-      sessionContext.iteration >= MAX_ITERATIONS * (sessionContext.cycle + 1)
-
-    fault = {
-      code: 'endless_cycle'
-      message: 'The provision seems to be repeating indefinitely'
+  if sessionContext.rpcCount >= 255
+    return callback(null, {
+      code: 'too_many_rpcs'
+      message: 'Too many RPC requests'
       timestamp: sessionContext.timestamp
-    }
-    return callback(null, fault)
+    })
+
+  if sessionContext.revisions.length >= 8
+    return callback(null, {
+      code: 'deeply_nested_vparams'
+      message: 'Virtual parameters are referencing other virtual parameters in a deeply nested manner'
+      timestamp: sessionContext.timestamp
+    })
+
+  if sessionContext.cycle >= 255
+    return callback(null, {
+      code: 'too_many_cycles'
+      message: 'Too many provision cycles'
+      timestamp: sessionContext.timestamp
+    })
+
+  if sessionContext.iteration >= MAX_ITERATIONS * (sessionContext.cycle + 1)
+    return callback(null, {
+      code: 'too_many_commits'
+      message: 'Too many commit iterations'
+      timestamp: sessionContext.timestamp
+    })
 
   if (sessionContext.syncState?.virtualParameterDeclarations?.length or 0) < sessionContext.declarations.length
     inception = sessionContext.syncState?.virtualParameterDeclarations?.length or 0

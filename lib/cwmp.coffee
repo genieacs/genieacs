@@ -343,12 +343,13 @@ applyPresets = (sessionContext) ->
           sessionContext.faultsTouched ?= {}
           sessionContext.faultsTouched[channel] = true
 
-      sessionContext.presetCycles = (sessionContext.presetCycles or 0) + 1
+      # Don't increment when processing individual channels (e.g. after fault)
+      sessionContext.presetCycles = (sessionContext.presetCycles or 0) + 1 if not whiteList?
 
       if sessionContext.presetCycles > MAX_CYCLES
         fault = {
-          code: 'endless_cycle'
-          message: 'The provision seems to be repeating indefinitely'
+          code: 'preset_loop'
+          message: 'The presets are stuck in an endless configuration loop'
           timestamp: sessionContext.timestamp
         }
         recordFault(sessionContext, fault)
