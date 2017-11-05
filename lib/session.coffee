@@ -138,11 +138,11 @@ inform = (sessionContext, rpcReq, callback) ->
     params.push([path, timestamp, {object: [timestamp, 0], value: [timestamp, p.slice(1)]}])
 
   params.push([['Events', 'Inform'], timestamp,
-    {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [timestamp, 'xsd:dateTime']]}])
+    {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [sessionContext.timestamp, 'xsd:dateTime']]}])
 
   for e in rpcReq.event
     params.push([['Events', e.replace(' ', '_')], timestamp,
-      {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [timestamp, 'xsd:dateTime']]}])
+      {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [sessionContext.timestamp, 'xsd:dateTime']]}])
 
   # Preload DeviceID params
   loadPath(sessionContext, ['DeviceID', '*'])
@@ -158,7 +158,7 @@ inform = (sessionContext, rpcReq, callback) ->
         {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [sessionContext.deviceId, 'xsd:string']]}])
 
       params.push([['Events', 'Registered'], timestamp,
-        {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [timestamp, 'xsd:dateTime']]}])
+        {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [sessionContext.timestamp, 'xsd:dateTime']]}])
 
     sessionContext.deviceData.timestamps.revision = 1
     sessionContext.deviceData.attributes.revision = 1
@@ -605,16 +605,19 @@ rpcRequest = (sessionContext, _declarations, callback) ->
 
       # Enforce max clear timestamp
       for c in toClear
-        if c[1] > sessionContext.timestamp
-          c[1] = sessionContext.timestamp
+        c[1] = sessionContext.timestamp if c[1] > sessionContext.timestamp
         for k, v of c[2]
-          if v > sessionContext.timestamp
-            c[2] = sessionContext.timestamp
+          c[2][k] = sessionContext.timestamp if v > sessionContext.timestamp
 
       sessionContext.declarations.push(decs)
       sessionContext.provisionsRet[inception] = ret
 
       for d in decs
+        # Enforce max timestamp
+        d[1] = sessionContext.timestamp if d[1] > sessionContext.timestamp
+        for k, v of d[2]
+          d[2][k] = sessionContext.timestamp if v > sessionContext.timestamp
+
         for ad in device.getAliasDeclarations(d[0], 1)
           loadPath(sessionContext, ad[0])
 
@@ -1497,25 +1500,25 @@ rpcResponse = (sessionContext, id, rpcRes, callback) ->
 
     when 'RebootResponse'
       toClear = device.set(sessionContext.deviceData, common.parsePath('Reboot'),
-        timestamp + 1, {value: [timestamp + 1, [timestamp + 1, 'xsd:dateTime']]}, toClear)
+        timestamp + 1, {value: [timestamp + 1, [sessionContext.timestamp, 'xsd:dateTime']]}, toClear)
 
     when 'FactoryResetResponse'
       toClear = device.set(sessionContext.deviceData, common.parsePath('FactoryReset'),
-        timestamp + 1, {value: [timestamp + 1, [timestamp + 1, 'xsd:dateTime']]}, toClear)
+        timestamp + 1, {value: [timestamp + 1, [sessionContext.timestamp, 'xsd:dateTime']]}, toClear)
 
     when 'DownloadResponse'
       toClear = device.set(sessionContext.deviceData, ['Downloads', rpcReq.instance, 'Download'],
-        timestamp + 1, {value: [timestamp + 1, [timestamp + 1, 'xsd:dateTime']]}, toClear)
+        timestamp + 1, {value: [timestamp + 1, [sessionContext.timestamp, 'xsd:dateTime']]}, toClear)
 
       if rpcRes.status == 0
         toClear = device.set(sessionContext.deviceData, ['Downloads', rpcReq.instance, 'LastDownload'],
-          timestamp + 1, {value: [timestamp + 1, [timestamp + 1, 'xsd:dateTime']]}, toClear)
+          timestamp + 1, {value: [timestamp + 1, [sessionContext.timestamp, 'xsd:dateTime']]}, toClear)
         toClear = device.set(sessionContext.deviceData, ['Downloads', rpcReq.instance, 'LastFileType'],
-          timestamp + 1, {value: [timestamp + 1, [rpcReq.fileType, 'xsd:dateTime']]}, toClear)
+          timestamp + 1, {value: [timestamp + 1, [rpcReq.fileType, 'xsd:string']]}, toClear)
         toClear = device.set(sessionContext.deviceData, ['Downloads', rpcReq.instance, 'LastFileName'],
-          timestamp + 1, {value: [timestamp + 1, [rpcReq.fileType, 'xsd:dateTime']]}, toClear)
+          timestamp + 1, {value: [timestamp + 1, [rpcReq.fileType, 'xsd:string']]}, toClear)
         toClear = device.set(sessionContext.deviceData, ['Downloads', rpcReq.instance, 'LastTargetFileName'],
-          timestamp + 1, {value: [timestamp + 1, [rpcReq.fileType, 'xsd:dateTime']]}, toClear)
+          timestamp + 1, {value: [timestamp + 1, [rpcReq.fileType, 'xsd:string']]}, toClear)
 
         toClear = device.set(sessionContext.deviceData, ['Downloads', rpcReq.instance, 'StartTime'],
           timestamp + 1, {value: [timestamp + 1, [+rpcRes.startTime, 'xsd:dateTime']]}, toClear)

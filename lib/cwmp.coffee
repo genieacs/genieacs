@@ -485,7 +485,7 @@ endSession = (sessionContext, callback) ->
   counter = 3
 
   counter += 2
-  db.saveDevice(sessionContext.deviceId, sessionContext.deviceData, sessionContext.new, (err) ->
+  db.saveDevice(sessionContext.deviceId, sessionContext.deviceData, sessionContext.new, sessionContext.timestamp, (err) ->
     if err
       callback(err) if counter & 1
       return counter = 0

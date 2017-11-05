@@ -362,13 +362,17 @@ fetchDevice = (id, timestamp, patterns, callback) ->
   )
 
 
-saveDevice = (deviceId, deviceData, isNew, callback) ->
+saveDevice = (deviceId, deviceData, isNew, sessionTimestamp, callback) ->
   update = {'$set' : {}, '$unset' : {}, '$addToSet' : {}, '$pull' : {}}
 
   iter = deviceData.timestamps.diff()
   while diff = iter.next().value
     continue if diff[0].wildcard != (1 << (diff[0].length - 1))
     continue if diff[0][0] in ['Events', 'DeviceID', 'Tags']
+
+    # Param timestamps may be greater than session timestamp to track revisions
+    if diff[2] > sessionTimestamp
+      diff[2] = sessionTimestamp
 
     if not diff[2]? and diff[1]?
       update['$unset'][diff[0].slice(0, -1).concat('_timestamp').join('.')] = 1
@@ -434,6 +438,10 @@ saveDevice = (deviceId, deviceData, isNew, callback) ->
           continue
 
         for attrName of diff[2]
+          # Param timestamps may be greater than session timestamp to track revisions
+          if diff[2][attrName][0] > sessionTimestamp
+            diff[2][attrName][0] = sessionTimestamp
+
           if diff[2][attrName][1]?
             switch attrName
               when 'value'
