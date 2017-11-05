@@ -573,10 +573,6 @@ rpcRequest = (sessionContext, _declarations, callback) ->
   if sessionContext.rpcRequest?
     return callback(null, null, generateRpcId(sessionContext), sessionContext.rpcRequest)
 
-  if sessionContext.deviceData.changes.has('prerequisite')
-    delete sessionContext.syncState
-    device.clearTrackers(sessionContext.deviceData, 'prerequisite')
-
   if sessionContext.virtualParameters.length == 0 and
       sessionContext.declarations.length == 0 and
       not _declarations?.length and
@@ -715,6 +711,13 @@ rpcRequest = (sessionContext, _declarations, callback) ->
   if not provisions
     sessionContext.rpcRequest = generateGetRpcRequest(sessionContext)
     if not sessionContext.rpcRequest
+      # Only check after read stage is complete to minimize reprocessing of
+      # declarations especially during initial discovery of data model
+      if sessionContext.deviceData.changes.has('prerequisite')
+        delete sessionContext.syncState
+        device.clearTrackers(sessionContext.deviceData, 'prerequisite')
+        return rpcRequest(sessionContext, null, callback)
+
       toClear = null
       timestamp = sessionContext.timestamp + sessionContext.iteration + 1
 
