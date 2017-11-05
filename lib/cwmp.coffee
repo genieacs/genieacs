@@ -356,6 +356,9 @@ applyPresets = (sessionContext) ->
         session.clearProvisions(sessionContext)
         return sendAcsRequest(sessionContext)
 
+      sessionContext.deviceData.timestamps.dirty = 0;
+      sessionContext.deviceData.attributes.dirty = 0;
+
       session.rpcRequest(sessionContext, null, (err, fault, id, acsRequest) ->
         return throwError(err, sessionContext.httpResponse) if err
 
@@ -373,6 +376,10 @@ applyPresets = (sessionContext) ->
 
           if whiteList?
             return applyPresets(sessionContext)
+
+        if sessionContext.deviceData.timestamps.dirty > 1 or
+            sessionContext.deviceData.attributes.dirty > 1
+          return applyPresets(sessionContext)
 
         sendAcsRequest(sessionContext, id, acsRequest)
       )
