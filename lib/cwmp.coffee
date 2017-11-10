@@ -31,6 +31,8 @@ cache = require './cache'
 localCache = require './local-cache'
 db = require './db'
 logger = require './logger'
+scheduling = require './scheduling'
+
 
 MAX_CYCLES = 4
 
@@ -198,28 +200,6 @@ transferComplete = (sessionContext, rpc) ->
   )
 
 
-testSchedule = (schedule, timestamp) ->
-  range = schedule.schedule.nextRange(10, new Date(timestamp))
-  prev = schedule.schedule.prevRange(1, new Date(timestamp), new Date(timestamp - schedule.duration))
-
-  if prev
-    first = +(prev[0] ? 0)
-    last = +(prev[1] ? 0) + schedule.duration
-  else
-    first = +(range[0][0] ? 0)
-    last = +(range[0][1] ? 0) + schedule.duration
-
-  for r in range
-    if last < r[0]
-      break
-    last = +(r[1] ? 0) + schedule.duration
-
-  if timestamp >= first
-    return [true, Math.max(0, last - timestamp)]
-  else
-    return [false, first - timestamp]
-
-
 # Append providions and remove duplicates
 appendProvisions = (original, toAppend) ->
   modified = false
@@ -293,8 +273,13 @@ applyPresets = (sessionContext) ->
           eventsMatch = false
           break
 
-      continue if (not eventsMatch) or (preset.schedule and not
-        (preset.schedule.schedule and testSchedule(preset.schedule, sessionContext.timestamp)[0]))
+      continue if not eventsMatch
+
+      if preset.schedule
+        continue if not preset.schedule.schedule
+        r = scheduling.cron(sessionContext.timestamp, preset.schedule.schedule)
+        if not (r[0] + preset.schedule.duration > sessionContext.timestamp)
+          continue
 
       filteredPresets.push(preset)
       for k of preset.precondition
