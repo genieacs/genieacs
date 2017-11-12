@@ -1014,6 +1014,7 @@ generateSetRpcRequest = (sessionContext) ->
   # Set values
   GPV_BATCH_SIZE = config.get('GPV_BATCH_SIZE', sessionContext.deviceId)
   DATETIME_MILLISECONDS = config.get('DATETIME_MILLISECONDS', sessionContext.deviceId)
+  BOOLEAN_LITERAL = config.get('BOOLEAN_LITERAL', sessionContext.deviceId)
 
   parameterValues = []
   syncState.spv.forEach((v, k) ->
@@ -1038,6 +1039,7 @@ generateSetRpcRequest = (sessionContext) ->
       name: 'SetParameterValues'
       parameterList: ([p[0].join('.'), p[1], p[2]] for p in parameterValues)
       DATETIME_MILLISECONDS: DATETIME_MILLISECONDS
+      BOOLEAN_LITERAL: BOOLEAN_LITERAL
     }
 
   # Download
