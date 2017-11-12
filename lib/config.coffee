@@ -190,8 +190,18 @@ get = (option, deviceId) ->
   return allConfig[option]
 
 
+getDefault = (optionName) ->
+  option = options[optionName]
+  return null if not option
+  val = option.default
+  if val and option.type == 'path'
+    val = path.resolve(val)
+  return val
+
+
 # load authentication scripts
 try
   exports.auth = require(path.resolve(allConfig.CONFIG_DIR, 'auth'))
 
 exports.get = get
+exports.getDefault = getDefault
