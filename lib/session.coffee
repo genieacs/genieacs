@@ -1013,25 +1013,31 @@ generateSetRpcRequest = (sessionContext) ->
 
   # Set values
   GPV_BATCH_SIZE = config.get('GPV_BATCH_SIZE', sessionContext.deviceId)
+  DATETIME_MILLISECONDS = config.get('DATETIME_MILLISECONDS', sessionContext.deviceId)
 
   parameterValues = []
   syncState.spv.forEach((v, k) ->
     return if parameterValues.length >= GPV_BATCH_SIZE
+    syncState.spv.delete(k)
     attrs = sessionContext.deviceData.attributes.get(k)
     if (curVal = attrs.value?[1])? and attrs.writable?[1]
       val = v.slice()
       val[1] = curVal[1] if not val[1]?
       device.sanitizeParameterValue(val)
 
+      # Strip milliseconds
+      if val[1] == 'xsd:dateTime' and not DATETIME_MILLISECONDS and typeof val[0] == 'number'
+        val[0] -= val[0] % 1000
+
       if val[0] != curVal[0] or val[1] != curVal[1]
         parameterValues.push([k, val[0], val[1]])
-        syncState.spv.delete(k)
   )
 
   if parameterValues.length
     return {
       name: 'SetParameterValues'
       parameterList: ([p[0].join('.'), p[1], p[2]] for p in parameterValues)
+      DATETIME_MILLISECONDS: DATETIME_MILLISECONDS
     }
 
   # Download
