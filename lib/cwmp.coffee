@@ -362,9 +362,9 @@ applyPresets = (sessionContext) ->
           if whiteList?
             return applyPresets(sessionContext)
 
-        if sessionContext.deviceData.timestamps.dirty > 1 or
-            sessionContext.deviceData.attributes.dirty > 1
-          return applyPresets(sessionContext)
+          if sessionContext.deviceData.timestamps.dirty > 1 or
+              sessionContext.deviceData.attributes.dirty > 1
+            return applyPresets(sessionContext)
 
         sendAcsRequest(sessionContext, id, acsRequest)
       )
