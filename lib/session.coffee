@@ -165,7 +165,11 @@ inform = (sessionContext, rpcReq, callback) ->
 
     toClear = null
     for p in params
-      toClear = device.set(sessionContext.deviceData, p[0], p[1], p[2], toClear)
+      # Don't need to clear wildcards for Events
+      if p[0][0] == 'Events'
+        device.set(sessionContext.deviceData, p[0], p[1], p[2])
+      else
+        toClear = device.set(sessionContext.deviceData, p[0], p[1], p[2], toClear)
 
     clear(sessionContext, toClear, (err) ->
       return callback(err, {name: 'InformResponse'})
