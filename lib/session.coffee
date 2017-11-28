@@ -679,20 +679,30 @@ rpcRequest = (sessionContext, _declarations, callback) ->
     allVirtualParameters = virtualParametersCache.get(sessionContext)
 
     vpd = vpd.filter((declaration) ->
-      if declaration[0].length == 1
-        if Object.keys(allVirtualParameters).length
-          toClear = device.set(sessionContext.deviceData, declaration[0], timestamp, {object: [timestamp, 1], writable: [timestamp, 0]}, toClear)
-        else
-          toClear = device.set(sessionContext.deviceData, declaration[0], timestamp, null, toClear)
-      else if declaration[0].length == 2
-        if declaration[0][1] == '*'
-          for k, v of allVirtualParameters
-            toClear = device.set(sessionContext.deviceData, ['VirtualParameters', k], timestamp, {object: [timestamp, 0]}, toClear)
-          toClear = device.set(sessionContext.deviceData, declaration[0], timestamp, null, toClear)
-        else if not (declaration[0][1] of allVirtualParameters)
-          toClear = device.set(sessionContext.deviceData, declaration[0], timestamp, null, toClear)
-        else
-          return true
+      if Object.keys(allVirtualParameters).length
+        if declaration[0].length == 1
+          # Avoid setting on every inform as "exist" timestamp is not saved in DB
+          if not sessionContext.deviceData.attributes.has(declaration[0])
+            toClear = device.set(sessionContext.deviceData, declaration[0], timestamp, {object: [timestamp, 1], writable: [timestamp, 0]}, toClear)
+          return false
+        else if declaration[0].length == 2
+          if declaration[0][1] == '*'
+            for k, v of allVirtualParameters
+              toClear = device.set(sessionContext.deviceData, ['VirtualParameters', k], timestamp, {object: [timestamp, 0]}, toClear)
+            toClear = device.set(sessionContext.deviceData, declaration[0], timestamp, null, toClear)
+            return false
+          else if declaration[0][1] of allVirtualParameters
+            # Avoid setting on every inform as "exist" timestamp is not saved in DB
+            if not sessionContext.deviceData.attributes.has(declaration[0])
+              toClear = device.set(sessionContext.deviceData, declaration[0], timestamp, {object: [timestamp, 0]}, toClear)
+            return true
+
+      for p in sessionContext.deviceData.paths.find(declaration[0], false, true)
+        if sessionContext.deviceData.attributes.has(p)
+          toClear ?= []
+          toClear.push([declaration[0], timestamp])
+          break
+
       return false
     )
 
