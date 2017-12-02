@@ -1,0 +1,25 @@
+{
+  "name": "genieacs-ui",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint --fix server/*.js client/*.js",
+    "build": "webpack",
+    "start": "npm run lint;npm run build;node server/server"
+  },
+  "author": "Zaid Abdulla <zaid@genieacs.com>",
+  "dependencies": {
+    "koa": "^2.4.1",
+    "koa-bodyparser": "^4.2.0",
+    "koa-router": "^7.3.0",
+    "koa-static": "^4.0.2",
+    "mithril": "^1.1.5"
+  },
+  "devDependencies": {
+    "eslint": "^4.12.1",
+    "eslint-plugin-prettier": "^2.3.1",
+    "prettier": "^1.8.2",
+    "webpack": "^3.9.1"
+  }
+}
