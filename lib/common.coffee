@@ -209,15 +209,6 @@ addPathMeta = (path) ->
   return path
 
 
-hammingWeight = (flags) ->
-  flags -= ((flags >> 1) & 0x55555555)
-  flags = (((flags >> 2) & 0x33333333) + (flags & 0x33333333))
-  flags = (((flags >> 4) + flags) & 0x0f0f0f0f)
-  flags += (flags >> 8)
-  flags += (flags >> 16)
-  return flags & 0x0000003f
-
-
 # Source: http://stackoverflow.com/a/6969486
 escapeRegExp = (str) ->
   return str.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, "\\$&")
@@ -235,5 +226,4 @@ exports.typeOf = typeOf
 exports.pathOverlap = pathOverlap
 exports.parsePath = parsePath
 exports.addPathMeta = addPathMeta
-exports.hammingWeight = hammingWeight
 exports.escapeRegExp = escapeRegExp

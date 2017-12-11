@@ -27,6 +27,7 @@ PathSet = require './path-set'
 VersionedMap = require './versioned-map'
 InstanceSet = require './instance-set'
 defaultProvisions = require './default-provisions'
+gpnHeuristic = require './gpn-heuristic'
 
 MAX_ITERATIONS = 64
 
@@ -856,46 +857,6 @@ rpcRequest = (sessionContext, _declarations, callback) ->
   )
 
 
-# Simple algorithm to estimate GPN count in a set of patterns used
-# to decide whether to use nextLevel = false in GPN.
-estimateGpnCount = (patterns) ->
-  res = []
-  counts = new Map()
-  for pattern in patterns
-    c = []
-    i = -1
-    while pattern[1] >> (++ i)
-      if pattern[1] & (1 << i)
-        f = (pattern[0].wildcard & pattern[1]) | ((pattern[1] >> pattern[0].length) << pattern[0].length)
-        r = [i, f & ((1 << i) - 1), 1, new Set()]
-        res.push(c[i] = r)
-    counts.set(pattern, c)
-
-  for pattern in patterns
-    pats = patterns.filter((pat) -> return pat != pattern)
-    i = -1
-    while pattern[1] >> (++ i)
-      pats = pats.filter((pat) ->
-        return false if not pat[1] << i
-        if not pat[0][i]? or pat[0][i] == '*' or pat[0][i] == pattern[0][i]
-          if pattern[1] & pat[1] & (1 << i)
-            counts.get(pattern)[i][3].add(counts.get(pat)[i])
-          return true
-        return false
-      )
-
-  count = 0
-  for r in res
-    div = 1
-    r[3].forEach((rr) -> ++ div if rr[3].has(r))
-    if r[3].size == div - 1
-      h = common.hammingWeight(r[1])
-      if h < 8
-        count += (r[2] * Math.pow(3, h)) / div
-
-  return Math.round(count)
-
-
 generateGetRpcRequest = (sessionContext) ->
   if not (syncState = sessionContext.syncState)?
     return
@@ -952,13 +913,13 @@ generateGetRpcRequest = (sessionContext) ->
       path = paths.pop()
 
     if path
-      patterns = []
-      for p in sessionContext.deviceData.paths.find(path, true, false, 99)
-        if v = syncState.gpnPatterns.get(p)
-          patterns.push([p, (v >> path.length) << path.length])
-
       if path.length >= GPN_NEXT_LEVEL
-        est = estimateGpnCount(patterns)
+        patterns = [[path, 0]]
+        for p in sessionContext.deviceData.paths.find(path, true, false, 99)
+          if v = syncState.gpnPatterns.get(p)
+            patterns.push([p, (v >> path.length) << path.length])
+
+        est = gpnHeuristic.estimateGpnCount(patterns)
       else
         est = 0
 
