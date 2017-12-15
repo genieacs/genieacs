@@ -467,6 +467,8 @@ listener = (request, response) ->
             timestamp: ((v) -> return new Date(v))
             retries: Number
           })
+        when 'presets'
+          q = query.expand(q, true)
 
       if urlParts.query.projection?
         projection = {}

@@ -123,12 +123,13 @@ expandValue = (value) ->
   return objs
 
 
-permute = (param, val) ->
+permute = (param, val, omit_value) ->
   conditions = []
 
   values = expandValue(val)
-  if param[param.lastIndexOf('.') + 1] != '_'
-    param += '._value'
+  if not omit_value
+    if param[param.lastIndexOf('.') + 1] != '_'
+      param += '._value'
 
   for v in values
     obj = {}
@@ -138,7 +139,7 @@ permute = (param, val) ->
   return conditions
 
 
-expand = (query) ->
+expand = (query, omit_value) ->
   new_query = {}
   for k,v of query
     if k[0] == '$' # operator
@@ -147,7 +148,7 @@ expand = (query) ->
         expressions.push(expand(e))
       new_query[k] = expressions
     else
-      conditions = permute(k, v)
+      conditions = permute(k, v, omit_value)
       if conditions.length > 1
         new_query['$and'] ?= []
         if v?['$ne']?
