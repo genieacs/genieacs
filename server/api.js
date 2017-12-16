@@ -16,35 +16,35 @@ const resources = {
 
 for (let [resource, update] of Object.entries(resources)) {
   router.head(`/${resource}`, async ctx => {
-    let filters, limit;
-    if (ctx.request.query.query)
-      if (Array.isArray(ctx.request.query.query))
-        filters = ctx.request.query.query.map(q => JSON.parse(q));
+    let filter, limit;
+    if (ctx.request.query.filter)
+      if (Array.isArray(ctx.request.query.filter))
+        filter = ctx.request.query.query.map(q => JSON.parse(q));
       else {
-        filters = JSON.parse(ctx.request.query.query);
-        if (!Array.isArray(filters)) filters = [filters];
+        filter = JSON.parse(ctx.request.query.filter);
+        if (!Array.isArray(filter)) filter = [filter];
       }
 
     if (ctx.request.query.limit) limit = +ctx.request.query.limit;
 
-    let res = await apiFunctions.query(resource, filters, limit);
-    ctx.set("X-Total-Count", res.length);
+    let count = await apiFunctions.count(resource, filter, limit);
+    ctx.set("X-Total-Count", count);
     ctx.body = "";
   });
 
   router.get(`/${resource}`, async ctx => {
-    let filters, limit;
-    if (ctx.request.query.query)
-      if (Array.isArray(ctx.request.query.query))
-        filters = ctx.request.query.query.map(q => JSON.parse(q));
+    let filter, limit;
+    if (ctx.request.query.filter)
+      if (Array.isArray(ctx.request.query.filter))
+        filter = ctx.request.query.query.map(q => JSON.parse(q));
       else {
-        filters = JSON.parse(ctx.request.query.query);
-        if (!Array.isArray(filters)) filters = [filters];
+        filter = JSON.parse(ctx.request.query.filter);
+        if (!Array.isArray(filter)) filter = [filter];
       }
 
     if (ctx.request.query.limit) limit = +ctx.request.query.limit;
 
-    ctx.body = await apiFunctions.query(resource, filters, limit);
+    ctx.body = await apiFunctions.query(resource, filter, limit);
   });
 
   router.head(`/${resource}/:id`, async (ctx, next) => {

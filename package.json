@@ -4,9 +4,9 @@
   "description": "",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "lint": "eslint --fix server/*.js client/*.js",
-    "build": "webpack",
-    "start": "npm run lint;npm run build;node server/server"
+    "lint": "eslint --fix server/*.js client/*.js;prettier --write server/*.js client/*.js client/css/*.css",
+    "build": "npm run lint;webpack;postcss -c postcss.config.js client/css/app.css -o public/app.css",
+    "start": "node server/server"
   },
   "author": "Zaid Abdulla <zaid@genieacs.com>",
   "dependencies": {
@@ -17,8 +17,11 @@
     "mithril": "^1.1.5"
   },
   "devDependencies": {
+    "cssnano": "^3.10.0",
     "eslint": "^4.12.1",
-    "eslint-plugin-prettier": "^2.3.1",
+    "postcss-cli": "^4.1.1",
+    "postcss-cssnext": "^3.0.2",
+    "postcss-import": "^11.0.0",
     "prettier": "^1.8.2",
     "webpack": "^3.9.1"
   }

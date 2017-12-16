@@ -1,0 +1,202 @@
+@import "normalize.css";
+
+:root {
+  --base-font-size: 13px;
+  --base-line-height: 16px;
+
+  --color1: #ebe0bf;
+  --color2: #b9b098;
+  --color3: #f2ebd5;
+  --color4: #046380;
+  --color5: #002f2f;
+
+  --fade: 0.2s;
+}
+
+body,
+input,
+button,
+select,
+option,
+textarea {
+  font-family: sans-serif;
+  color: var(--color5);
+}
+
+a {
+  color: var(--color4);
+  cursor: pointer;
+  transition: background-color var(--fade), color var(--fade);
+  &:visited {
+    color: var(--color4);
+  }
+  &:hover {
+    color: white;
+    background-color: var(--color4);
+  }
+}
+
+strong,
+b {
+  font-weight: bold;
+}
+
+i {
+  font-style: italic;
+}
+
+#header {
+  background-color: #f2eddf;
+  border-bottom: 1px solid var(--color1);
+  overflow: visible;
+  position: relative;
+
+  & > nav {
+    display: inline-block;
+    overflow: visible;
+    position: absolute;
+    bottom: -1px;
+
+    & > ul {
+      font-weight: bold;
+      display: inline-block;
+      margin: 0 10px;
+      padding: 0;
+
+      & > li {
+        margin: 0 2px;
+        background-color: var(--color1);
+        display: inline-block;
+        border-top-left-radius: 6px;
+        border-top-right-radius: 6px;
+        transition: background-color var(--fade);
+        &.active,
+        &:hover {
+          background-color: white;
+        }
+
+        & > a,
+        & > a:visited,
+        & > a:hover {
+          display: inline-block;
+          min-width: 140px;
+          color: var(--color4);
+          text-decoration: none;
+          background: none;
+          padding: 8px;
+        }
+      }
+    }
+  }
+  & > .logo {
+    margin: 10px;
+    display: inline;
+    height: 56px;
+  }
+}
+
+#content {
+  margin: 10px;
+  min-height: 250px;
+}
+
+table.table {
+  border-spacing: 0;
+  text-align: left;
+
+  & th {
+    color: var(--color4);
+    font-weight: bold;
+    border-bottom: 2px solid var(--color4);
+    margin: 0;
+    padding: 0.2em 0.5em;
+  }
+
+  & td {
+    margin: 0;
+    padding: 0.2em 0.5em;
+    border-bottom: 1px dotted var(--color1);
+    & .action a {
+      visibility: hidden;
+    }
+  }
+
+  & tbody tr:hover td {
+    & .action {
+      visibility: visible;
+    }
+
+    transition: background-color var(--fade);
+    background-color: var(--color3);
+  }
+
+  & tfoot td > a {
+    margin-left: 1em;
+  }
+}
+
+h1 {
+  color: var(--color4);
+  font-size: 130%;
+  font-weight: bold;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+}
+
+h2 {
+  color: var(--color5);
+  font-weight: bold;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+}
+
+h3 {
+  color: var(--color5);
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+}
+
+/* Remove button padding in FF */
+input::-moz-focus-inner {
+  border: 0;
+  padding: 0;
+}
+
+input[type="button"],
+button {
+  display: inline-block;
+  min-width: 6em;
+  position: relative;
+  top: 0px;
+  vertical-align: baseline;
+  margin: 0 0.1em;
+  outline: none;
+  cursor: pointer;
+  text-align: center;
+  text-decoration: none;
+  padding: 0.1em 0.6em;
+  border-top-left-radius: 1em;
+  border-bottom-right-radius: 1em;
+  border-top-right-radius: 0.2em;
+  border-bottom-left-radius: 0.2em;
+
+  color: var(--color4);
+  transition: background-color var(--fade), color var(--fade);
+
+  &:link,
+  &:visited {
+    color: var(--color4);
+    background-color: var(--color1);
+  }
+
+  &:hover,
+  &:active {
+    color: var(--color1);
+    background-color: var(--color4);
+  }
+
+  &:disabled {
+    background-color: var(--color1);
+    color: var(--color2);
+  }
+}

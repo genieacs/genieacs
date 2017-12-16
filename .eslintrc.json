@@ -6,12 +6,10 @@
   "parserOptions": {
     "sourceType": "script"
   },
-  "plugins": ["prettier"],
   "rules": {
     "no-shadow": ["error", { "allow": ["err"] }],
     "handle-callback-err": "error",
     "prefer-arrow-callback": "error",
-    "curly": ["error", "multi", "consistent"],
-    "prettier/prettier": "error"
+    "curly": ["error", "multi", "consistent"]
   }
 }
