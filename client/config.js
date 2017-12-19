@@ -37,5 +37,33 @@ export default {
       parameter:
         "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.MACAddress"
     }
-  ]
+  ],
+  overview: {
+    online: {
+      label: "Online devices",
+      charts: {
+        all: {
+          label: "All devices",
+          slices: {
+            onlineNow: {
+              label: "Online now",
+              color: "#31a354",
+              filter: "Events.Inform > NOW() - 5 * 60 * 1000"
+            },
+            past24: {
+              label: "Past 24 hours",
+              color: "#addd8e",
+              filter:
+                "Events.Inform > (NOW() - 5 * 60 * 1000) - (24 * 60 * 60 * 1000) AND Events.Inform < (NOW() - 5 * 60 * 1000)"
+            },
+            others: {
+              label: "Others",
+              color: "#f7fcb9",
+              filter: "Events.Inform < (NOW() - 5 * 60 * 1000) - (24 * 60 * 60 * 1000)"
+            }
+          }
+        }
+      }
+    }
+  }
 };

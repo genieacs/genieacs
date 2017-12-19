@@ -23,7 +23,7 @@ function pagify(pageName, page) {
         page
           .init(args)
           .then(st => {
-            if (!st) return m.reoute.set("/");
+            if (!st) return m.route.set("/");
             state = st;
             resolve();
           })

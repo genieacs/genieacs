@@ -11,7 +11,7 @@ const layout = {
         m("img.logo", { src: "logo.svg" }),
         m(menu, { page: vnode.attrs.page })
       ]),
-      m("#content", [vnode.children])
+      m("#content", { class: `page-${vnode.attrs.page}` }, [vnode.children])
     ];
   }
 };
