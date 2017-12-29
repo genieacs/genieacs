@@ -14,7 +14,8 @@
     "koa-bodyparser": "^4.2.0",
     "koa-router": "^7.3.0",
     "koa-static": "^4.0.2",
-    "mithril": "^1.1.5"
+    "mithril": "^1.1.5",
+    "parsimmon": "^1.6.2"
   },
   "devDependencies": {
     "cssnano": "^3.10.0",
