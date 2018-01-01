@@ -2,6 +2,23 @@
 
 export default {
   pageSize: 10,
+  filter: [
+    {
+      label: "Serial number",
+      parameter: "DeviceID.SerialNumber",
+      type: "string"
+    },
+    {
+      label: "Product class",
+      parameter: "DeviceID.ProductClass",
+      type: "string"
+    },
+    {
+      label: "Tag",
+      parameter: "tag",
+      type: "string"
+    }
+  ],
   index: [
     {
       label: "Serial number",

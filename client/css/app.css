@@ -200,3 +200,13 @@ button {
     color: var(--color2);
   }
 }
+
+.filter {
+  margin-bottom: 0.5em;
+  & > input {
+    padding: 2px;
+    width: 30em;
+    font-size: 90%;
+    display: block;
+  }
+}

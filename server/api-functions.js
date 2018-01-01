@@ -7,34 +7,68 @@ const querystring = require("querystring");
 
 const config = require("./config");
 const device = require("./device");
+const filterParser = require("./filter-parser");
 
 const commaAscii = ",".charCodeAt(0);
 const newLineAscii = "\n".charCodeAt(0);
 
-function filtersToQuery(filters) {
-  if (!Array.isArray(filters)) filters = [filters];
+function filterToQuery(filter, negate = false, res = {}) {
+  const op = filter[0];
 
-  let queries = [];
-  for (let filter of filters) {
-    let q = {};
-    for (let [k, v] of Object.entries(filter)) {
-      let [param, op] = k.split(/([^a-zA-Z0-9\-_.].*)/, 2);
-      if (!op || op === "=") q[param] = v;
-      else if (op === ">") q[param] = { $gt: v };
-      else throw new Error(`Operator "${op}" not recognized`);
+  if ((!negate && op === "AND") || (negate && op === "OR")) {
+    for (let i = 1; i < filter.length; ++i)
+      filterToQuery(filter[i], negate, res);
+  } else if ((!negate && op === "OR") || (negate && op === "AND")) {
+    res["$or"] = res["$or"] || [];
+
+    for (let i = 1; i < filter.length; ++i)
+      res["$or"].push(filterToQuery(filter[i], negate));
+  } else if (op === "NOT") {
+    filterToQuery(filter[1], !negate, res);
+  } else if (op === "=") {
+    let p = (res[filter[1]] = res[filter[1]] || {});
+    if (negate) p["$ne"] = filter[2];
+    else p["$eq"] = filter[2];
+  } else if (op === "<>") {
+    let p = (res[filter[1]] = res[filter[1]] || {});
+    if (negate) {
+      p["$eq"] = filter[2];
+    } else {
+      p["$ne"] = filter[2];
+      p["$exists"] = true;
     }
-    queries.push(q);
+  } else if (op === ">") {
+    let p = (res[filter[1]] = res[filter[1]] || {});
+    if (negate) p = p["$not"] = p["$not"] || {};
+    p["$gt"] = filter[2];
+  } else if (op === ">=") {
+    let p = (res[filter[1]] = res[filter[1]] || {});
+    if (negate) p = p["$not"] = p["$not"] || {};
+    p["$gte"] = filter[2];
+  } else if (op === "<") {
+    let p = (res[filter[1]] = res[filter[1]] || {});
+    if (negate) p = p["$not"] = p["$not"] || {};
+    p["$lt"] = filter[2];
+  } else if (op === "<=") {
+    let p = (res[filter[1]] = res[filter[1]] || {});
+    if (negate) p = p["$not"] = p["$not"] || {};
+    p["$lte"] = filter[2];
+  } else if (op === "IS NULL") {
+    res[filter[1]] = { $exists: negate };
+  } else if (op === "IS NOT NULL") {
+    res[filter[1]] = { $exists: !negate };
+  } else {
+    throw new Error(`Unrecognized operator ${op}`);
   }
 
-  if (queries.length === 1) return queries[0];
-  else return { $or: queries };
+  return res;
 }
 
-function count(resource, filters, limit) {
+function count(resource, filter, limit) {
   return new Promise((resolve, reject) => {
     let qs = {};
-    if (filters) {
-      let q = filtersToQuery(filters);
+    if (filter) {
+      let q = filterToQuery(filterParser.parse(filter));
       if (resource === "devices") q = device.transposeQuery(q);
       qs.query = JSON.stringify(q);
     }
@@ -62,14 +96,15 @@ function count(resource, filters, limit) {
   });
 }
 
-function query(resource, filters, limit, callback) {
+function query(resource, filter, limit, callback) {
   return new Promise((resolve, reject) => {
     let ret;
     if (!callback) ret = [];
     let qs = {};
-    if (filters) {
-      let q = filtersToQuery(filters);
+    if (filter) {
+      let q = filterToQuery(filterParser.parse(filter));
       if (resource === "devices") q = device.transposeQuery(q);
+
       qs.query = JSON.stringify(q);
     }
 

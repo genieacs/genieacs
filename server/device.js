@@ -142,8 +142,29 @@ function transposeQuery(query) {
   const newQuery = {};
 
   for (let [key, val] of Object.entries(query))
-    if (key.startsWith("$")) newQuery[key] = transposeQuery(val);
-    else if (key === "DeviceID.ID") newQuery["_id"] = val;
+    if (key.startsWith("$")) {
+      newQuery[key] = val.map(v => transposeQuery(v));
+    } else if (key === "DeviceID.ID") {
+      newQuery["_id"] = val;
+    } else if (key === "DeviceID.SerialNumber") {
+      newQuery["_deviceId._SerialNumber"] = val;
+    } else if (key === "DeviceID.OUI") {
+      newQuery["_deviceId._OUI"] = val;
+    } else if (key === "DeviceID.Manufacturer") {
+      newQuery["_deviceId._Manufacturer"] = val;
+    } else if (key.startsWith("Tags.")) {
+      if (val["$exists"] === true) {
+        newQuery["_tags"] = newQuery["_tags"] || {};
+        newQuery["_tags"]["$all"] = newQuery["_tags"]["$all"] || [];
+        newQuery["_tags"]["$all"].push(key.slice(5));
+      } else if (val["$exists"] === false) {
+        newQuery["_tags"] = newQuery["_tags"] || {};
+        newQuery["_tags"]["$nin"] = newQuery["_tags"]["$nin"] || [];
+        newQuery["_tags"]["$nin"].push(key.slice(5));
+      }
+    } else {
+      newQuery[key] = val;
+    }
 
   return newQuery;
 }

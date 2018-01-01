@@ -3,13 +3,14 @@
 import m from "mithril";
 
 import config from "./config";
+import filterComponent from "./filter-component";
 
 function load(filter, limit) {
   return new Promise((resolve, reject) => {
     m
       .request({
         url: "/api/devices/",
-        data: { filter: JSON.stringify(filter), limit: limit }
+        data: { filter: filter, limit: limit }
       })
       .then(res => {
         resolve(res);
@@ -29,8 +30,9 @@ function count(filter, limit) {
     m
       .request({
         method: "HEAD",
-        url: "/api/devices/",
-        data: { filter: JSON.stringify(filter), limit: limit },
+        url:
+          "/api/devices/?" +
+          m.buildQueryString({ filter: filter, limit: limit }),
         extract: extract
       })
       .then(res => {
@@ -43,9 +45,45 @@ function count(filter, limit) {
   });
 }
 
+function preprocessFilter(filter) {
+  if (Array.isArray(filter)) {
+    filter = filter.map(f => {
+      f = f.trim();
+      if (f.startsWith("(")) return f;
+
+      let match = f.match(/([^=<>]+)([=<>]+)(.+)/);
+
+      let param = match[1].trim();
+      let op = match[2].trim();
+      let value = match[3].trim();
+
+      try {
+        value = JSON.parse(value);
+      } catch (err) {
+        // eslint-disable-line no-empty
+      }
+
+      for (let cf of config.filter)
+        if (param === cf.label) param = cf.parameter;
+
+      if (param === "tag") {
+        let tag = value.replace(/[^a-zA-Z0-9]/g, "_");
+        if (op === "=") return `Tags.${tag} is not null`;
+        else if (op === "<>") return `Tags.${tag} is null`;
+      }
+
+      return `${param} ${op} ${JSON.stringify(value)}`;
+    });
+    filter = "(" + filter.join(") AND (") + ")";
+  }
+  return filter;
+}
+
 function init(args) {
   return new Promise((resolve, reject) => {
-    Promise.all([count(args.filter), load(args.filter, config.pageSize)])
+    let filter = preprocessFilter(args.filter);
+
+    Promise.all([count(filter), load(filter, config.pageSize)])
       .then(res => {
         resolve({ filter: args.filter, total: res[0], devices: res[1] });
       })
@@ -93,15 +131,18 @@ const component = {
     document.title = "Devices - GenieACS";
     function showMore() {
       const lastDevice = vnode.attrs.devices[vnode.attrs.devices.length - 1];
-      let f = Object.assign({}, vnode.attrs.filter, {
-        "DeviceID.ID>": lastDevice["DeviceID.ID"].value[0]
-      });
-      load(f, config.pageSize).then(res => {
+      let f = (vnode.attrs.filter || []).concat(
+        `DeviceID.ID > "${lastDevice["DeviceID.ID"].value[0]}"`
+      );
+      load(preprocessFilter(f), config.pageSize).then(res => {
         vnode.attrs.devices = vnode.attrs.devices.concat(res);
+        if (res.length < config.pageSize)
+          vnode.attrs.total = vnode.attrs.devices.length;
       });
     }
     return [
       m("h1", "Listing devices"),
+      m(filterComponent, { filterList: [].concat(vnode.attrs.filter) }),
       renderTable(
         vnode.attrs.devices,
         config.index,
