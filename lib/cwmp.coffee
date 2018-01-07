@@ -895,7 +895,19 @@ listener = (httpRequest, httpResponse) ->
         stats.concurrentRequests -= 1
         return
 
-      return parsedRpc(sessionContext, rpc, parseWarnings) if sessionContext
+      if sessionContext
+        if rpc.cpeRequest?.name is 'Inform' or
+            (!sessionContext.rpcRequest ^ !(rpc.cpeResponse or rpc.cpeFault))
+          logger.accessError({
+            message: 'Bad session state'
+            sessionContext: sessionContext
+          })
+          httpResponse.writeHead(400, {'Connection': 'close'})
+          httpResponse.end('Bad session state')
+          stats.concurrentRequests -= 1
+          return
+
+        return parsedRpc(sessionContext, rpc, parseWarnings)
 
       if rpc.cpeRequest?.name isnt 'Inform'
         logger.accessError({
