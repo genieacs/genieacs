@@ -66,7 +66,8 @@ options = {
   ACCESS_LOG_FORMAT : {type : 'string', default : ''},
   MAX_CONCURRENT_REQUESTS : {type : 'int', default: 20},
   DATETIME_MILLISECONDS : {type: 'bool', default: true},
-  BOOLEAN_LITERAL : {type: 'bool', default: true}
+  BOOLEAN_LITERAL : {type: 'bool', default: true},
+  CONNECTION_REQUEST_ALLOW_BASIC_AUTH: {type: 'bool', default: false}
 
   # XML configuration
   XML_RECOVER : {type : 'bool', default : false},

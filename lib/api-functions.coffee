@@ -65,8 +65,12 @@ udpConReq = (address, un, key, callback) ->
   return true
 
 
-httpConReq = (url, username, password, timeout, callback) ->
+httpConReq = (url, username, password, allowBasicAuth, timeout, callback) ->
   options = URL.parse(url)
+
+  if options.protocol != 'http:'
+    return callback(new Error('Invalid connection request URL or protocol'))
+
   # Ensure socket is reused in case of digest authentication
   options.agent = new http.Agent({maxSockets : 1})
 
@@ -85,6 +89,10 @@ httpConReq = (url, username, password, timeout, callback) ->
     if res.statusCode == 401 and res.headers['www-authenticate']?
       authHeader = auth.parseAuthHeader(res.headers['www-authenticate'])
       if authHeader.method is 'Basic'
+        if not allowBasicAuth
+          request.abort()
+          callback(new Error('Basic HTTP authentication not allowed'))
+          return
         options.headers = {'Authorization' : auth.basic(username or '', password or '')}
       else if authHeader.method is 'Digest'
         options.headers = {
@@ -130,6 +138,7 @@ httpConReq = (url, username, password, timeout, callback) ->
 
 connectionRequest = (deviceId, callback) ->
   CONNECTION_REQUEST_TIMEOUT = config.get('CONNECTION_REQUEST_TIMEOUT', deviceId)
+  CONNECTION_REQUEST_ALLOW_BASIC_AUTH = config.get('CONNECTION_REQUEST_ALLOW_BASIC_AUTH', deviceId)
   proj = {
     'Device.ManagementServer.ConnectionRequestURL._value' : 1,
     'Device.ManagementServer.UDPConnectionRequestAddress._value' : 1,
@@ -158,7 +167,7 @@ connectionRequest = (deviceId, callback) ->
     conReq = () ->
       udpSent = udpConReq(udpConnectionRequestAddress, username, password, (err) -> throw err if err)
 
-      httpConReq(connectionRequestUrl, username, password, CONNECTION_REQUEST_TIMEOUT, (err) ->
+      httpConReq(connectionRequestUrl, username, password, CONNECTION_REQUEST_ALLOW_BASIC_AUTH, CONNECTION_REQUEST_TIMEOUT, (err) ->
         if udpSent
           return callback()
         callback(err)
