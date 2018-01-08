@@ -496,7 +496,7 @@ listener = (request, response) ->
         i = 0
         cur.each((err, item) ->
           if err
-            throwError(err, response)
+            throwError(err)
             return false
 
           if item?
