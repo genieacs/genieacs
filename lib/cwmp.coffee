@@ -338,6 +338,9 @@ applyPresets = (sessionContext) ->
           timestamp: sessionContext.timestamp
         }
         recordFault(sessionContext, fault)
+        # No need to save retryNow
+        for c of sessionContext.faults
+          delete sessionContext.faults[c].retryNow
         session.clearProvisions(sessionContext)
         return sendAcsRequest(sessionContext)
 
