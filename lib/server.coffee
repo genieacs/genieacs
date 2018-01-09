@@ -70,13 +70,11 @@ exit = () ->
     )
   , 30000).unref()
 
-  cluster.worker?.disconnect()
-
   closeServer(20000, () ->
     db.disconnect()
     cache.disconnect()
     extensions.killAll()
-    logger.close()
+    cluster.worker?.disconnect()
   )
 
 
