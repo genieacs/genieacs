@@ -98,8 +98,26 @@ const lang = parsimmon.createLanguage({
       .map(Number)
       .desc("number");
   },
+  FuncValue: function(r) {
+    return parsimmon.seqMap(
+      parsimmon
+        .regexp(/([a-zA-Z0-0_]+)/, 1)
+        .skip(r._)
+        .desc("function"),
+      r.Value.sepBy(parsimmon.string(",").skip(r._)).wrap(
+        parsimmon.string("(").skip(r._),
+        parsimmon.string(")").skip(r._)
+      ),
+      (f, args) => ["FUNC", f.toUpperCase()].concat(args)
+    );
+  },
   Value: function(r) {
-    return parsimmon.alt(r.NumberValue, r.StringValueSql, r.StringValueJs);
+    return parsimmon.alt(
+      r.NumberValue,
+      r.StringValueSql,
+      r.StringValueJs,
+      r.FuncValue
+    );
   },
   Comparison: function(r) {
     return parsimmon.alt(
