@@ -174,4 +174,34 @@ function parse(filter) {
   return lang.Expression.tryParse(filter);
 }
 
+function stringify(filter) {
+  function value(v) {
+    if (Array.isArray(v) && v[0].toUpperCase() === "FUNC")
+      return `${v[1]}(${v
+        .slice(2)
+        .map(e => value(e))
+        .join(", ")})`;
+    return JSON.stringify(v);
+  }
+
+  function expressions(v) {
+    return v.map(e => {
+      let str = stringify(e);
+      if (e[0] === "AND" || e[0] === "OR") return `(${str})`;
+      else return str;
+    });
+  }
+
+  const op = filter[0].toUpperCase();
+
+  if (["AND", "OR"].includes(op))
+    return expressions(filter.slice(1)).join(` ${op} `);
+  else if (op === "NOT") return `NOT ${expressions(filter.slice(1))[0]}`;
+  else if ([">=", "<>", "<=", "=", ">", "<"].includes(op))
+    return `${filter[1]} ${op} ${value(filter[2])}`;
+  else if (["IS NULL", "IS NOT NULL"].includes(op)) return `${filter[1]} ${op}`;
+  else throw new Error("Unrecognized operator");
+}
+
 exports.parse = parse;
+exports.stringify = stringify;
