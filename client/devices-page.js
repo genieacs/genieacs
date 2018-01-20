@@ -4,6 +4,7 @@ import m from "mithril";
 
 import config from "./config";
 import filterComponent from "./filter-component";
+import * as filterParser from "../common/filter-parser";
 
 function load(filter, limit) {
   return new Promise((resolve, reject) => {
@@ -45,47 +46,14 @@ function count(filter, limit) {
   });
 }
 
-function preprocessFilter(filter) {
-  if (Array.isArray(filter)) {
-    filter = filter.map(f => {
-      f = f.trim();
-      if (f.startsWith("(")) return f;
-
-      let match = f.match(/([^=<>]+)([=<>]+)(.+)/);
-
-      let param = match[1].trim();
-      let op = match[2].trim();
-      let value = match[3].trim();
-
-      try {
-        value = JSON.parse(value);
-      } catch (err) {
-        // eslint-disable-line no-empty
-      }
-
-      for (let cf of config.filter)
-        if (param === cf.label) param = cf.parameter;
-
-      if (param === "tag") {
-        let tag = value.replace(/[^a-zA-Z0-9]/g, "_");
-        if (op === "=") return `Tags.${tag} is not null`;
-        else if (op === "<>") return `Tags.${tag} is null`;
-      }
-
-      return `${param} ${op} ${JSON.stringify(value)}`;
-    });
-    filter = "(" + filter.join(") AND (") + ")";
-  }
-  return filter;
-}
-
 function init(args) {
   return new Promise((resolve, reject) => {
-    let filter = preprocessFilter(args.filter);
+    let filter;
+    if (args.filter) filter = filterParser.parse(args.filter);
 
-    Promise.all([count(filter), load(filter, config.pageSize)])
+    Promise.all([count(args.filter), load(args.filter, config.pageSize)])
       .then(res => {
-        resolve({ filter: args.filter, total: res[0], devices: res[1] });
+        resolve({ filter: filter, total: res[0], devices: res[1] });
       })
       .catch(reject);
   });
@@ -129,20 +97,34 @@ function renderTable(devices, parameters, total, showMoreCallback) {
 const component = {
   view: vnode => {
     document.title = "Devices - GenieACS";
+
     function showMore() {
       const lastDevice = vnode.attrs.devices[vnode.attrs.devices.length - 1];
-      let f = (vnode.attrs.filter || []).concat(
-        `DeviceID.ID > "${lastDevice["DeviceID.ID"].value[0]}"`
-      );
-      load(preprocessFilter(f), config.pageSize).then(res => {
+      let f = filterParser.and(vnode.attrs.filter, [
+        ">",
+        "DeviceID.ID",
+        lastDevice["DeviceID.ID"].value[0]
+      ]);
+
+      load(filterParser.stringify(f), config.pageSize).then(res => {
         vnode.attrs.devices = vnode.attrs.devices.concat(res);
         if (res.length < config.pageSize)
           vnode.attrs.total = vnode.attrs.devices.length;
       });
     }
+
+    function onFilterChanged(filter) {
+      let params = {};
+      if (filter) params.filter = filterParser.stringify(filter);
+      m.route.set("/devices", params);
+    }
+
     return [
       m("h1", "Listing devices"),
-      m(filterComponent, { filterList: [].concat(vnode.attrs.filter) }),
+      m(filterComponent, {
+        filter: vnode.attrs.filter,
+        onChange: onFilterChanged
+      }),
       renderTable(
         vnode.attrs.devices,
         config.index,
