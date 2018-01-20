@@ -4,7 +4,7 @@
   "description": "",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "lint": "eslint --fix server/*.js client/*.js;prettier --write server/*.js client/*.js client/css/*.css",
+    "lint": "eslint --fix common/*.js server/*.js client/*.js;prettier --write common/*.js server/*.js client/*.js client/css/*.css",
     "build": "npm run lint;webpack;postcss -c postcss.config.js client/css/app.css -o public/app.css",
     "start": "node server/server"
   },

@@ -7,17 +7,29 @@ const querystring = require("querystring");
 
 const config = require("./config");
 const device = require("./device");
-const filterParser = require("./filter-parser");
+const filterParser = require("../common/filter-parser");
 
 const commaAscii = ",".charCodeAt(0);
 const newLineAscii = "\n".charCodeAt(0);
+
+function unpackTimestamps(filter) {
+  return filterParser.map(filter, exp => {
+    if (["=", "<>", ">=", "<=", "<", ">"].includes(exp[0]))
+      if (typeof exp[2] === "number") {
+        let alt = exp.slice();
+        alt[2] = new Date(alt[2]).toJSON();
+        return ["OR", exp, alt];
+      }
+  });
+}
 
 function filterToQuery(filter, negate = false, res = {}) {
   const op = filter[0];
 
   if ((!negate && op === "AND") || (negate && op === "OR")) {
+    res["$and"] = res["$and"] || [];
     for (let i = 1; i < filter.length; ++i)
-      filterToQuery(filter[i], negate, res);
+      res["$and"].push(filterToQuery(filter[i], negate));
   } else if ((!negate && op === "OR") || (negate && op === "AND")) {
     res["$or"] = res["$or"] || [];
 
@@ -68,7 +80,11 @@ function count(resource, filter, limit) {
   return new Promise((resolve, reject) => {
     let qs = {};
     if (filter) {
-      let q = filterToQuery(filterParser.parse(filter));
+      let f = filterParser.parse(filter);
+      f = filterParser.evaluateExpressions(f);
+      f = unpackTimestamps(f);
+
+      let q = filterToQuery(f);
       if (resource === "devices") q = device.transposeQuery(q);
       qs.query = JSON.stringify(q);
     }
@@ -102,7 +118,11 @@ function query(resource, filter, limit, callback) {
     if (!callback) ret = [];
     let qs = {};
     if (filter) {
-      let q = filterToQuery(filterParser.parse(filter));
+      let f = filterParser.parse(filter);
+      f = filterParser.evaluateExpressions(f);
+      f = unpackTimestamps(f);
+
+      let q = filterToQuery(f);
       if (resource === "devices") q = device.transposeQuery(q);
 
       qs.query = JSON.stringify(q);

@@ -150,6 +150,8 @@ function transposeQuery(query) {
       newQuery["_deviceId._SerialNumber"] = val;
     } else if (key === "DeviceID.OUI") {
       newQuery["_deviceId._OUI"] = val;
+    } else if (key === "DeviceID.ProductClass") {
+      newQuery["_deviceId._ProductClass"] = val;
     } else if (key === "DeviceID.Manufacturer") {
       newQuery["_deviceId._Manufacturer"] = val;
     } else if (key.startsWith("Tags.")) {
@@ -162,6 +164,22 @@ function transposeQuery(query) {
         newQuery["_tags"]["$nin"] = newQuery["_tags"]["$nin"] || [];
         newQuery["_tags"]["$nin"].push(key.slice(5));
       }
+    } else if (key === "tag") {
+      if (typeof val === "string") {
+        newQuery["_tags"] = newQuery["_tags"] || {};
+        newQuery["_tags"]["$all"] = newQuery["_tags"]["$all"] || [];
+        newQuery["_tags"]["$all"].push(val);
+      } else if (val["$eq"]) {
+        newQuery["_tags"] = newQuery["_tags"] || {};
+        newQuery["_tags"]["$all"] = newQuery["_tags"]["$all"] || [];
+        newQuery["_tags"]["$all"].push(val["$eq"]);
+      } else if (val["$ne"]) {
+        newQuery["_tags"] = newQuery["_tags"] || {};
+        newQuery["_tags"]["$nin"] = newQuery["_tags"]["$nin"] || [];
+        newQuery["_tags"]["$nin"].push(val["$ne"]);
+      }
+    } else if (key === "Events.Inform") {
+      newQuery["_lastInform"] = val;
     } else {
       newQuery[key] = val;
     }
