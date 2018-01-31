@@ -205,10 +205,6 @@ function parseExpression(exp) {
   return lang.ValueExpression.tryParse(exp);
 }
 
-function parseParameter(p) {
-  return lang.Parameter.tryParse(p);
-}
-
 function stringify(filter) {
   function value(v) {
     if (Array.isArray(v))
@@ -271,54 +267,13 @@ function map(filter, callback) {
       }
     }
 
-  return callback(clone || filter) || clone || filter;
-}
+  let r = callback(clone || filter);
+  if (r != null) return r;
 
-function and(filter1, filter2) {
-  if (!filter1) return filter2;
-  else if (!filter2) return filter1;
-
-  let res = ["AND"];
-
-  if (filter1[0] === "AND") res = res.concat(filter1.slice(1));
-  else res.push(filter1);
-
-  if (filter2[0] === "AND") res = res.concat(filter2.slice(1));
-  else res.push(filter2);
-
-  return res;
-}
-
-function evaluateExpressions(filter, now = Date.now()) {
-  return map(filter, exp => {
-    if (exp[0] === "FUNC" && exp[1] === "NOW") {
-      return now;
-    } else if (exp[0] === "*") {
-      let v = exp[1];
-      for (let i = 2; i < exp.length; ++i) v *= exp[i];
-      return v;
-    } else if (exp[0] === "/") {
-      let v = exp[1];
-      for (let i = 2; i < exp.length; ++i) v /= exp[i];
-      return v;
-    } else if (exp[0] === "+") {
-      let v = exp[1];
-      for (let i = 2; i < exp.length; ++i) v += exp[i];
-      return v;
-    } else if (exp[0] === "-") {
-      let v = exp[1];
-      for (let i = 2; i < exp.length; ++i) v -= exp[i];
-      return v;
-    } else if (exp[0] === "||") {
-      return exp.slice(1).join("");
-    }
-  });
+  return clone || filter;
 }
 
 exports.parse = parse;
 exports.parseExpression = parseExpression;
-exports.parseParameter = parseParameter;
 exports.stringify = stringify;
 exports.map = map;
-exports.and = and;
-exports.evaluateExpressions = evaluateExpressions;

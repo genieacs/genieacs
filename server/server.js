@@ -12,10 +12,28 @@ const router = new Router();
 
 router.use("/api", api.routes(), api.allowedMethods());
 
+router.get("/", async ctx => {
+  ctx.body = `
+  <html>
+    <head>
+      <title>GenieACS</title>
+      <link rel="shortcut icon" type="image/png" href="favicon.png" />
+      <link rel="stylesheet" href="app.css">
+    </head>
+    <body>
+      <script>
+        window.clientConfig = ${JSON.stringify(config.getClientConfig())};
+      </script>
+      <script src="app.js"></script>
+    </body>
+  </html>
+  `;
+});
+
 koa.use(router.routes());
 koa.use(koaStatic("./public"));
 
-koa.listen(config.PORT, () => {
+koa.listen(config.get("server.port"), () => {
   // eslint-disable-next-line no-console
-  console.log(`Server listening on port ${config.PORT}`);
+  console.log(`Server listening on port ${config.get("server.port")}`);
 });

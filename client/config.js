@@ -1,69 +1,40 @@
 "use strict";
 
-export default {
-  pageSize: 10,
-  filter: [
-    {
-      label: "Serial number",
-      parameter: "DeviceID.SerialNumber",
-      type: "string"
-    },
-    {
-      label: "Product class",
-      parameter: "DeviceID.ProductClass",
-      type: "string"
-    },
-    {
-      label: "Tag",
-      parameter: "tag",
-      type: "string"
-    }
-  ],
-  index: [
-    {
-      label: "Serial number",
-      parameter: "DeviceID.SerialNumber"
-    },
-    {
-      label: "Product class",
-      parameter: "DeviceID.ProductClass"
-    },
-    {
-      label: "Software version",
-      parameter: "InternetGatewayDevice.DeviceInfo.SoftwareVersion"
-    },
-    {
-      label: "MAC",
-      parameter:
-        "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.MACAddress"
-    }
-  ],
-  overview: {
-    online: {
-      label: "Online devices",
-      charts: {
-        all: {
-          label: "All devices",
-          slices: {
-            onlineNow: {
-              label: "Online now",
-              color: "#31a354",
-              filter: "Events.Inform > NOW() - 5 * 60 * 1000"
-            },
-            past24: {
-              label: "Past 24 hours",
-              color: "#addd8e",
-              filter:
-                "Events.Inform > (NOW() - 5 * 60 * 1000) - (24 * 60 * 60 * 1000) AND Events.Inform < (NOW() - 5 * 60 * 1000)"
-            },
-            others: {
-              label: "Others",
-              color: "#f7fcb9",
-              filter: "Events.Inform < (NOW() - 5 * 60 * 1000) - (24 * 60 * 60 * 1000)"
-            }
-          }
+import * as Filter from "../common/filter";
+
+const configFile = window.clientConfig;
+
+const cache = {};
+
+function parse(name, value) {
+  if (/^ui\.overview\.charts\.[^.]+\.slices\.[^.]+\.filter$/.test(name))
+    return new Filter(value);
+
+  return value;
+}
+
+function get(name) {
+  let v = cache[name];
+  if (v === undefined) {
+    v = configFile[name];
+    if (v != null) {
+      v = parse(name, v);
+    } else {
+      const prefix = `${name}.`;
+      for (let k of Object.keys(configFile))
+        if (k.startsWith(prefix)) {
+          v = v || {};
+          let ar = k.slice(prefix.length).split(".");
+          let ref = v;
+          for (let a of ar.slice(0, -1)) ref = ref[a] = ref[a] || {};
+          ref[ar[ar.length - 1]] = parse(k, configFile[k]);
         }
-      }
     }
+    if (v) cache[name] = v;
+    else cache[name] = null;
   }
-};
+
+  return v;
+}
+
+export { get };

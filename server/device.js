@@ -5,7 +5,7 @@ function recursive(input, root, output, timestamp) {
     if (root.length === 0)
       if (name === "_lastInform") {
         output["Events.Inform"] = {
-          value: [timestamp, "xsd:dateTime"],
+          value: [Date.parse(tree), "xsd:dateTime"],
           valueTimestamp: timestamp,
           writable: false,
           writableTimestamp: timestamp,
@@ -14,7 +14,7 @@ function recursive(input, root, output, timestamp) {
         };
       } else if (name === "_registered") {
         output["Events.Registered"] = {
-          value: [timestamp, "xsd:dateTime"],
+          value: [Date.parse(tree), "xsd:dateTime"],
           valueTimestamp: timestamp,
           writable: false,
           writableTimestamp: timestamp,
@@ -23,7 +23,7 @@ function recursive(input, root, output, timestamp) {
         };
       } else if (name === "_lastBoot") {
         output["Events.1_BOOT"] = {
-          value: [timestamp, "xsd:dateTime"],
+          value: [Date.parse(tree), "xsd:dateTime"],
           valueTimestamp: timestamp,
           writable: false,
           writableTimestamp: timestamp,
@@ -32,7 +32,7 @@ function recursive(input, root, output, timestamp) {
         };
       } else if (name === "_lastBootstrap") {
         output["Events.0_BOOTSTRAP"] = {
-          value: [timestamp, "xsd:dateTime"],
+          value: [Date.parse(tree), "xsd:dateTime"],
           valueTimestamp: timestamp,
           writable: false,
           writableTimestamp: timestamp,

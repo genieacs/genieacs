@@ -80,11 +80,10 @@ function count(resource, filter, limit) {
   return new Promise((resolve, reject) => {
     let qs = {};
     if (filter) {
-      let f = filterParser.parse(filter);
-      f = filterParser.evaluateExpressions(f);
-      f = unpackTimestamps(f);
+      filter = filter.evaluateExpressions();
+      let ast = unpackTimestamps(filter.ast);
 
-      let q = filterToQuery(f);
+      let q = filterToQuery(ast);
       if (resource === "devices") q = device.transposeQuery(q);
       qs.query = JSON.stringify(q);
     }
@@ -92,7 +91,7 @@ function count(resource, filter, limit) {
     if (limit) qs.limit = limit;
 
     let options = url.parse(
-      `${config.GENIEACS_NBI}${resource}?${querystring.stringify(qs)}`
+      `${config.get("server.nbi")}${resource}?${querystring.stringify(qs)}`
     );
 
     options.method = "HEAD";
@@ -112,26 +111,28 @@ function count(resource, filter, limit) {
   });
 }
 
-function query(resource, filter, limit, callback) {
+function query(resource, filter, limit, skip, projection, callback) {
   return new Promise((resolve, reject) => {
     let ret;
     if (!callback) ret = [];
     let qs = {};
     if (filter) {
-      let f = filterParser.parse(filter);
-      f = filterParser.evaluateExpressions(f);
-      f = unpackTimestamps(f);
+      filter = filter.evaluateExpressions();
+      let ast = unpackTimestamps(filter.ast);
 
-      let q = filterToQuery(f);
+      let q = filterToQuery(ast);
       if (resource === "devices") q = device.transposeQuery(q);
 
       qs.query = JSON.stringify(q);
     }
 
     if (limit) qs.limit = limit;
+    if (skip) qs.skip = skip;
+    if (projection) qs.projection = projection;
+    qs.sort = JSON.stringify({ _id: 1 });
 
     let options = url.parse(
-      `${config.GENIEACS_NBI}${resource}?${querystring.stringify(qs)}`
+      `${config.get("server.nbi")}${resource}?${querystring.stringify(qs)}`
     );
 
     let _http = options.protocol === "https:" ? https : http;

@@ -5,7 +5,7 @@ import m from "mithril";
 const drawChart = function(chartData) {
   let slices = chartData.slices;
   let total = Array.from(Object.values(chartData.slices)).reduce(
-    (a, s) => a + s.count,
+    (a, s) => a + (s.count.value || 0),
     0
   );
   let legend = [];
@@ -17,7 +17,7 @@ const drawChart = function(chartData) {
   let endX, endY;
 
   for (let slice of Object.values(slices)) {
-    let percent = total > 0 ? slice.count / total : 0;
+    let percent = total > 0 ? (slice.count.value || 0) / total : 0;
     legend.push(
       m(".legend-line", [
         m("span.color", {
@@ -28,10 +28,10 @@ const drawChart = function(chartData) {
           "a",
           {
             href: `/#!/devices/?${m.buildQueryString({
-              filter: slice.filter
+              filter: slice.filter.toString()
             })}`
           },
-          slice.count
+          slice.count.value || 0
         ),
         ` (${(percent * 100).toFixed(2)}%)`
       ])
@@ -68,7 +68,7 @@ const drawChart = function(chartData) {
           "a",
           {
             href: `/#!/devices/?${m.buildQueryString({
-              filter: slice.filter
+              filter: slice.filter.toString()
             })}`
           },
           [
