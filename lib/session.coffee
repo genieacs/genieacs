@@ -432,6 +432,25 @@ runVirtualParameters = (sessionContext, provisions, startRevision, endRevision, 
             return counter = 0
 
           if _returnValue.value?
+            if not Array.isArray(_returnValue.value)
+              _returnValue.value = [_returnValue.value]
+
+            if not _returnValue.value[1]
+              if typeof _returnValue.value[0] is 'number'
+                _returnValue.value[1] = 'xsd:int'
+              else if typeof _returnValue.value[0] is 'boolean'
+                _returnValue.value[1] = 'xsd:boolean'
+              else if _returnValue.value[0] instanceof Date
+                _returnValue.value[1] = 'xsd:dateTime'
+              else
+                _returnValue.value[1] = 'xsd:string'
+
+            if not _returnValue.value[0]? or
+                _returnValue.value[1] not in ['xsd:int', 'xsd:unsignedInt', 'xsd:boolean', 'xsd:string', 'xsd:dateTime']
+              if counter & 1
+                callback(null, {code: 'script', message: 'Invalid virtual parameter value attribute'})
+              return counter = 0
+
             ret.value = device.sanitizeParameterValue(_returnValue.value)
           else if provision[1].value? or provision[2].value?
             if counter & 1
