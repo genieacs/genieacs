@@ -2,7 +2,7 @@
 
 GenieACS is a fast and lightweight TR-069 auto configuration server (ACS). This
 is the core back end component. A GUI front end is available at
-https://github.com/zaidka/genieacs-gui.
+https://github.com/genieacs/genieacs-gui.
 
 ## Features
 
@@ -32,7 +32,7 @@ Then install GenieACS using NPM:
 
 Alternatively, you can install from source by cloning the git repository:
 
-    git clone https://github.com/zaidka/genieacs.git
+    git clone https://github.com/genieacs/genieacs.git
     cd genieacs
     git checkout $(git tag -l v1.1.* --sort=-v:refname | head -n 1)
     npm install
@@ -62,13 +62,13 @@ such.
 Note: For production deployment make sure to run those as background services.
 
 For further details about installation and configuration, refer to the
-[wiki section](https://github.com/zaidka/genieacs/wiki).
+[wiki section](https://github.com/genieacs/genieacs/wiki).
 
 ## Support
 
 The [Users mailing list](http://lists.genieacs.com) is a good place to get
 guidance and help from the community. Head on over and join the conversation!
-In addition, the [wiki](https://github.com/zaidka/genieacs/wiki) provides useful
+In addition, the [wiki](https://github.com/genieacs/genieacs/wiki) provides useful
 documentation and tips from GenieACS users.
 
 For commercial support options and professional services, please visit
@@ -76,5 +76,5 @@ For commercial support options and professional services, please visit
 
 ## License
 
-Copyright 2013-2017 Zaid Abdulla. GenieACS is released under the
-[AGPLv3 license terms](https://raw.githubusercontent.com/zaidka/genieacs/master/LICENSE).
+Copyright 2013-2018 GenieACS Inc. GenieACS is released under the
+[AGPLv3 license terms](https://raw.githubusercontent.com/genieacs/genieacs/master/LICENSE).

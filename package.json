@@ -4,7 +4,7 @@
   "description": "A TR-069 Auto Configuration Server (ACS)",
   "repository": {
     "type": "git",
-    "url": "https://github.com/zaidka/genieacs.git"
+    "url": "https://github.com/genieacs/genieacs.git"
   },
   "homepage": "https://genieacs.com",
   "keywords": [
