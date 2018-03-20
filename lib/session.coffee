@@ -447,7 +447,7 @@ runVirtualParameters = (sessionContext, provisions, startRevision, endRevision, 
                 _returnValue.value[1] = 'xsd:string'
 
             if not _returnValue.value[0]? or
-                _returnValue.value[1] not in ['xsd:int', 'xsd:unsignedInt', 'xsd:boolean', 'xsd:string', 'xsd:dateTime']
+                _returnValue.value[1] not in ['xsd:int', 'xsd:unsignedInt', 'xsd:boolean', 'xsd:string', 'xsd:dateTime', 'xsd:base64', 'xsd:hexBinary']
               if counter & 1
                 callback(null, {code: 'script', message: 'Invalid virtual parameter value attribute'})
               return counter = 0
