@@ -1163,8 +1163,8 @@ processDeclarations = (sessionContext, allDeclareTimestamps, allDeclareAttribute
       if currentPath.wildcard == 0
         if attrs = allDeclareAttributeTimestamps.get(path)
           if declareAttributeTimestamps
-            delcareAttributeTimestamps = Object.assign({}, declareAttributeTimestamps)
-            declareAttributeTimestamps[k] = Math.max(v, attrs[k] or 0) for k, v of attrs
+            declareAttributeTimestamps = Object.assign({}, declareAttributeTimestamps)
+            declareAttributeTimestamps[k] = Math.max(v, declareAttributeTimestamps[k] or 0) for k, v of attrs
           else
             declareAttributeTimestamps = attrs
 
