@@ -29,7 +29,8 @@ InstanceSet = require './instance-set'
 defaultProvisions = require './default-provisions'
 gpnHeuristic = require './gpn-heuristic'
 
-MAX_ITERATIONS = 64
+# Multiply by two because every iteration is two phases: read and update
+MAX_ITERATIONS = config.get('MAX_COMMIT_ITERATIONS') * 2
 
 provisionsCache = new WeakMap()
 virtualParametersCache = new WeakMap()
