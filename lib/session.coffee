@@ -142,6 +142,20 @@ inform = (sessionContext, rpcReq, callback) ->
   params.push([['Events', 'Inform'], timestamp,
     {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [sessionContext.timestamp, 'xsd:dateTime']]}])
 
+  params.push([['Events', 'Inform', 'Parameter'], timestamp,
+    {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [sessionContext.timestamp, 'xsd:dateTime']]}])
+
+  params.push([['Events', 'Inform', 'Parameter', 'NumberOfEntries'], timestamp,
+    {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [rpcReq.parameterList.length, 'xsd:unsignedInt']]}])
+
+  for p, i in rpcReq.parameterList
+    params.push([['Events', 'Inform', 'Parameter', '' + (i + 1)], timestamp,
+      {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [sessionContext.timestamp, 'xsd:dateTime']]}])
+    params.push([['Events', 'Inform', 'Parameter', '' + (i + 1), 'Path'], timestamp,
+      {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [p[0], 'xsd:string']]}])
+    params.push([['Events', 'Inform', 'Parameter', '' + (i + 1), 'Value'], timestamp,
+      {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [p[1], p[2]]]}])
+
   for e in rpcReq.event
     params.push([['Events', e.replace(' ', '_')], timestamp,
       {object: [timestamp, 0], writable: [timestamp, 0], value: [timestamp, [sessionContext.timestamp, 'xsd:dateTime']]}])
