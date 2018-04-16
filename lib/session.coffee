@@ -1461,13 +1461,16 @@ rpcResponse = (sessionContext, id, rpcRes, callback) ->
         params.push([path, timestamp, {object: [timestamp, 1], writable: [timestamp, 0]}])
         params.push([path.concat('*'), timestamp])
 
-      # Sort such that actual parameters are set before wildcard ones
+      # Sort such that:
+      # - Longer params come first in order to work around client issue
+      #   where object paths can have no trailing dot.
+      # - Parameters come before wildcard paths.
       params.sort((a, b) ->
         al = a[0].length
         bl = b[0].length
-        ++ bl if b[0][bl - 1] == '*'
-        ++ al if a[0][al - 1] == '*'
-        return al - bl
+        bl *= -1 if b[0][bl - 1] == '*'
+        al *= -1 if a[0][al - 1] == '*'
+        return bl - al
       )
 
       if rpcReq.nextLevel
