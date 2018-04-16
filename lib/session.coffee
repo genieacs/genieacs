@@ -965,7 +965,9 @@ generateGetRpcRequest = (sessionContext) ->
     while (path = iter.next().value) and
         parameterNames.length < GPV_BATCH_SIZE
       syncState.refreshAttributes.value.delete(path)
-      if sessionContext.deviceData.attributes.has(path)
+      # Need to check in case param is deleted or changed to object
+      attrs = sessionContext.deviceData.attributes.get(path)
+      if attrs and attrs.object and attrs.object[1] == 0
         parameterNames.push(path)
 
     if parameterNames.length
