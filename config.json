@@ -93,5 +93,6 @@
   "ui.device.2.parameters.2.parameter": "IPAddress",
   "ui.device.2.parameters.3.label": "MAC address",
   "ui.device.2.parameters.3.parameter": "MACAddress",
-  "ui.device.3.type": "device-faults"
+  "ui.device.3.type": "device-faults",
+  "ui.device.4.type": "all-parameters"
 }

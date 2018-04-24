@@ -447,3 +447,46 @@ span.inform {
     }
   }
 }
+
+span.na {
+  color: var(--disabled);
+}
+
+.all-parameters {
+  clear: both;
+  font-family: monospace;
+  & > input {
+    font-family: monospace;
+    margin-bottom: 2px;
+    padding: 4px;
+    width: 600px;
+  }
+
+  & > .parameter-list {
+    overflow-y: scroll;
+    height: 200px;
+
+    & > table {
+      width: 100%;
+      border-spacing: 0;
+      & > tbody {
+        & > tr {
+          & > td {
+            border-bottom: 1px dotted var(--color1);
+          }
+          transition: background-color var(--fade);
+          &:hover {
+            background-color: var(--color3);
+          }
+
+          & > td.left {
+          }
+          & > td.right {
+            text-align: right;
+            padding-right: 0.5em;
+          }
+        }
+      }
+    }
+  }
+}

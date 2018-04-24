@@ -7,6 +7,7 @@ import overviewDot from "./components/overview-dot";
 import container from "./components/container";
 import summonButton from "./components/summon-button";
 import deviceFaults from "./components/device-faults";
+import allParameters from "./components/all-parameters";
 
 function get(name) {
   if (name === "parameter") return parameter;
@@ -16,6 +17,7 @@ function get(name) {
   else if (name === "container") return container;
   else if (name === "summon-button") return summonButton;
   else if (name === "device-faults") return deviceFaults;
+  else if (name === "all-parameters") return allParameters;
   else throw new Error(`No such component '${name}'`);
 }
 
