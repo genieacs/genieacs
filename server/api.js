@@ -8,7 +8,7 @@ const Filter = require("../common/filter");
 const router = new Router();
 
 const resources = {
-  devices: false,
+  devices: true,
   presets: true,
   provisions: true,
   files: true,

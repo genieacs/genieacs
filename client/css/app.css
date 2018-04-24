@@ -324,8 +324,7 @@ button {
   &.critical {
     border: 1px solid var(--color1);
     background-color: var(--color3);
-    font-weight: bold;
-    color: #900;
+    color: #700;
   }
   &:hover:enabled {
     background-color: var(--color4);
@@ -488,5 +487,12 @@ span.na {
         }
       }
     }
+  }
+}
+
+.device-actions {
+  margin-top: 10px;
+  & > button {
+    margin-right: 10px;
   }
 }

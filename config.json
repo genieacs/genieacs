@@ -94,5 +94,6 @@
   "ui.device.2.parameters.3.label": "MAC address",
   "ui.device.2.parameters.3.parameter": "MACAddress",
   "ui.device.3.type": "device-faults",
-  "ui.device.4.type": "all-parameters"
+  "ui.device.4.type": "all-parameters",
+  "ui.device.5.type": "device-actions"
 }

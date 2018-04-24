@@ -8,6 +8,8 @@ import * as filterParser from "../common/filter-parser";
 import Filter from "../common/filter";
 import * as store from "./store";
 import * as components from "./components";
+import * as taskQueue from "./task-queue";
+import * as notifications from "./notifications";
 
 function init(args) {
   return new Promise(resolve => {
@@ -126,6 +128,134 @@ function renderTable(
   ]);
 }
 
+function renderActions(selected) {
+  const buttons = [];
+
+  buttons.push(
+    m(
+      "button.primary",
+      {
+        title: "Reboot selected devices",
+        disabled: !selected.size,
+        onclick: () => {
+          for (let d of selected)
+            taskQueue.queueTask({
+              name: "reboot",
+              device: d
+            });
+        }
+      },
+      "Reboot"
+    )
+  );
+
+  buttons.push(
+    m(
+      "button.critical",
+      {
+        title: "Factory reset selected devices",
+        disabled: !selected.size,
+        onclick: () => {
+          for (let d of selected)
+            taskQueue.queueTask({
+              name: "factoryReset",
+              device: d
+            });
+        }
+      },
+      "Reset"
+    )
+  );
+
+  buttons.push(
+    m(
+      "button.primary",
+      {
+        title: "Delete selected devices",
+        disabled: !selected.size,
+        onclick: () => {
+          const ids = Array.from(selected);
+          if (!confirm(`Deleting ${ids.length} devices. Are you sure?`)) return;
+
+          Promise.all(ids.map(id => store.deleteResource("devices", id)))
+            .then(() => {
+              notifications.push("success", `${ids.size} devices deleted`);
+              store.fulfill(0, Date.now());
+            })
+            .catch(err => {
+              notifications.push("error", err.message);
+            });
+        }
+      },
+      "Delete"
+    )
+  );
+
+  buttons.push(
+    m(
+      "button.primary",
+      {
+        title: "Tag selected devices",
+        disabled: !selected.size,
+        onclick: () => {
+          const ids = Array.from(selected);
+          const tag = prompt(`Enter tag to assign to ${ids.length} devices:`);
+          if (!tag) return;
+
+          Promise.all(
+            ids.map(id => {
+              store.updateTags(id, { [tag]: true });
+            })
+          )
+            .then(() => {
+              notifications.push(
+                "success",
+                `Tag '${tag}' assigned to ${ids.length} devices`
+              );
+              store.fulfill(0, Date.now());
+            })
+            .catch(err => notifications.push("error", err.message));
+        }
+      },
+      "Tag"
+    )
+  );
+
+  buttons.push(
+    m(
+      "button.primary",
+      {
+        title: "Untag selected devices",
+        disabled: !selected.size,
+        onclick: () => {
+          const ids = Array.from(selected);
+          const tag = prompt(
+            `Enter tag to unassign from ${ids.length} devices:`
+          );
+          if (!tag) return;
+
+          Promise.all(
+            ids.map(id => {
+              store.updateTags(id, { [tag]: false });
+            })
+          )
+            .then(() => {
+              notifications.push(
+                "success",
+                `Tag '${tag}' unassigned from ${ids.length} devices`
+              );
+              store.fulfill(0, Date.now());
+            })
+            .catch(err => notifications.push("error", err.message));
+        }
+      },
+      "Untag"
+    )
+  );
+
+  return m(".device-actions", buttons);
+}
+
 const component = {
   view: vnode => {
     document.title = "Devices - GenieACS";
@@ -168,7 +298,8 @@ const component = {
         count.value,
         selected,
         showMore
-      )
+      ),
+      renderActions(selected)
     ];
   }
 };
