@@ -70,9 +70,8 @@ normalize = (input) ->
     if (m = /^\/(.*?)\/(g?i?m?y?)$/.exec(input))
       vals.push({'$regex' : new RegExp(m[1], m[2])})
 
-    f = parseFloat(input)
-    if not isNaN(f)
-      vals.push(f)
+    if +input == parseFloat(input)
+      vals.push(+input)
 
     d = new Date(input)
     if input.length >= 8 and d.getFullYear() > 1983
