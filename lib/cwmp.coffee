@@ -120,6 +120,10 @@ recordFault = (sessionContext, fault, provisions, channels) ->
   for channel of channels
     provs = sessionContext.faults[channel]?.provisions or []
     faults[channel] = Object.assign({provisions: provs}, fault)
+    if channel.startsWith('task_')
+      taskId = channel.slice(5)
+      for t in sessionContext.tasks
+        faults[channel].expiry = t.expiry if t._id == taskId and t.expiry
 
     if sessionContext.retries[channel]?
       ++ sessionContext.retries[channel]
