@@ -149,7 +149,9 @@ expand = (query) ->
       conditions = permute(k, v)
       if conditions.length > 1
         new_query['$and'] ?= []
-        if v?['$ne']?
+        if v?['$ne']? or v?['$not']?
+          if Object.keys(v) > 1
+            throw new Error("Cannot mix $ne or $not with other operators")
           for c in conditions
             new_query['$and'].push(c)
         else
