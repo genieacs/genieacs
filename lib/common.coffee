@@ -18,7 +18,6 @@
 ###
 
 buffer = require 'buffer'
-querystring = require 'querystring'
 
 UNDEFINED_TYPE = '[object Undefined]'
 NULL_TYPE = '[object Null]'
@@ -210,26 +209,9 @@ addPathMeta = (path) ->
   return path
 
 
-hammingWeight = (flags) ->
-  flags -= ((flags >> 1) & 0x55555555)
-  flags = (((flags >> 2) & 0x33333333) + (flags & 0x33333333))
-  flags = (((flags >> 4) + flags) & 0x0f0f0f0f)
-  flags += (flags >> 8)
-  flags += (flags >> 16)
-  return flags & 0x0000003f
-
-
 # Source: http://stackoverflow.com/a/6969486
 escapeRegExp = (str) ->
   return str.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, "\\$&")
-
-
-# djb2 hashing algorithm adapted from http://www.cse.yorku.ca/~oz/hash.html
-djb2 = (str) ->
-  hash = 5381
-  for i in [0...str.length]
-    hash = ((hash << 5) + hash) ^ str.charCodeAt(i)
-  return hash
 
 
 exports.UNDEFINED_TYPE = UNDEFINED_TYPE
@@ -244,6 +226,4 @@ exports.typeOf = typeOf
 exports.pathOverlap = pathOverlap
 exports.parsePath = parsePath
 exports.addPathMeta = addPathMeta
-exports.hammingWeight = hammingWeight
 exports.escapeRegExp = escapeRegExp
-exports.djb2 = djb2

@@ -61,8 +61,8 @@ TAGS_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/tags\/([a-zA-Z0-9\-\_\%]+)\/?$/
 PRESETS_REGEX = /^\/presets\/([a-zA-Z0-9\-\_\%]+)\/?$/
 OBJECTS_REGEX = /^\/objects\/([a-zA-Z0-9\-\_\%]+)\/?$/
 FILES_REGEX = /^\/files\/([a-zA-Z0-9\%\!\*\'\(\)\;\:\@\&\=\+\$\,\?\#\[\]\-\_\.\~]+)\/?$/
-PING_REGEX = /^\/ping\/([a-zA-Z0-9\-\_\.]+)\/?$/
-QUERY_REGEX = /^\/([a-zA-Z0-9_]+s)\/?$/
+PING_REGEX = /^\/ping\/([a-zA-Z0-9\-\_\.\:]+)\/?$/
+QUERY_REGEX = /^\/([a-zA-Z0-9_]+)\/?$/
 DELETE_DEVICE_REGEX = /^\/devices\/([a-zA-Z0-9\-\_\%]+)\/?$/
 PROVISIONS_REGEX = /^\/provisions\/([a-zA-Z0-9\-\_\%]+)\/?$/
 VIRTUAL_PARAMETERS_REGEX = /^\/virtual_parameters\/([a-zA-Z0-9\-\_\%]+)\/?$/
@@ -330,6 +330,11 @@ listener = (request, response) ->
         if request.method == 'DELETE'
           db.tasksCollection.findOne({'_id' : taskId}, {'device' : 1}, (err, task) ->
             return throwError(err, response) if err
+            if not task?
+              response.writeHead(404)
+              response.end("Task not found")
+              return
+
             deviceId = task.device
             db.tasksCollection.remove({'_id' : taskId}, (err) ->
               return throwError(err, response) if err
@@ -491,7 +496,7 @@ listener = (request, response) ->
         i = 0
         cur.each((err, item) ->
           if err
-            throwError(err, response)
+            throwError(err)
             return false
 
           if item?

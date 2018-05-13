@@ -39,32 +39,50 @@ onConnection = require("./#{service}").onConnection
 
 server = null
 
-exit = () ->
+closeServer = (timeout, callback) ->
+  return callback() if not server
+
   setTimeout(() ->
-    process.exit(1)
-  , 30000).unref()
+    return if not callback
 
-  cluster.worker?.disconnect()
+    # Ignore HTTP requests from connection that may still be open
+    server.removeListener('request', listener)
+    server.setTimeout(1)
 
-  if not server
-    db.disconnect()
-    cache.disconnect()
-    extensions.killAll()
-    logger.close()
-    return
+    cb = callback
+    callback = null
+    setTimeout(cb, 1000)
+  , timeout).unref()
 
   server.close(() ->
+    return if not callback
+
+    cb = callback
+    callback = null
+    cb()
+  )
+
+
+exit = () ->
+  setTimeout(() ->
+    extensions.killAll(() ->
+      process.exit(1)
+    )
+  , 30000).unref()
+
+  closeServer(20000, () ->
     db.disconnect()
     cache.disconnect()
     extensions.killAll()
-    logger.close()
+    cluster.worker?.disconnect()
   )
 
 
 process.on('uncaughtException', (err) ->
   logger.error({
     message: 'Uncaught exception'
-    exception: err
+    exception: err,
+    pid: process.pid
   })
   exit()
 )

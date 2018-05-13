@@ -1,5 +1,42 @@
 # Change Log
 
+## 1.1.2 (2018-02-24)
+
+- A large number of bug fixes as well as stability and performance improvements.
+- Three security vulnerabilities disclosed by Maximilian Hils have been patched.
+- New config option UDP_CONNECTION_REQUEST_PORT to specify binding port for UDP
+connection requests.
+- New config option DATETIME_MILLISECONDS to strip milliseconds from dateTime
+values.
+- New config option BOOLEAN_LITERAL to use 1/0 or true/false for boolean values.
+- Parameter values that cannot be parsed according to the reported type now show
+a warning message.
+- Virtual parameter scripts now use the variable 'args' instead of the special
+'TIMESTAMPS' and 'VALUES' variables. The content of the args array is: {declare
+timestamps}, {declare values}, {current timestamps}, {current values}.
+- Virtual parameter value types are now inferred from the JavaScript type if the
+returned value attribute is not a value-type pair.
+- Show a fault when a virtual parameter script doesn't return the required
+attributes.
+- Redis is now optional (and disabled by default), reducing the complexity of
+scalable deployments.
+- Better detection of cyclical presets resulting in fewer faults for complex
+provisioning scripts.
+- Math.random() is now deterministic on per-device basis. A function has been
+added to allow specifying a seed value (e.g. Math.random.seed(Date.now())).
+- Overload spikes are now handled gracefully by refusing to accept new sessions
+temporarily when under abnormal load.
+- Added log messages for session timeouts, connection drops, and XML parsing
+errors.
+- Date.now() now takes an optional argument to specify "time steps" (in
+milliseconds). This can be used to ensure a group of parameters are all
+refreshed at the same time intervals.
+- Only the non-default configuration options are now logged at process start.
+- Faults caused by errors from extensions now show a cleaner stack trace.
+- Exit main process if there are too many worker crashes (e.g. when DB is down).
+- Updated dependencies and included a lockfile to ensure installations get the
+exact dependencies it was tested against.
+
 ## 1.1.1 (2017-03-23)
 
 - Avoid crashing when connection request credentials are missing.

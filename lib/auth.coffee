@@ -21,10 +21,30 @@ crypto = require 'crypto'
 
 
 exports.parseAuthHeader = (authHeader) ->
-  res = {method: authHeader.slice(0, authHeader.indexOf(' '))}
-  re = /([a-z0-9_-]+)=(?:"([^"]+)"|([a-z0-9_-]+))/gi
-  while match = re.exec(authHeader)
-    res[match[1]] = match[2] or match[3]
+  authHeader = authHeader.trim()
+  method = authHeader.split(' ', 1)[0]
+  res = {method: method}
+  parts = authHeader.slice(method.length + 1).split(',')
+
+  while (part = parts.shift())?
+    name = part.split('=', 1)[0]
+    throw new Error('Unable to parse auth header') if name.length == part.length
+    value = part.slice(name.length + 1)
+    if not /^\s*"/.test(value)
+      value = value.trim()
+    else
+      while not /[^\\]"\s*$/.test(value)
+        p = parts.shift()
+        throw new Error('Unable to parse auth header') if not p?
+        value += ',' + p
+
+      try
+        value = JSON.parse(value)
+      catch
+        throw new Error('Unable to parse auth header')
+
+    res[name.trim()] = value
+
   return res
 
 
