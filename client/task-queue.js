@@ -46,7 +46,8 @@ function commit(tasks, callback) {
 
   return new Promise(resolve => {
     let counter = 1;
-    for (let [deviceId, tasks2] of Object.entries(devices))
+    for (let [deviceId, tasks2] of Object.entries(devices)) {
+      ++counter;
       store
         .postTasks(deviceId, tasks)
         .then(connectionRequestStatus => {
@@ -61,6 +62,7 @@ function commit(tasks, callback) {
           callback(deviceId, err, null, tasks2);
           if (--counter === 0) resolve();
         });
+    }
 
     if (--counter === 0) resolve();
   });
