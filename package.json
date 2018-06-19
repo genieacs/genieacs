@@ -36,7 +36,7 @@
   },
   "scripts": {
     "compile": "echo 'Compile step no longer required, skipping.'",
-    "configure": "cp -n ./config/config-sample.json ./config/config.json",
+    "configure": "if [ ! -f ./config/config.json ]; then cp ./config/config-sample.json ./config/config.json; fi",
     "install": "npm run configure",
     "test": "node test",
     "lint": "eslint --fix lib/*.js; prettier --write lib/*.js"
