@@ -36,6 +36,10 @@ function stageSpv(task) {
   staging.add(task);
 }
 
+function stageDownload(task) {
+  staging.add(task);
+}
+
 function commit(tasks, callback) {
   let devices = {};
   for (let t of tasks) {
@@ -76,5 +80,6 @@ export {
   getStaging,
   clearStaging,
   stageSpv,
+  stageDownload,
   commit
 };

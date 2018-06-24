@@ -5,6 +5,7 @@ import m from "mithril";
 import * as taskQueue from "./task-queue";
 import * as store from "./store";
 import * as notifications from "./notifications";
+import Filter from "../common/filter";
 
 function mparam(param) {
   return m("span.parameter", { title: param }, `${param}`);
@@ -12,6 +13,101 @@ function mparam(param) {
 
 function mval(val) {
   return m("span.value", { title: val }, `${val}`);
+}
+
+function renderStagingSpv(task, queueFunc, cancelFunc) {
+  const input = m("input", {
+    value: task.parameterValues[0][1],
+    oninput: e => {
+      e.redraw = false;
+      task.parameterValues[0][1] = input.dom.value;
+    },
+    onkeydown: e => {
+      if (e.keyCode === 13) queueFunc();
+      else if (e.keyCode === 27) cancelFunc();
+      else e.redraw = false;
+    },
+    oncreate: vnode => {
+      vnode.dom.focus();
+      vnode.dom.select();
+      // Need to prevent scrolling on focus because
+      // we're animating height and using overflow: hidden
+      vnode.dom.parentNode.parentNode.scrollTop = 0;
+    }
+  });
+
+  return [m("span", "Editing ", mparam(task.parameterValues[0][0])), input];
+}
+
+function renderStagingDownload(task) {
+  task.invalid = !task.fileName || !task.fileType;
+  const files = store.fetch("files", new Filter());
+  const idParts = task.device.split("-");
+  const oui = decodeURIComponent(idParts[0]);
+  const productClass =
+    idParts.length === 3 ? decodeURIComponent(idParts[1]) : "";
+
+  const typesList = [
+    "",
+    "1 Firmware Upgrade Image",
+    "2 Web Content",
+    "3 Vendor Configuration File",
+    "4 Tone File",
+    "5 Ringer File"
+  ].map(t =>
+    m(
+      "option",
+      {
+        disabled: !t,
+        value: t,
+        selected: (task.fileType || "") === t,
+        onclick: () => {
+          task.fileType = t;
+        }
+      },
+      t
+    )
+  );
+
+  const filesList = [""]
+    .concat(
+      files.value
+        .filter(
+          f =>
+            (!f.metadata.oui || f.metadata.oui === oui) &&
+            (!f.metadata.productClass ||
+              f.metadata.productClass === productClass)
+        )
+        .map(f => f._id)
+    )
+    .map(f =>
+      m(
+        "option",
+        {
+          disabled: !f,
+          value: f,
+          selected: (task.fileName || "") === f,
+          onclick: () => {
+            task.fileName = f;
+            task.fileType = "";
+            for (let file of files.value)
+              if (file._id === f) task.fileType = file.metadata.fileType;
+          }
+        },
+        f
+      )
+    );
+
+  return [
+    "Push ",
+    m(
+      "select",
+      { disabled: files.fulfilling, style: "width: 350px" },
+      filesList
+    ),
+    " as ",
+    m("select", typesList)
+  ];
 }
 
 function renderStaging(staging) {
@@ -25,29 +121,15 @@ function renderStaging(staging) {
       staging.delete(s);
     };
 
-    const input = m("input", {
-      value: s.parameterValues[0][1],
-      oninput: e => {
-        e.redraw = false;
-        s.parameterValues[0][1] = input.dom.value;
-      },
-      onkeydown: e => {
-        if (e.keyCode === 13) queueFunc();
-        else if (e.keyCode === 27) cancelFunc();
-        else e.redraw = false;
-      },
-      oncreate: vnode => {
-        vnode.dom.focus();
-        vnode.dom.select();
-        // Need to prevent scrolling on focus because
-        // we're animating height and using overflow: hidden
-        vnode.dom.parentNode.parentNode.scrollTop = 0;
-      }
-    });
+    let elms;
+    if (s.name === "setParameterValues")
+      elms = renderStagingSpv(s, queueFunc, cancelFunc);
+    else if (s.name === "download")
+      elms = renderStagingDownload(s, queueFunc, cancelFunc);
 
     const queue = m(
       "button.primary",
-      { title: "Queue task", onclick: queueFunc },
+      { title: "Queue task", onclick: queueFunc, disabled: s.invalid },
       "Queue"
     );
     const cancel = m(
@@ -56,14 +138,7 @@ function renderStaging(staging) {
       "Cancel"
     );
 
-    elements.push(
-      m(
-        ".staging",
-        m("span", "Editing ", mparam(s.parameterValues[0][0])),
-        input,
-        m("div.actions", queue, cancel)
-      )
-    );
+    elements.push(m(".staging", elms, m("div.actions", queue, cancel)));
   }
   return elements;
 }
@@ -158,6 +233,14 @@ function renderQueue(queue) {
           m(
             `div.${t.status}`,
             `Refresh ${t.parameterNames.length} parameters`,
+            m(".actions", actions)
+          )
+        );
+      else if (t.name === "download")
+        details.push(
+          m(
+            `div.${t.status}`,
+            `Push file: ${t.fileName} (${t.fileType})`,
             m(".actions", actions)
           )
         );

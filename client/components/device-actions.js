@@ -45,6 +45,22 @@ const component = {
 
     buttons.push(
       m(
+        "button.critical",
+        {
+          title: "Push a firmware or a config file",
+          onclick: () => {
+            taskQueue.stageDownload({
+              name: "download",
+              device: device["DeviceID.ID"].value[0]
+            });
+          }
+        },
+        "Push file"
+      )
+    );
+
+    buttons.push(
+      m(
         "button.primary",
         {
           title: "Delete device",
