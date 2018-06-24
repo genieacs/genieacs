@@ -73,6 +73,16 @@ function limitFilter(resourceType, filter, last) {
 }
 
 function findMatches(resourceType, filter, limit) {
+  // Handle "tag =" and "tag <>" special cases
+  if (resourceType === "devices" && filter.ast) {
+    const ast = filterParser.map(filter.ast, e => {
+      if (e[1] === "tag")
+        if (e[0] === "=") return ["=", `Tags.${e[2]}`, true];
+        else if (e[0] === "<>") return ["NOT", ["=", `Tags.${e[2]}`, true]];
+    });
+    filter = new Filter(ast);
+  }
+
   let value = [];
   for (let [id, obj] of resources[resourceType].objects.entries())
     if (filter.test(obj)) value.push(id);
