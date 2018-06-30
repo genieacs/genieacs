@@ -15,11 +15,11 @@ const Authorizer = require("../common/authorizer");
 const koa = new Koa();
 const router = new Router();
 
-const JWT_SECRET = config.get("server.jwtSecret");
+const JWT_SECRET = config.server.jwtSecret;
 const JWT_COOKIE = "genieacs-ui-jwt";
 
 function getPermissionSets(roles) {
-  const allPermissions = config.get("permissions");
+  const allPermissions = config.permissions;
   const permissionSets = roles.map(r => Object.values(allPermissions[r] || {}));
   return permissionSets;
 }
@@ -46,7 +46,7 @@ router.post("/login", async ctx => {
   const username = ctx.request.body.username;
   const password = ctx.request.body.password;
 
-  const user = config.get(`auth.simple.users.${username}`);
+  const user = config.auth.simple.users[username];
 
   if (!user || user.password !== password) {
     ctx.status = 400;
@@ -54,7 +54,10 @@ router.post("/login", async ctx => {
     return;
   }
 
-  let token = jwt.sign({ username: username, roles: user.roles }, JWT_SECRET);
+  let token = jwt.sign(
+    { username: username, roles: user.roles.split(",") },
+    JWT_SECRET
+  );
   ctx.cookies.set(JWT_COOKIE, token);
   ctx.body = JSON.stringify(token);
 });
@@ -101,7 +104,7 @@ koa.use(
 koa.use(router.routes());
 koa.use(koaStatic("./public"));
 
-koa.listen(config.get("server.port"), () => {
+koa.listen(config.server.port, () => {
   // eslint-disable-next-line no-console
-  console.log(`Server listening on port ${config.get("server.port")}`);
+  console.log(`Server listening on port ${config.server.port}`);
 });

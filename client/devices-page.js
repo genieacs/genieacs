@@ -2,7 +2,7 @@
 
 import m from "mithril";
 
-import * as config from "./config";
+import config from "./config";
 import filterComponent from "./filter-component";
 import * as filterParser from "../common/filter-parser";
 import Filter from "../common/filter";
@@ -17,7 +17,7 @@ function init(args) {
       return reject(new Error("You are not authorized to view this page"));
 
     let filter = new Filter(args.filter);
-    let indexParameters = Object.values(config.get("ui.index")).map(p =>
+    let indexParameters = Object.values(config.ui.index).map(p =>
       Object.assign({}, p, {
         parameter: filterParser.parseParameter(p.parameter)
       })
@@ -302,7 +302,7 @@ const component = {
     return [
       m("h1", "Listing devices"),
       m(filterComponent, {
-        predefined: Object.values(config.get("ui.filters")),
+        predefined: Object.values(config.ui.filters),
         filter: vnode.attrs.filter ? vnode.attrs.filter.ast : null,
         onChange: onFilterChanged
       }),

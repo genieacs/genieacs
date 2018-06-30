@@ -10,7 +10,7 @@ function getClient() {
   if (_client) return Promise.resolve(_client);
 
   return new Promise((resolve, reject) => {
-    const CONNECTION_URL = config.get("server.mongodbConnectionUrl");
+    const CONNECTION_URL = config.server.mongodbConnectionUrl;
     MongoClient.connect(CONNECTION_URL, (err, client) => {
       if (err) return reject(err);
       resolve((_client = client.db("genieacs-ui")));

@@ -2,7 +2,7 @@
 
 import m from "mithril";
 
-import * as config from "./config";
+import config from "./config";
 import Filter from "../common/filter";
 import * as store from "./store";
 import * as components from "./components";
@@ -25,7 +25,7 @@ const component = {
 
     let dev = store.fetch("devices", vnode.attrs.deviceFilter).value;
     if (!dev.length) return "Loading";
-    const conf = config.get("ui.device");
+    const conf = config.ui.device;
     const cmps = [];
 
     for (let c of Object.values(conf))

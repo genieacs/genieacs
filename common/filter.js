@@ -3,6 +3,7 @@
 const filterParser = require("./filter-parser");
 const filterCnf = require("./filter-cnf");
 const satSolver = require("./sat-solver");
+const funcCache = require("./func-cache");
 
 function* permute(arr) {
   if (arr.length <= 1) {
@@ -22,6 +23,10 @@ class Filter {
     else if (str instanceof Filter) this.ast = str.ast;
     else if (Array.isArray(str.ast) || str.ast === null) this.ast = str.ast;
     else this.ast = filterParser.parse(str);
+  }
+
+  static parse(str) {
+    return new Filter(str);
   }
 
   toString() {

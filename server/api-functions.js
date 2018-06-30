@@ -92,7 +92,7 @@ function count(resource, filter, limit) {
     if (limit) qs.limit = limit;
 
     let options = url.parse(
-      `${config.get("server.nbi")}${resource}?${querystring.stringify(qs)}`
+      `${config.server.nbi}${resource}?${querystring.stringify(qs)}`
     );
 
     options.method = "HEAD";
@@ -133,7 +133,7 @@ function query(resource, filter, limit, skip, projection, callback) {
     qs.sort = JSON.stringify({ _id: 1 });
 
     let options = url.parse(
-      `${config.get("server.nbi")}${resource}?${querystring.stringify(qs)}`
+      `${config.server.nbi}${resource}?${querystring.stringify(qs)}`
     );
 
     let _http = options.protocol === "https:" ? https : http;
@@ -209,7 +209,7 @@ function query(resource, filter, limit, skip, projection, callback) {
 function deleteResource(resource, id) {
   return new Promise((resolve, reject) => {
     let options = url.parse(
-      `${config.get("server.nbi")}${resource}/${encodeURIComponent(id)}`
+      `${config.server.nbi}${resource}/${encodeURIComponent(id)}`
     );
 
     options.method = "DELETE";
@@ -229,7 +229,7 @@ function deleteResource(resource, id) {
 
 function postTask(task, connectionRequest, callback) {
   let options = url.parse(
-    `${config.get("server.nbi")}devices/${task.device}/tasks${
+    `${config.server.nbi}devices/${task.device}/tasks${
       connectionRequest ? "?connection_request" : ""
     }`
   );
@@ -346,9 +346,9 @@ function updateTags(deviceId, tags) {
       ([tag, onOff]) =>
         new Promise((resolve, reject) => {
           const options = url.parse(
-            `${config.get(
-              "server.nbi"
-            )}devices/${deviceId}/tags/${encodeURIComponent(tag)}`
+            `${config.server.nbi}devices/${deviceId}/tags/${encodeURIComponent(
+              tag
+            )}`
           );
           if (onOff) options.method = "POST";
           else options.method = "DELETE";
@@ -370,7 +370,7 @@ function updateTags(deviceId, tags) {
 function ping(host) {
   return new Promise((resolve, reject) => {
     const options = url.parse(
-      `${config.get("server.nbi")}ping/${encodeURIComponent(host)}`
+      `${config.server.nbi}ping/${encodeURIComponent(host)}`
     );
 
     let _http = options.protocol === "https:" ? https : http;

@@ -28,7 +28,7 @@ const drawChart = function(chartData) {
           "a",
           {
             href: `/#!/devices/?${m.buildQueryString({
-              filter: slice.filter.toString()
+              filter: slice.filter
             })}`
           },
           slice.count.value || 0
@@ -68,7 +68,7 @@ const drawChart = function(chartData) {
           "a",
           {
             href: `/#!/devices/?${m.buildQueryString({
-              filter: slice.filter.toString()
+              filter: slice.filter
             })}`
           },
           [

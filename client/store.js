@@ -2,8 +2,9 @@
 
 import m from "mithril";
 import Filter from "../common/filter";
-import * as config from "./config";
+import config from "./config";
 import * as filterParser from "../common/filter-parser";
+import * as funcCache from "../common/func-cache";
 
 let fulfillTimestamp = 0;
 

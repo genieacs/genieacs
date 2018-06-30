@@ -1,23 +1,27 @@
 "use strict";
 
 import m from "mithril";
-import * as config from "./config";
+import config from "./config";
 import * as store from "./store";
 import pieChartComponent from "./pie-chart-component";
+import Filter from "../common/filter";
+import * as funcCache from "../common/func-cache";
 
-const GROUPS = config.get("ui.overview.groups");
+const GROUPS = config.ui.overview.groups;
 const CHARTS = {};
 for (let group of Object.values(GROUPS))
   for (let chartName of Object.values(group["charts"]))
-    CHARTS[chartName] = config.get("ui.overview.charts")[chartName];
+    CHARTS[chartName] = config.ui.overview.charts[chartName];
 
 function queryCharts(charts) {
   charts = Object.assign({}, charts);
   for (let [chartName, chart] of Object.entries(charts)) {
     charts[chartName] = chart = Object.assign({}, chart);
+    chart.slices = Object.assign({}, chart.slices);
     for (let [sliceName, slice] of Object.entries(chart.slices)) {
+      const filter = funcCache.get(Filter.parse, slice.filter);
       chart.slices[sliceName] = slice = Object.assign({}, slice);
-      slice.count = store.count("devices", slice.filter);
+      slice.count = store.count("devices", filter);
     }
   }
   return charts;
@@ -33,7 +37,7 @@ const init = function() {
 };
 
 const component = {
-  view: () => {
+  view: vnode => {
     document.title = "Overview - GenieACS";
     let children = [];
     for (let group of Object.values(GROUPS)) {
@@ -41,7 +45,7 @@ const component = {
 
       let groupChildren = [];
       for (let chartName of Object.values(group.charts)) {
-        const chart = CHARTS[chartName];
+        const chart = vnode.attrs.charts[chartName];
         let chartChildren = [];
         if (chart.label) chartChildren.push(m("h2", chart.label));
 

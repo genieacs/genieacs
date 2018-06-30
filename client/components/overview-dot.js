@@ -1,17 +1,21 @@
 "use strict";
 
 import m from "mithril";
-import * as config from "../config";
+import config from "../config";
 import * as store from "../store";
+import * as funcCache from "../../common/func-cache";
+import Filter from "../../common/filter";
 
-const CHARTS = config.get("ui.overview.charts");
+const CHARTS = config.ui.overview.charts;
 
 const component = {
   view: vnode => {
     const device = vnode.attrs.device;
     const chart = CHARTS[vnode.attrs.chart];
     for (let slice of Object.values(chart.slices)) {
-      const filter = store.unpackFilter(slice.filter);
+      const filter = store.unpackFilter(
+        funcCache.get(Filter.parse, slice.filter)
+      );
       if (filter.test(device)) {
         const dot = m(
           "svg",
