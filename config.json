@@ -246,10 +246,28 @@
         ]
       },
       {
-        "type": "device-faults"
+        "type": "container",
+        "element": "div",
+        "components": [
+          {
+            "type": "container",
+            "element": "h3",
+            "components": ["Faults"]
+          },
+          {"type": "device-faults"}
+        ]
       },
       {
-        "type": "all-parameters"
+        "type": "container",
+        "element": "div.container-full-width",
+        "components": [
+          {
+            "type": "container",
+            "element": "h3",
+            "components": ["All parameters"]
+          },
+          {"type": "all-parameters"}
+        ]
       },
       {
         "type": "device-actions"

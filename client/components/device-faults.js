@@ -64,7 +64,7 @@ const component = {
         m("tr.empty", m("td", { colspan: headers.length }, "No faults"))
       );
 
-    return [m("h2", "Faults"), m("table.table", thead, tbody)];
+    return m("table.table", thead, tbody);
   }
 };
 

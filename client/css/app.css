@@ -473,7 +473,6 @@ span.na {
 }
 
 .all-parameters {
-  clear: both;
   font-family: monospace;
   & > input {
     font-family: monospace;
@@ -509,6 +508,15 @@ span.na {
       }
     }
   }
+}
+
+.container-right {
+  float: right;
+  clear: right;
+}
+
+.container-full-width {
+  clear: both;
 }
 
 .device-actions {

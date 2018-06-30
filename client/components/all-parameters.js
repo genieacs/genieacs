@@ -103,14 +103,11 @@ const component = {
         return m("tr", attrs, m("td.left", k), m("td.right", val));
       });
 
-    return [
-      m("h2", "Device parameters"),
-      m(
-        ".all-parameters",
-        search,
-        m(".parameter-list", m("table", m("tbody", rows)))
-      )
-    ];
+    return m(
+      ".all-parameters",
+      search,
+      m(".parameter-list", m("table", m("tbody", rows)))
+    );
   }
 };
 
