@@ -22,6 +22,8 @@ function purge() {
   cache1 = new WeakMap();
 }
 
+setInterval(purge, 120000);
+
 exports.get = get;
 exports.getter = getter;
 exports.purge = purge;

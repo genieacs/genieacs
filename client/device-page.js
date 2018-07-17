@@ -3,7 +3,6 @@
 import m from "mithril";
 
 import config from "./config";
-import Filter from "../common/filter";
 import * as store from "./store";
 import * as components from "./components";
 
@@ -15,7 +14,7 @@ function init(args) {
 
   return Promise.resolve({
     deviceId: args.id,
-    deviceFilter: new Filter(["=", "DeviceID.ID", args.id])
+    deviceFilter: ["=", ["PARAM", "DeviceID.ID"], args.id]
   });
 }
 

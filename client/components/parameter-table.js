@@ -4,15 +4,23 @@ import m from "mithril";
 import * as components from "../components";
 import * as taskQueue from "../task-queue";
 import * as store from "../store";
-import * as filterParser from "../../common/filter-parser";
+import * as expression from "../../common/expression";
+import * as funcCache from "../../common/func-cache";
+
+const parseParameter = funcCache.getter(p => {
+  p = expression.parse(p);
+  if (Array.isArray(p) && p[0] === "PARAM") p = p[1];
+  return p;
+});
 
 const component = {
   oninit: vnode => {
-    vnode.state.object = filterParser.parseParameter(vnode.attrs.parameter);
+    vnode.state.object = parseParameter(vnode.attrs.parameter);
     vnode.state.parameters = Object.values(vnode.attrs.childParameters).map(
       parameter => {
-        let p = filterParser.parseParameter(parameter.parameter);
-        return Object.assign({}, parameter, { parameter: p });
+        return Object.assign({}, parameter, {
+          parameter: parseParameter(parameter.parameter)
+        });
       }
     );
   },

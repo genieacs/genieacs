@@ -1,15 +1,15 @@
 "use strict";
 
 import m from "mithril";
-import Filter from "../common/filter";
 import config from "./config";
-import * as filterParser from "../common/filter-parser";
+import * as expressionParser from "../common/expression-parser";
+import * as expression from "../common/expression";
 import * as funcCache from "../common/func-cache";
 
 let fulfillTimestamp = 0;
 
-let unpackedFiltersCache = new WeakMap();
-let expressionsCache = new WeakMap();
+let unpackExpressionCache = new WeakMap();
+let evaluateExpressionCache = new WeakMap();
 
 const queries = {
   filter: new WeakMap(),
@@ -47,46 +47,54 @@ class QueryResponse {
   }
 }
 
-function unpackFilter(filter) {
-  let f = unpackedFiltersCache.get(filter);
-  if (!f) {
-    f = f.evaluateExpressions(fulfillTimestamp);
-    unpackedFiltersCache.set(filter, f);
+function unpackExpression(exp) {
+  if (!Array.isArray(exp)) return exp;
+  let e = unpackExpressionCache.get(exp);
+  if (e === undefined) {
+    e = expression.evaluate(e, null, fulfillTimestamp);
+    unpackExpressionCache.set(exp, e);
   }
-  return f;
+  return e;
 }
 
 function count(resourceType, filter) {
-  let queryResponse = resources[resourceType].count.get(filter.toString());
+  const filterStr = funcCache.get(expression.stringify, filter);
+  let queryResponse = resources[resourceType].count.get(filterStr);
   if (queryResponse) return queryResponse;
 
   queryResponse = new QueryResponse();
 
-  resources[resourceType].count.set(filter.toString(), queryResponse);
+  resources[resourceType].count.set(filterStr, queryResponse);
   queries.filter.set(queryResponse, filter);
   return queryResponse;
 }
 
 function limitFilter(resourceType, filter, last) {
   if (resourceType === "devices")
-    return filter.and(new Filter(["<=", "DeviceID.ID", last]));
-  else return filter.and(new Filter(["<=", "_id", last]));
+    return expression.and(filter, ["<=", "DeviceID.ID", last]);
+  else return expression.and(filter, ["<=", ["PARAM", "_id"], last]);
 }
 
 function findMatches(resourceType, filter, limit) {
   // Handle "tag =" and "tag <>" special cases
-  if (resourceType === "devices" && filter.ast) {
-    const ast = filterParser.map(filter.ast, e => {
-      if (e[1] === "tag")
-        if (e[0] === "=") return ["=", `Tags.${e[2]}`, true];
-        else if (e[0] === "<>") return ["NOT", ["=", `Tags.${e[2]}`, true]];
+  if (resourceType === "devices")
+    filter = expressionParser.map(filter, e => {
+      if (
+        Array.isArray(e) &&
+        Array.isArray(e[1]) &&
+        e[1][0] === "PARAM" &&
+        e[1][0] === "tag"
+      )
+        if (e[0] === "=") return ["=", ["PARAM", `Tags.${e[2]}`], true];
+        else if (e[0] === "<>")
+          return ["NOT", ["=", ["PARAM", `Tags.${e[2]}`], true]];
+      return e;
     });
-    filter = new Filter(ast);
-  }
 
   let value = [];
   for (let [id, obj] of resources[resourceType].objects.entries())
-    if (filter.test(obj)) value.push(id);
+    if (expression.evaluate(filter, obj, fulfillTimestamp))
+      value.push(id);
 
   value = value.sort();
   if (limit) value = value.slice(0, limit);
@@ -97,13 +105,13 @@ function findMatches(resourceType, filter, limit) {
 function inferQuery(resourceType, queryResponse) {
   const limit = queries.limit.get(queryResponse);
   let filter = queries.filter.get(queryResponse);
-  filter = unpackFilter(filter);
+  filter = unpackExpression(filter);
   let last = queries.last.get(queryResponse);
   if (last || !limit) {
     if (last) filter = limitFilter(resourceType, filter, last);
     if (
       resources[resourceType].combinedFilter &&
-      filter.subset(resources[resourceType].combinedFilter)
+      expression.subset(filter, resources[resourceType].combinedFilter)
     )
       queries.fulfilled.set(queryResponse, fulfillTimestamp);
   }
@@ -112,7 +120,8 @@ function inferQuery(resourceType, queryResponse) {
 }
 
 function fetch(resourceType, filter, limit = 0) {
-  const key = `${limit}:${filter.toString()}`;
+  const filterStr = funcCache.get(expression.stringify, filter);
+  const key = `${limit}:${filterStr}`;
   let queryResponse = resources[resourceType].fetch.get(key);
   if (queryResponse) return queryResponse;
 
@@ -131,8 +140,8 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
   let updated = false;
 
   if (_fulfillTimestamp > fulfillTimestamp) {
-    unpackedFiltersCache = new WeakMap();
-    expressionsCache = new WeakMap();
+    unpackExpressionCache = new WeakMap();
+    evaluateExpressionCache = new WeakMap();
 
     for (let resource of Object.values(resources))
       resource.combinedFilter = null;
@@ -156,14 +165,14 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
           new Promise((resolve, reject) => {
             updated = true;
             let filter = queries.filter.get(queryResponse);
-            filter = unpackFilter(filter);
+            filter = unpackExpression(filter);
             m
               .request({
                 method: "HEAD",
                 url:
                   `/api/${resourceType}/?` +
                   m.buildQueryString({
-                    filter: filter.toString()
+                    filter: funcCache.get(expression.stringify, filter)
                   }),
                 extract: xhr => +xhr.getResponseHeader("x-total-count"),
                 background: true
@@ -201,14 +210,14 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
             new Promise((resolve, reject) => {
               updated = true;
               let filter = queries.filter.get(queryResponse);
-              filter = unpackFilter(filter);
+              filter = unpackExpression(filter);
               m
                 .request({
                   method: "GET",
                   url:
                     `/api/${resourceType}/?` +
                     m.buildQueryString({
-                      filter: filter.toString(),
+                      filter: funcCache.get(expression.stringify, filter),
                       limit: 1,
                       skip: limit - 1,
                       projection: "_id"
@@ -240,13 +249,13 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
 
           toFetch = toFetch.filter(queryResponse => {
             let filter = queries.filter.get(queryResponse);
-            filter = unpackFilter(filter);
+            filter = unpackExpression(filter);
             let last = queries.last.get(queryResponse);
             if (last) filter = limitFilter(resourceType, filter, last);
 
             if (
               resources[resourceType].combinedFilter &&
-              filter.subset(resources[resourceType].combinedFilter)
+              expression.subset(filter, resources[resourceType].combinedFilter)
             ) {
               queries.value.set(
                 queryResponse,
@@ -257,11 +266,11 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
               return false;
             }
 
-            combinedFilter = filter.or(combinedFilter);
+            combinedFilter = expression.or(combinedFilter, filter);
             return true;
           });
 
-          if (!combinedFilter) return resolve(updated);
+          if (combinedFilter == null) continue;
 
           updated = true;
           let deleted = new Set();
@@ -269,10 +278,12 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
             deleted = new Set(resources[resourceType].objects.keys());
           let combinedFilterDiff = combinedFilter;
           if (resources[resourceType].combinedFilter)
-            combinedFilterDiff = combinedFilterDiff.and(
-              resources[resourceType].combinedFilter.not()
+            combinedFilterDiff = expression.and(
+              combinedFilterDiff,
+              expression.not(resources[resourceType].combinedFilter)
             );
-          resources[resourceType].combinedFilter = combinedFilter.or(
+          resources[resourceType].combinedFilter = expression.or(
+            combinedFilter,
             resources[resourceType].combinedFilter
           );
 
@@ -284,7 +295,10 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
                   url:
                     `/api/${resourceType}/?` +
                     m.buildQueryString({
-                      filter: combinedFilterDiff.toString()
+                      filter: funcCache.get(
+                        expression.stringify,
+                        combinedFilterDiff
+                      )
                     })
                 })
                 .then(res => {
@@ -299,13 +313,19 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
 
                   for (let d of deleted) {
                     const obj = resources[resourceType].objects.get(d);
-                    if (combinedFilterDiff.test(obj))
+                    if (
+                      expression.evaluate(
+                        combinedFilterDiff,
+                        obj,
+                        fulfillTimestamp
+                      )
+                    )
                       resources[resourceType].objects.delete(d);
                   }
 
                   for (let queryResponse of toFetch) {
                     let filter = queries.filter.get(queryResponse);
-                    filter = unpackFilter(filter);
+                    filter = unpackExpression(filter);
                     let last = queries.last.get(queryResponse);
                     if (last) filter = limitFilter(resourceType, filter, last);
 
@@ -379,20 +399,18 @@ function deleteResource(resourceType, id) {
   });
 }
 
-function evaluateExpression(exp, device) {
+function evaluateExpression(exp, obj) {
   if (!Array.isArray(exp)) return exp;
 
-  let exps = expressionsCache.get(exp);
-  if (!exps) expressionsCache.set(exp, (exps = new WeakMap()));
+  let exps = evaluateExpressionCache.get(exp);
+  if (!exps) evaluateExpressionCache.set(exp, (exps = new WeakMap()));
 
-  if (!exps.has(device)) {
-    let v = filterParser.evaluateExpressions(exp, e => {
-      if (e[0] === "FUNC" && e[1] === "NOW") return fulfillTimestamp;
-    });
-    exps.set(device, v);
+  if (!exps.has(obj)) {
+    let v = expression.evaluate(exp, obj, fulfillTimestamp);
+    exps.set(obj, v);
   }
 
-  return exps.get(device);
+  return exps.get(obj);
 }
 
 function logIn(username, password) {
@@ -421,7 +439,7 @@ export {
   count,
   fetch,
   fulfill,
-  unpackFilter,
+  unpackExpression,
   getTimestamp,
   postTasks,
   updateTags,

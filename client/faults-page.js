@@ -3,10 +3,9 @@
 import m from "mithril";
 
 import filterComponent from "./filter-component";
-import * as filterParser from "../common/filter-parser";
-import Filter from "../common/filter";
 import * as store from "./store";
 import * as notifications from "./notifications";
+import * as expression from "../common/expression";
 
 function init(args) {
   if (!window.authorizer.hasAccess("faults", 2))
@@ -14,7 +13,8 @@ function init(args) {
       new Error("You are not authorized to view this page")
     );
 
-  let filter = new Filter(args.filter);
+  let filter = null;
+  if (args.filter != null) filter = expression.parse(`${args.filter}`);
   return Promise.resolve({ filter: filter });
 }
 
@@ -153,16 +153,19 @@ const component = {
 
     function onFilterChanged(filter) {
       let params = {};
-      if (filter) params.filter = filterParser.stringify(filter);
+      if (filter != null) params.filter = expression.stringify(filter);
       m.route.set("/faults", params);
     }
 
     let faults = store.fetch(
       "faults",
-      vnode.attrs.filter,
+      vnode.attrs.filter == null ? true : vnode.attrs.filter,
       vnode.state.showCount || 10
     );
-    let count = store.count("faults", vnode.attrs.filter);
+    let count = store.count(
+      "faults",
+      vnode.attrs.filter == null ? true : vnode.attrs.filter
+    );
 
     let selected = new Set();
     if (vnode.state.selected)
@@ -180,7 +183,7 @@ const component = {
           { parameter: "retries" },
           { parameter: "timestamp" }
         ],
-        filter: vnode.attrs.filter ? vnode.attrs.filter.ast : null,
+        filter: vnode.attrs.filter,
         onChange: onFilterChanged
       }),
       renderTable(faults, count.value, selected, showMore)

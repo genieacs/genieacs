@@ -7,20 +7,22 @@ const querystring = require("querystring");
 
 const config = require("./config");
 const device = require("./device");
-const filterParser = require("../common/filter-parser");
-const Filter = require("../common/filter");
+const expressionParser = require("../common/expression-parser");
+const expression = require("../common/expression");
 
 const commaAscii = ",".charCodeAt(0);
 const newLineAscii = "\n".charCodeAt(0);
 
 function unpackTimestamps(filter) {
-  return filterParser.map(filter, exp => {
+  if (!Array.isArray(filter)) return filter;
+  return expressionParser.map(filter, exp => {
     if (["=", "<>", ">=", "<=", "<", ">"].includes(exp[0]))
-      if (typeof exp[2] === "number") {
+      if (Array.isArray(exp) && typeof exp[2] === "number") {
         let alt = exp.slice();
         alt[2] = new Date(alt[2]).toJSON();
         return ["OR", exp, alt];
       }
+    return exp;
   });
 }
 
@@ -39,37 +41,42 @@ function filterToMongoQuery(filter, negate = false, res = {}) {
   } else if (op === "NOT") {
     filterToMongoQuery(filter[1], !negate, res);
   } else if (op === "=") {
-    let p = (res[filter[1]] = res[filter[1]] || {});
+    const param = filter[1][1];
+    let p = (res[param] = res[param] || {});
     if (negate) p["$ne"] = filter[2];
     else p["$eq"] = filter[2];
   } else if (op === "<>") {
-    let p = (res[filter[1]] = res[filter[1]] || {});
-    if (negate) {
-      p["$eq"] = filter[2];
-    } else {
-      p["$ne"] = filter[2];
-      p["$exists"] = true;
-    }
+    const param = filter[1][1];
+    let p = (res[param] = res[param] || {});
+    if (negate) p = p["$not"] = p["$not"] || {};
+    p["$ne"] = filter[2];
+    p["$exists"] = true;
   } else if (op === ">") {
-    let p = (res[filter[1]] = res[filter[1]] || {});
+    const param = filter[1][1];
+    let p = (res[param] = res[param] || {});
     if (negate) p = p["$not"] = p["$not"] || {};
     p["$gt"] = filter[2];
   } else if (op === ">=") {
-    let p = (res[filter[1]] = res[filter[1]] || {});
+    const param = filter[1][1];
+    let p = (res[param] = res[param] || {});
     if (negate) p = p["$not"] = p["$not"] || {};
     p["$gte"] = filter[2];
   } else if (op === "<") {
-    let p = (res[filter[1]] = res[filter[1]] || {});
+    const param = filter[1][1];
+    let p = (res[param] = res[param] || {});
     if (negate) p = p["$not"] = p["$not"] || {};
     p["$lt"] = filter[2];
   } else if (op === "<=") {
-    let p = (res[filter[1]] = res[filter[1]] || {});
+    const param = filter[1][1];
+    let p = (res[param] = res[param] || {});
     if (negate) p = p["$not"] = p["$not"] || {};
     p["$lte"] = filter[2];
   } else if (op === "IS NULL") {
-    res[filter[1]] = { $exists: negate };
+    const param = filter[1][1];
+    res[param] = { $exists: negate };
   } else if (op === "IS NOT NULL") {
-    res[filter[1]] = { $exists: !negate };
+    const param = filter[1][1];
+    res[param] = { $exists: !negate };
   } else {
     throw new Error(`Unrecognized operator ${op}`);
   }
@@ -80,14 +87,15 @@ function filterToMongoQuery(filter, negate = false, res = {}) {
 function count(resource, filter, limit) {
   return new Promise((resolve, reject) => {
     let qs = {};
-    if (filter && filter.ast) {
-      filter = filter.evaluateExpressions();
-      let ast = unpackTimestamps(filter.ast);
+    filter = expression.evaluate(filter, null, Date.now());
+    filter = unpackTimestamps(filter);
 
-      let q = filterToMongoQuery(ast);
-      if (resource === "devices") q = device.transposeQuery(q);
-      qs.query = JSON.stringify(q);
-    }
+    let q = {};
+    if (Array.isArray(filter)) q = filterToMongoQuery(filter);
+    else if (filter != null && !filter) return resolve(0);
+
+    if (resource === "devices") q = device.transposeQuery(q);
+    qs.query = JSON.stringify(q);
 
     if (limit) qs.limit = limit;
 
@@ -117,15 +125,15 @@ function query(resource, filter, limit, skip, projection, callback) {
     let ret;
     if (!callback) ret = [];
     let qs = {};
-    if (filter && filter.ast) {
-      filter = filter.evaluateExpressions();
-      let ast = unpackTimestamps(filter.ast);
+    filter = expression.evaluate(filter, null, Date.now());
+    filter = unpackTimestamps(filter);
 
-      let q = filterToMongoQuery(ast);
-      if (resource === "devices") q = device.transposeQuery(q);
+    let q = {};
+    if (Array.isArray(filter)) q = filterToMongoQuery(filter);
+    else if (filter != null && !filter) return resolve(ret);
 
-      qs.query = JSON.stringify(q);
-    }
+    if (resource === "devices") q = device.transposeQuery(q);
+    qs.query = JSON.stringify(q);
 
     if (limit) qs.limit = limit;
     if (skip) qs.skip = skip;
@@ -308,12 +316,13 @@ function postTasks(deviceId, tasks) {
 
         let promises2 = [];
         for (let s of statuses) {
-          promises2.push(query("tasks", new Filter(["=", "_id", s._id])));
+          promises2.push(query("tasks", ["=", ["PARAM", "_id"], s._id]));
           promises2.push(
-            query(
-              "faults",
-              new Filter(["=", "_id", `${deviceId}:task_${s._id}`])
-            )
+            query("faults", [
+              "=",
+              ["PARAM", "_id"],
+              `${deviceId}:task_${s._id}`
+            ])
           );
         }
 

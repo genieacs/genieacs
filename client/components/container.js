@@ -3,16 +3,14 @@
 import m from "mithril";
 import * as components from "../components";
 import * as store from "../store";
-import Filter from "../../common/filter";
+import * as expression from "../../common/expression";
 import * as funcCache from "../../common/func-cache";
 
 const component = {
   view: vnode => {
     if (vnode.attrs.filter) {
-      const filter = store.unpackFilter(
-        funcCache.get(Filter.parse, vnode.attrs.filter)
-      );
-      if (!filter.test(vnode.attrs.device)) return;
+      const filter = funcCache.get(expression.parse, vnode.attrs.filter);
+      if (!store.evaluateExpression(filter, vnode.attrs.device)) return;
     }
 
     let children = Object.values(vnode.attrs.components).map(c => {

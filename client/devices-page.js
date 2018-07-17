@@ -4,24 +4,24 @@ import m from "mithril";
 
 import config from "./config";
 import filterComponent from "./filter-component";
-import * as filterParser from "../common/filter-parser";
-import Filter from "../common/filter";
 import * as store from "./store";
 import * as components from "./components";
 import * as taskQueue from "./task-queue";
 import * as notifications from "./notifications";
+import * as expression from "../common/expression";
 
 function init(args) {
   return new Promise((resolve, reject) => {
     if (!window.authorizer.hasAccess("devices", 2))
       return reject(new Error("You are not authorized to view this page"));
 
-    let filter = new Filter(args.filter);
-    let indexParameters = Object.values(config.ui.index).map(p =>
-      Object.assign({}, p, {
-        parameter: filterParser.parseParameter(p.parameter)
-      })
-    );
+    let filter = null;
+    if (args.filter != null) filter = expression.parse(`${args.filter}`);
+    let indexParameters = Object.values(config.ui.index).map(p => {
+      let param = expression.parse(p.parameter);
+      if (Array.isArray(param) && param[0] === "PARAM") param = param[1];
+      return Object.assign({}, p, { parameter: param });
+    });
     resolve({ filter: filter, indexParameters: indexParameters });
   });
 }
@@ -281,16 +281,19 @@ const component = {
 
     function onFilterChanged(filter) {
       let params = {};
-      if (filter) params.filter = filterParser.stringify(filter);
+      if (filter != null) params.filter = expression.stringify(filter);
       m.route.set("/devices", params);
     }
 
     let devs = store.fetch(
       "devices",
-      vnode.attrs.filter,
+      vnode.attrs.filter == null ? true : vnode.attrs.filter,
       vnode.state.showCount || 10
     );
-    let count = store.count("devices", vnode.attrs.filter);
+    let count = store.count(
+      "devices",
+      vnode.attrs.filter == null ? true : vnode.attrs.filter
+    );
 
     let selected = new Set();
     if (vnode.state.selected)
@@ -303,7 +306,7 @@ const component = {
       m("h1", "Listing devices"),
       m(filterComponent, {
         predefined: Object.values(config.ui.filters),
-        filter: vnode.attrs.filter ? vnode.attrs.filter.ast : null,
+        filter: vnode.attrs.filter,
         onChange: onFilterChanged
       }),
       renderTable(

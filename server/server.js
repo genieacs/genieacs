@@ -11,6 +11,7 @@ const jwt = require("jsonwebtoken");
 const config = require("./config");
 const api = require("./api");
 const Authorizer = require("../common/authorizer");
+const expression = require("../common/expression");
 
 const koa = new Koa();
 const router = new Router();
@@ -20,7 +21,20 @@ const JWT_COOKIE = "genieacs-ui-jwt";
 
 function getPermissionSets(roles) {
   const allPermissions = config.permissions;
-  const permissionSets = roles.map(r => Object.values(allPermissions[r] || {}));
+  const permissionSets = roles.map(role => {
+    return Object.values(allPermissions[role] || {}).map(p => {
+      p = Object.assign({}, p);
+      for (let [k, v] of Object.entries(p)) {
+        p[k] = v = Object.assign({}, v);
+        if (["devices", "faults", "files"].includes(k))
+          if (v.filter == null || v.filter === "") v.filter = true;
+          else {
+            v.filter = expression.parse(v.filter);
+          }
+      }
+      return p;
+    });
+  });
   return permissionSets;
 }
 

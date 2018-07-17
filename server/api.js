@@ -4,7 +4,7 @@ const Router = require("koa-router");
 
 const db = require("./db");
 const apiFunctions = require("./api-functions");
-const Filter = require("../common/filter");
+const expression = require("../common/expression");
 
 const router = new Router();
 
@@ -33,17 +33,20 @@ const resources = {
 
 for (let [resource, flags] of Object.entries(resources)) {
   router.head(`/${resource}`, async (ctx, next) => {
-    let filter, limit;
-    if (ctx.request.query.filter) filter = new Filter(ctx.request.query.filter);
+    let filter = true;
+    let limit;
+    if (ctx.request.query.filter)
+      filter = expression.parse(ctx.request.query.filter);
     if (ctx.request.query.limit) limit = +ctx.request.query.limit;
 
     if (!ctx.state.authorizer.hasAccess(resource, 1)) return next();
 
     // Exclude temporary tasks and faults
-    if (resource === "tasks" || resource === "faults") {
-      let f = new Filter(["NOT", ["<", "expiry", Date.now() + 60000]]);
-      filter = f.and(filter);
-    }
+    if (resource === "tasks" || resource === "faults")
+      filter = expression.and(filter, [
+        "NOT",
+        ["<", ["PARAM", "expiry"], Date.now() + 60000]
+      ]);
 
     let count;
     if (flags & RESOURCE_DB) count = await db.count(resource, filter, limit);
@@ -54,8 +57,10 @@ for (let [resource, flags] of Object.entries(resources)) {
   });
 
   router.get(`/${resource}`, async (ctx, next) => {
-    let filter, limit, skip, projection;
-    if (ctx.request.query.filter) filter = new Filter(ctx.request.query.filter);
+    let filter = true;
+    let limit, skip, projection;
+    if (ctx.request.query.filter)
+      filter = expression.parse(ctx.request.query.filter);
     if (ctx.request.query.limit) limit = +ctx.request.query.limit;
     if (ctx.request.query.skip) skip = +ctx.request.query.skip;
     if (ctx.request.query.projection) projection = ctx.request.query.projection;
@@ -63,10 +68,11 @@ for (let [resource, flags] of Object.entries(resources)) {
     if (!ctx.state.authorizer.hasAccess(resource, 2)) return next();
 
     // Exclude temporary tasks and faults
-    if (resource === "tasks" || resource === "faults") {
-      let f = new Filter(["NOT", ["<", "expiry", Date.now() + 60000]]);
-      filter = f.and(filter);
-    }
+    if (resource === "tasks" || resource === "faults")
+      filter = expression.and(filter, [
+        "NOT",
+        ["<", ["PARAM", "expiry"], Date.now() + 60000]
+      ]);
 
     let res;
     if (flags & RESOURCE_DB)
@@ -78,7 +84,7 @@ for (let [resource, flags] of Object.entries(resources)) {
   });
 
   router.head(`/${resource}/:id`, async (ctx, next) => {
-    let filter = new Filter(`${RESOURCE_IDS[resource]} = "${ctx.params.id}"`);
+    let filter = ["=", ["PARAM", RESOURCE_IDS[resource]], ctx.params.id];
     if (!ctx.state.authorizer.hasAccess(resource, 2)) return next();
 
     let res;
@@ -90,7 +96,7 @@ for (let [resource, flags] of Object.entries(resources)) {
   });
 
   router.get(`/${resource}/:id`, async (ctx, next) => {
-    let filter = new Filter(`${RESOURCE_IDS[resource]} = "${ctx.params.id}"`);
+    let filter = ["=", ["PARAM", RESOURCE_IDS[resource]], ctx.params.id];
     if (!ctx.state.authorizer.hasAccess(resource, 2)) return next();
 
     let res;
@@ -104,7 +110,7 @@ for (let [resource, flags] of Object.entries(resources)) {
   if (flags & RESOURCE_DELETE && !(flags & RESOURCE_DB))
     router.delete(`/${resource}/:id`, async (ctx, next) => {
       const authorizer = ctx.state.authorizer;
-      let filter = new Filter(`${RESOURCE_IDS[resource]} = "${ctx.params.id}"`);
+      let filter = ["=", ["PARAM", RESOURCE_IDS[resource]], ctx.params.id];
       if (!authorizer.hasAccess(resource, 2)) return next();
       let res = await apiFunctions.query(resource, filter);
       if (!res.length) return next();
@@ -119,7 +125,7 @@ for (let [resource, flags] of Object.entries(resources)) {
 
 router.post("/devices/:id/tasks", async (ctx, next) => {
   const authorizer = ctx.state.authorizer;
-  let filter = new Filter(`DeviceID.ID = "${ctx.params.id}"`);
+  let filter = ["=", ["PARAM", "DeviceID.ID"], ctx.params.id];
   if (!authorizer.hasAccess("devices", 2)) return next();
   let devices = await apiFunctions.query("devices", filter);
   if (!devices.length) return next();
@@ -135,7 +141,7 @@ router.post("/devices/:id/tasks", async (ctx, next) => {
 
 router.post("/devices/:id/tags", async (ctx, next) => {
   const authorizer = ctx.state.authorizer;
-  let filter = new Filter(`DeviceID.ID = "${ctx.params.id}"`);
+  let filter = ["=", ["PARAM", "DeviceID.ID"], ctx.params.id];
   if (!authorizer.hasAccess("devices", 2)) return next();
   let res = await apiFunctions.query("devices", filter);
   if (!res.length) return next();

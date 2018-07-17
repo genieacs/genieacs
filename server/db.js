@@ -20,7 +20,8 @@ function getClient() {
 
 function query(resource, filter, limit, skip, callback) {
   let q;
-  if (filter && filter.ast) q = apiFunctions.filterToMongoQuery(filter.ast);
+  if (Array.isArray(filter)) q = apiFunctions.filterToMongoQuery(filter);
+  else if (filter != null && !filter) return Promise.resolve([]);
 
   return new Promise((resolve, reject) => {
     getClient().then(client => {
@@ -50,7 +51,8 @@ function query(resource, filter, limit, skip, callback) {
 
 function count(resource, filter) {
   let q;
-  if (filter && filter.ast) q = apiFunctions.filterToMongoQuery(filter.ast);
+  if (Array.isArray(filter)) q = apiFunctions.filterToMongoQuery(filter);
+  else if (filter != null && !filter) return Promise.resolve([]);
 
   return new Promise((resolve, reject) => {
     getClient().then(client => {

@@ -1,5 +1,7 @@
 "use strict";
 
+const expression = require("./expression");
+
 const validators = {
   pass: require("./validators/pass"),
   test: require("./validators/test")
@@ -18,15 +20,13 @@ class Authorizer {
       return this.hasAccessCache[cacheKey];
 
     let has = false;
-    for (const permissionSet of this.permissionSets) {
-      for (const perm of permissionSet) {
-        if (perm[resourceType]) {
+    for (let permissionSet of this.permissionSets) {
+      for (let perm of permissionSet)
+        if (perm[resourceType])
           if (perm[resourceType].access >= access) {
             has = true;
             break;
           }
-        }
-      }
     }
 
     this.hasAccessCache[cacheKey] = has;

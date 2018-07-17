@@ -2,21 +2,17 @@
 
 import m from "mithril";
 import * as store from "../store";
-import Filter from "../../common/filter";
 import * as notifications from "../notifications";
 
 const component = {
   view: vnode => {
     const device = vnode.attrs.device;
     const deviceId = device["DeviceID.ID"].value[0];
-    const faults = store.fetch(
-      "faults",
-      new Filter([
-        "AND",
-        [">", "_id", `${deviceId}:`],
-        ["<", "_id", `${deviceId}:zzzz`]
-      ])
-    );
+    const faults = store.fetch("faults", [
+      "AND",
+      [">", ["PARAM", "_id"], `${deviceId}:`],
+      ["<", ["PARAM", "_id"], `${deviceId}:zzzz`]
+    ]);
 
     const headers = ["Channel", "Code", "Message", "Retries", "Timestamp"].map(
       l => m("th", l)

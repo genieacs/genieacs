@@ -4,7 +4,7 @@ import m from "mithril";
 import config from "../config";
 import * as store from "../store";
 import * as funcCache from "../../common/func-cache";
-import Filter from "../../common/filter";
+import * as expression from "../../common/expression";
 
 const CHARTS = config.ui.overview.charts;
 
@@ -13,10 +13,8 @@ const component = {
     const device = vnode.attrs.device;
     const chart = CHARTS[vnode.attrs.chart];
     for (let slice of Object.values(chart.slices)) {
-      const filter = store.unpackFilter(
-        funcCache.get(Filter.parse, slice.filter)
-      );
-      if (filter.test(device)) {
+      const filter = funcCache.get(expression.parse, slice.filter);
+      if (store.evaluateExpression(filter, device)) {
         const dot = m(
           "svg",
           {

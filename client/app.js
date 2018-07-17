@@ -11,7 +11,6 @@ import * as devicePage from "./device-page";
 import * as errorPage from "./error-page";
 import * as faultsPage from "./faults-page";
 import Authorizer from "../common/authorizer";
-import * as funcCache from "../common/func-cache";
 
 window.authorizer = new Authorizer(window.permissionSets);
 
@@ -68,8 +67,6 @@ function pagify(pageName, page) {
 
   return component;
 }
-
-setInterval(funcCache.purge, 120000);
 
 m.route(document.body, "/overview", {
   "/login": pagify("login", loginPage),

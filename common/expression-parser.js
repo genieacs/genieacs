@@ -22,6 +22,21 @@ function interpretEscapes(str) {
   });
 }
 
+function map(exp, callback) {
+  if (!Array.isArray(exp)) return callback(exp);
+
+  let clone;
+  for (let i = 1; i < exp.length; ++i) {
+    let sub = map(exp[i], callback);
+    if (sub !== exp[i]) {
+      clone = clone || exp.slice();
+      clone[i] = sub;
+    }
+  }
+
+  return callback(clone || exp);
+}
+
 function binaryLeft(operatorsParser, nextParser) {
   return parsimmon.seqMap(
     nextParser,
@@ -29,8 +44,9 @@ function binaryLeft(operatorsParser, nextParser) {
     (first, rest) =>
       rest.reduce((acc, ch) => {
         let [op, another] = ch;
-        if (op === acc[0]) return acc.concat([another]);
-        if (op === another[0]) return [op, acc].concat(another.slice(1));
+        if (Array.isArray(acc) && op === acc[0]) return acc.concat([another]);
+        if (Array.isArray(another) && op === another[0])
+          return [op, acc].concat(another.slice(1));
         return [op, acc, another];
       }, first)
   );
@@ -61,12 +77,14 @@ const lang = parsimmon.createLanguage({
           .result("IS NOT NULL")
           .desc("IS NOT NULL")
       )
+      .notFollowedBy(parsimmon.regexp(/[a-zA-Z0-9_]/))
       .skip(parsimmon.optWhitespace);
   },
   NotOperator: function() {
     return parsimmon
       .regexp(/not/i)
       .result("NOT")
+      .notFollowedBy(parsimmon.regexp(/[a-zA-Z0-9_]/))
       .skip(parsimmon.optWhitespace)
       .desc("NOT");
   },
@@ -74,6 +92,7 @@ const lang = parsimmon.createLanguage({
     return parsimmon
       .regexp(/and/i)
       .result("AND")
+      .notFollowedBy(parsimmon.regexp(/[a-zA-Z0-9_]/))
       .skip(parsimmon.optWhitespace)
       .desc("AND");
   },
@@ -81,6 +100,7 @@ const lang = parsimmon.createLanguage({
     return parsimmon
       .regexp(/or/i)
       .result("OR")
+      .notFollowedBy(parsimmon.regexp(/[a-zA-Z0-9_]/))
       .skip(parsimmon.optWhitespace)
       .desc("OR");
   },
@@ -88,13 +108,13 @@ const lang = parsimmon.createLanguage({
     return parsimmon
       .alt(
         parsimmon.regexp(/[a-zA-Z0-9_.*]+/),
-        r.ValueExpression.wrap(
+        r.Expression.wrap(
           parsimmon.string("{").skip(parsimmon.optWhitespace),
           parsimmon.string("}")
         )
       )
       .atLeast(1)
-      .map(x => (x.length > 1 ? ["||"].concat(x) : x[0]))
+      .map(x => ["PARAM", x.length > 1 ? ["||"].concat(x) : x[0]])
       .skip(parsimmon.optWhitespace)
       .desc("parameter");
   },
@@ -120,13 +140,38 @@ const lang = parsimmon.createLanguage({
       .map(Number)
       .desc("number");
   },
+  BooleanValue: function() {
+    return parsimmon
+      .alt(
+        parsimmon
+          .regexp(/true/i)
+          .result(true)
+          .desc("TRUE"),
+        parsimmon
+          .regexp(/false/i)
+          .result(false)
+          .desc("FALSE")
+      )
+      .notFollowedBy(parsimmon.regexp(/[a-zA-Z0-9_]/))
+      .skip(parsimmon.optWhitespace);
+  },
+  NullValue: function() {
+    return parsimmon
+      .regexp(/null/i)
+      .notFollowedBy(parsimmon.regexp(/[a-zA-Z0-9_]/))
+      .skip(parsimmon.optWhitespace)
+      .result(null)
+      .desc("NULL");
+  },
   FuncValue: function(r) {
     return parsimmon.seqMap(
       parsimmon
-        .regexp(/([a-zA-Z0-0_]+)/, 1)
+        .regexp(/([a-zA-Z0-9_]+)/, 1)
         .skip(parsimmon.optWhitespace)
         .desc("function"),
-      r.Value.sepBy(parsimmon.string(",").skip(parsimmon.optWhitespace)).wrap(
+      r.ValueExpression.sepBy(
+        parsimmon.string(",").skip(parsimmon.optWhitespace)
+      ).wrap(
         parsimmon.string("(").skip(parsimmon.optWhitespace),
         parsimmon.string(")").skip(parsimmon.optWhitespace)
       ),
@@ -135,6 +180,8 @@ const lang = parsimmon.createLanguage({
   },
   Value: function(r) {
     return parsimmon.alt(
+      r.NullValue,
+      r.BooleanValue,
       r.NumberValue,
       r.StringValueSql,
       r.StringValueJs,
@@ -143,7 +190,7 @@ const lang = parsimmon.createLanguage({
   },
   ValueExpression: function(r) {
     return binaryLeft(
-      parsimmon.string("||"),
+      parsimmon.string("||").skip(parsimmon.optWhitespace),
       binaryLeft(
         parsimmon
           .alt(parsimmon.string("+"), parsimmon.string("-"))
@@ -154,7 +201,8 @@ const lang = parsimmon.createLanguage({
             .skip(parsimmon.optWhitespace),
           parsimmon.alt(
             r.Value,
-            r.ValueExpression.wrap(
+            r.Parameter,
+            r.Expression.wrap(
               parsimmon.string("(").skip(parsimmon.optWhitespace),
               parsimmon.string(")").skip(parsimmon.optWhitespace)
             )
@@ -167,7 +215,7 @@ const lang = parsimmon.createLanguage({
     return parsimmon.alt(
       parsimmon.seqMap(r.Parameter, r.IsNullOperator, (p, o) => [o, p]),
       parsimmon.seqMap(
-        r.Parameter,
+        r.ValueExpression,
         r.ComparisonOperator,
         r.ValueExpression,
         (p, o, v) => [o, p, v]
@@ -183,129 +231,78 @@ const lang = parsimmon.createLanguage({
       r.OrOperator,
       binaryLeft(
         r.AndOperator,
-        unary(
-          r.NotOperator,
-          r.Comparison.or(
-            r.Expression.wrap(
-              parsimmon.string("("),
-              parsimmon.string(")").skip(parsimmon.optWhitespace)
-            )
-          )
-        )
+        unary(r.NotOperator, r.Comparison.or(r.ValueExpression))
       )
     ).trim(parsimmon.optWhitespace);
   }
 });
 
-function parse(filter) {
-  return lang.Expression.tryParse(filter);
+function parse(str) {
+  if (!str) return null;
+  return lang.Expression.tryParse(str);
 }
 
-function parseExpression(exp) {
-  return lang.ValueExpression.tryParse(exp);
-}
+function stringify(exp) {
+  if (!Array.isArray(exp)) return JSON.stringify(exp);
 
-function evaluateExpressions(ast, funcCallback) {
-  return map(ast, exp => {
-    if (exp[0] === "FUNC") {
-      return funcCallback(exp);
-    } else if (exp[0] === "*") {
-      let v = exp[1];
-      for (let i = 2; i < exp.length; ++i) v *= exp[i];
-      return v;
-    } else if (exp[0] === "/") {
-      let v = exp[1];
-      for (let i = 2; i < exp.length; ++i) v /= exp[i];
-      return v;
-    } else if (exp[0] === "+") {
-      let v = exp[1];
-      for (let i = 2; i < exp.length; ++i) v += exp[i];
-      return v;
-    } else if (exp[0] === "-") {
-      let v = exp[1];
-      for (let i = 2; i < exp.length; ++i) v -= exp[i];
-      return v;
-    } else if (exp[0] === "||") {
-      return exp.slice(1).join("");
-    }
-  });
-}
+  const opLevels = {
+    OR: 10,
+    AND: 11,
+    NOT: 12,
+    "=": 20,
+    "<>": 21,
+    ">": 22,
+    ">=": 23,
+    "<": 24,
+    "<=": 25,
+    "||": 30,
+    "+": 31,
+    "-": 31,
+    "*": 32,
+    "/": 32
+  };
 
-function parseParameter(p) {
-  return lang.Parameter.tryParse(p);
-}
+  const op = exp[0].toUpperCase();
 
-function stringify(filter) {
-  function value(v) {
-    if (Array.isArray(v))
-      if (v[0].toUpperCase() === "FUNC") {
-        return `${v[1]}(${v
-          .slice(2)
-          .map(e => value(e))
-          .join(", ")})`;
-      } else {
-        return v
-          .slice(1)
-          .map(e => value(e))
-          .join(` ${v[0]} `);
-      }
-
-    return JSON.stringify(v);
-  }
-
-  function expressions(v) {
-    return v.map(e => {
-      let str = stringify(e);
-      if (e[0] === "AND" || e[0] === "OR") return `(${str})`;
-      else return str;
-    });
-  }
-
-  function parameter(v) {
-    if (Array.isArray(v) && v[0] === "||")
-      return v
+  if (op === "FUNC") {
+    return `${exp[1]}(${exp
+      .slice(2)
+      .map(e => stringify(e))
+      .join(", ")})`;
+  } else if (op === "PARAM") {
+    if (typeof exp[1] === "string") return exp[1];
+    else if (Array.isArray(exp[1]) && exp[1][0] === "||")
+      return exp[1]
         .slice(1)
-        .map(x => {
-          if (Array.isArray(x)) return `{${value(x)}}`;
-          else return x;
+        .map(p => {
+          if (typeof p === "string") return p;
+          else return `{${stringify(p)}}`;
         })
         .join("");
+    else return `{${stringify(exp[1])}}`;
+  } else if (op === "IS NULL" || op === "IS NOT NULL") {
+    return `${stringify(exp[1])} ${op}`;
+  } else if (op in opLevels) {
+    const parts = exp.slice(1).map((e, i) => {
+      if (
+        Array.isArray(e) &&
+        (opLevels[e[0]] < opLevels[exp[0]] ||
+          (opLevels[e[0]] < opLevels[exp[0]] && i > 0) ||
+          (opLevels[exp[0]] >= 20 &&
+            opLevels[e[0]] >= 20 &&
+            opLevels[e[0]] < 30))
+      )
+        return `(${stringify(e)})`;
+      else return stringify(e);
+    });
 
-    return v;
+    if (op === "NOT") return `${op} ${parts[0]}`;
+    else return parts.join(` ${op} `);
+  } else {
+    throw new Error(`Unrecognized operator ${exp[0]}`);
   }
-
-  const op = filter[0].toUpperCase();
-
-  if (["AND", "OR"].includes(op))
-    return expressions(filter.slice(1)).join(` ${op} `);
-  else if (op === "NOT") return `NOT ${expressions(filter.slice(1))[0]}`;
-  else if ([">=", "<>", "<=", "=", ">", "<"].includes(op))
-    return `${parameter(filter[1])} ${op} ${value(filter[2])}`;
-  else if (["IS NULL", "IS NOT NULL"].includes(op))
-    return `${parameter(filter[1])} ${op}`;
-  else throw new Error("Unrecognized operator");
-}
-
-function map(filter, callback) {
-  let clone;
-  for (let i = 1; i < filter.length; ++i)
-    if (Array.isArray(filter[i])) {
-      let sub = map(filter[i], callback);
-      if (sub != null && sub !== filter[i]) {
-        clone = clone || filter.slice();
-        clone[i] = sub;
-      }
-    }
-
-  let r = callback(clone || filter);
-  if (r != null) return r;
-
-  return clone || filter;
 }
 
 exports.parse = parse;
-exports.parseExpression = parseExpression;
-exports.evaluateExpressions = evaluateExpressions;
-exports.parseParameter = parseParameter;
 exports.stringify = stringify;
 exports.map = map;

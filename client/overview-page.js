@@ -4,8 +4,8 @@ import m from "mithril";
 import config from "./config";
 import * as store from "./store";
 import pieChartComponent from "./pie-chart-component";
-import Filter from "../common/filter";
 import * as funcCache from "../common/func-cache";
+import * as expression from "../common/expression";
 
 const GROUPS = config.ui.overview.groups;
 const CHARTS = {};
@@ -19,7 +19,7 @@ function queryCharts(charts) {
     charts[chartName] = chart = Object.assign({}, chart);
     chart.slices = Object.assign({}, chart.slices);
     for (let [sliceName, slice] of Object.entries(chart.slices)) {
-      const filter = funcCache.get(Filter.parse, slice.filter);
+      const filter = funcCache.get(expression.parse, slice.filter);
       chart.slices[sliceName] = slice = Object.assign({}, slice);
       slice.count = store.count("devices", filter);
     }

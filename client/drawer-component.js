@@ -5,7 +5,6 @@ import m from "mithril";
 import * as taskQueue from "./task-queue";
 import * as store from "./store";
 import * as notifications from "./notifications";
-import Filter from "../common/filter";
 
 function mparam(param) {
   return m("span.parameter", { title: param }, `${param}`);
@@ -41,7 +40,7 @@ function renderStagingSpv(task, queueFunc, cancelFunc) {
 
 function renderStagingDownload(task) {
   task.invalid = !task.fileName || !task.fileType;
-  const files = store.fetch("files", new Filter());
+  const files = store.fetch("files", true);
   const idParts = task.device.split("-");
   const oui = decodeURIComponent(idParts[0]);
   const productClass =
