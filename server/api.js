@@ -9,7 +9,6 @@ const expression = require("../common/expression");
 const router = new Router();
 
 const RESOURCE_DELETE = 1 << 0;
-const RESOURCE_DB = 1 << 1;
 
 const RESOURCE_IDS = {
   devices: "DeviceID.ID",
@@ -34,10 +33,8 @@ const resources = {
 for (let [resource, flags] of Object.entries(resources)) {
   router.head(`/${resource}`, async (ctx, next) => {
     let filter = true;
-    let limit;
     if (ctx.request.query.filter)
       filter = expression.parse(ctx.request.query.filter);
-    if (ctx.request.query.limit) limit = +ctx.request.query.limit;
 
     if (!ctx.state.authorizer.hasAccess(resource, 1)) return next();
 
@@ -48,22 +45,23 @@ for (let [resource, flags] of Object.entries(resources)) {
         ["<", ["PARAM", "expiry"], Date.now() + 60000]
       ]);
 
-    let count;
-    if (flags & RESOURCE_DB) count = await db.count(resource, filter, limit);
-    else count = await apiFunctions.count(resource, filter, limit);
+    let count = await db.count(resource, filter);
 
     ctx.set("X-Total-Count", count);
     ctx.body = "";
   });
 
   router.get(`/${resource}`, async (ctx, next) => {
+    let options = {};
     let filter = true;
-    let limit, skip, projection;
     if (ctx.request.query.filter)
       filter = expression.parse(ctx.request.query.filter);
-    if (ctx.request.query.limit) limit = +ctx.request.query.limit;
-    if (ctx.request.query.skip) skip = +ctx.request.query.skip;
-    if (ctx.request.query.projection) projection = ctx.request.query.projection;
+    if (ctx.request.query.limit) options.limit = +ctx.request.query.limit;
+    if (ctx.request.query.skip) options.skip = +ctx.request.query.skip;
+    if (ctx.request.query.projection)
+      options.projection = ctx.request.query.projection
+        .split(",")
+        .reduce((obj, k) => Object.assign(obj, { [k]: 1 }), {});
 
     if (!ctx.state.authorizer.hasAccess(resource, 2)) return next();
 
@@ -74,11 +72,7 @@ for (let [resource, flags] of Object.entries(resources)) {
         ["<", ["PARAM", "expiry"], Date.now() + 60000]
       ]);
 
-    let res;
-    if (flags & RESOURCE_DB)
-      res = await db.query(resource, filter, limit, skip);
-    else
-      res = await apiFunctions.query(resource, filter, limit, skip, projection);
+    let res = await db.query(resource, filter, options);
 
     ctx.body = res;
   });
@@ -87,9 +81,7 @@ for (let [resource, flags] of Object.entries(resources)) {
     let filter = ["=", ["PARAM", RESOURCE_IDS[resource]], ctx.params.id];
     if (!ctx.state.authorizer.hasAccess(resource, 2)) return next();
 
-    let res;
-    if (flags & RESOURCE_DB) res = await db.query(resource, filter);
-    else res = await apiFunctions.query(resource, filter);
+    let res = await db.query(resource, filter);
 
     if (!res.length) return next();
     ctx.body = "";
@@ -99,20 +91,19 @@ for (let [resource, flags] of Object.entries(resources)) {
     let filter = ["=", ["PARAM", RESOURCE_IDS[resource]], ctx.params.id];
     if (!ctx.state.authorizer.hasAccess(resource, 2)) return next();
 
-    let res;
-    if (flags & RESOURCE_DB) res = await db.query(resource, filter);
-    else res = await apiFunctions.query(resource, filter);
+    let res = await db.query(resource, filter);
+
     if (!res.length) return next();
     ctx.body = res[0];
   });
 
   // TODO add PUT, PATCH routes
-  if (flags & RESOURCE_DELETE && !(flags & RESOURCE_DB))
+  if (flags & RESOURCE_DELETE)
     router.delete(`/${resource}/:id`, async (ctx, next) => {
       const authorizer = ctx.state.authorizer;
       let filter = ["=", ["PARAM", RESOURCE_IDS[resource]], ctx.params.id];
       if (!authorizer.hasAccess(resource, 2)) return next();
-      let res = await apiFunctions.query(resource, filter);
+      let res = await db.query(resource, filter);
       if (!res.length) return next();
 
       const validate = authorizer.getValidator(resource, res[0]);
@@ -127,7 +118,7 @@ router.post("/devices/:id/tasks", async (ctx, next) => {
   const authorizer = ctx.state.authorizer;
   let filter = ["=", ["PARAM", "DeviceID.ID"], ctx.params.id];
   if (!authorizer.hasAccess("devices", 2)) return next();
-  let devices = await apiFunctions.query("devices", filter);
+  let devices = await db.query("devices", filter);
   if (!devices.length) return next();
 
   const validate = authorizer.getValidator("devices", devices[0]);
@@ -143,7 +134,7 @@ router.post("/devices/:id/tags", async (ctx, next) => {
   const authorizer = ctx.state.authorizer;
   let filter = ["=", ["PARAM", "DeviceID.ID"], ctx.params.id];
   if (!authorizer.hasAccess("devices", 2)) return next();
-  let res = await apiFunctions.query("devices", filter);
+  let res = await db.query("devices", filter);
   if (!res.length) return next();
 
   const validate = authorizer.getValidator("devices", res[0]);

@@ -50,10 +50,12 @@ function evaluate(exp, obj, now) {
       }
     } else if (e[0] === "PARAM") {
       if (e[1] == null) return null;
-      if (obj && !isArray(e[1]))
-        if (typeof obj[e[1]] === "object")
-          return obj[e[1]].value ? obj[e[1]].value[0] : null;
-        else return obj[e[1]];
+      if (obj && !isArray(e[1])) {
+        let v = obj[e[1]];
+        if (typeof v === "object") v = v.value ? v.value[0] : null;
+        if (v == null) return null;
+        return v;
+      }
     } else if (e[0] === "AND") {
       return reduce(e, (a, b) => {
         if (!isArray(a)) return a ? b : a;
@@ -69,10 +71,12 @@ function evaluate(exp, obj, now) {
       else if (e[1][0] === "NOT") return e[1][1];
     } else if (e[0] === "IS NULL") {
       if (isArray(e[1])) return e;
-      return e[1] == null;
+      else if (e[1] == null) return true;
+      else return null;
     } else if (e[0] === "IS NOT NULL") {
       if (isArray(e[1])) return e;
-      return e[1] != null;
+      else if (e[1] != null) return true;
+      else return null;
     } else if (e[0] === "=") {
       if (isArray(e[1]) || isArray(e[2])) return e;
       if (e[1] == null || e[2] == null) return null;

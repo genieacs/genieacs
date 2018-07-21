@@ -3,28 +3,10 @@
 const http = require("http");
 const https = require("https");
 const url = require("url");
-const querystring = require("querystring");
 
 const config = require("./config");
-const device = require("./device");
-const expressionParser = require("../common/expression-parser");
+const db = require("./db");
 const expression = require("../common/expression");
-
-const commaAscii = ",".charCodeAt(0);
-const newLineAscii = "\n".charCodeAt(0);
-
-function unpackTimestamps(filter) {
-  if (!Array.isArray(filter)) return filter;
-  return expressionParser.map(filter, exp => {
-    if (["=", "<>", ">=", "<=", "<", ">"].includes(exp[0]))
-      if (Array.isArray(exp) && typeof exp[2] === "number") {
-        let alt = exp.slice();
-        alt[2] = new Date(alt[2]).toJSON();
-        return ["OR", exp, alt];
-      }
-    return exp;
-  });
-}
 
 function filterToMongoQuery(filter, negate = false, res = {}) {
   const op = filter[0];
@@ -84,136 +66,6 @@ function filterToMongoQuery(filter, negate = false, res = {}) {
   return res;
 }
 
-function count(resource, filter, limit) {
-  return new Promise((resolve, reject) => {
-    let qs = {};
-    filter = expression.evaluate(filter, null, Date.now());
-    filter = unpackTimestamps(filter);
-
-    let q = {};
-    if (Array.isArray(filter)) q = filterToMongoQuery(filter);
-    else if (filter != null && !filter) return resolve(0);
-
-    if (resource === "devices") q = device.transposeQuery(q);
-    qs.query = JSON.stringify(q);
-
-    if (limit) qs.limit = limit;
-
-    let options = url.parse(
-      `${config.server.nbi}${resource}?${querystring.stringify(qs)}`
-    );
-
-    options.method = "HEAD";
-
-    let _http = options.protocol === "https:" ? https : http;
-
-    _http
-      .request(options, res => {
-        if (res.statusCode !== 200) {
-          reject(new Error(`Unexpected status code ${res.statusCode}`));
-          res.resume();
-          return;
-        }
-        resolve(+res.headers["total"]);
-      })
-      .end();
-  });
-}
-
-function query(resource, filter, limit, skip, projection, callback) {
-  return new Promise((resolve, reject) => {
-    let ret;
-    if (!callback) ret = [];
-    let qs = {};
-    filter = expression.evaluate(filter, null, Date.now());
-    filter = unpackTimestamps(filter);
-
-    let q = {};
-    if (Array.isArray(filter)) q = filterToMongoQuery(filter);
-    else if (filter != null && !filter) return resolve(ret);
-
-    if (resource === "devices") q = device.transposeQuery(q);
-    qs.query = JSON.stringify(q);
-
-    if (limit) qs.limit = limit;
-    if (skip) qs.skip = skip;
-    if (projection) qs.projection = projection;
-    qs.sort = JSON.stringify({ _id: 1 });
-
-    let options = url.parse(
-      `${config.server.nbi}${resource}?${querystring.stringify(qs)}`
-    );
-
-    let _http = options.protocol === "https:" ? https : http;
-
-    _http.get(options, res => {
-      if (res.statusCode !== 200) {
-        reject(new Error(`Unexpected status code ${res.statusCode}`));
-        res.resume();
-        return;
-      }
-      let chunks = [];
-      let bytes = 0;
-      res.on("data", chunk => {
-        let i;
-        while ((i = chunk.indexOf(newLineAscii)) !== -1) {
-          let buf;
-          if (chunk[chunk.length - 2] === commaAscii) {
-            i -= 1;
-            buf = new Buffer(bytes + i);
-            chunk.copy(buf, buf.length - i, 0, i);
-            chunk = chunk.slice(i + 2);
-          } else {
-            buf = new Buffer(bytes + i);
-            chunk.copy(buf, buf.length - i, 0, i);
-            chunk = chunk.slice(i + 1);
-          }
-
-          let o = 0;
-          for (let c of chunks) {
-            c.copy(buf, o, 0, c.length);
-            o += c.length;
-          }
-
-          if (buf.length > 1) {
-            let obj = JSON.parse(buf);
-            if (resource === "devices") obj = device.transpose(obj);
-            if (ret) ret.push(obj);
-            else callback(obj);
-          }
-
-          bytes = 0;
-          chunks = [];
-        }
-        bytes += chunk.length;
-        chunks.push(chunk);
-      });
-
-      res.on("end", () => {
-        let buf = new Buffer(bytes);
-        let o = 0;
-        for (let c of chunks) {
-          c.copy(buf, o, 0, c.length);
-          o += c.length;
-        }
-        if (buf.length > 1) {
-          let obj = JSON.parse(buf);
-          if (resource === "devices") obj = device.transpose(obj);
-
-          if (ret) ret.push(obj);
-          else callback(obj);
-        }
-        resolve(ret);
-      });
-
-      res.on("aborted", () => {
-        res.removeAllListeners("end");
-        reject(new Error("Timeout"));
-      });
-    });
-  });
-}
-
 function deleteResource(resource, id) {
   return new Promise((resolve, reject) => {
     let options = url.parse(
@@ -237,7 +89,7 @@ function deleteResource(resource, id) {
 
 function postTask(task, connectionRequest, callback) {
   let options = url.parse(
-    `${config.server.nbi}devices/${task.device}/tasks${
+    `${config.server.nbi}devices/${encodeURIComponent(task.device)}/tasks${
       connectionRequest ? "?connection_request" : ""
     }`
   );
@@ -316,9 +168,9 @@ function postTasks(deviceId, tasks) {
 
         let promises2 = [];
         for (let s of statuses) {
-          promises2.push(query("tasks", ["=", ["PARAM", "_id"], s._id]));
+          promises2.push(db.query("tasks", ["=", ["PARAM", "_id"], s._id]));
           promises2.push(
-            query("faults", [
+            db.query("faults", [
               "=",
               ["PARAM", "_id"],
               `${deviceId}:task_${s._id}`
@@ -355,9 +207,9 @@ function updateTags(deviceId, tags) {
       ([tag, onOff]) =>
         new Promise((resolve, reject) => {
           const options = url.parse(
-            `${config.server.nbi}devices/${deviceId}/tags/${encodeURIComponent(
-              tag
-            )}`
+            `${config.server.nbi}devices/${encodeURIComponent(
+              deviceId
+            )}/tags/${encodeURIComponent(tag)}`
           );
           if (onOff) options.method = "POST";
           else options.method = "DELETE";
@@ -431,8 +283,6 @@ function ping(host) {
   });
 }
 
-exports.query = query;
-exports.count = count;
 exports.postTasks = postTasks;
 exports.deleteResource = deleteResource;
 exports.updateTags = updateTags;

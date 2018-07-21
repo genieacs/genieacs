@@ -71,7 +71,7 @@ function count(resourceType, filter) {
 
 function limitFilter(resourceType, filter, last) {
   if (resourceType === "devices")
-    return expression.and(filter, ["<=", "DeviceID.ID", last]);
+    return expression.and(filter, ["<=", ["PARAM", "DeviceID.ID"], last]);
   else return expression.and(filter, ["<=", ["PARAM", "_id"], last]);
 }
 
@@ -83,11 +83,10 @@ function findMatches(resourceType, filter, limit) {
         Array.isArray(e) &&
         Array.isArray(e[1]) &&
         e[1][0] === "PARAM" &&
-        e[1][0] === "tag"
+        e[1][1] === "tag"
       )
-        if (e[0] === "=") return ["=", ["PARAM", `Tags.${e[2]}`], true];
-        else if (e[0] === "<>")
-          return ["NOT", ["=", ["PARAM", `Tags.${e[2]}`], true]];
+        if (e[0] === "=") return ["IS NOT NULL", ["PARAM", `Tags.${e[2]}`]];
+        else if (e[0] === "<>") return ["IS NULL", ["PARAM", `Tags.${e[2]}`]];
       return e;
     });
 
