@@ -1,6 +1,8 @@
 "use strict";
 
+const zlib = require("zlib");
 const Router = require("koa-router");
+const PassThrough = require("stream").PassThrough;
 
 const db = require("./db");
 const apiFunctions = require("./api-functions");
@@ -74,9 +76,30 @@ for (let [resource, flags] of Object.entries(resources)) {
         ["<", ["PARAM", "expiry"], Date.now() + 60000]
       ]);
 
-    let res = await db.query(resource, filter, options);
+    let stream;
+    switch (ctx.acceptsEncodings("gzip", "deflate", "identity")) {
+      case "gzip":
+        stream = zlib.createGzip();
+        ctx.set("Content-Encoding", "gzip");
+        break;
+      case "deflate":
+        stream = zlib.createDeflate();
+        ctx.set("Content-Encoding", "deflate");
+        break;
+      default:
+        stream = new PassThrough();
+        break;
+    }
 
-    ctx.body = res;
+    ctx.body = stream;
+    ctx.type = "application/json";
+
+    let c = 0;
+    stream.write("[\n");
+    await db.query(resource, filter, options, obj => {
+      stream.write((c++ ? "," : "") + JSON.stringify(obj) + "\n");
+    });
+    stream.end("]");
   });
 
   router.head(`/${resource}/:id`, async (ctx, next) => {
