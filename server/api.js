@@ -58,6 +58,8 @@ for (let [resource, flags] of Object.entries(resources)) {
       filter = expression.parse(ctx.request.query.filter);
     if (ctx.request.query.limit) options.limit = +ctx.request.query.limit;
     if (ctx.request.query.skip) options.skip = +ctx.request.query.skip;
+    if (ctx.request.query.sort)
+      options.sort = JSON.parse(ctx.request.query.sort);
     if (ctx.request.query.projection)
       options.projection = ctx.request.query.projection
         .split(",")

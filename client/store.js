@@ -13,11 +13,11 @@ let evaluateExpressionCache = new WeakMap();
 
 const queries = {
   filter: new WeakMap(),
-  last: new WeakMap(),
+  bookmark: new WeakMap(),
   limit: new WeakMap(),
+  sort: new WeakMap(),
   fulfilled: new WeakMap(),
   fulfilling: new WeakSet(),
-  mapper: new WeakMap(),
   accessed: new WeakMap(),
   value: new WeakMap()
 };
@@ -39,11 +39,7 @@ class QueryResponse {
 
   get value() {
     queries.accessed.set(this, Date.now());
-    const mapper = queries.mapper.get(this);
-    const value = queries.value.get(this);
-
-    if (mapper) return mapper(queries.value.get(this));
-    else return value;
+    return queries.value.get(this);
   }
 }
 
@@ -69,13 +65,89 @@ function count(resourceType, filter) {
   return queryResponse;
 }
 
-function limitFilter(resourceType, filter, last) {
-  if (resourceType === "devices")
-    return expression.and(filter, ["<=", ["PARAM", "DeviceID.ID"], last]);
-  else return expression.and(filter, ["<=", ["PARAM", "_id"], last]);
+function limitFilter(filter, sort, bookmark) {
+  const sortSort = (a, b) => Math.abs(b[1]) - Math.abs(a[1]);
+  const arr = Object.entries(sort)
+    .sort(sortSort)
+    .reverse();
+  return expression.and(
+    filter,
+    arr.reduce((cur, kv) => {
+      const [param, asc] = kv;
+      if (asc <= 0) {
+        if (bookmark[param] == null)
+          return expression.or(
+            ["IS NOT NULL", ["PARAM", param]],
+            expression.and(["IS NULL", ["PARAM", param]], cur)
+          );
+
+        let f = null;
+
+        if (typeof bookmark[param] !== "string")
+          f = expression.or(f, [">=", ["PARAM", param], ""]);
+
+        f = expression.or(f, [">", ["PARAM", param], bookmark[param]]);
+        return expression.or(
+          f,
+          expression.and(["=", ["PARAM", param], bookmark[param]], cur)
+        );
+      } else {
+        let f = ["IS NULL", ["PARAM", param]];
+        if (bookmark[param] == null) return expression.and(f, cur);
+
+        if (typeof bookmark[param] !== "number") {
+          f = expression.or(f, [">=", ["PARAM", param], 0]);
+          f = expression.or(f, ["<", ["PARAM", param], 0]);
+        }
+
+        f = expression.or(f, ["<", ["PARAM", param], bookmark[param]]);
+
+        return expression.or(
+          f,
+          expression.and(["=", ["PARAM", param], bookmark[param]], cur)
+        );
+      }
+    }, true)
+  );
 }
 
-function findMatches(resourceType, filter, limit) {
+function compareFunction(sort) {
+  const sortEntries = Object.entries(sort).sort(
+    (a, b) => Math.abs(b[1]) - Math.abs(a[1])
+  );
+
+  return (a, b) => {
+    for (const [param, asc] of sortEntries) {
+      let v1 = a[param];
+      let v2 = b[param];
+      if (v1 != null && typeof v1 === "object")
+        if (v1.value) v1 = v1.value[0];
+        else v1 = null;
+
+      if (v2 != null && typeof v2 === "object")
+        if (v2.value) v2 = v2.value[0];
+        else v2 = null;
+
+      if (v1 > v2) {
+        return asc;
+      } else if (v1 < v2) {
+        return asc * -1;
+      } else if (v1 !== v2) {
+        const w = {
+          null: 1,
+          number: 2,
+          string: 3
+        };
+        const w1 = w[v1 == null ? "null" : typeof v1] || 4;
+        const w2 = w[v2 == null ? "null" : typeof v2] || 4;
+        return Math.max(-1, Math.min(1, w1 - w2)) * asc;
+      }
+    }
+    return 0;
+  };
+}
+
+function findMatches(resourceType, filter, sort, limit) {
   // Handle "tag =" and "tag <>" special cases
   if (resourceType === "devices")
     filter = expressionParser.map(filter, e => {
@@ -91,11 +163,11 @@ function findMatches(resourceType, filter, limit) {
     });
 
   let value = [];
-  for (let [id, obj] of resources[resourceType].objects.entries())
+  for (let obj of resources[resourceType].objects.values())
     if (expression.evaluate(filter, obj, fulfillTimestamp))
-      value.push(id);
+      value.push(obj);
 
-  value = value.sort();
+  value = value.sort(compareFunction(sort));
   if (limit) value = value.slice(0, limit);
 
   return value;
@@ -105,9 +177,10 @@ function inferQuery(resourceType, queryResponse) {
   const limit = queries.limit.get(queryResponse);
   let filter = queries.filter.get(queryResponse);
   filter = unpackExpression(filter);
-  let last = queries.last.get(queryResponse);
-  if (last || !limit) {
-    if (last) filter = limitFilter(resourceType, filter, last);
+  let bookmark = queries.bookmark.get(queryResponse);
+  const sort = queries.sort.get(queryResponse);
+  if (bookmark || !limit) {
+    if (bookmark) filter = limitFilter(filter, sort, bookmark);
     if (
       resources[resourceType].combinedFilter &&
       expression.subset(filter, resources[resourceType].combinedFilter)
@@ -115,12 +188,21 @@ function inferQuery(resourceType, queryResponse) {
       queries.fulfilled.set(queryResponse, fulfillTimestamp);
   }
 
-  queries.value.set(queryResponse, findMatches(resourceType, filter, limit));
+  queries.value.set(
+    queryResponse,
+    findMatches(resourceType, filter, sort, limit)
+  );
 }
 
-function fetch(resourceType, filter, limit = 0) {
+function fetch(resourceType, filter, options = {}) {
   const filterStr = funcCache.get(expression.stringify, filter);
-  const key = `${limit}:${filterStr}`;
+  const sort = options.sort || {};
+  const limit = options.limit || 0;
+  if (resourceType === "devices")
+    sort["DeviceID.ID"] = sort["DeviceID.ID"] || 1;
+  else sort["_id"] = sort["_id"] || 1;
+
+  let key = `${filterStr}:${limit}:${JSON.stringify(sort)}`;
   let queryResponse = resources[resourceType].fetch.get(key);
   if (queryResponse) return queryResponse;
 
@@ -128,9 +210,7 @@ function fetch(resourceType, filter, limit = 0) {
   resources[resourceType].fetch.set(key, queryResponse);
   queries.filter.set(queryResponse, filter);
   queries.limit.set(queryResponse, limit);
-  queries.mapper.set(queryResponse, list =>
-    list.map(x => resources[resourceType].objects.get(x))
-  );
+  queries.sort.set(queryResponse, sort);
   inferQuery(resourceType, queryResponse);
   return queryResponse;
 }
@@ -204,6 +284,7 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
         toFetchAll[resourceType] = toFetchAll[resourceType] || [];
         toFetchAll[resourceType].push(queryResponse);
         const limit = queries.limit.get(queryResponse);
+        const sort = queries.sort.get(queryResponse);
         if (limit)
           allPromises.push(
             new Promise((resolve, reject) => {
@@ -219,18 +300,26 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
                       filter: funcCache.get(expression.stringify, filter),
                       limit: 1,
                       skip: limit - 1,
-                      projection: "_id"
+                      sort: JSON.stringify(sort),
+                      projection: Object.keys(sort).join(",")
                     })
                 })
                 .then(res => {
-                  if (res.length)
-                    if (resourceType === "devices")
-                      queries.last.set(
-                        queryResponse,
-                        res[0]["DeviceID.ID"].value[0]
-                      );
-                    else queries.last.set(queryResponse, res[0]["_id"]);
-                  else queries.last.delete(queryResponse);
+                  if (res.length) {
+                    // Generate bookmark object
+                    let bm = Object.keys(sort).reduce((b, k) => {
+                      if (res[0][k] != null)
+                        if (typeof res[0][k] === "object") {
+                          if (res[0][k].value != null)
+                            b[k] = res[0][k].value[0];
+                        } else b[k] = res[0][k];
+
+                      return b;
+                    }, {});
+                    queries.bookmark.set(queryResponse, bm);
+                  } else {
+                    queries.bookmark.delete(queryResponse);
+                  }
                   resolve();
                 })
                 .catch(reject);
@@ -249,8 +338,10 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
           toFetch = toFetch.filter(queryResponse => {
             let filter = queries.filter.get(queryResponse);
             filter = unpackExpression(filter);
-            let last = queries.last.get(queryResponse);
-            if (last) filter = limitFilter(resourceType, filter, last);
+            const limit = queries.limit.get(queryResponse);
+            const bookmark = queries.bookmark.get(queryResponse);
+            const sort = queries.sort.get(queryResponse);
+            if (bookmark) filter = limitFilter(filter, sort, bookmark);
 
             if (
               resources[resourceType].combinedFilter &&
@@ -258,7 +349,7 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
             ) {
               queries.value.set(
                 queryResponse,
-                findMatches(resourceType, filter)
+                findMatches(resourceType, filter, sort, limit)
               );
               queries.fulfilled.set(queryResponse, fulfillTimestamp);
               queries.fulfilling.delete(queryResponse);
@@ -325,12 +416,14 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
                   for (let queryResponse of toFetch) {
                     let filter = queries.filter.get(queryResponse);
                     filter = unpackExpression(filter);
-                    let last = queries.last.get(queryResponse);
-                    if (last) filter = limitFilter(resourceType, filter, last);
+                    const limit = queries.limit.get(queryResponse);
+                    const bookmark = queries.bookmark.get(queryResponse);
+                    const sort = queries.sort.get(queryResponse);
+                    if (bookmark) filter = limitFilter(filter, sort, bookmark);
 
                     queries.value.set(
                       queryResponse,
-                      findMatches(resourceType, filter)
+                      findMatches(resourceType, filter, sort, limit)
                     );
                     queries.fulfilled.set(queryResponse, fulfillTimestamp);
                     queries.fulfilling.delete(queryResponse);

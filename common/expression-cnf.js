@@ -48,7 +48,7 @@ function booleanCnf(exp) {
       let m = mutuallyExclusive.get(lhs);
       if (!m) mutuallyExclusive.set(lhs, (m = new Set()));
       m.add(f);
-      if (rhs || key !== "null") m.add(getVariable(lhs, "null"));
+      if (rhs || op !== "null") m.add(getVariable(lhs, "null"));
     }
     return f;
   }
@@ -66,7 +66,7 @@ function booleanCnf(exp) {
     for (let i = 1; i < range.length; ++i)
       if ((from == null || range[i] > from) && (to == null || range[i] <= to)) {
         vars.push(`${lhs}:${range[i - 1]}`);
-        vars.push(`${lhs}:${range[i]}`);
+        if (range[i] !== to) vars.push(`${lhs}:${range[i]}`);
         vars.push(`${lhs}:${range[i - 1]}--${range[i]}`);
       }
 

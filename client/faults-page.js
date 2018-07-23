@@ -160,7 +160,7 @@ const component = {
     let faults = store.fetch(
       "faults",
       vnode.attrs.filter == null ? true : vnode.attrs.filter,
-      vnode.state.showCount || 10
+      { limit: vnode.state.showCount || 10 }
     );
     let count = store.count(
       "faults",

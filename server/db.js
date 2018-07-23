@@ -56,7 +56,19 @@ function query(resource, filter, options, callback) {
       );
       if (options.skip) cursor = cursor.skip(options.skip);
       if (options.limit) cursor = cursor.limit(options.limit);
-      cursor = cursor.sort({ _id: 1 });
+
+      if (options.sort) {
+        let s = Object.entries(options.sort)
+          .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+          .reduce(
+            (obj, [k, v]) =>
+              Object.assign(obj, { [k]: Math.min(Math.max(v, -1), 1) }),
+            {}
+          );
+
+        if (resource === "devices") s = mongodbFunctions.processDeviceSort(s);
+        cursor = cursor.sort(s);
+      }
 
       if (!callback)
         cursor.toArray((err, docs) => {

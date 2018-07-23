@@ -288,7 +288,7 @@ const component = {
     let devs = store.fetch(
       "devices",
       vnode.attrs.filter == null ? true : vnode.attrs.filter,
-      vnode.state.showCount || 10
+      { limit: vnode.state.showCount || 10 }
     );
     let count = store.count(
       "devices",
