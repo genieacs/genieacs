@@ -245,17 +245,16 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
             updated = true;
             let filter = queries.filter.get(queryResponse);
             filter = unpackExpression(filter);
-            m
-              .request({
-                method: "HEAD",
-                url:
-                  `/api/${resourceType}/?` +
-                  m.buildQueryString({
-                    filter: funcCache.get(expression.stringify, filter)
-                  }),
-                extract: xhr => +xhr.getResponseHeader("x-total-count"),
-                background: true
-              })
+            m.request({
+              method: "HEAD",
+              url:
+                `/api/${resourceType}/?` +
+                m.buildQueryString({
+                  filter: funcCache.get(expression.stringify, filter)
+                }),
+              extract: xhr => +xhr.getResponseHeader("x-total-count"),
+              background: true
+            })
               .then(c => {
                 queries.value.set(queryResponse, c);
                 queries.fulfilled.set(queryResponse, fulfillTimestamp);
@@ -291,19 +290,18 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
               updated = true;
               let filter = queries.filter.get(queryResponse);
               filter = unpackExpression(filter);
-              m
-                .request({
-                  method: "GET",
-                  url:
-                    `/api/${resourceType}/?` +
-                    m.buildQueryString({
-                      filter: funcCache.get(expression.stringify, filter),
-                      limit: 1,
-                      skip: limit - 1,
-                      sort: JSON.stringify(sort),
-                      projection: Object.keys(sort).join(",")
-                    })
-                })
+              m.request({
+                method: "GET",
+                url:
+                  `/api/${resourceType}/?` +
+                  m.buildQueryString({
+                    filter: funcCache.get(expression.stringify, filter),
+                    limit: 1,
+                    skip: limit - 1,
+                    sort: JSON.stringify(sort),
+                    projection: Object.keys(sort).join(",")
+                  })
+              })
                 .then(res => {
                   if (res.length) {
                     // Generate bookmark object
@@ -379,18 +377,17 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
 
           allPromises2.push(
             new Promise((resolve2, reject2) => {
-              m
-                .request({
-                  method: "GET",
-                  url:
-                    `/api/${resourceType}/?` +
-                    m.buildQueryString({
-                      filter: funcCache.get(
-                        expression.stringify,
-                        combinedFilterDiff
-                      )
-                    })
-                })
+              m.request({
+                method: "GET",
+                url:
+                  `/api/${resourceType}/?` +
+                  m.buildQueryString({
+                    filter: funcCache.get(
+                      expression.stringify,
+                      combinedFilterDiff
+                    )
+                  })
+              })
                 .then(res => {
                   for (let r of res) {
                     const id =
@@ -453,26 +450,24 @@ function postTasks(deviceId, tasks) {
   }
 
   return new Promise((resolve, reject) => {
-    m
-      .request({
-        method: "POST",
-        url: `/api/devices/${encodeURIComponent(deviceId)}/tasks`,
-        data: tasks,
-        extract: xhr => {
-          if (xhr.status !== 200) throw new Error(xhr.response);
-          const connectionRequestStatus = xhr.getResponseHeader(
-            "Connection-Request"
-          );
-          let st = JSON.parse(xhr.response);
-          for (let [i, t] of st.entries()) {
-            tasks[i]._id = t._id;
-            tasks[i].status = t.status;
-            tasks[i].fault = t.fault;
-          }
-          resolve(connectionRequestStatus);
+    m.request({
+      method: "POST",
+      url: `/api/devices/${encodeURIComponent(deviceId)}/tasks`,
+      data: tasks,
+      extract: xhr => {
+        if (xhr.status !== 200) throw new Error(xhr.response);
+        const connectionRequestStatus = xhr.getResponseHeader(
+          "Connection-Request"
+        );
+        let st = JSON.parse(xhr.response);
+        for (let [i, t] of st.entries()) {
+          tasks[i]._id = t._id;
+          tasks[i].status = t.status;
+          tasks[i].fault = t.fault;
         }
-      })
-      .catch(reject);
+        resolve(connectionRequestStatus);
+      }
+    }).catch(reject);
   });
 }
 

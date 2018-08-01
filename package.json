@@ -4,31 +4,34 @@
   "description": "",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "lint": "eslint --fix common/*.js common/validators/*.js server/*.js client/*.js client/components/*.js;prettier --write common/*.js common/validators/*.js server/*.js client/*.js client/components/*.js client/css/*.css",
-    "build": "npm run lint;webpack;postcss -c postcss.config.js client/css/app.css -o public/app.css",
-    "start": "node server/server"
+    "lint": "eslint --fix common/*.js common/validators/*.js server/*.js client/*.js client/components/*.js;prettier --write *.js common/*.js common/validators/*.js server/*.js client/*.js client/components/*.js client/css/*.css",
+    "build": "npm run lint;webpack;postcss -c postcss.config.js client/css/app.css -o dist/public/app.css",
+    "start": "cd dist && node server"
   },
   "author": "Zaid Abdulla <zaid@genieacs.com>",
   "dependencies": {
-    "jsonwebtoken": "^8.2.1",
-    "koa": "^2.5.0",
-    "koa-body": "^2.5.0",
-    "koa-bodyparser": "^4.2.0",
-    "koa-compress": "^2.0.0",
-    "koa-jwt": "^3.3.1",
+    "jsonwebtoken": "^8.3.0",
+    "koa": "^2.5.2",
+    "koa-bodyparser": "^4.2.1",
+    "koa-compress": "^3.0.0",
+    "koa-jwt": "^3.3.2",
     "koa-router": "^7.4.0",
-    "koa-static": "^4.0.2",
-    "mithril": "^1.1.6",
-    "mongodb": "^3.0.10",
-    "parsimmon": "^1.7.2"
+    "koa-static": "^5.0.0",
+    "mongodb": "^3.1.1",
+    "parsimmon": "^1.12.0"
   },
   "devDependencies": {
-    "cssnano": "^3.10.0",
-    "eslint": "^4.19.1",
-    "postcss-cli": "^4.1.1",
+    "clean-webpack-plugin": "^0.1.19",
+    "copy-webpack-plugin": "^4.5.2",
+    "cssnano": "^4.0.5",
+    "eslint": "^5.2.0",
+    "mithril": "^1.1.6",
+    "postcss-cli": "^6.0.0",
     "postcss-cssnext": "^3.1.0",
     "postcss-import": "^11.1.0",
-    "prettier": "^1.11.1",
-    "webpack": "^3.11.0"
+    "prettier": "^1.14.0",
+    "webpack": "^4.16.3",
+    "webpack-cli": "^3.1.0",
+    "webpack-node-externals": "^1.7.2"
   }
 }

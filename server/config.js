@@ -1,6 +1,7 @@
 "use strict";
 
-const configFile = require("../config.json");
+const fs = require("fs");
+const configFile = JSON.parse(fs.readFileSync("./config.json"));
 
 let config;
 

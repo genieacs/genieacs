@@ -21,10 +21,14 @@ function getClient(db) {
 
   return new Promise((resolve, reject) => {
     const CONNECTION_URL = config.server.mongodbConnectionUrl;
-    mongodb.MongoClient.connect(CONNECTION_URL, (err, client) => {
-      if (err) return reject(err);
-      resolve((_client[db] = client.db(db)));
-    });
+    mongodb.MongoClient.connect(
+      CONNECTION_URL,
+      { useNewUrlParser: true },
+      (err, client) => {
+        if (err) return reject(err);
+        resolve((_client[db] = client.db(db)));
+      }
+    );
   });
 }
 

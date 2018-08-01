@@ -4,7 +4,7 @@ const Koa = require("koa");
 const Router = require("koa-router");
 const koaStatic = require("koa-static");
 const koaCompress = require("koa-compress");
-const koaBody = require("koa-body");
+const koaBodyParser = require("koa-bodyparser");
 const koaJwt = require("koa-jwt");
 const jwt = require("jsonwebtoken");
 
@@ -81,7 +81,7 @@ router.post("/logout", async ctx => {
   ctx.body = "";
 });
 
-koa.use(koaBody());
+koa.use(koaBodyParser());
 router.use("/api", api.routes(), api.allowedMethods());
 
 router.get("/", async ctx => {
