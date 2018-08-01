@@ -1,6 +1,7 @@
 "use strict";
 const mongodb = require("mongodb");
 const expressionParser = require("../common/expression-parser");
+const expression = require("../common/expression");
 
 function processDeviceFilter(filter) {
   return expressionParser.map(filter, exp => {
@@ -130,6 +131,31 @@ function filterToMongoQuery(filter, negate = false, res = {}) {
   } else if (op === "IS NOT NULL") {
     const param = filter[1][1];
     res[param] = { $exists: !negate };
+  } else if (op === "LIKE" || op === "NOT LIKE") {
+    if (op === "NOT LIKE") negate = !negate;
+    let param;
+    let flags;
+    if (filter[1][0] === "FUNC" && filter[1][1] === "UPPER") {
+      if (filter[2] !== filter[2].toUpperCase())
+        throw new Error(
+          "Cannot compare UPPER() against non upper case pattern"
+        );
+      param = filter[1][2][1];
+      flags = "i";
+    } else if (filter[1][0] === "FUNC" && filter[1][1] === "LOWER") {
+      if (filter[2] !== filter[2].toLowerCase())
+        throw new Error(
+          "Cannot compare LOWER() against non lower case pattern"
+        );
+      param = filter[1][2][1];
+      flags = "i";
+    } else {
+      param = filter[1][1];
+      flags = "";
+    }
+    const r = expression.likePatternToRegExp(filter[2], filter[3], flags);
+    if (negate) res[param] = { $not: r };
+    else res[param] = r;
   } else {
     throw new Error(`Unrecognized operator ${op}`);
   }

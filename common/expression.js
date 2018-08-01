@@ -6,6 +6,8 @@ const satSolver = require("./sat-solver");
 
 const isArray = Array.isArray;
 
+const regExpCache = new WeakMap();
+
 function* permute(arr) {
   if (arr.length <= 1) {
     for (let i = 0; i < arr[0]; ++i) yield [i];
@@ -35,6 +37,14 @@ function reduce(exp, callback) {
 }
 
 function evaluate(exp, obj, now) {
+  function getRegExp(pat, esc) {
+    const k = `${esc || ""}:${pat}`;
+    let c = regExpCache.get(exp);
+    if (!c) regExpCache.set(exp, (c = {}));
+    if (!c[k]) c[k] = likePatternToRegExp(pat, esc);
+    return c[k];
+  }
+
   return expressionParser.map(exp, e => {
     if (!isArray(e)) return e;
 
@@ -45,7 +55,7 @@ function evaluate(exp, obj, now) {
         if (e[2] == null) return null;
         if (!isArray(e[2])) return `${e[2]}`.toUpperCase();
       } else if (e[1] === "LOWER") {
-        if (e[12] == null) return null;
+        if (e[2] == null) return null;
         if (!isArray(e[2])) return `${e[2]}`.toLowerCase();
       }
     } else if (e[0] === "PARAM") {
@@ -77,6 +87,19 @@ function evaluate(exp, obj, now) {
       if (isArray(e[1])) return e;
       else if (e[1] != null) return true;
       else return null;
+    } else if (e[0] === "LIKE") {
+      if (isArray(e[1]) || isArray(e[2]) || isArray(e[3])) return e;
+      else if (e[1] == null || e[2] == null || (e.length >= 4 && e[3] == null))
+        return null;
+
+      const r = getRegExp(e[2], e[3]);
+      return r.test(e[1]);
+    } else if (e[0] === "NOT LIKE") {
+      if (isArray(e[1]) || isArray(e[2]) || isArray(e[3])) return e;
+      else if (e[1] == null || e[2] == null || (e.length >= 4 && e[3] == null))
+        return null;
+      const r = getRegExp(e[2], e[3]);
+      return !r.test(e[1]);
     } else if (e[0] === "=") {
       if (isArray(e[1]) || isArray(e[2])) return e;
       if (e[1] == null || e[2] == null) return null;
@@ -183,6 +206,36 @@ function subset(exp1, exp2) {
   return !satSolver.naiveDpll(clauses, vars);
 }
 
+function likePatternToRegExp(pat, esc = "", flags = "") {
+  const convChars = {
+    "-": "\\-",
+    "/": "\\/",
+    "\\": "\\/",
+    "^": "\\^",
+    $: "\\$",
+    "*": "\\*",
+    "+": "\\+",
+    "?": "\\?",
+    ".": "\\.",
+    "(": "\\(",
+    ")": "\\)",
+    "|": "\\|",
+    "[": "\\[",
+    "]": "\\]",
+    "{": "\\{",
+    "}": "\\}",
+    "\\%": ".*",
+    "\\_": "."
+  };
+  let chars = expressionParser.parseLikePattern(pat, esc);
+  if (!chars.length) return new RegExp("", flags);
+  chars = chars.map(c => convChars[c] || c);
+  chars[0] = chars[0] === ".*" ? "" : "^" + chars[0];
+  const l = chars.length - 1;
+  chars[l] = [".*", ""].includes(chars[l]) ? "" : chars[l] + "$";
+  return new RegExp(chars.join(""), flags);
+}
+
 exports.evaluate = evaluate;
 exports.and = and;
 exports.or = or;
@@ -190,3 +243,4 @@ exports.not = not;
 exports.subset = subset;
 exports.parse = expressionParser.parse;
 exports.stringify = expressionParser.stringify;
+exports.likePatternToRegExp = likePatternToRegExp;

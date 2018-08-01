@@ -65,6 +65,21 @@ const lang = parsimmon.createLanguage({
       )
       .skip(parsimmon.optWhitespace);
   },
+  LikeOperator: function() {
+    return parsimmon
+      .alt(
+        parsimmon
+          .regexp(/like/i)
+          .result("LIKE")
+          .desc("LIKE"),
+        parsimmon
+          .regexp(/not\s+like/i)
+          .result("NOT LIKE")
+          .desc("NOT LIKE")
+      )
+      .notFollowedBy(parsimmon.regexp(/[a-zA-Z0-9_]/))
+      .skip(parsimmon.optWhitespace);
+  },
   IsNullOperator: function() {
     return parsimmon
       .alt(
@@ -213,12 +228,31 @@ const lang = parsimmon.createLanguage({
   },
   Comparison: function(r) {
     return parsimmon.alt(
-      parsimmon.seqMap(r.Parameter, r.IsNullOperator, (p, o) => [o, p]),
+      parsimmon.seqMap(r.ValueExpression, r.IsNullOperator, (p, o) => [o, p]),
       parsimmon.seqMap(
         r.ValueExpression,
         r.ComparisonOperator,
         r.ValueExpression,
         (p, o, v) => [o, p, v]
+      ),
+      parsimmon.seqMap(
+        r.ValueExpression,
+        r.LikeOperator,
+        r.ValueExpression.skip(
+          parsimmon
+            .regexp(/escape/i)
+            .result("ESCAPE")
+            .skip(parsimmon.whitespace)
+            .desc("ESCAPE")
+        ),
+        r.ValueExpression,
+        (a, b, c, d) => [b, a, c, d]
+      ),
+      parsimmon.seqMap(
+        r.ValueExpression,
+        r.LikeOperator,
+        r.ValueExpression,
+        (a, b, c) => [b, a, c]
       )
     );
   },
@@ -242,7 +276,7 @@ function parse(str) {
   return lang.Expression.tryParse(str);
 }
 
-function stringify(exp) {
+function stringify(exp, level = 0) {
   if (!Array.isArray(exp)) return JSON.stringify(exp);
 
   const opLevels = {
@@ -250,11 +284,15 @@ function stringify(exp) {
     AND: 11,
     NOT: 12,
     "=": 20,
-    "<>": 21,
-    ">": 22,
-    ">=": 23,
-    "<": 24,
-    "<=": 25,
+    "<>": 20,
+    ">": 20,
+    ">=": 20,
+    "<": 20,
+    "<=": 20,
+    LIKE: 20,
+    "NOT LIKE": 20,
+    "IS NULL": 20,
+    "IS NOT NULL": 20,
     "||": 30,
     "+": 31,
     "-": 31,
@@ -264,45 +302,79 @@ function stringify(exp) {
 
   const op = exp[0].toUpperCase();
 
+  function wrap(e) {
+    if (opLevels[op] <= level) return `(${e})`;
+    else return e;
+  }
+
   if (op === "FUNC") {
-    return `${exp[1]}(${exp
-      .slice(2)
-      .map(e => stringify(e))
-      .join(", ")})`;
+    return wrap(
+      `${exp[1]}(${exp
+        .slice(2)
+        .map(e => stringify(e))
+        .join(", ")})`
+    );
   } else if (op === "PARAM") {
-    if (typeof exp[1] === "string") return exp[1];
+    if (typeof exp[1] === "string") return wrap(exp[1]);
     else if (Array.isArray(exp[1]) && exp[1][0] === "||")
-      return exp[1]
-        .slice(1)
-        .map(p => {
-          if (typeof p === "string") return p;
-          else return `{${stringify(p)}}`;
-        })
-        .join("");
-    else return `{${stringify(exp[1])}}`;
+      return wrap(
+        exp[1]
+          .slice(1)
+          .map(p => {
+            if (typeof p === "string") return p;
+            else return `{${stringify(p)}}`;
+          })
+          .join("")
+      );
+    else return wrap(`{${stringify(exp[1])}}`);
   } else if (op === "IS NULL" || op === "IS NOT NULL") {
-    return `${stringify(exp[1])} ${op}`;
+    return wrap(`${stringify(exp[1], opLevels[op])} ${op}`);
+  } else if (op === "LIKE" || op === "NOT LIKE") {
+    if (exp[3])
+      return wrap(
+        `${stringify(exp[1], opLevels[op])} ${op} ${stringify(
+          exp[2],
+          opLevels[op]
+        )} ESCAPE ${stringify(exp[3], opLevels[op])}`
+      );
+    else
+      return wrap(
+        `${stringify(exp[1], opLevels[op])} ${op} ${stringify(
+          exp[2],
+          opLevels[op]
+        )}`
+      );
   } else if (op in opLevels) {
     const parts = exp.slice(1).map((e, i) => {
-      if (
-        Array.isArray(e) &&
-        (opLevels[e[0]] < opLevels[exp[0]] ||
-          (opLevels[e[0]] < opLevels[exp[0]] && i > 0) ||
-          (opLevels[exp[0]] >= 20 &&
-            opLevels[e[0]] >= 20 &&
-            opLevels[e[0]] < 30))
-      )
-        return `(${stringify(e)})`;
-      else return stringify(e);
+      return stringify(e, opLevels[exp[0]] + Math.min(i - 1, 0));
     });
 
-    if (op === "NOT") return `${op} ${parts[0]}`;
-    else return parts.join(` ${op} `);
+    if (op === "NOT") return wrap(`${op} ${parts[0]}`);
+    else return wrap(parts.join(` ${op} `));
   } else {
     throw new Error(`Unrecognized operator ${exp[0]}`);
   }
 }
 
+function parseLikePattern(pat, esc) {
+  let chars = pat.split("");
+
+  for (let i = 0; i < chars.length; ++i) {
+    let c = chars[i];
+    if (c === esc) {
+      chars[i] = chars[i + 1] || "";
+      chars[i + 1] = "";
+    } else if (c === "_") {
+      chars[i] = "\\_";
+    } else if (c === "%") {
+      chars[i] = "\\%";
+      while (chars[i + 1] === "%") chars[++i] = "";
+    }
+  }
+  return chars.filter(c => c);
+}
+
 exports.parse = parse;
 exports.stringify = stringify;
 exports.map = map;
+exports.parseLikePattern = parseLikePattern;

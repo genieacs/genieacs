@@ -1,27 +1,16 @@
 "use strict";
 
-function collectRanges(exp, ranges = new Map()) {
-  if (["AND", "OR", "NOT"].includes(exp[0]))
-    for (let i = 1; i < exp.length; ++i) collectRanges(exp[i], ranges);
-  else if ([">", ">=", "<", "<=", "=", "<>"].includes(exp[0]))
-    if (!Array.isArray(exp[2])) {
-      const key = `${JSON.stringify(exp[1])}:${typeof exp[2]}`;
-      let s = ranges.get(key);
-      if (!s) ranges.set(key, (s = new Set()));
-      s.add(exp[2]);
-    } else if (!Array.isArray(exp[1])) {
-      const key = `${JSON.stringify(exp[2])}:${typeof exp[1]}`;
-      let s = ranges.get(key);
-      if (!s) ranges.set(key, (s = new Set()));
-      s.add(exp[2]);
-    }
-
-  return ranges;
-}
+const expressionParser = require("./expression-parser");
 
 function or(cnf1, cnf2) {
   if (cnf1.length === 0) return cnf2;
   else if (cnf2.length === 0) return cnf1;
+
+  if (cnf1.length > cnf2.length) {
+    let c = cnf1;
+    cnf1 = cnf2;
+    cnf2 = c;
+  }
 
   const res = [];
   for (let i = 0; i < cnf1.length; ++i)
@@ -31,7 +20,39 @@ function or(cnf1, cnf2) {
 }
 
 function booleanCnf(exp) {
-  const ranges = collectRanges(exp);
+  const ranges = new Map();
+  const likePatterns = new Map();
+  expressionParser.map(exp, e => {
+    if (!Array.isArray(e)) return e;
+    if (e[0] === "LIKE" || e[0] === "NOT LIKE") {
+      if (
+        typeof e[2] === "string" &&
+        (e.length >= 4 || (e[3] != null && !Array.isArray(e[3])))
+      ) {
+        const key = JSON.stringify(e[1]);
+        let s = likePatterns.get(key);
+        if (!s) likePatterns.set(key, (s = new Map()));
+        s.set(
+          `${e[3] || ""}:${e[2]}`,
+          expressionParser.parseLikePattern(e[2], e[3])
+        );
+      }
+    } else if ([">", ">=", "<", "<=", "=", "<>"].includes(e[0])) {
+      if (!Array.isArray(e[2])) {
+        const key = `${JSON.stringify(e[1])}:${typeof e[2]}`;
+        let s = ranges.get(key);
+        if (!s) ranges.set(key, (s = new Set()));
+        s.add(e[2]);
+      } else if (!Array.isArray(e[1])) {
+        const key = `${JSON.stringify(e[2])}:${typeof e[1]}`;
+        let s = ranges.get(key);
+        if (!s) ranges.set(key, (s = new Set()));
+        s.add(e[2]);
+      }
+    }
+    return e;
+  });
+
   for (let [k, v] of ranges)
     if (k.endsWith(":number"))
       ranges.set(k, Array.from(v).sort((a, b) => a - b));
@@ -59,16 +80,24 @@ function booleanCnf(exp) {
     const vars = [];
 
     if (from == null) vars.push(`${lhs}:--${range[0]}`);
-    if (to == null) vars.push(`${lhs}:${range[range.length - 1]}--`);
-    if (fromInclusive) vars.push(`${lhs}:${from}`);
-    if (toInclusive) vars.push(`${lhs}:${to}`);
 
-    for (let i = 1; i < range.length; ++i)
-      if ((from == null || range[i] > from) && (to == null || range[i] <= to)) {
-        vars.push(`${lhs}:${range[i - 1]}`);
-        if (range[i] !== to) vars.push(`${lhs}:${range[i]}`);
+    for (let i = 0; i < range.length; ++i) {
+      if (
+        i > 0 &&
+        (from == null || range[i] > from) &&
+        (to == null || range[i] <= to)
+      )
         vars.push(`${lhs}:${range[i - 1]}--${range[i]}`);
-      }
+
+      if (
+        (range[i] > from && range[i] < to) ||
+        (range[i] === from && fromInclusive) ||
+        (range[i] === to && toInclusive)
+      )
+        vars.push(`${lhs}:${range[i]}`);
+    }
+
+    if (to == null) vars.push(`${lhs}:${range[range.length - 1]}--`);
 
     return vars.map(key => {
       let f = expressions.get(key);
@@ -78,6 +107,21 @@ function booleanCnf(exp) {
         if (!m) mutuallyExclusive.set(lhs, (m = new Set()));
         m.add(f);
       }
+      return f;
+    });
+  }
+
+  function getLikeVariables(lhs, pat, esc) {
+    const vars = [];
+    let pats = likePatterns.get(lhs);
+    pat = pats.get(`${esc || ""}:${pat}`);
+    for (let p of pats.values())
+      if (pat === p || likePatternIncludes(pat, p))
+        vars.push(`${lhs}:like:${JSON.stringify(p)}`);
+
+    return vars.map(key => {
+      let f = expressions.get(key);
+      if (!f) expressions.set(key, (f = expressions.size + 1));
       return f;
     });
   }
@@ -151,6 +195,20 @@ function booleanCnf(exp) {
         if (negate) return [[0 - v]];
         else return [[v]];
       }
+    } else if (
+      (op === "LIKE" || op === "NOT LIKE") &&
+      !Array.isArray(clause[2]) &&
+      clause[2] != null &&
+      (clause.length >= 4 || clause[3] != null)
+    ) {
+      if (op === "NOT LIKE") negate = !negate;
+      const vars = getLikeVariables(
+        JSON.stringify(clause[1]),
+        clause[2],
+        clause[3]
+      );
+      if (negate) return vars.map(x => [0 - x]);
+      else return [vars];
     } else {
       const v = getVariable(JSON.stringify(clause), "");
       if (negate) return [[0 - v]];
@@ -167,6 +225,29 @@ function booleanCnf(exp) {
   }
 
   return { vars: expressions.size, clauses: cnf };
+}
+
+function likePatternIncludes(pat1, pat2, idx1 = 0, idx2 = 0) {
+  while (idx1 < pat1.length && idx2 < pat2.length) {
+    if (pat1[idx1] === "\\%") {
+      for (let i = idx2; i <= pat2.length; ++i)
+        if (likePatternIncludes(pat1, pat2, idx1 + 1, i)) return true;
+      return false;
+    } else if (pat2[idx2] === "\\%") {
+      if (pat1[idx1] !== "\\%") return false;
+    } else if (pat1[idx1] === "\\_") {
+      // Ignore
+    } else if (pat2[idx2] === "\\_") {
+      return false;
+    } else if (pat2[idx2] !== pat1[idx1]) {
+      return false;
+    }
+    ++idx1;
+    ++idx2;
+  }
+
+  if (idx1 === pat1.length && idx2 === pat2.length) return true;
+  return false;
 }
 
 exports.booleanCnf = booleanCnf;
