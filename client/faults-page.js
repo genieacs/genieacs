@@ -6,6 +6,22 @@ import filterComponent from "./filter-component";
 import * as store from "./store";
 import * as notifications from "./notifications";
 import * as expression from "../common/expression";
+import memoize from "../common/memoize";
+
+const memoizedParse = memoize(expression.parse);
+
+const getDownloadUrl = memoize(filter => {
+  return `/api/faults.csv?${m.buildQueryString({
+    filter: filter,
+    columns: JSON.stringify({
+      Device: "device",
+      Channel: "channel",
+      Code: "code",
+      Retries: "retries",
+      Timestamp: "DATE_STRING(timestamp)"
+    })
+  })}`;
+});
 
 function init(args) {
   if (!window.authorizer.hasAccess("faults", 2))
@@ -13,12 +29,17 @@ function init(args) {
       new Error("You are not authorized to view this page")
     );
 
-  let filter = null;
-  if (args.filter != null) filter = expression.parse(`${args.filter}`);
-  return Promise.resolve({ filter: filter });
+  const filter = args.filter;
+  return Promise.resolve({ filter });
 }
 
-function renderTable(faultsResponse, total, selected, showMoreCallback) {
+function renderTable(
+  faultsResponse,
+  total,
+  selected,
+  showMoreCallback,
+  downloadUrl
+) {
   const faults = faultsResponse.value;
   const selectAll = m("input", {
     type: "checkbox",
@@ -101,6 +122,9 @@ function renderTable(faultsResponse, total, selected, showMoreCallback) {
     )
   );
 
+  if (downloadUrl)
+    footerElements.push(m("a.download-csv", { href: downloadUrl }, "Download"));
+
   let tfoot = m(
     "tfoot",
     m("tr", m("td", { colspan: labels.length }, footerElements))
@@ -152,26 +176,25 @@ const component = {
     }
 
     function onFilterChanged(filter) {
-      let params = {};
-      if (filter != null) params.filter = expression.stringify(filter);
-      m.route.set("/faults", params);
+      m.route.set("/faults", { filter });
     }
 
-    let faults = store.fetch(
-      "faults",
-      vnode.attrs.filter == null ? true : vnode.attrs.filter,
-      { limit: vnode.state.showCount || 10 }
-    );
-    let count = store.count(
-      "faults",
-      vnode.attrs.filter == null ? true : vnode.attrs.filter
-    );
+    const filter = vnode.attrs.filter
+      ? memoizedParse(vnode.attrs.filter)
+      : true;
+
+    let faults = store.fetch("faults", filter, {
+      limit: vnode.state.showCount || 10
+    });
+    let count = store.count("faults", filter);
 
     let selected = new Set();
     if (vnode.state.selected)
       for (let f of faults.value)
         if (vnode.state.selected.has(f["_id"])) selected.add(f["_id"]);
     vnode.state.selected = selected;
+
+    const downloadUrl = getDownloadUrl(vnode.attrs.filter);
 
     return [
       m("h1", "Listing faults"),
@@ -186,7 +209,7 @@ const component = {
         filter: vnode.attrs.filter,
         onChange: onFilterChanged
       }),
-      renderTable(faults, count.value, selected, showMore)
+      renderTable(faults, count.value, selected, showMore, downloadUrl)
     ];
   }
 };

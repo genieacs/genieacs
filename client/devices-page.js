@@ -9,20 +9,31 @@ import * as components from "./components";
 import * as taskQueue from "./task-queue";
 import * as notifications from "./notifications";
 import * as expression from "../common/expression";
+import memoize from "../common/memoize";
+
+const memoizedParse = memoize(expression.parse);
+
+const getDownloadUrl = memoize((filter, indexParameters) => {
+  const columns = {};
+  for (const p of indexParameters) columns[p.label] = p.parameter;
+  return `/api/devices.csv?${m.buildQueryString({
+    filter: filter,
+    columns: JSON.stringify(columns)
+  })}`;
+});
+
+const getChildAttrs = memoize((attrs, device) =>
+  Object.assign({}, attrs, { device: device })
+);
 
 function init(args) {
   return new Promise((resolve, reject) => {
     if (!window.authorizer.hasAccess("devices", 2))
       return reject(new Error("You are not authorized to view this page"));
 
-    let filter = null;
-    if (args.filter != null) filter = expression.parse(`${args.filter}`);
-    let indexParameters = Object.values(config.ui.index).map(p => {
-      let param = expression.parse(p.parameter);
-      if (Array.isArray(param) && param[0] === "PARAM") param = param[1];
-      return Object.assign({}, p, { parameter: param });
-    });
-    resolve({ filter: filter, indexParameters: indexParameters });
+    const filter = args.filter;
+    const indexParameters = Object.values(config.ui.index);
+    resolve({ filter, indexParameters });
   });
 }
 
@@ -31,7 +42,8 @@ function renderTable(
   parameters,
   total,
   selected,
-  showMoreCallback
+  showMoreCallback,
+  downloadUrl
 ) {
   const devices = devicesResponse.value;
   const selectAll = m("input", {
@@ -75,10 +87,7 @@ function renderTable(
         },
         m("td", checkbox),
         parameters.map(p => {
-          const attrs = Object.assign({}, p, {
-            device: device,
-            parameter: store.evaluateExpression(p.parameter, device)
-          });
+          const attrs = getChildAttrs(p, device);
           const comp = m(components.get(attrs.type || "parameter"), attrs);
           return m("td", comp);
         }),
@@ -118,6 +127,9 @@ function renderTable(
       "More"
     )
   );
+
+  if (downloadUrl)
+    footerElements.push(m("a.download-csv", { href: downloadUrl }, "Download"));
 
   let tfoot = m(
     "tfoot",
@@ -280,20 +292,16 @@ const component = {
     }
 
     function onFilterChanged(filter) {
-      let params = {};
-      if (filter != null) params.filter = expression.stringify(filter);
-      m.route.set("/devices", params);
+      m.route.set("/devices", { filter });
     }
 
-    let devs = store.fetch(
-      "devices",
-      vnode.attrs.filter == null ? true : vnode.attrs.filter,
-      { limit: vnode.state.showCount || 10 }
-    );
-    let count = store.count(
-      "devices",
-      vnode.attrs.filter == null ? true : vnode.attrs.filter
-    );
+    const filter = vnode.attrs.filter
+      ? memoizedParse(vnode.attrs.filter)
+      : true;
+    let devs = store.fetch("devices", filter, {
+      limit: vnode.state.showCount || 10
+    });
+    let count = store.count("devices", filter);
 
     let selected = new Set();
     if (vnode.state.selected)
@@ -301,6 +309,11 @@ const component = {
         if (vnode.state.selected.has(d["DeviceID.ID"].value[0]))
           selected.add(d["DeviceID.ID"].value[0]);
     vnode.state.selected = selected;
+
+    const downloadUrl = getDownloadUrl(
+      vnode.attrs.filter,
+      vnode.attrs.indexParameters
+    );
 
     return [
       m("h1", "Listing devices"),
@@ -314,7 +327,8 @@ const component = {
         vnode.attrs.indexParameters,
         count.value,
         selected,
-        showMore
+        showMore,
+        downloadUrl
       ),
       renderActions(selected)
     ];

@@ -95,7 +95,7 @@
       },
       {
         "label": "Last inform",
-        "parameter": "Events.Inform",
+        "parameter": "DATE_STRING(Events.Inform)",
         "type": "container",
         "element": "span.inform",
         "components": [
@@ -161,7 +161,7 @@
             "type": "container",
             "label": "Last inform",
             "element": "span.inform",
-            "parameter": "Events.Inform",
+            "parameter": "DATE_STRING(Events.Inform)",
             "components": [
               {
                 "type": "parameter"

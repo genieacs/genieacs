@@ -5,21 +5,18 @@ import * as components from "../components";
 import * as taskQueue from "../task-queue";
 import * as store from "../store";
 import * as expression from "../../common/expression";
-import * as funcCache from "../../common/func-cache";
-
-const parseParameter = funcCache.getter(p => {
-  p = expression.parse(p);
-  if (Array.isArray(p) && p[0] === "PARAM") p = p[1];
-  return p;
-});
+import * as expressionParser from "../../common/expression-parser";
 
 const component = {
   oninit: vnode => {
-    vnode.state.object = parseParameter(vnode.attrs.parameter);
+    let obj = expression.parse(vnode.attrs.parameter);
+    if (!Array.isArray(obj) || !obj[0] === "PARAM")
+      throw new Error("Object must be a parameter path");
+    vnode.state.object = obj[1];
     vnode.state.parameters = Object.values(vnode.attrs.childParameters).map(
       parameter => {
         return Object.assign({}, parameter, {
-          parameter: parseParameter(parameter.parameter)
+          parameter: expression.parse(parameter.parameter)
         });
       }
     );
@@ -46,22 +43,24 @@ const component = {
 
     const rows = [];
     for (let i of instances) {
-      const row = parameters.map(p =>
-        m(
+      const row = parameters.map(p => {
+        const param = expressionParser.map(p.parameter, e => {
+          if (Array.isArray(e) && e[0] === "PARAM")
+            return ["PARAM", ["||", i, ".", e[1]]];
+          return e;
+        });
+        return m(
           "td",
           m(
             components.get(p.type || "parameter"),
             Object.assign({}, p, {
               device: device,
-              parameter: `${i}.${store.evaluateExpression(
-                p.parameter,
-                device
-              )}`,
+              parameter: expressionParser.stringify(param),
               label: ""
             })
           )
-        )
-      );
+        );
+      });
 
       if (device[i].writable === true)
         row.push(

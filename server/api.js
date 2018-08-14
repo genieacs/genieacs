@@ -3,7 +3,7 @@
 const zlib = require("zlib");
 const Router = require("koa-router");
 const PassThrough = require("stream").PassThrough;
-
+const config = require("./config");
 const db = require("./db");
 const apiFunctions = require("./api-functions");
 const expression = require("../common/expression");
@@ -100,6 +100,88 @@ for (let [resource, flags] of Object.entries(resources)) {
       stream.write((c++ ? "," : "") + JSON.stringify(obj) + "\n");
     });
     stream.end("]");
+  });
+
+  // CSV download
+  router.get(`/${resource}.csv`, async (ctx, next) => {
+    let options = {};
+    let filter = true;
+    if (ctx.request.query.filter)
+      filter = expression.parse(ctx.request.query.filter);
+    if (ctx.request.query.limit) options.limit = +ctx.request.query.limit;
+    if (ctx.request.query.skip) options.skip = +ctx.request.query.skip;
+    if (ctx.request.query.sort)
+      options.sort = JSON.parse(ctx.request.query.sort);
+
+    if (!ctx.state.authorizer.hasAccess(resource, 2)) return next();
+
+    const columns = JSON.parse(ctx.request.query.columns);
+    const now = Date.now();
+    for (let [k, v] of Object.entries(columns))
+      columns[k] = expression.evaluate(
+        expression.parse(v),
+        null,
+        now
+      );
+
+    // Exclude temporary tasks and faults
+    if (resource === "tasks" || resource === "faults")
+      filter = expression.and(filter, [
+        "NOT",
+        ["<", ["PARAM", "expiry"], Date.now() + 60000]
+      ]);
+
+    let stream;
+    switch (ctx.acceptsEncodings("gzip", "deflate", "identity")) {
+      case "gzip":
+        stream = zlib.createGzip();
+        ctx.set("Content-Encoding", "gzip");
+        break;
+      case "deflate":
+        stream = zlib.createDeflate();
+        ctx.set("Content-Encoding", "deflate");
+        break;
+      default:
+        stream = new PassThrough();
+        break;
+    }
+
+    ctx.body = stream;
+    ctx.type = "text/csv";
+
+    stream.write(
+      Object.keys(columns).map(k => `"${k.replace(/"/, '""')}"`) + "\n"
+    );
+    await db.query(resource, filter, options, obj => {
+      let arr = Object.values(columns).map(exp => {
+        let v = expression.evaluate(exp, obj, null, e => {
+          if (Array.isArray(e))
+            if (e[0] === "PARAM") {
+              if (resource === "devices") {
+                if (e[1] === "Tags") {
+                  let tags = [];
+                  for (let p in obj)
+                    if (p.startsWith("Tags.")) tags.push(p.slice(5));
+
+                  return tags.join(", ");
+                }
+              }
+            } else if (e[0] === "FUNC") {
+              if (e[1] === "DATE_STRING")
+                if (e[2] && !Array.isArray(e[2]))
+                  return new Date(e[2]).toISOString();
+            }
+
+          return e;
+        });
+
+        if (Array.isArray(v) || v == null) return "";
+        if (typeof v === "string") return `"${v.replace(/"/g, '""')}"`;
+        return v;
+      });
+      stream.write(arr.join(",") + "\n");
+    });
+    stream.end();
   });
 
   router.head(`/${resource}/:id`, async (ctx, next) => {

@@ -4,12 +4,12 @@ import m from "mithril";
 import config from "./config";
 import * as expressionParser from "../common/expression-parser";
 import * as expression from "../common/expression";
-import * as funcCache from "../common/func-cache";
+import memoize from "../common/memoize";
+
+const memoizedStringify = memoize(expression.stringify);
+const memoizedEvaluate = memoize(expression.evaluate);
 
 let fulfillTimestamp = 0;
-
-let unpackExpressionCache = new WeakMap();
-let evaluateExpressionCache = new WeakMap();
 
 const queries = {
   filter: new WeakMap(),
@@ -45,16 +45,12 @@ class QueryResponse {
 
 function unpackExpression(exp) {
   if (!Array.isArray(exp)) return exp;
-  let e = unpackExpressionCache.get(exp);
-  if (e === undefined) {
-    e = expression.evaluate(e, null, fulfillTimestamp);
-    unpackExpressionCache.set(exp, e);
-  }
+  const e = memoizedEvaluate(exp, null, fulfillTimestamp);
   return e;
 }
 
 function count(resourceType, filter) {
-  const filterStr = funcCache.get(expression.stringify, filter);
+  const filterStr = memoizedStringify(filter);
   let queryResponse = resources[resourceType].count.get(filterStr);
   if (queryResponse) return queryResponse;
 
@@ -195,7 +191,7 @@ function inferQuery(resourceType, queryResponse) {
 }
 
 function fetch(resourceType, filter, options = {}) {
-  const filterStr = funcCache.get(expression.stringify, filter);
+  const filterStr = memoizedStringify(filter);
   const sort = options.sort || {};
   const limit = options.limit || 0;
   if (resourceType === "devices")
@@ -219,9 +215,6 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
   let updated = false;
 
   if (_fulfillTimestamp > fulfillTimestamp) {
-    unpackExpressionCache = new WeakMap();
-    evaluateExpressionCache = new WeakMap();
-
     for (let resource of Object.values(resources))
       resource.combinedFilter = null;
     fulfillTimestamp = _fulfillTimestamp;
@@ -250,7 +243,7 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
               url:
                 `/api/${resourceType}/?` +
                 m.buildQueryString({
-                  filter: funcCache.get(expression.stringify, filter)
+                  filter: memoizedStringify(filter)
                 }),
               extract: xhr => +xhr.getResponseHeader("x-total-count"),
               background: true
@@ -295,7 +288,7 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
                 url:
                   `/api/${resourceType}/?` +
                   m.buildQueryString({
-                    filter: funcCache.get(expression.stringify, filter),
+                    filter: memoizedStringify(filter),
                     limit: 1,
                     skip: limit - 1,
                     sort: JSON.stringify(sort),
@@ -382,10 +375,7 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
                 url:
                   `/api/${resourceType}/?` +
                   m.buildQueryString({
-                    filter: funcCache.get(
-                      expression.stringify,
-                      combinedFilterDiff
-                    )
+                    filter: memoizedStringify(combinedFilterDiff)
                   })
               })
                 .then(res => {
@@ -488,16 +478,7 @@ function deleteResource(resourceType, id) {
 
 function evaluateExpression(exp, obj) {
   if (!Array.isArray(exp)) return exp;
-
-  let exps = evaluateExpressionCache.get(exp);
-  if (!exps) evaluateExpressionCache.set(exp, (exps = new WeakMap()));
-
-  if (!exps.has(obj)) {
-    let v = expression.evaluate(exp, obj, fulfillTimestamp);
-    exps.set(obj, v);
-  }
-
-  return exps.get(obj);
+  return memoizedEvaluate(exp, obj, fulfillTimestamp);
 }
 
 function logIn(username, password) {

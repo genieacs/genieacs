@@ -35,7 +35,7 @@ function getClient(db) {
 function query(resource, filter, options, callback) {
   options = options || {};
   let q;
-  filter = expression.evaluate(filter, null, null, Date.now());
+  filter = expression.evaluate(filter, null, Date.now());
 
   if (Array.isArray(filter)) {
     if (resource === "devices")
@@ -79,6 +79,10 @@ function query(resource, filter, options, callback) {
           if (err) return reject(err);
           if (resource === "devices")
             docs = docs.map(d => mongodbFunctions.flattenDevice(d));
+          else if (resource === "faults")
+            docs = docs.map(d => mongodbFunctions.flattenFault(d));
+          else if (resource === "tasks")
+            docs = docs.map(d => mongodbFunctions.flattenTask(d));
           return resolve(docs);
         });
       else
@@ -86,6 +90,10 @@ function query(resource, filter, options, callback) {
           doc => {
             if (resource === "devices")
               doc = mongodbFunctions.flattenDevice(doc);
+            else if (resource === "faults")
+              doc = mongodbFunctions.flattenFault(doc);
+            else if (resource === "tasks")
+              doc = mongodbFunctions.flattenTask(doc);
             callback(doc);
           },
           err => {
@@ -99,7 +107,7 @@ function query(resource, filter, options, callback) {
 
 function count(resource, filter) {
   let q;
-  filter = expression.evaluate(filter, null, null, Date.now());
+  filter = expression.evaluate(filter, null, Date.now());
 
   if (Array.isArray(filter)) {
     if (resource === "devices")

@@ -2,19 +2,53 @@
 
 import m from "mithril";
 import * as taskQueue from "../task-queue";
+import * as store from "../store";
+import * as expression from "../../common/expression";
+import memoize from "../../common/memoize";
+
+const memoizedParse = memoize(expression.parse);
+
+const evaluateParam = memoize((exp, obj, now) => {
+  let timestamp = now;
+  let params = new Set();
+  let value = expression.evaluate(
+    memoizedParse(exp),
+    obj,
+    now,
+    e => {
+      if (Array.isArray(e)) {
+        if (e[0] === "PARAM") {
+          params.add(e[1]);
+          if (!Array.isArray(e[1])) {
+            let p = obj[e[1]];
+            if (p && p.valueTimestamp)
+              timestamp = Math.min(timestamp, p.valueTimestamp);
+          }
+        }
+        if (e[0] === "FUNC" && e[1] === "DATE_STRING" && !Array.isArray(e[2]))
+          return new Date(e[2]).toLocaleString();
+      }
+      return e;
+    }
+  );
+
+  let parameter = params.size === 1 ? params.values().next().value : null;
+  if (Array.isArray(parameter)) parameter = null;
+  return { value, timestamp, parameter };
+});
 
 const component = {
   view: vnode => {
     const device = vnode.attrs.device;
-    const parameter = vnode.attrs.parameter;
-    const param = device[parameter];
-    if (!param || !param.value) return m("span.na", "N/A");
-    let value = param.value[0];
-    if (param.value[1] === "xsd:dateTime")
-      value = new Date(value).toLocaleString();
+
+    let { value, timestamp, parameter } = evaluateParam(
+      vnode.attrs.parameter,
+      vnode.attrs.device,
+      store.getTimestamp()
+    );
 
     let edit;
-    if (param.writable)
+    if (device[parameter] && device[parameter].writable)
       edit = m(
         "button",
         {
@@ -23,19 +57,20 @@ const component = {
             taskQueue.stageSpv({
               name: "setParameterValues",
               device: device["DeviceID.ID"].value[0],
-              parameterValues: [[parameter, param.value[0], param.value[1]]]
+              parameterValues: [
+                [
+                  parameter,
+                  device[parameter].value[0],
+                  device[parameter].value[1]
+                ]
+              ]
             });
           }
         },
         "✎"
       );
 
-    return m(
-      "span.parameter-value",
-      { title: param.valueTimestamp },
-      value,
-      edit
-    );
+    return m("span.parameter-value", { title: timestamp }, value, edit);
   }
 };
 

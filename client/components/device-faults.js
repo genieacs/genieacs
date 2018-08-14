@@ -26,7 +26,7 @@ const component = {
         m("td", f["code"]),
         m("td", f["message"]),
         m("td", f["retries"]),
-        m("td", f["timestamp"]),
+        m("td", new Date(f["timestamp"]).toLocaleString()),
         m(
           "td",
           m(

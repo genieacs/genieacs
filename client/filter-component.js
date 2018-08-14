@@ -1,8 +1,20 @@
 "use strict";
 
 import m from "mithril";
-
 import * as expression from "../common/expression";
+import memoize from "../common/memoize";
+
+const splitFilter = memoize(filter => {
+  if (!filter) return [""];
+  const list = [];
+  const f = expression.parse(filter);
+  if (Array.isArray(f) && f[0] === "AND")
+    for (let ff of f.slice(1)) list.push(expression.stringify(ff));
+  else list.push(expression.stringify(f));
+
+  list.push("");
+  return list;
+});
 
 const component = {
   view: vnode => {
@@ -12,25 +24,15 @@ const component = {
       predefined.map(f => m("option", { value: `${f.parameter} = ` }))
     );
 
-    if (vnode.attrs.filter !== vnode.state.filter) {
-      vnode.state.filterList = [];
+    if (!vnode.state.filterList || vnode.attrs.filter !== vnode.state.filter) {
+      vnode.state.filterInvalid = 0;
       vnode.state.filter = vnode.attrs.filter;
-      if (vnode.attrs.filter != null)
-        if (vnode.attrs.filter[0] === "AND")
-          for (let i = 1; i < vnode.attrs.filter.length; ++i)
-            vnode.state.filterList.push(
-              expression.stringify(vnode.attrs.filter[i])
-            );
-        else
-          vnode.state.filterList.push(expression.stringify(vnode.attrs.filter));
-      vnode.state.filterList.push("");
+      vnode.state.filterList = splitFilter(vnode.attrs.filter);
     }
 
     function onChange() {
       vnode.state.filterInvalid = 0;
-      vnode.state.filterList = vnode.state.filterList.filter(
-        f => f && f.trim()
-      );
+      vnode.state.filterList = vnode.state.filterList.filter(f => f);
       let filter = vnode.state.filterList.map((f, idx) => {
         try {
           return expression.parse(f);
@@ -38,11 +40,18 @@ const component = {
           vnode.state.filterInvalid |= 1 << idx;
         }
       });
-      if (filter.length) filter = ["AND"].concat(filter);
-      else filter = null;
-
       vnode.state.filterList.push("");
-      if (!vnode.state.filterInvalid) vnode.attrs.onChange(filter);
+
+      if (!vnode.state.filterInvalid) {
+        delete vnode.state.filter;
+        if (filter.length === 0) {
+          vnode.attrs.onChange("");
+        } else {
+          if (filter.length > 1) filter = ["AND"].concat(filter);
+          else filter = filter[0];
+          vnode.attrs.onChange(expression.stringify(filter));
+        }
+      }
     }
 
     return m(
@@ -55,7 +64,8 @@ const component = {
             class: `${(vnode.state.filterInvalid >> idx) & 1 ? "error" : ""}`,
             value: fltr,
             onchange: e => {
-              vnode.state.filterList[idx] = e.target.value;
+              vnode.state.filterList = vnode.state.filterList.slice();
+              vnode.state.filterList[idx] = e.target.value.trim();
               onChange();
             }
           });

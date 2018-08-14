@@ -36,7 +36,7 @@ function reduce(exp, callback) {
   return exp;
 }
 
-function evaluate(exp, obj, now) {
+function evaluate(exp, obj, now, cb) {
   function getRegExp(pat, esc) {
     const k = `${esc || ""}:${pat}`;
     let c = regExpCache.get(exp);
@@ -46,6 +46,7 @@ function evaluate(exp, obj, now) {
   }
 
   return expressionParser.map(exp, e => {
+    if (cb) e = cb(e);
     if (!isArray(e)) return e;
 
     if (e[0] === "FUNC") {

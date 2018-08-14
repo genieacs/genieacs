@@ -4,21 +4,12 @@ import m from "mithril";
 import * as taskQueue from "../task-queue";
 import * as store from "../store";
 import * as notifications from "../notifications";
-import * as funcCache from "../../common/func-cache";
 import * as expression from "../../common/expression";
+import memoize from "../../common/memoize";
 
-const parseParameter = funcCache.getter(p => {
-  p = expression.parse(p);
-  if (Array.isArray(p) && p[0] === "PARAM") p = p[1];
-  return p;
-});
+const memoizedParse = memoize(expression.parse);
 
 const component = {
-  oninit: vnode => {
-    vnode.state.parameters = Object.values(vnode.attrs.parameters).map(
-      parameter => parseParameter(parameter)
-    );
-  },
   view: vnode => {
     const device = vnode.attrs.device;
 
@@ -28,9 +19,14 @@ const component = {
         title: "Initiate session and refresh basic parameters",
         onclick: e => {
           e.target.disabled = true;
-          const params = vnode.state.parameters.map(p =>
-            store.evaluateExpression(p, device)
-          );
+          const params = Object.values(vnode.attrs.parameters)
+            .map(p => {
+              const exp = memoizedParse(p);
+              if (!Array.isArray(exp) || !exp[0] == "PARAM") return null;
+              return store.evaluateExpression(exp[1], device);
+            })
+            .filter(exp => !!exp);
+
           const task = {
             name: "getParameterValues",
             parameterNames: params,

@@ -4,12 +4,14 @@ import m from "mithril";
 import * as components from "../components";
 import * as store from "../store";
 import * as expression from "../../common/expression";
-import * as funcCache from "../../common/func-cache";
+import memoize from "../../common/memoize";
+
+const memoizedParse = memoize(expression.parse);
 
 const component = {
   view: vnode => {
     if (vnode.attrs.filter) {
-      const filter = funcCache.get(expression.parse, vnode.attrs.filter);
+      const filter = memoizedParse(vnode.attrs.filter);
       if (!store.evaluateExpression(filter, vnode.attrs.device)) return;
     }
 

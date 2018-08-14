@@ -2,47 +2,29 @@
 
 import m from "mithril";
 import * as components from "../components";
-import * as store from "../store";
-import * as funcCache from "../../common/func-cache";
-import * as expression from "../../common/expression";
+import memoize from "../../common/memoize";
 
-const parseParameter = funcCache.getter(p => {
-  p = expression.parse(p);
-  if (Array.isArray(p) && p[0] === "PARAM") p = p[1];
-  return p;
-});
+const getChildAttrs = memoize((attrs, device) =>
+  Object.assign({}, attrs, { device: device })
+);
 
 const component = {
-  oninit: vnode => {
-    vnode.state.parameters = Object.values(vnode.attrs.parameters).map(
-      parameter =>
-        Object.assign({}, parameter, {
-          parameter: parseParameter(parameter.parameter)
-        })
-    );
-  },
   view: vnode => {
     const device = vnode.attrs.device;
 
-    const rows = [];
-    for (let parameter of vnode.state.parameters) {
-      let p = store.evaluateExpression(parameter.parameter, device);
-
-      if (!(p in device)) continue;
-      rows.push(
+    const rows = Object.values(vnode.attrs.parameters).map(parameter =>
+      m(
+        "tr",
+        m("th", parameter.label),
         m(
-          "tr",
-          m("th", parameter.label),
+          "td",
           m(
-            "td",
-            m(
-              components.get(parameter.type || "parameter"),
-              Object.assign({}, parameter, { device: device, parameter: p })
-            )
+            components.get(parameter.type || "parameter"),
+            getChildAttrs(parameter, device)
           )
         )
-      );
-    }
+      )
+    );
 
     return m("table.parameter-list", rows);
   }

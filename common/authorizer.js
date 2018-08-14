@@ -10,7 +10,7 @@ const validators = {
 class Authorizer {
   constructor(permissionSets) {
     this.permissionSets = permissionSets;
-    this.validtorCache = new WeakMap();
+    this.validatorCache = new WeakMap();
     this.hasAccessCache = {};
   }
 
@@ -34,8 +34,8 @@ class Authorizer {
   }
 
   getValidator(resourceType, resource) {
-    if (this.validtorCache.has(resource))
-      return this.validtorCache.get(resource);
+    if (this.validatorCache.has(resource))
+      return this.validatorCache.get(resource);
 
     let funcs = {};
 
@@ -70,7 +70,7 @@ class Authorizer {
       return valid;
     };
 
-    this.validtorCache.set(resource, validator);
+    this.validatorCache.set(resource, validator);
     return validator;
   }
 }

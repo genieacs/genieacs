@@ -337,6 +337,25 @@ function flattenDevice(device) {
   return newDevice;
 }
 
+function flattenFault(fault) {
+  const f = Object.assign({}, fault);
+  if (f.timestamp) f.timestamp = +f.timestamp;
+  if (f.expiry) f.expiry = +f.expiry;
+  if (f.detail) {
+    for (let [k, v] of Object.entries(f.detail)) fault[`detail.${k}`] = v;
+    delete f.detail;
+  }
+  return f;
+}
+
+function flattenTask(task) {
+  let t = Object.assign({}, task);
+  t._id = "" + t._id;
+  if (t.timestamp) t.timestamp = +t.timestamp;
+  if (t.expiry) t.expiry = +t.expiry;
+  return t;
+}
+
 exports.processDeviceFilter = processDeviceFilter;
 exports.processTasksFilter = processTasksFilter;
 exports.processFaultsFilter = processFaultsFilter;
@@ -344,3 +363,5 @@ exports.filterToMongoQuery = filterToMongoQuery;
 exports.processDeviceProjection = processDeviceProjection;
 exports.processDeviceSort = processDeviceSort;
 exports.flattenDevice = flattenDevice;
+exports.flattenFault = flattenFault;
+exports.flattenTask = flattenTask;

@@ -3,8 +3,10 @@
 import m from "mithril";
 import config from "../config";
 import * as store from "../store";
-import * as funcCache from "../../common/func-cache";
 import * as expression from "../../common/expression";
+import memoize from "../../common/memoize";
+
+const memoizedParse = memoize(expression.parse);
 
 const CHARTS = config.ui.overview.charts;
 
@@ -13,7 +15,7 @@ const component = {
     const device = vnode.attrs.device;
     const chart = CHARTS[vnode.attrs.chart];
     for (let slice of Object.values(chart.slices)) {
-      const filter = funcCache.get(expression.parse, slice.filter);
+      const filter = memoizedParse(slice.filter);
       if (store.evaluateExpression(filter, device)) {
         const dot = m(
           "svg",
