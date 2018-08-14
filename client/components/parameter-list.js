@@ -12,19 +12,23 @@ const component = {
   view: vnode => {
     const device = vnode.attrs.device;
 
-    const rows = Object.values(vnode.attrs.parameters).map(parameter =>
-      m(
+    const rows = Object.values(vnode.attrs.parameters).map(parameter => {
+      const p = m(
+        components.get(parameter.type || "parameter"),
+        getChildAttrs(parameter, device)
+      );
+
+      return m(
         "tr",
+        {
+          onupdate: vn => {
+            vn.dom.style.display = p.dom ? "" : "none";
+          }
+        },
         m("th", parameter.label),
-        m(
-          "td",
-          m(
-            components.get(parameter.type || "parameter"),
-            getChildAttrs(parameter, device)
-          )
-        )
-      )
-    );
+        m("td", p)
+      );
+    });
 
     return m("table.parameter-list", rows);
   }

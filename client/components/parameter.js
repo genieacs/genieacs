@@ -47,6 +47,8 @@ const component = {
       store.getTimestamp()
     );
 
+    if (value == null) return null;
+
     let edit;
     if (device[parameter] && device[parameter].writable)
       edit = m(
