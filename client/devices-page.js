@@ -11,6 +11,8 @@ import * as notifications from "./notifications";
 import * as expression from "../common/expression";
 import memoize from "../common/memoize";
 
+const PAGE_SIZE = config.ui.pageSize || 10;
+
 const memoizedParse = memoize(expression.parse);
 
 const getDownloadUrl = memoize((filter, indexParameters) => {
@@ -287,7 +289,7 @@ const component = {
     document.title = "Devices - GenieACS";
 
     function showMore() {
-      vnode.state.showCount = (vnode.state.showCount || 10) + 10;
+      vnode.state.showCount = (vnode.state.showCount || PAGE_SIZE) + PAGE_SIZE;
       m.redraw();
     }
 
@@ -299,7 +301,7 @@ const component = {
       ? memoizedParse(vnode.attrs.filter)
       : true;
     let devs = store.fetch("devices", filter, {
-      limit: vnode.state.showCount || 10
+      limit: vnode.state.showCount || PAGE_SIZE
     });
     let count = store.count("devices", filter);
 

@@ -1,12 +1,14 @@
 "use strict";
 
 import m from "mithril";
-
+import config from "./config";
 import filterComponent from "./filter-component";
 import * as store from "./store";
 import * as notifications from "./notifications";
 import * as expression from "../common/expression";
 import memoize from "../common/memoize";
+
+const PAGE_SIZE = config.ui.pageSize || 10;
 
 const memoizedParse = memoize(expression.parse);
 
@@ -171,7 +173,7 @@ const component = {
     document.title = "Faults - GenieACS";
 
     function showMore() {
-      vnode.state.showCount = (vnode.state.showCount || 10) + 10;
+      vnode.state.showCount = (vnode.state.showCount || PAGE_SIZE) + PAGE_SIZE;
       m.redraw();
     }
 
@@ -184,7 +186,7 @@ const component = {
       : true;
 
     let faults = store.fetch("faults", filter, {
-      limit: vnode.state.showCount || 10
+      limit: vnode.state.showCount || PAGE_SIZE
     });
     let count = store.count("faults", filter);
 
