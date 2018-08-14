@@ -11,6 +11,7 @@ import * as devicePage from "./device-page";
 import * as errorPage from "./error-page";
 import * as faultsPage from "./faults-page";
 import Authorizer from "../common/authorizer";
+import * as notifications from "./notifications";
 
 window.authorizer = new Authorizer(window.permissionSets);
 
@@ -41,7 +42,7 @@ function pagify(pageName, page) {
     }
   };
 
-  component.onmatch = args => {
+  component.onmatch = (args, requestedPath) => {
     pageVisitTimestamp = Date.now();
     if (!page.init) {
       state = null;
@@ -59,6 +60,10 @@ function pagify(pageName, page) {
           fulfill();
         })
         .catch(err => {
+          if (!window.username && err.message.indexOf("authorized") >= 0) {
+            notifications.push("error", err.message);
+            m.route.set("/login", { continue: requestedPath });
+          }
           state = { error: err.message };
           resolve();
         });
