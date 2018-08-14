@@ -2,7 +2,6 @@
 
 const zlib = require("zlib");
 const Router = require("koa-router");
-const PassThrough = require("stream").PassThrough;
 const config = require("./config");
 const db = require("./db");
 const apiFunctions = require("./api-functions");
@@ -79,19 +78,21 @@ for (let [resource, flags] of Object.entries(resources)) {
     let stream;
     switch (ctx.acceptsEncodings("gzip", "deflate", "identity")) {
       case "gzip":
-        stream = zlib.createGzip();
+        stream = zlib.createGzip({ flush: zlib.constants.Z_SYNC_FLUSH });
+        stream.pipe(ctx.res);
         ctx.set("Content-Encoding", "gzip");
         break;
       case "deflate":
-        stream = zlib.createDeflate();
+        stream = zlib.createDeflate({ flush: zlib.constants.Z_SYNC_FLUSH });
+        stream.pipe(ctx.res);
         ctx.set("Content-Encoding", "deflate");
         break;
       default:
-        stream = new PassThrough();
+        stream = ctx.res;
         break;
     }
 
-    ctx.body = stream;
+    ctx.body = ctx.res;
     ctx.type = "application/json";
 
     let c = 0;
@@ -134,20 +135,25 @@ for (let [resource, flags] of Object.entries(resources)) {
     let stream;
     switch (ctx.acceptsEncodings("gzip", "deflate", "identity")) {
       case "gzip":
-        stream = zlib.createGzip();
+        stream = zlib.createGzip({ flush: zlib.constants.Z_SYNC_FLUSH });
+        stream.pipe(ctx.res);
         ctx.set("Content-Encoding", "gzip");
         break;
       case "deflate":
-        stream = zlib.createDeflate();
+        stream = zlib.createDeflate({ flush: zlib.constants.Z_SYNC_FLUSH });
+        stream.pipe(ctx.res);
         ctx.set("Content-Encoding", "deflate");
         break;
       default:
-        stream = new PassThrough();
+        stream = ctx.res;
         break;
     }
 
-    ctx.body = stream;
+    ctx.body = ctx.res;
     ctx.type = "text/csv";
+    ctx.attachment(
+      `${resource}-${new Date(now).toISOString().replace(/[:.]/g, "")}.csv`
+    );
 
     stream.write(
       Object.keys(columns).map(k => `"${k.replace(/"/, '""')}"`) + "\n"
