@@ -440,7 +440,7 @@ function flattenPreset(preset) {
   )
     throw new Error("Invalid preset provision");
   p.provision = provision.name;
-  p.provision_args =
+  p.provisionArgs =
     provision.args && provision.args.length
       ? `"${provision.args.join('" "')}"`
       : "";

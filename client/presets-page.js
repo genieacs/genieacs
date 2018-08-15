@@ -24,7 +24,7 @@ const getDownloadUrl = memoize(filter => {
       Events: "events",
       Precondition: "precondition",
       Provision: "provision",
-      Arguments: "provision_args"
+      Arguments: "provisionArgs"
     })
   })}`;
 });
@@ -116,7 +116,7 @@ function renderTable(
           m("a", { href: devicesUrl }, preset["precondition"])
         ),
         m("td", preset["provision"]),
-        m("td", preset["provision_args"])
+        m("td", preset["provisionArgs"])
       )
     );
   }
