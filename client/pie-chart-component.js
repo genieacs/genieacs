@@ -67,7 +67,7 @@ const drawChart = function(chartData) {
         m(
           "a",
           {
-            href: `/#!/devices/?${m.buildQueryString({
+            "xlink:href": `/#!/devices/?${m.buildQueryString({
               filter: slice.filter
             })}`
           },
