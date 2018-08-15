@@ -34,6 +34,12 @@
             "pass": true
           }
         },
+        "presets": {
+          "access": 3,
+          "validate": {
+            "pass": true
+          }
+        },
         "files": {
           "access": 3
         }
@@ -45,6 +51,9 @@
           "access": 2
         },
         "faults": {
+          "access": 2
+        },
+        "presets": {
           "access": 2
         },
         "files": {

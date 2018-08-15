@@ -83,6 +83,8 @@ function query(resource, filter, options, callback) {
             docs = docs.map(d => mongodbFunctions.flattenFault(d));
           else if (resource === "tasks")
             docs = docs.map(d => mongodbFunctions.flattenTask(d));
+          else if (resource === "presets")
+            docs = docs.map(d => mongodbFunctions.flattenPreset(d));
           return resolve(docs);
         });
       else
@@ -94,6 +96,8 @@ function query(resource, filter, options, callback) {
               doc = mongodbFunctions.flattenFault(doc);
             else if (resource === "tasks")
               doc = mongodbFunctions.flattenTask(doc);
+            else if (resource === "presets")
+              doc = mongodbFunctions.flattenPreset(doc);
             callback(doc);
           },
           err => {

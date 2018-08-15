@@ -10,6 +10,7 @@ import * as devicesPage from "./devices-page";
 import * as devicePage from "./device-page";
 import * as errorPage from "./error-page";
 import * as faultsPage from "./faults-page";
+import * as presetsPage from "./presets-page";
 import Authorizer from "../common/authorizer";
 import * as notifications from "./notifications";
 
@@ -78,5 +79,6 @@ m.route(document.body, "/overview", {
   "/overview": pagify("overview", overviewPage),
   "/devices": pagify("devices", devicesPage),
   "/devices/:id": pagify("devices", devicePage),
-  "/faults": pagify("faults", faultsPage)
+  "/faults": pagify("faults", faultsPage),
+  "/presets": pagify("presets", presetsPage)
 });

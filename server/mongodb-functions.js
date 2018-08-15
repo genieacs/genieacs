@@ -356,6 +356,98 @@ function flattenTask(task) {
   return t;
 }
 
+function mongoQueryToFilter(query) {
+  let expressions = [];
+  function recursive(_query) {
+    for (let [k, v] of Object.entries(_query))
+      if (k[0] == "$") {
+        if (k == "$and") for (let vv of Object.values(v)) recursive(vv);
+        else throw new Error(`Operator ${k} not supported`);
+      } else if (k == "_tags") {
+        if (typeof v === "object") {
+          if (Array.isArray(v)) throw new Error(`Invalid type`);
+
+          for (let [kk, vv] of Object.entries(v))
+            if (kk == "$ne")
+              expressions.push(["IS NULL", ["PARAM", `Tags.${vv}`]]);
+            else throw new Error(`Operator ${kk} not supported`);
+        } else {
+          expressions.push(["IS NOT NULL", ["PARAM", `Tags.${v}`]]);
+        }
+      } else if (typeof v === "object") {
+        if (Array.isArray(v)) throw new Error(`Invalid type`);
+
+        for (let [kk, vv] of Object.entries(v)) {
+          let op;
+          switch (kk) {
+            case "$eq":
+              op = "=";
+              break;
+            case "$ne":
+              op = "<>";
+              break;
+            case "$lt":
+              op = "<";
+              break;
+            case "$lte":
+              op = "<=";
+              break;
+            case "$gt":
+              op = ">";
+              break;
+            case "$gte":
+              op = ">=";
+              break;
+            default:
+              throw new Error(`Operator ${kk} not supported`);
+          }
+          expressions.push([op, ["PARAM", k], vv]);
+        }
+      } else {
+        expressions.push(["=", ["PARAM", k], v]);
+      }
+  }
+  recursive(query);
+
+  if (expressions.length > 1) return ["AND"].concat(expressions);
+
+  if (expressions.length == 1) return expressions[0];
+
+  return expressions;
+}
+
+function flattenPreset(preset) {
+  let p = Object.assign({}, preset);
+  if (p.precondition) {
+    p.precondition = mongoQueryToFilter(JSON.parse(p.precondition));
+    p.precondition = p.precondition.length
+      ? expression.stringify(p.precondition)
+      : "";
+  }
+
+  if (p.events) {
+    let e = [];
+    for (let [k, v] of Object.entries(p.events)) e.push(v ? k : `-${k}`);
+    p.events = e.join(", ");
+  }
+
+  let provision = p.configurations[0];
+  if (
+    p.configurations.length != 1 ||
+    provision.type != "provision" ||
+    !provision.name ||
+    !provision.name.length
+  )
+    throw new Error("Invalid preset provision");
+  p.provision = provision.name;
+  p.provision_args =
+    provision.args && provision.args.length
+      ? `"${provision.args.join('" "')}"`
+      : "";
+  delete p.configurations;
+  return p;
+}
+
 exports.processDeviceFilter = processDeviceFilter;
 exports.processTasksFilter = processTasksFilter;
 exports.processFaultsFilter = processFaultsFilter;
@@ -365,3 +457,4 @@ exports.processDeviceSort = processDeviceSort;
 exports.flattenDevice = flattenDevice;
 exports.flattenFault = flattenFault;
 exports.flattenTask = flattenTask;
+exports.flattenPreset = flattenPreset;

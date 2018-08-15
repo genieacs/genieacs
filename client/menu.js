@@ -34,6 +34,15 @@ const menu = {
         )
       );
 
+    if (window.authorizer.hasAccess("presets", 2))
+      tabs.push(
+        m(
+          "li",
+          { class: active["presets"] },
+          m("a", { href: "#!/presets" }, "Presets")
+        )
+      );
+
     return m("nav", m("ul", tabs));
   }
 };

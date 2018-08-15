@@ -26,7 +26,14 @@ function getPermissionSets(roles) {
       p = Object.assign({}, p);
       for (let [k, v] of Object.entries(p)) {
         p[k] = v = Object.assign({}, v);
-        if (["devices", "faults", "files"].includes(k))
+        if (
+          [
+            "devices",
+            "faults",
+            "presets",
+            "files"
+          ].includes(k)
+        )
           if (v.filter == null || v.filter === "") v.filter = true;
           else {
             v.filter = expression.parse(v.filter);
