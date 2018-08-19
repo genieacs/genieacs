@@ -5,7 +5,6 @@ lib/auth.js
 lib/config.js
 lib/cwmp.js
 lib/db.js
-lib/fs.js
 lib/nbi.js
 lib/query.js
 lib/server.js
