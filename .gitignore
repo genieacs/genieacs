@@ -2,7 +2,6 @@
 lib/*.map
 lib/api-functions.js
 lib/auth.js
-lib/config.js
 lib/cwmp.js
 lib/db.js
 lib/nbi.js
