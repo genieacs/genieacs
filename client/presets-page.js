@@ -67,8 +67,7 @@ function renderTable(
     "Events",
     "Precondition",
     "Provision",
-    "Arguments",
-    ""
+    "Arguments"
   ].map(l => m("th", l));
 
   let rows = [];
@@ -111,10 +110,13 @@ function renderTable(
         m("td", preset["weight"]),
         m("td", preset["schedule"]),
         m("td", preset["events"]),
-        m("td", { title: preset["precondition"] }, preset["precondition"]),
+        m(
+          "td",
+          { title: preset["precondition"] },
+          m("a", { href: devicesUrl }, preset["precondition"])
+        ),
         m("td", preset["provision"]),
-        m("td", preset["provision_args"]),
-        m("td", m("a", { href: devicesUrl }, "Devices"))
+        m("td", preset["provision_args"])
       )
     );
   }
