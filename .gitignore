@@ -1,6 +1,5 @@
 *~
 lib/*.map
-lib/api-functions.js
 lib/cwmp.js
 lib/db.js
 lib/nbi.js
