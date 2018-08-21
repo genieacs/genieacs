@@ -4,7 +4,6 @@ lib/api-functions.js
 lib/cwmp.js
 lib/db.js
 lib/nbi.js
-lib/query.js
 lib/session.js
 node_modules
 debug
