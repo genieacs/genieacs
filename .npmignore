@@ -16,3 +16,5 @@ config/ext
 
 debug/*
 !debug/.gitkeep
+
+.eslintrc.json

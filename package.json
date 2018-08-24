@@ -28,6 +28,8 @@
     "redis": "^2.6.5"
   },
   "devDependencies": {
+    "eslint": "^5.4.0",
+    "prettier": "^1.14.2"
   },
   "engines": {
     "node": ">=6.9.2 <9.0"
@@ -36,6 +38,7 @@
     "compile": "echo 'Compile step no longer required, skipping.'",
     "configure": "cp -n ./config/config-sample.json ./config/config.json",
     "install": "npm run configure",
-    "test": "node test"
+    "test": "node test",
+    "lint": "eslint --fix lib/*.js; prettier --write lib/*.js"
   }
 }
