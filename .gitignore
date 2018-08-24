@@ -1,7 +1,6 @@
 *~
 lib/*.map
 lib/cwmp.js
-lib/db.js
 lib/session.js
 node_modules
 debug
