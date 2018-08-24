@@ -28,14 +28,12 @@
     "redis": "^2.6.5"
   },
   "devDependencies": {
-    "coffeescript": "^1.12.7"
   },
   "engines": {
     "node": ">=6.9.2 <9.0"
   },
   "scripts": {
-    "prepublish": "npm run compile",
-    "compile": "coffee -cb lib/*.coffee",
+    "compile": "echo 'Compile step no longer required, skipping.'",
     "configure": "cp -n ./config/config-sample.json ./config/config.json",
     "install": "npm run configure",
     "test": "node test"

@@ -1,5 +1,4 @@
 *~
-lib/*.map
 node_modules
 debug
 config/auth.js
