@@ -13,6 +13,7 @@
     "handle-callback-err": "error",
     "prefer-arrow-callback": "error",
     "curly": ["error", "multi-or-nest", "consistent"],
-    "consistent-return": ["error", {"treatUndefinedAsUnspecified": true}]
+    "consistent-return": ["error", {"treatUndefinedAsUnspecified": true}],
+    "no-buffer-constructor": "error"
   }
 }
