@@ -12,6 +12,7 @@
     "no-shadow": ["error", { "allow": ["err"] }],
     "handle-callback-err": "error",
     "prefer-arrow-callback": "error",
-    "curly": ["error", "multi-or-nest", "consistent"]
+    "curly": ["error", "multi-or-nest", "consistent"],
+    "consistent-return": ["error", {"treatUndefinedAsUnspecified": true}]
   }
 }
