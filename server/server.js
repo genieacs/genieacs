@@ -12,12 +12,21 @@ const config = require("./config");
 const api = require("./api");
 const Authorizer = require("../common/authorizer");
 const expression = require("../common/expression");
+const logger = require("./logger");
 
 const koa = new Koa();
 const router = new Router();
 
 const JWT_SECRET = config.server.jwtSecret;
 const JWT_COOKIE = "genieacs-ui-jwt";
+
+const VERSION = require("../package.json")["version"];
+
+logger.info({
+  message: "GenieACS UI starting",
+  pid: process.pid,
+  version: VERSION
+});
 
 function getPermissionSets(roles) {
   const allPermissions = config.permissions;
@@ -69,9 +78,17 @@ router.post("/login", async ctx => {
 
   const user = config.auth.simple.users[username];
 
+  let log = {
+    message: "Log in",
+    context: ctx,
+    username: username
+  };
+
   if (!user || user.password !== password) {
     ctx.status = 400;
     ctx.body = "Incorrect username or password";
+    log.message += " - invalid credentials";
+    logger.accessWarn(log);
     return;
   }
 
@@ -81,11 +98,18 @@ router.post("/login", async ctx => {
   );
   ctx.cookies.set(JWT_COOKIE, token);
   ctx.body = JSON.stringify(token);
+
+  logger.accessInfo(log);
 });
 
 router.post("/logout", async ctx => {
   ctx.cookies.set(JWT_COOKIE); // Delete cookie
   ctx.body = "";
+
+  logger.accessInfo({
+    message: "Log out",
+    context: ctx
+  });
 });
 
 koa.use(koaBodyParser());
@@ -125,7 +149,10 @@ koa.use(
 koa.use(router.routes());
 koa.use(koaStatic("./public"));
 
-koa.listen(config.server.port, () => {
-  // eslint-disable-next-line no-console
-  console.log(`Server listening on port ${config.server.port}`);
+koa.listen(config.server.port, "0.0.0.0", () => {
+  logger.info({
+    message: "Worker litening",
+    port: config.server.port,
+    pid: process.pid
+  });
 });

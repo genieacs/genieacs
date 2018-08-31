@@ -282,5 +282,9 @@
         "type": "device-actions"
       }
     ]
+  },
+  "logger": {
+    "logFormat": "simple",
+    "accessLogFormat": "simple"
   }
 }
