@@ -58,4 +58,8 @@ document.addEventListener("keydown", e => {
   if (e.keyCode === 27 && close(overlayCallback)) m.redraw();
 });
 
+window.addEventListener("popstate", () => {
+  if (close(overlayCallback)) m.redraw();
+});
+
 export { open, close, render };
