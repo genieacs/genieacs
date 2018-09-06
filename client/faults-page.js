@@ -125,7 +125,9 @@ function renderTable(
   );
 
   if (downloadUrl)
-    footerElements.push(m("a.download-csv", { href: downloadUrl }, "Download"));
+    footerElements.push(
+      m("a.download-csv", { href: downloadUrl, download: "" }, "Download")
+    );
 
   let tfoot = m(
     "tfoot",
