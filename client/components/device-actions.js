@@ -83,7 +83,7 @@ const component = {
       )
     );
 
-    return m(".device-actions", buttons);
+    return m(".actions-bar", buttons);
   }
 };
 

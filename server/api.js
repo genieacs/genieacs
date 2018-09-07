@@ -16,6 +16,7 @@ function logUnauthorizedWarning(log) {
 }
 
 const RESOURCE_DELETE = 1 << 0;
+const RESOURCE_PUT = 1 << 1;
 
 const RESOURCE_IDS = {
   devices: "DeviceID.ID",
@@ -29,7 +30,7 @@ const RESOURCE_IDS = {
 
 const resources = {
   devices: 0 | RESOURCE_DELETE,
-  presets: 0 | RESOURCE_DELETE,
+  presets: 0 | RESOURCE_DELETE | RESOURCE_PUT,
   provisions: 0 | RESOURCE_DELETE,
   files: 0 | RESOURCE_DELETE,
   virtual_parameters: 0 | RESOURCE_DELETE,
@@ -307,6 +308,48 @@ for (let [resource, flags] of Object.entries(resources)) {
       await apiFunctions.deleteResource(resource, ctx.params.id);
 
       logger.accessInfo(log);
+
+      ctx.body = "";
+    });
+
+  if (flags & RESOURCE_PUT)
+    router.put(`/${resource}/:id`, async (ctx, next) => {
+      const id = ctx.params.id;
+
+      const log = {
+        message: `Put ${resource}`,
+        context: ctx,
+        id: id
+      };
+
+      const authorizer = ctx.state.authorizer;
+      if (!authorizer.hasAccess(resource, 3)) {
+        logUnauthorizedWarning(log);
+        return next();
+      }
+
+      let obj = ctx.request.body;
+
+      const validate = authorizer.getValidator(resource, obj);
+      if (!validate("put")) {
+        logUnauthorizedWarning(log);
+        return (ctx.status = 403);
+      }
+
+      await apiFunctions.putResource(resource, id, obj);
+
+      logger.accessInfo(log);
+
+      db.putAudit({
+        username: ctx.state.user.username,
+        action: "put",
+        objectType: resource,
+        objectId: id
+      }).catch(err => {
+        setTimeout(() => {
+          throw err;
+        }, 0);
+      });
 
       ctx.body = "";
     });

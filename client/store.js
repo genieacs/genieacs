@@ -476,6 +476,31 @@ function deleteResource(resourceType, id) {
   });
 }
 
+function putResource(resourceType, id, object) {
+  for (let k in object) if (object[k] === undefined) object[k] = null;
+
+  return m.request({
+    method: "PUT",
+    url: `/api/${resourceType}/${encodeURIComponent(id)}`,
+    data: object
+  });
+}
+
+function resourceExists(resource, id) {
+  const param = resource === "devices" ? "DeviceID.ID" : "_id";
+  let filter = ["=", ["PARAM", param], id];
+  return m.request({
+    method: "HEAD",
+    url:
+      `/api/${resource}/?` +
+      m.buildQueryString({
+        filter: memoizedStringify(filter)
+      }),
+    extract: xhr => +xhr.getResponseHeader("x-total-count"),
+    background: true
+  });
+}
+
 function evaluateExpression(exp, obj) {
   if (!Array.isArray(exp)) return exp;
   return memoizedEvaluate(exp, obj, fulfillTimestamp);
@@ -512,6 +537,8 @@ export {
   postTasks,
   updateTags,
   deleteResource,
+  putResource,
+  resourceExists,
   evaluateExpression,
   logIn,
   logOut,

@@ -4,28 +4,92 @@ import m from "mithril";
 
 import config from "./config";
 import filterComponent from "./filter-component";
+import * as overlay from "./overlay";
 import * as store from "./store";
 import * as expression from "../common/expression";
 import * as notifications from "./notifications";
+import putForm from "./components/put-form";
 import memoize from "../common/memoize";
 
 const PAGE_SIZE = config.ui.pageSize || 10;
 
 const memoizedParse = memoize(expression.parse);
 
+const attributes = [
+  { id: "_id", label: "Name" },
+  { id: "channel", label: "Channel" },
+  { id: "weight", label: "Weight" },
+  { id: "schedule", label: "Schedule" },
+  { id: "events", label: "Events" },
+  { id: "precondition", label: "Precondition" },
+  { id: "provision", label: "Provision" },
+  { id: "provisionArgs", label: "Arguments" }
+];
+
+function putActoinHandler(action, object, isNew) {
+  if (action === "save") {
+    let id = object["_id"];
+    delete object["_id"];
+
+    if (!id) return notifications.push("error", "ID can not be empty");
+
+    store
+      .resourceExists("presets", id)
+      .then(exists => {
+        if (exists && isNew) {
+          notifications.push("error", "Preset already exists");
+          store.fulfill(0, Date.now());
+          return;
+        }
+
+        if (!exists && !isNew) {
+          notifications.push("error", "Preset already deleted");
+          store.fulfill(0, Date.now());
+          return;
+        }
+
+        store
+          .putResource("presets", id, object)
+          .then(() => {
+            notifications.push(
+              "success",
+              `Preset ${exists ? "updated" : "created"}`
+            );
+            store.fulfill(0, Date.now());
+          })
+          .catch(err => {
+            notifications.push("error", err.message);
+          });
+      })
+      .catch(err => {
+        notifications.push("error", err.message);
+      });
+  } else if (action === "delete") {
+    store
+      .deleteResource("presets", object["_id"])
+      .then(() => {
+        notifications.push("success", "Preset deleted");
+        store.fulfill(0, Date.now());
+      })
+      .catch(err => {
+        notifications.push("error", err.message);
+      });
+  } else {
+    throw new Error("Undefined action");
+  }
+}
+
+let formData = {
+  resource: "presets",
+  attributes: attributes
+};
+
 const getDownloadUrl = memoize(filter => {
+  let cols = {};
+  for (let attr of attributes) cols[attr.label] = attr.id;
   return `/api/presets.csv?${m.buildQueryString({
     filter: filter,
-    columns: JSON.stringify({
-      Name: "_id",
-      Channel: "channel",
-      Weight: "weight",
-      Schedule: "schedule",
-      Events: "events",
-      Precondition: "precondition",
-      Provision: "provision",
-      Arguments: "provisionArgs"
-    })
+    columns: JSON.stringify(cols)
   })}`;
 });
 
@@ -58,17 +122,9 @@ function renderTable(
     disabled: !total
   });
 
-  const labels = [
-    selectAll,
-    "Name",
-    "Channel",
-    "Weight",
-    "Schedule",
-    "Events",
-    "Precondition",
-    "Provision",
-    "Arguments"
-  ].map(l => m("th", l));
+  const labels = [selectAll]
+    .concat(attributes.map(elem => elem.label))
+    .map(l => m("th", l));
 
   let rows = [];
   for (let preset of presets) {
@@ -91,6 +147,48 @@ function renderTable(
         filter: preset["precondition"]
       })}`;
 
+    let tds = [m("td", checkbox)];
+    for (let attr of attributes)
+      if (attr.id === "precondition")
+        tds.push(
+          m(
+            "td",
+            { title: preset[attr.id] },
+            m("a", { href: devicesUrl }, preset[attr.id])
+          )
+        );
+      else tds.push(m("td", preset[attr.id]));
+
+    tds.push(
+      m(
+        "td.table-row-links",
+        m(
+          "a",
+          {
+            onclick: () => {
+              let cb = () => {
+                return m(
+                  putForm,
+                  Object.assign(
+                    {
+                      base: preset,
+                      actionHandler: (action, object) => {
+                        overlay.close(cb);
+                        putActoinHandler(action, object, false);
+                      }
+                    },
+                    formData
+                  )
+                );
+              };
+              overlay.open(cb);
+            }
+          },
+          "Show"
+        )
+      )
+    );
+
     rows.push(
       m(
         "tr",
@@ -104,19 +202,7 @@ function renderTable(
             if (!selected.delete(preset["_id"])) selected.add(preset["_id"]);
           }
         },
-        m("td", checkbox),
-        m("td", preset["_id"]),
-        m("td", preset["channel"]),
-        m("td", preset["weight"]),
-        m("td", preset["schedule"]),
-        m("td", preset["events"]),
-        m(
-          "td",
-          { title: preset["precondition"] },
-          m("a", { href: devicesUrl }, preset["precondition"])
-        ),
-        m("td", preset["provision"]),
-        m("td", preset["provisionArgs"])
+        tds
       )
     );
   }
@@ -175,6 +261,34 @@ function renderTable(
     )
   ];
 
+  if (window.authorizer.hasAccess("presets", 3))
+    buttons.push(
+      m(
+        "button.primary",
+        {
+          title: "Create new preset",
+          onclick: () => {
+            let cb = () => {
+              return m(
+                putForm,
+                Object.assign(
+                  {
+                    actionHandler: (action, object) => {
+                      putActoinHandler(action, object, true);
+                      overlay.close(cb);
+                    }
+                  },
+                  formData
+                )
+              );
+            };
+            overlay.open(cb);
+          }
+        },
+        "New"
+      )
+    );
+
   return [
     m(
       "table.table.highlight",
@@ -182,7 +296,7 @@ function renderTable(
       m("tbody", rows),
       tfoot
     ),
-    buttons
+    m("div.actions-bar", buttons)
   ];
 }
 

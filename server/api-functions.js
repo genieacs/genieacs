@@ -7,6 +7,7 @@ const url = require("url");
 const config = require("./config");
 const db = require("./db");
 const expression = require("../common/expression");
+const mongodbFunctions = require("./mongodb-functions");
 
 function filterToMongoQuery(filter, negate = false, res = {}) {
   const op = filter[0];
@@ -283,8 +284,32 @@ function ping(host) {
   });
 }
 
+function putResource(resource, id, data) {
+  return new Promise((resolve, reject) => {
+    let options = url.parse(
+      `${config.server.nbi}${resource}/${encodeURIComponent(id)}`
+    );
+
+    options.method = "PUT";
+
+    let _http = options.protocol === "https:" ? https : http;
+
+    if (resource === "presets") data = mongodbFunctions.preProcessPreset(data);
+
+    let body = JSON.stringify(data);
+    _http
+      .request(options, res => {
+        res.resume();
+        if (res.statusCode === 200) resolve(true);
+        else reject(new Error(`Unexpected status code ${res.statusCode}`));
+      })
+      .end(body);
+  });
+}
+
 exports.postTasks = postTasks;
 exports.deleteResource = deleteResource;
+exports.putResource = putResource;
 exports.updateTags = updateTags;
 exports.filterToMongoQuery = filterToMongoQuery;
 exports.ping = ping;

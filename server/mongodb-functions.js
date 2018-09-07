@@ -374,6 +374,11 @@ function mongoQueryToFilter(query) {
         } else {
           expressions.push(["IS NOT NULL", ["PARAM", `Tags.${v}`]]);
         }
+      } else if (k.startsWith("Tags.")) {
+        expressions.push([
+          `IS${v["$exists"] ? " " : " NOT "}NULL`,
+          ["PARAM", k]
+        ]);
       } else if (typeof v === "object") {
         if (Array.isArray(v)) throw new Error(`Invalid type`);
 
@@ -440,12 +445,48 @@ function flattenPreset(preset) {
   )
     throw new Error("Invalid preset provision");
   p.provision = provision.name;
-  p.provisionArgs =
-    provision.args && provision.args.length
-      ? `"${provision.args.join('" "')}"`
-      : "";
+  p.provisionArgs = provision.args
+    ? JSON.stringify(provision.args).slice(1, -1)
+    : "";
   delete p.configurations;
   return p;
+}
+
+function preProcessPreset(data) {
+  let preset = Object.assign({}, data);
+  preset.precondition = preset.precondition
+    ? filterToMongoQuery(expression.parse(preset.precondition))
+    : {};
+  preset.precondition = JSON.stringify(preset.precondition);
+
+  let events = {};
+  if (preset.events)
+    for (let e of preset.events.split(",")) {
+      let v = true;
+      e = e.trim();
+      if (e.startsWith("-")) {
+        v = false;
+        e = e.slice(1).trim();
+      }
+      if (e) events[e] = v;
+    }
+
+  preset.events = events;
+
+  if (!preset.provision) throw new Error("Invalid preset provision");
+
+  let configuration = {
+    type: "provision",
+    name: preset.provision
+  };
+
+  if (preset.provisionArgs)
+    configuration.args = JSON.parse(`[${preset.provisionArgs}]`);
+
+  delete preset.provision;
+  delete preset.provisionArgs;
+  preset.configurations = [configuration];
+  return preset;
 }
 
 exports.processDeviceFilter = processDeviceFilter;
@@ -458,3 +499,4 @@ exports.flattenDevice = flattenDevice;
 exports.flattenFault = flattenFault;
 exports.flattenTask = flattenTask;
 exports.flattenPreset = flattenPreset;
+exports.preProcessPreset = preProcessPreset;

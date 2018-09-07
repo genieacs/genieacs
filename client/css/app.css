@@ -355,6 +355,7 @@ button {
   }
 }
 
+select,
 input {
   display: block;
   border: 1px solid var(--color1);
@@ -519,7 +520,7 @@ span.na {
   clear: both;
 }
 
-.device-actions {
+.actions-bar {
   margin-top: 10px;
   & > button {
     margin-right: 10px;
@@ -556,12 +557,16 @@ span.tag {
   justify-content: center;
 
   & > .overlay {
-    max-width: 90%;
-    max-height: 90%;
+    max-width: 90vw;
+    max-height: 90vh;
     background-color: white;
     border: 1px solid var(--color1);
     border-radius: 10px;
     padding: 10px;
     box-shadow: 0 0 15px #aaa;
   }
+}
+
+.overlay > .put-form {
+  min-width: 700px;
 }

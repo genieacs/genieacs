@@ -283,7 +283,7 @@ function renderActions(selected) {
     )
   );
 
-  return m(".device-actions", buttons);
+  return m(".actions-bar", buttons);
 }
 
 const component = {

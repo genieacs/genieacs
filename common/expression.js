@@ -63,8 +63,8 @@ function evaluate(exp, obj, now, cb) {
       if (e[1] == null) return null;
       if (obj && !isArray(e[1])) {
         let v = obj[e[1]];
-        if (typeof v === "object") v = v.value ? v.value[0] : null;
         if (v == null) return null;
+        if (typeof v === "object") v = v.value ? v.value[0] : null;
         return v;
       }
     } else if (e[0] === "AND") {
