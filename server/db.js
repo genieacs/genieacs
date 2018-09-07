@@ -5,7 +5,7 @@ const config = require("./config");
 const mongodbFunctions = require("./mongodb-functions");
 const expression = require("../common/expression");
 
-const _client = {};
+let _clientPromise = null;
 
 const RESOURCE_DB = {
   devices: "genieacs",
@@ -16,20 +16,21 @@ const RESOURCE_DB = {
   files: "genieacs"
 };
 
-function getClient(db) {
-  if (_client[db]) return Promise.resolve(_client[db]);
+function getClient() {
+  if (!_clientPromise)
+    _clientPromise = new Promise((resolve, reject) => {
+      const CONNECTION_URL = config.server.mongodbConnectionUrl;
+      mongodb.MongoClient.connect(
+        CONNECTION_URL,
+        { useNewUrlParser: true },
+        (err, client) => {
+          if (err) return reject(err);
+          resolve(client);
+        }
+      );
+    });
 
-  return new Promise((resolve, reject) => {
-    const CONNECTION_URL = config.server.mongodbConnectionUrl;
-    mongodb.MongoClient.connect(
-      CONNECTION_URL,
-      { useNewUrlParser: true },
-      (err, client) => {
-        if (err) return reject(err);
-        resolve((_client[db] = client.db(db)));
-      }
-    );
-  });
+  return _clientPromise;
 }
 
 function query(resource, filter, options, callback) {
@@ -50,8 +51,10 @@ function query(resource, filter, options, callback) {
   }
 
   return new Promise((resolve, reject) => {
-    getClient(RESOURCE_DB[resource]).then(client => {
-      const collection = client.collection(resource);
+    getClient().then(client => {
+      const collection = client
+        .db(RESOURCE_DB[resource])
+        .collection(resource);
       let cursor = collection.find(
         q,
         resource === "Devices"
@@ -126,8 +129,8 @@ function count(resource, filter) {
   }
 
   return new Promise((resolve, reject) => {
-    getClient(RESOURCE_DB[resource]).then(client => {
-      const collection = client.collection(resource);
+    getClient().then(client => {
+      const collection = client.db(RESOURCE_DB[resource]).collection(resource);
       collection.find(q).count((err, c) => {
         if (err) reject(err);
         else resolve(c);
@@ -136,5 +139,13 @@ function count(resource, filter) {
   });
 }
 
+function disconnect() {
+  if (_clientPromise)
+    _clientPromise.then(client => {
+      client.close();
+    });
+}
+
 exports.query = query;
 exports.count = count;
+exports.disconnect = disconnect;
