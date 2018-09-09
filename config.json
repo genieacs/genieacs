@@ -1,5 +1,7 @@
 {
   "server": {
+    "workers": 4,
+    "interface": "0.0.0.0",
     "port": 3000,
     "nbi": "http://127.0.0.1:7557/",
     "mongodbConnectionUrl": "mongodb://127.0.0.1:27017",
@@ -284,6 +286,8 @@
     ]
   },
   "logger": {
+    "logFile": "",
+    "accessLogFile": "",
     "logFormat": "simple",
     "accessLogFormat": "simple"
   }

@@ -6,7 +6,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "eslint --fix common/*.js common/validators/*.js server/*.js client/*.js client/components/*.js;prettier --write *.js common/*.js common/validators/*.js server/*.js client/*.js client/components/*.js client/css/*.css",
     "build": "npm run lint;webpack;postcss -c postcss.config.js client/css/app.css -o dist/public/app.css",
-    "start": "cd dist && node server"
+    "start": "cd dist && node cluster"
   },
   "author": "Zaid Abdulla <zaid@genieacs.com>",
   "dependencies": {

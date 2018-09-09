@@ -1,5 +1,7 @@
 "use strict";
 
+const http = require("http");
+const cluster = require("cluster");
 const Koa = require("koa");
 const Router = require("koa-router");
 const koaStatic = require("koa-static");
@@ -13,20 +15,16 @@ const api = require("./api");
 const Authorizer = require("../common/authorizer");
 const expression = require("../common/expression");
 const logger = require("./logger");
+const db = require("./db");
+
+const VERSION = require("../package.json")["version"];
+logger.init("server", VERSION);
 
 const koa = new Koa();
 const router = new Router();
 
 const JWT_SECRET = config.server.jwtSecret;
 const JWT_COOKIE = "genieacs-ui-jwt";
-
-const VERSION = require("../package.json")["version"];
-
-logger.info({
-  message: "GenieACS UI starting",
-  pid: process.pid,
-  version: VERSION
-});
 
 function getPermissionSets(roles) {
   const allPermissions = config.permissions;
@@ -149,10 +147,47 @@ koa.use(
 koa.use(router.routes());
 koa.use(koaStatic("./public"));
 
-koa.listen(config.server.port, "0.0.0.0", () => {
-  logger.info({
-    message: "Worker litening",
-    port: config.server.port,
+let server = http
+  .createServer(koa.callback())
+  .listen(config.server.port, config.server.interface);
+
+function closeServer(timeout) {
+  return new Promise(resolve => {
+    setTimeout(() => {
+      if (!resolve) return;
+      // Ignore HTTP requests from alive connections
+      server.removeListener("request", koa.callback());
+      server.setTimeout(1);
+
+      setTimeout(resolve, 1000);
+    }, timeout).unref();
+
+    // prevent new sockets to connect and close server eventually.
+    server.close(resolve);
+  });
+}
+
+function exit() {
+  setTimeout(() => {
+    process.exit(1);
+  }, 30000).unref();
+
+  closeServer(20000).then(() => {
+    db.disconnect();
+    if (cluster.worker) cluster.worker.disconnect();
+    logger.close();
+  });
+}
+
+process.on("uncaughtException", err => {
+  logger.error({
+    message: "Uncaught exception",
+    exception: err,
     pid: process.pid
   });
+  process.exitCode = 1;
+  exit();
 });
+
+process.on("SIGINT", exit);
+process.on("SIGTERM", exit);

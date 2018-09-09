@@ -72,14 +72,14 @@ function reopen() {
     setTimeout(reopen, REOPEN_EVERY - (Date.now() % REOPEN_EVERY)).unref();
 }
 
-function init(service, version) {
+function init(version) {
   defaultMeta.hostname = os.hostname();
   defaultMeta.pid = process.pid;
-  defaultMeta.name = `genieacs-ui-${service}`;
+  defaultMeta.name = "genieacs-ui";
   defaultMeta.version = version;
 
-  LOG_FILE = config.logger[`${service}LogFile`];
-  ACCESS_LOG_FILE = config.logger[`${service}AccessLogFile`];
+  LOG_FILE = config.logger.logFile;
+  ACCESS_LOG_FILE = config.logger.accessLogFile;
 
   if (LOG_FILE) {
     logStream = fs.createWriteStream(null, { fd: fs.openSync(LOG_FILE, "a") });

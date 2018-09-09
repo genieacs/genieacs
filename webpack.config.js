@@ -8,7 +8,7 @@ function transformPackageJson(content) {
   const pkg = JSON.parse(content);
   delete pkg["devDependencies"];
   pkg["scripts"] = {
-    start: "node server"
+    start: "node cluster"
   };
   return JSON.stringify(pkg, null, 2);
 }
@@ -38,6 +38,14 @@ module.exports = [
         {}
       )
     ]
+  },
+  {
+    mode: mode,
+    entry: "./server/cluster.js",
+    target: "node",
+    output: {
+      filename: "cluster.js"
+    }
   },
   {
     mode: mode,
