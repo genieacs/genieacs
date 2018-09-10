@@ -52,6 +52,10 @@ function getPermissionSets(roles) {
   return permissionSets;
 }
 
+koa.on("error", async err => {
+  throw err;
+});
+
 koa.use(
   koaJwt({
     secret: JWT_SECRET,
@@ -178,6 +182,10 @@ function exit() {
     logger.close();
   });
 }
+
+process.on("unhandledRejection", err => {
+  throw err;
+});
 
 process.on("uncaughtException", err => {
   logger.error({
