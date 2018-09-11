@@ -22,7 +22,7 @@ const attributes = [
   { id: "schedule", label: "Schedule" },
   { id: "events", label: "Events" },
   { id: "precondition", label: "Precondition" },
-  { id: "provision", label: "Provision" },
+  { id: "provision", label: "Provision", type: "combo" },
   { id: "provisionArgs", label: "Arguments" }
 ];
 
@@ -321,6 +321,16 @@ const component = {
       limit: vnode.state.showCount || PAGE_SIZE
     });
     let count = store.count("presets", filter);
+
+    const provisions = store.fetch("provisions", true);
+    if (provisions.fulfilled) {
+      let provisionAttr = attributes.find(attr => {
+        return attr.id === "provision";
+      });
+      provisionAttr.options = provisions.value.map(v => {
+        return v["_id"];
+      });
+    }
 
     let selected = new Set();
     if (vnode.state.selected)
