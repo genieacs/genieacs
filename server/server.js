@@ -52,6 +52,15 @@ function getPermissionSets(roles) {
   return permissionSets;
 }
 
+function authSimple(username, password) {
+  const user = config.auth.simple.users[username];
+  if (user && user.password === password) {
+    const roles = user.roles.split(",").map(s => s.trim());
+    return Promise.resolve(roles);
+  }
+  return Promise.resolve(null);
+}
+
 koa.on("error", async err => {
   throw err;
 });
@@ -78,30 +87,33 @@ router.post("/login", async ctx => {
   const username = ctx.request.body.username;
   const password = ctx.request.body.password;
 
-  const user = config.auth.simple.users[username];
-
   let log = {
     message: "Log in",
     context: ctx,
     username: username
   };
 
-  if (!user || user.password !== password) {
-    ctx.status = 400;
-    ctx.body = "Incorrect username or password";
-    log.message += " - invalid credentials";
-    logger.accessWarn(log);
-    return;
+  function success(roles, method) {
+    log.method = method;
+    const token = jwt.sign({ username, roles }, JWT_SECRET);
+    ctx.cookies.set(JWT_COOKIE, token);
+    ctx.body = JSON.stringify(token);
+    logger.accessInfo(log);
   }
 
-  let token = jwt.sign(
-    { username: username, roles: user.roles.split(",") },
-    JWT_SECRET
-  );
-  ctx.cookies.set(JWT_COOKIE, token);
-  ctx.body = JSON.stringify(token);
+  function failure() {
+    ctx.status = 400;
+    ctx.body = "Incorrect username or password";
+    log.message += " failed";
+    logger.accessWarn(log);
+  }
 
-  logger.accessInfo(log);
+  let roles;
+  roles = await authSimple(username, password);
+
+  if (roles) return success(roles, "simple");
+
+  failure();
 });
 
 router.post("/logout", async ctx => {
