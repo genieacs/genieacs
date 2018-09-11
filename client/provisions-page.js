@@ -14,6 +14,7 @@ import * as overlay from "./overlay";
 const PAGE_SIZE = config.ui.pageSize || 10;
 
 const memoizedParse = memoize(expression.parse);
+const memoizedJsonParse = memoize(JSON.parse);
 
 const attributes = [
   { id: "_id", label: "Name" },
@@ -93,8 +94,9 @@ function init(args) {
       new Error("You are not authorized to view this page")
     );
 
+  const sort = args.sort;
   const filter = args.filter;
-  return Promise.resolve({ filter });
+  return Promise.resolve({ filter, sort });
 }
 
 function renderTable(
@@ -102,7 +104,9 @@ function renderTable(
   total,
   selected,
   showMoreCallback,
-  downloadUrl
+  downloadUrl,
+  sort,
+  onSortChange
 ) {
   const provisions = provisionsResponse.value;
   const selectAll = m("input", {
@@ -116,9 +120,29 @@ function renderTable(
     disabled: !total
   });
 
-  const labels = [selectAll]
-    .concat(attributes.map(elem => elem.label))
-    .map(l => m("th", l));
+  const labels = [m("th", selectAll)];
+  for (let attr of attributes) {
+    let label = attr.label;
+
+    let direction = 1;
+
+    let symbol = "\u21f3";
+    if (sort[attr.id] > 0) symbol = "\u2b07";
+    else if (sort[attr.id] < 0) symbol = "\u2b06";
+
+    let sortable = m(
+      "button",
+      {
+        onclick: () => {
+          if (sort[attr.id] > 0) direction *= -1;
+          return onSortChange(JSON.stringify({ [attr.id]: direction }));
+        }
+      },
+      symbol
+    );
+
+    labels.push(m("th", [label, sortable]));
+  }
 
   let rows = [];
   for (let provision of provisions) {
@@ -297,15 +321,25 @@ const component = {
     }
 
     function onFilterChanged(filter) {
-      m.route.set("/provisions", { filter });
+      let ops = { filter };
+      if (vnode.attrs.sort) ops.sort = vnode.attrs.sort;
+      m.route.set("/provisions", ops);
     }
 
+    function onSortChange(sort) {
+      let ops = { sort };
+      if (vnode.attrs.filter) ops.filter = vnode.attrs.filter;
+      m.route.set("/provisions", ops);
+    }
+
+    const sort = vnode.attrs.sort ? memoizedJsonParse(vnode.attrs.sort) : {};
     const filter = vnode.attrs.filter
       ? memoizedParse(vnode.attrs.filter)
       : true;
 
     let provisions = store.fetch("provisions", filter, {
-      limit: vnode.state.showCount || PAGE_SIZE
+      limit: vnode.state.showCount || PAGE_SIZE,
+      sort: sort
     });
 
     let count = store.count("provisions", filter);
@@ -326,7 +360,15 @@ const component = {
         filter: vnode.attrs.filter,
         onChange: onFilterChanged
       }),
-      renderTable(provisions, count.value, selected, showMore, downloadUrl)
+      renderTable(
+        provisions,
+        count.value,
+        selected,
+        showMore,
+        downloadUrl,
+        sort,
+        onSortChange
+      )
     ];
   }
 };

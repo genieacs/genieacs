@@ -14,6 +14,17 @@ import memoize from "../common/memoize";
 const PAGE_SIZE = config.ui.pageSize || 10;
 
 const memoizedParse = memoize(expression.parse);
+const memoizedJsonParse = memoize(JSON.parse);
+const memoizedGetSortable = memoize(str => {
+  let expressionParams = expression.extractParams(
+    expression.parse(str)
+  );
+  if (expressionParams.length === 1) {
+    let param = expression.evaluate(expressionParams[0]);
+    if (typeof param === "string") return param;
+  }
+  return null;
+});
 
 const getDownloadUrl = memoize((filter, indexParameters) => {
   const columns = {};
@@ -34,8 +45,9 @@ function init(args) {
       return reject(new Error("You are not authorized to view this page"));
 
     const filter = args.filter;
+    const sort = args.sort;
     const indexParameters = Object.values(config.ui.index);
-    resolve({ filter, indexParameters });
+    resolve({ filter, indexParameters, sort });
   });
 }
 
@@ -45,7 +57,9 @@ function renderTable(
   total,
   selected,
   showMoreCallback,
-  downloadUrl
+  downloadUrl,
+  sort,
+  onSortChange
 ) {
   const devices = devicesResponse.value;
   const selectAll = m("input", {
@@ -60,7 +74,32 @@ function renderTable(
   });
 
   let labels = [m("th", selectAll)];
-  for (let param of parameters) labels.push(m("th", param.label));
+  for (let param of parameters) {
+    let label = param.label;
+    let _param;
+    if (!param.unsortable && (_param = memoizedGetSortable(param.parameter))) {
+      let direction = 1;
+
+      let symbol = "\u21f3";
+      if (sort[_param] > 0) symbol = "\u2b07";
+      else if (sort[_param] < 0) symbol = "\u2b06";
+
+      let sortable = m(
+        "button",
+        {
+          onclick: () => {
+            if (sort[_param] > 0) direction *= -1;
+            return onSortChange(JSON.stringify({ [_param]: direction }));
+          }
+        },
+        symbol
+      );
+
+      labels.push(m("th", [label, sortable]));
+    } else {
+      labels.push(m("th", label));
+    }
+  }
 
   let rows = [];
   for (let device of devices) {
@@ -296,14 +335,25 @@ const component = {
     }
 
     function onFilterChanged(filter) {
-      m.route.set("/devices", { filter });
+      let ops = { filter };
+      if (vnode.attrs.sort) ops.sort = vnode.attrs.sort;
+      m.route.set("/devices", ops);
     }
 
+    function onSortChange(sort) {
+      let ops = { sort };
+      if (vnode.attrs.filter) ops.filter = vnode.attrs.filter;
+      m.route.set("/devices", ops);
+    }
+
+    const sort = vnode.attrs.sort ? memoizedJsonParse(vnode.attrs.sort) : {};
     const filter = vnode.attrs.filter
       ? memoizedParse(vnode.attrs.filter)
       : true;
+
     let devs = store.fetch("devices", filter, {
-      limit: vnode.state.showCount || PAGE_SIZE
+      limit: vnode.state.showCount || PAGE_SIZE,
+      sort: sort
     });
     let count = store.count("devices", filter);
 
@@ -332,7 +382,9 @@ const component = {
         count.value,
         selected,
         showMore,
-        downloadUrl
+        downloadUrl,
+        sort,
+        onSortChange
       ),
       renderActions(selected)
     ];

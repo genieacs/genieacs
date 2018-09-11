@@ -11,17 +11,25 @@ import memoize from "../common/memoize";
 const PAGE_SIZE = config.ui.pageSize || 10;
 
 const memoizedParse = memoize(expression.parse);
+const memoizedJsonParse = memoize(JSON.parse);
+
+const attributes = [
+  { id: "device", label: "Device" },
+  { id: "channel", label: "Channel" },
+  { id: "code", label: "Code" },
+  { id: "retries", label: "Retries" },
+  { id: "timestamp", label: "Timestamp" }
+];
 
 const getDownloadUrl = memoize(filter => {
+  let cols = {};
+  for (let attr of attributes)
+    cols[attr.label] =
+      attr.id === "timestamp" ? `DATE_STRING(${attr.id})` : attr.id;
+
   return `/api/faults.csv?${m.buildQueryString({
     filter: filter,
-    columns: JSON.stringify({
-      Device: "device",
-      Channel: "channel",
-      Code: "code",
-      Retries: "retries",
-      Timestamp: "DATE_STRING(timestamp)"
-    })
+    columns: JSON.stringify(cols)
   })}`;
 });
 
@@ -31,8 +39,9 @@ function init(args) {
       new Error("You are not authorized to view this page")
     );
 
+  const sort = args.sort;
   const filter = args.filter;
-  return Promise.resolve({ filter });
+  return Promise.resolve({ filter, sort });
 }
 
 function renderTable(
@@ -40,7 +49,9 @@ function renderTable(
   total,
   selected,
   showMoreCallback,
-  downloadUrl
+  downloadUrl,
+  sort,
+  onSortChange
 ) {
   const faults = faultsResponse.value;
   const selectAll = m("input", {
@@ -54,15 +65,29 @@ function renderTable(
     disabled: !total
   });
 
-  const labels = [
-    selectAll,
-    "Device",
-    "Channel",
-    "Code",
-    "Message",
-    "Retries",
-    "Timestamp"
-  ].map(l => m("th", l));
+  const labels = [m("th", selectAll)];
+  for (let attr of attributes) {
+    let label = attr.label;
+
+    let direction = 1;
+
+    let symbol = "\u21f3";
+    if (sort[attr.id] > 0) symbol = "\u2b07";
+    else if (sort[attr.id] < 0) symbol = "\u2b06";
+
+    let sortable = m(
+      "button",
+      {
+        onclick: () => {
+          if (sort[attr.id] > 0) direction *= -1;
+          return onSortChange(JSON.stringify({ [attr.id]: direction }));
+        }
+      },
+      symbol
+    );
+
+    labels.push(m("th", [label, sortable]));
+  }
 
   let rows = [];
   for (let f of faults) {
@@ -81,6 +106,14 @@ function renderTable(
 
     const deviceHref = `#!/devices/${encodeURIComponent(f["device"])}`;
 
+    let tds = [m("td", checkbox)];
+    for (let attr of attributes)
+      if (attr.id === "device")
+        tds.push(m("a", { href: deviceHref }, f[attr.id]));
+      else if (attr.id === "timestamp")
+        tds.push(m("td", new Date(f[attr.id]).toLocaleString()));
+      else tds.push(m("td", f[attr.id]));
+
     rows.push(
       m(
         "tr",
@@ -94,13 +127,7 @@ function renderTable(
             if (!selected.delete(f["_id"])) selected.add(f["_id"]);
           }
         },
-        m("td", checkbox),
-        m("td", m("a", { href: deviceHref }, f["device"])),
-        m("td", f["channel"]),
-        m("td", f["code"]),
-        m("td", f["message"]),
-        m("td", f["retries"]),
-        m("td", new Date(f["timestamp"]).toLocaleString())
+        tds
       )
     );
   }
@@ -180,15 +207,25 @@ const component = {
     }
 
     function onFilterChanged(filter) {
-      m.route.set("/faults", { filter });
+      let ops = { filter };
+      if (vnode.attrs.sort) ops.sort = vnode.attrs.sort;
+      m.route.set("/faults", ops);
     }
 
+    function onSortChange(sort) {
+      let ops = { sort };
+      if (vnode.attrs.filter) ops.filter = vnode.attrs.filter;
+      m.route.set("/faults", ops);
+    }
+
+    const sort = vnode.attrs.sort ? memoizedJsonParse(vnode.attrs.sort) : {};
     const filter = vnode.attrs.filter
       ? memoizedParse(vnode.attrs.filter)
       : true;
 
     let faults = store.fetch("faults", filter, {
-      limit: vnode.state.showCount || PAGE_SIZE
+      limit: vnode.state.showCount || PAGE_SIZE,
+      sort: sort
     });
     let count = store.count("faults", filter);
 
@@ -213,7 +250,15 @@ const component = {
         filter: vnode.attrs.filter,
         onChange: onFilterChanged
       }),
-      renderTable(faults, count.value, selected, showMore, downloadUrl)
+      renderTable(
+        faults,
+        count.value,
+        selected,
+        showMore,
+        downloadUrl,
+        sort,
+        onSortChange
+      )
     ];
   }
 };

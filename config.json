@@ -132,7 +132,8 @@
         "label": "Tags",
         "parameter": "Tags",
         "type": "tags",
-        "writable": false
+        "writable": false,
+        "unsortable": true
       }
     ],
     "overview": {

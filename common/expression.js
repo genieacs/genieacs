@@ -237,6 +237,15 @@ function likePatternToRegExp(pat, esc = "", flags = "") {
   return new RegExp(chars.join(""), flags);
 }
 
+function extractParams(exp) {
+  let params = [];
+  expressionParser.map(exp, e => {
+    if (isArray(e) && e[0] === "PARAM") params.push(e[1]);
+    return e;
+  });
+  return params;
+}
+
 exports.evaluate = evaluate;
 exports.and = and;
 exports.or = or;
@@ -245,3 +254,4 @@ exports.subset = subset;
 exports.parse = expressionParser.parse;
 exports.stringify = expressionParser.stringify;
 exports.likePatternToRegExp = likePatternToRegExp;
+exports.extractParams = extractParams;

@@ -14,16 +14,17 @@ import memoize from "../common/memoize";
 const PAGE_SIZE = config.ui.pageSize || 10;
 
 const memoizedParse = memoize(expression.parse);
+const memoizedJsonParse = memoize(JSON.parse);
 
 const attributes = [
   { id: "_id", label: "Name" },
   { id: "channel", label: "Channel" },
   { id: "weight", label: "Weight" },
   { id: "schedule", label: "Schedule" },
-  { id: "events", label: "Events" },
-  { id: "precondition", label: "Precondition" },
-  { id: "provision", label: "Provision", type: "combo" },
-  { id: "provisionArgs", label: "Arguments" }
+  { id: "events", label: "Events", unsortable: true },
+  { id: "precondition", label: "Precondition", unsortable: true },
+  { id: "provision", label: "Provision", type: "combo", unsortable: true },
+  { id: "provisionArgs", label: "Arguments", unsortable: true }
 ];
 
 function putActoinHandler(action, object, isNew) {
@@ -99,8 +100,9 @@ function init(args) {
       new Error("You are not authorized to view this page")
     );
 
+  const sort = args.sort;
   const filter = args.filter;
-  return Promise.resolve({ filter });
+  return Promise.resolve({ filter, sort });
 }
 
 function renderTable(
@@ -108,7 +110,9 @@ function renderTable(
   total,
   selected,
   showMoreCallback,
-  downloadUrl
+  downloadUrl,
+  sort,
+  onSortChange
 ) {
   const presets = presetsResponse.value;
   const selectAll = m("input", {
@@ -122,9 +126,35 @@ function renderTable(
     disabled: !total
   });
 
-  const labels = [selectAll]
-    .concat(attributes.map(elem => elem.label))
-    .map(l => m("th", l));
+  const labels = [m("th", selectAll)];
+
+  for (let attr of attributes) {
+    let label = attr.label;
+
+    if (attr.unsortable) {
+      labels.push(m("th", label));
+      continue;
+    }
+
+    let direction = 1;
+
+    let symbol = "\u21f3";
+    if (sort[attr.id] > 0) symbol = "\u2b07";
+    else if (sort[attr.id] < 0) symbol = "\u2b06";
+
+    let sortable = m(
+      "button",
+      {
+        onclick: () => {
+          if (sort[attr.id] > 0) direction *= -1;
+          return onSortChange(JSON.stringify({ [attr.id]: direction }));
+        }
+      },
+      symbol
+    );
+
+    labels.push(m("th", [label, sortable]));
+  }
 
   let rows = [];
   for (let preset of presets) {
@@ -310,15 +340,25 @@ const component = {
     }
 
     function onFilterChanged(filter) {
-      m.route.set("/presets", { filter });
+      let ops = { filter };
+      if (vnode.attrs.sort) ops.sort = vnode.attrs.sort;
+      m.route.set("/presets", ops);
     }
 
+    function onSortChange(sort) {
+      let ops = { sort };
+      if (vnode.attrs.filter) ops.filter = vnode.attrs.filter;
+      m.route.set("/presets", ops);
+    }
+
+    const sort = vnode.attrs.sort ? memoizedJsonParse(vnode.attrs.sort) : {};
     const filter = vnode.attrs.filter
       ? memoizedParse(vnode.attrs.filter)
       : true;
 
     let presets = store.fetch("presets", filter, {
-      limit: vnode.state.showCount || PAGE_SIZE
+      limit: vnode.state.showCount || PAGE_SIZE,
+      sort: sort
     });
     let count = store.count("presets", filter);
 
@@ -352,7 +392,15 @@ const component = {
         filter: vnode.attrs.filter,
         onChange: onFilterChanged
       }),
-      renderTable(presets, count.value, selected, showMore, downloadUrl)
+      renderTable(
+        presets,
+        count.value,
+        selected,
+        showMore,
+        downloadUrl,
+        sort,
+        onSortChange
+      )
     ];
   }
 };

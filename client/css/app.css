@@ -269,6 +269,7 @@ table.table {
   }
 
   & th {
+    white-space: nowrap;
     color: var(--color4);
     font-weight: bold;
     border-bottom: 2px solid var(--color4);

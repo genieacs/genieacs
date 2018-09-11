@@ -198,7 +198,9 @@ function inferQuery(resourceType, queryResponse) {
 
 function fetch(resourceType, filter, options = {}) {
   const filterStr = memoizedStringify(filter);
-  const sort = options.sort || {};
+  const sort = Object.assign({}, options.sort);
+  for (const [k, v] of Object.entries(sort)) sort[k] += Math.sign(v);
+
   const limit = options.limit || 0;
   if (resourceType === "devices")
     sort["DeviceID.ID"] = sort["DeviceID.ID"] || 1;
