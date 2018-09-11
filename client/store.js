@@ -23,7 +23,13 @@ const queries = {
 };
 
 const resources = {};
-for (let r of ["devices", "faults", "files", "presets"])
+for (let r of [
+  "devices",
+  "faults",
+  "files",
+  "presets",
+  "provisions"
+])
   resources[r] = {
     objects: new Map(),
     count: new Map(),

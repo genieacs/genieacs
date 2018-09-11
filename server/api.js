@@ -31,7 +31,7 @@ const RESOURCE_IDS = {
 const resources = {
   devices: 0 | RESOURCE_DELETE,
   presets: 0 | RESOURCE_DELETE | RESOURCE_PUT,
-  provisions: 0 | RESOURCE_DELETE,
+  provisions: 0 | RESOURCE_DELETE | RESOURCE_PUT,
   files: 0 | RESOURCE_DELETE,
   virtual_parameters: 0 | RESOURCE_DELETE,
   faults: 0 | RESOURCE_DELETE,
@@ -336,7 +336,14 @@ for (let [resource, flags] of Object.entries(resources)) {
         return (ctx.status = 403);
       }
 
-      await apiFunctions.putResource(resource, id, obj);
+      let err = await apiFunctions.putResource(resource, id, obj);
+
+      if (err) {
+        log.message += " failed";
+        logger.accessWarn(log);
+        ctx.body = err;
+        return (ctx.status = 400);
+      }
 
       logger.accessInfo(log);
 

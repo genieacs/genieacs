@@ -296,12 +296,33 @@ function putResource(resource, id, data) {
 
     if (resource === "presets") data = mongodbFunctions.preProcessPreset(data);
 
-    let body = JSON.stringify(data);
+    if (resource === "provisions")
+      data = mongodbFunctions.preProcessProvision(data);
+
+    let body = typeof data !== "string" ? JSON.stringify(data) : data;
     _http
       .request(options, res => {
-        res.resume();
-        if (res.statusCode === 200) resolve(true);
-        else reject(new Error(`Unexpected status code ${res.statusCode}`));
+        const chunks = [];
+        let bytes = 0;
+        res.on("data", chunk => {
+          chunks.push(chunk);
+          bytes += chunk.length;
+        });
+
+        res.on("end", () => {
+          if (res.statusCode === 200) return resolve();
+          else if (res.statusCode !== 400)
+            return reject(
+              new Error(`Unexpected status code ${res.statusCode}`)
+            );
+          let buf = new Buffer(bytes);
+          let o = 0;
+          for (let c of chunks) {
+            c.copy(buf, o, 0, c.length);
+            o += c.length;
+          }
+          resolve(buf.toString());
+        });
       })
       .end(body);
   });

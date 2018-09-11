@@ -43,6 +43,15 @@ const menu = {
         )
       );
 
+    if (window.authorizer.hasAccess("provisions", 2))
+      tabs.push(
+        m(
+          "li",
+          { class: active["provisions"] },
+          m("a", { href: "#!/provisions" }, "Provisions")
+        )
+      );
+
     return m("nav", m("ul", tabs));
   }
 };

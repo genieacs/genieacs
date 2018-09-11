@@ -1,9 +1,12 @@
 "use strict";
 
 import m from "mithril";
+import { fromTextArea as codeMirrorFromTextArea } from "codemirror";
+import "codemirror/mode/javascript/javascript";
 
 const singular = {
-  presets: "preset"
+  presets: "preset",
+  provisions: "provision"
 };
 
 function createField(current, attr, focus) {
@@ -31,6 +34,23 @@ function createField(current, attr, focus) {
       },
       options
     );
+  } else if (attr.type === "code") {
+    return m("textarea", {
+      name: attr.id,
+      value: current.object[attr.id],
+      oncreate: _vnode => {
+        let editor = codeMirrorFromTextArea(_vnode.dom, {
+          mode: "javascript",
+          lineNumbers: true
+        });
+
+        editor.on("change", e => {
+          current.object[attr.id] = e.getValue();
+        });
+
+        if (focus) editor.focus();
+      }
+    });
   }
 
   return m("input", {

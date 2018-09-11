@@ -38,6 +38,7 @@ function getPermissionSets(roles) {
             "devices",
             "faults",
             "presets",
+            "provisions",
             "files"
           ].includes(k)
         )

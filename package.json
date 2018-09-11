@@ -10,6 +10,7 @@
   },
   "author": "Zaid Abdulla <zaid@genieacs.com>",
   "dependencies": {
+    "codemirror": "^5.40.0",
     "jsonwebtoken": "^8.3.0",
     "koa": "^2.5.2",
     "koa-bodyparser": "^4.2.1",

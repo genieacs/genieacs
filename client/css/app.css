@@ -1,4 +1,5 @@
 @import "normalize.css";
+@import "codemirror/lib/codemirror.css";
 
 :root {
   --base-font-size: 13px;
@@ -365,6 +366,8 @@ button {
   }
 }
 
+.CodeMirror,
+textarea,
 select,
 input {
   display: block;
@@ -574,6 +577,7 @@ span.tag {
     border-radius: 10px;
     padding: 10px;
     box-shadow: 0 0 15px #aaa;
+    overflow: auto;
   }
 }
 
