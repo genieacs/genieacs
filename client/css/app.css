@@ -13,6 +13,10 @@
   --fade: 0.2s;
 
   --disabled: #666;
+
+  --status-red: hsl(0, 80%, 80%);
+  --status-green: hsl(125, 80%, 80%);
+  --status-gray: hsl(58, 3%, 80%);
 }
 
 body,
@@ -47,12 +51,12 @@ i {
   font-style: italic;
 }
 
-@keyframes blink {
+@keyframes pending-blink {
   from {
-    opacity: 1;
+    background-color: color(var(--status-green) a(90%));
   }
   to {
-    opacity: 0.3;
+    background-color: transparent;
   }
 }
 
@@ -64,12 +68,13 @@ i {
 
   & > .drawer-wrapper {
     position: fixed;
+    z-index: 10;
     width: 720px;
     margin-left: -360px;
     top: 0;
     left: 50%;
     & > .drawer {
-      background-color: rgba(255, 255, 255, 0.8);
+      background-color: rgba(255, 255, 255, 0.9);
       border-bottom-left-radius: 6px;
       border-bottom-right-radius: 6px;
       border-bottom: 1px solid var(--color1);
@@ -88,20 +93,22 @@ i {
         display: flex;
         & > span {
           margin-right: 1em;
+          padding-left: 0.2em;
+          padding-right: 0.2em;
+          border-radius: 0.4em;
         }
-        & > .pending {
-          color: #770;
+        & > .pending.active {
           &.active {
-            animation: 0.5s linear 0s infinite alternate blink;
+            animation: 0.5s linear 0s infinite alternate pending-blink;
           }
         }
-        & > .stale {
-          color: #777;
+        & > .stale.active {
+          background-color: color(var(--status-gray) a(90%));
         }
-        & > .fault {
-          color: #700;
+        & > .fault.active {
+          background-color: color(var(--status-red) a(90%));
         }
-        & > .active {
+        & > .queued.active {
           font-weight: bold;
         }
 
@@ -134,13 +141,16 @@ i {
 
       & > .queue {
         & > .pending {
-          color: #770;
+          animation: 0.5s linear 0s infinite alternate pending-blink;
+          border-radius: 0.4em;
         }
         & > .stale {
-          color: #777;
+          background-color: color(var(--status-gray) a(90%));
+          border-radius: 0.4em;
         }
         & > .fault {
-          color: #700;
+          background-color: color(var(--status-red) a(90%));
+          border-radius: 0.4em;
         }
         & .parameter {
           font-style: italic;
@@ -172,19 +182,19 @@ i {
         padding: 0.3em;
         left: 0;
         right: 0;
-        background-color: rgba(255, 255, 255, 0.8);
+        background-color: rgba(255, 255, 255, 0.9);
         border: 1px solid var(--color1);
         border-radius: 6px;
         box-shadow: 0 0 10px #ccc;
         transition: opacity var(--fade), top var(--fade);
 
         &.error {
-          background-color: rgba(255, 200, 200, 0.8);
-          border: 1px solid rgb(255, 200, 200);
+          background-color: color(var(--status-red) a(90%));
+          border: 1px solid var(--status-red);
         }
         &.success {
-          background-color: rgba(200, 255, 200, 0.8);
-          border: 1px solid rgb(200, 255, 200);
+          background-color: color(var(--status-green) a(90%));
+          border: 1px solid var(--status-green);
         }
       }
     }
