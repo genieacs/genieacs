@@ -376,7 +376,7 @@ function mongoQueryToFilter(query) {
         }
       } else if (k.startsWith("Tags.")) {
         expressions.push([
-          `IS${v["$exists"] ? " " : " NOT "}NULL`,
+          v["$exists"] ? "IS NOT NULL" : "IS NULL",
           ["PARAM", k]
         ]);
       } else if (typeof v === "object") {
