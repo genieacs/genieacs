@@ -261,6 +261,8 @@ i {
 table.table {
   border-spacing: 0;
   text-align: left;
+  display: block;
+  overflow-x: auto;
 
   & table.table {
     font-size: 90%;
