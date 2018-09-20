@@ -498,6 +498,10 @@ function preProcessProvision(data) {
   return data.script;
 }
 
+function preProcessVirtualParameters(data) {
+  return data.script;
+}
+
 exports.processDeviceFilter = processDeviceFilter;
 exports.processTasksFilter = processTasksFilter;
 exports.processFaultsFilter = processFaultsFilter;
@@ -510,3 +514,4 @@ exports.flattenTask = flattenTask;
 exports.flattenPreset = flattenPreset;
 exports.preProcessPreset = preProcessPreset;
 exports.preProcessProvision = preProcessProvision;
+exports.preProcessVirtualParameters = preProcessVirtualParameters;

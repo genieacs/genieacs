@@ -28,7 +28,8 @@ for (let r of [
   "faults",
   "files",
   "presets",
-  "provisions"
+  "provisions",
+  "virtualParameters"
 ])
   resources[r] = {
     objects: new Map(),

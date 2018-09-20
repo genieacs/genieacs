@@ -69,8 +69,10 @@ function filterToMongoQuery(filter, negate = false, res = {}) {
 
 function deleteResource(resource, id) {
   return new Promise((resolve, reject) => {
+    let resourceUrl =
+      resource === "virtualParameters" ? "virtual_parameters" : resource;
     let options = url.parse(
-      `${config.server.nbi}${resource}/${encodeURIComponent(id)}`
+      `${config.server.nbi}${resourceUrl}/${encodeURIComponent(id)}`
     );
 
     options.method = "DELETE";
@@ -286,8 +288,10 @@ function ping(host) {
 
 function putResource(resource, id, data) {
   return new Promise((resolve, reject) => {
+    let resourceUrl =
+      resource === "virtualParameters" ? "virtual_parameters" : resource;
     let options = url.parse(
-      `${config.server.nbi}${resource}/${encodeURIComponent(id)}`
+      `${config.server.nbi}${resourceUrl}/${encodeURIComponent(id)}`
     );
 
     options.method = "PUT";
@@ -298,6 +302,9 @@ function putResource(resource, id, data) {
 
     if (resource === "provisions")
       data = mongodbFunctions.preProcessProvision(data);
+
+    if (resource === "virtualParameters")
+      data = mongodbFunctions.preProcessVirtualParameters(data);
 
     let body = typeof data !== "string" ? JSON.stringify(data) : data;
     _http

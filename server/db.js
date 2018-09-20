@@ -13,8 +13,11 @@ const RESOURCE_DB = {
   tasks: "genieacs",
   presets: "genieacs",
   provisions: "genieacs",
+  virtualParameters: "genieacs",
   files: "genieacs"
 };
+
+const RESOURCE_COLLECTION = {};
 
 function getClient() {
   if (!_clientPromise)
@@ -54,7 +57,7 @@ function query(resource, filter, options, callback) {
     getClient().then(client => {
       const collection = client
         .db(RESOURCE_DB[resource])
-        .collection(resource);
+        .collection(RESOURCE_COLLECTION[resource] || resource);
       let cursor = collection.find(
         q,
         resource === "Devices"
@@ -130,7 +133,9 @@ function count(resource, filter) {
 
   return new Promise((resolve, reject) => {
     getClient().then(client => {
-      const collection = client.db(RESOURCE_DB[resource]).collection(resource);
+      const collection = client
+        .db(RESOURCE_DB[resource])
+        .collection(RESOURCE_COLLECTION[resource] || resource);
       collection.find(q).count((err, c) => {
         if (err) reject(err);
         else resolve(c);

@@ -19,6 +19,9 @@ let resources = {
   },
   provisions: {
     ID: { parameter: ["PARAM", "_id"], type: "string" }
+  },
+  virtualParameters: {
+    ID: { parameter: ["PARAM", "_id"], type: "string" }
   }
 };
 

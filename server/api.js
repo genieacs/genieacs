@@ -23,7 +23,7 @@ const RESOURCE_IDS = {
   presets: "_id",
   provisions: "_id",
   files: "_id",
-  virtual_parameters: "_id",
+  virtualParameters: "_id",
   faults: "_id",
   tasks: "_id"
 };
@@ -33,7 +33,7 @@ const resources = {
   presets: 0 | RESOURCE_DELETE | RESOURCE_PUT,
   provisions: 0 | RESOURCE_DELETE | RESOURCE_PUT,
   files: 0 | RESOURCE_DELETE,
-  virtual_parameters: 0 | RESOURCE_DELETE,
+  virtualParameters: 0 | RESOURCE_DELETE | RESOURCE_PUT,
   faults: 0 | RESOURCE_DELETE,
   tasks: 0
 };
@@ -346,17 +346,6 @@ for (let [resource, flags] of Object.entries(resources)) {
       }
 
       logger.accessInfo(log);
-
-      db.putAudit({
-        username: ctx.state.user.username,
-        action: "put",
-        objectType: resource,
-        objectId: id
-      }).catch(err => {
-        setTimeout(() => {
-          throw err;
-        }, 0);
-      });
 
       ctx.body = "";
     });

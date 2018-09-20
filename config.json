@@ -48,6 +48,12 @@
             "pass": true
           }
         },
+        "virtualParameters" : {
+          "access": 3,
+          "validate": {
+            "pass": true
+          }
+        },
         "files": {
           "access": 3
         }
@@ -65,6 +71,9 @@
           "access": 2
         },
         "provisions": {
+          "access": 2
+        },
+        "virtualParameters": {
           "access": 2
         },
         "files": {

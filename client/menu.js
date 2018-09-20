@@ -52,6 +52,15 @@ const menu = {
         )
       );
 
+    if (window.authorizer.hasAccess("virtualParameters", 2))
+      tabs.push(
+        m(
+          "li",
+          { class: active["virtualParameters"] },
+          m("a", { href: "#!/virtualParameters" }, "Virtual Parameters")
+        )
+      );
+
     return m("nav", m("ul", tabs));
   }
 };

@@ -6,7 +6,8 @@ import "codemirror/mode/javascript/javascript";
 
 const singular = {
   presets: "preset",
-  provisions: "provision"
+  provisions: "provision",
+  virtualParameters: "virtual parameter"
 };
 
 function createField(current, attr, focus) {

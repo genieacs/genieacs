@@ -39,6 +39,7 @@ function getPermissionSets(roles) {
             "faults",
             "presets",
             "provisions",
+            "virtualParameters",
             "files"
           ].includes(k)
         )
