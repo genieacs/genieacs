@@ -3,14 +3,40 @@
 import m from "mithril";
 import * as expression from "../common/expression";
 import memoize from "../common/memoize";
+import Autocomplete from "./autocomplete-compnent";
+import * as smartQuery from "./smart-query";
+
+const getAutocomplete = memoize(resource => {
+  const labels = smartQuery.getLabels(resource);
+  const autocomplete = new Autocomplete("autocomplete", (txt, cb) => {
+    txt = txt.toLowerCase();
+    cb(labels.filter(s => s.toLowerCase().includes(txt)).map(s => `${s}: `));
+  });
+  return autocomplete;
+});
+
+function parseFilter(f) {
+  if (/^[\s0-9a-zA-Z]+:/.test(f)) {
+    let k = f.split(":", 1)[0];
+    let v = f.slice(k.length + 1).trim();
+    return ["FUNC", "Q", k.trim(), v];
+  }
+  return expression.parse(f);
+}
+
+function stringifyFilter(f) {
+  if (Array.isArray(f) && f[0] === "FUNC" && f[1] === "Q")
+    return `${f[2]}: ${f[3]}`;
+  return expression.stringify(f);
+}
 
 const splitFilter = memoize(filter => {
   if (!filter) return [""];
   const list = [];
   const f = expression.parse(filter);
   if (Array.isArray(f) && f[0] === "AND")
-    for (let ff of f.slice(1)) list.push(expression.stringify(ff));
-  else list.push(expression.stringify(f));
+    for (let ff of f.slice(1)) list.push(stringifyFilter(ff));
+  else list.push(stringifyFilter(f));
 
   list.push("");
   return list;
@@ -18,12 +44,6 @@ const splitFilter = memoize(filter => {
 
 const component = {
   view: vnode => {
-    const predefined = vnode.attrs.predefined || [];
-    let a = m(
-      "datalist#filters",
-      predefined.map(f => m("option", { value: `${f.parameter} = ` }))
-    );
-
     if (!vnode.state.filterList || vnode.attrs.filter !== vnode.state.filter) {
       vnode.state.filterInvalid = 0;
       vnode.state.filter = vnode.attrs.filter;
@@ -35,7 +55,7 @@ const component = {
       vnode.state.filterList = vnode.state.filterList.filter(f => f);
       let filter = vnode.state.filterList.map((f, idx) => {
         try {
-          return expression.parse(f);
+          return parseFilter(f);
         } catch (err) {
           vnode.state.filterInvalid |= 1 << idx;
         }
@@ -56,17 +76,19 @@ const component = {
 
     return m(
       "div.filter",
-      [m("b", "Filter"), a].concat(
+      [m("b", "Filter")].concat(
         vnode.state.filterList.map((fltr, idx) => {
           return m("input", {
             type: "text",
-            list: "filters",
             class: `${(vnode.state.filterInvalid >> idx) & 1 ? "error" : ""}`,
             value: fltr,
             onchange: e => {
               vnode.state.filterList = vnode.state.filterList.slice();
               vnode.state.filterList[idx] = e.target.value.trim();
               onChange();
+            },
+            oncreate: vn => {
+              getAutocomplete(vnode.attrs.resource).attach(vn.dom);
             }
           });
         })

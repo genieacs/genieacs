@@ -10,6 +10,8 @@ import * as taskQueue from "./task-queue";
 import * as notifications from "./notifications";
 import * as expression from "../common/expression";
 import memoize from "../common/memoize";
+import * as smartQuery from "./smart-query";
+import * as expressionParser from "../common/expression-parser";
 
 const PAGE_SIZE = config.ui.pageSize || 10;
 
@@ -38,6 +40,14 @@ const getDownloadUrl = memoize((filter, indexParameters) => {
 const getChildAttrs = memoize((attrs, device) =>
   Object.assign({}, attrs, { device: device })
 );
+
+const unpackSmartQuery = memoize(query => {
+  return expressionParser.map(query, e => {
+    if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "Q")
+      return smartQuery.unpack("devices", e[2], e[3]);
+    return e;
+  });
+});
 
 function init(args) {
   return new Promise((resolve, reject) => {
@@ -347,9 +357,8 @@ const component = {
     }
 
     const sort = vnode.attrs.sort ? memoizedJsonParse(vnode.attrs.sort) : {};
-    const filter = vnode.attrs.filter
-      ? memoizedParse(vnode.attrs.filter)
-      : true;
+    let filter = vnode.attrs.filter ? memoizedParse(vnode.attrs.filter) : true;
+    filter = unpackSmartQuery(filter);
 
     let devs = store.fetch("devices", filter, {
       limit: vnode.state.showCount || PAGE_SIZE,
@@ -372,7 +381,7 @@ const component = {
     return [
       m("h1", "Listing devices"),
       m(filterComponent, {
-        predefined: Object.values(config.ui.filters),
+        resource: "devices",
         filter: vnode.attrs.filter,
         onChange: onFilterChanged
       }),

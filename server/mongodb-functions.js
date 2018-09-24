@@ -29,15 +29,20 @@ function processDeviceFilter(filter) {
       else if (exp[0] === "IS NOT NULL") return ["=", ["PARAM", "_tags"], t];
       else if (exp[0] === "=" && exp[2] === true)
         return ["=", ["PARAM", "_tags"], t];
-    } else if (["=", "<>", ">", ">=", "<", "<="].includes(exp[0])) {
-      let e = exp.slice();
-      if (
-        Array.isArray(exp[1]) &&
-        exp[1][0] === "PARAM" &&
-        typeof exp[1][1] === "string" &&
-        !exp[1][1].startsWith("_")
-      )
-        e[1] = ["PARAM", `${exp[1][1]}._value`];
+    } else if (
+      ["=", "<>", ">", ">=", "<", "<=", "LIKE", "NOT LIKE"].includes(exp[0])
+    ) {
+      let e = expressionParser.map(exp, ee => {
+        if (
+          Array.isArray(ee) &&
+          ee[0] === "PARAM" &&
+          typeof ee[1] === "string" &&
+          !ee[1].startsWith("_")
+        )
+          return ["PARAM", `${ee[1]}._value`];
+        return ee;
+      });
+
       if (typeof e[2] === "number") {
         let alt = e.slice();
         alt[2] = new Date(e[2]);

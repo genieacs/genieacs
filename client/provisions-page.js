@@ -10,6 +10,8 @@ import * as notifications from "./notifications";
 import memoize from "../common/memoize";
 import putForm from "./components/put-form";
 import * as overlay from "./overlay";
+import * as smartQuery from "./smart-query";
+import * as expressionParser from "../common/expression-parser";
 
 const PAGE_SIZE = config.ui.pageSize || 10;
 
@@ -20,6 +22,14 @@ const attributes = [
   { id: "_id", label: "Name" },
   { id: "script", label: "Script", type: "code" }
 ];
+
+const unpackSmartQuery = memoize(query => {
+  return expressionParser.map(query, e => {
+    if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "Q")
+      return smartQuery.unpack("provisions", e[2], e[3]);
+    return e;
+  });
+});
 
 function putActoinHandler(action, object, isNew) {
   if (action === "save") {
@@ -333,9 +343,8 @@ const component = {
     }
 
     const sort = vnode.attrs.sort ? memoizedJsonParse(vnode.attrs.sort) : {};
-    const filter = vnode.attrs.filter
-      ? memoizedParse(vnode.attrs.filter)
-      : true;
+    let filter = vnode.attrs.filter ? memoizedParse(vnode.attrs.filter) : true;
+    filter = unpackSmartQuery(filter);
 
     let provisions = store.fetch("provisions", filter, {
       limit: vnode.state.showCount || PAGE_SIZE,
@@ -356,7 +365,7 @@ const component = {
     return [
       m("h1", "Listing provisions"),
       m(filterComponent, {
-        predefined: [{ parameter: "_id" }],
+        resource: "provisions",
         filter: vnode.attrs.filter,
         onChange: onFilterChanged
       }),
