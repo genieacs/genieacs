@@ -37,7 +37,7 @@ const unpackSmartQuery = memoize(query => {
   });
 });
 
-function putActoinHandler(action, object, isNew) {
+function putActionHandler(action, object, isNew) {
   if (action === "save") {
     let id = object["_id"];
     delete object["_id"];
@@ -214,7 +214,7 @@ function renderTable(
                       base: preset,
                       actionHandler: (action, object) => {
                         overlay.close(cb);
-                        putActoinHandler(action, object, false);
+                        putActionHandler(action, object, false);
                       }
                     },
                     formData
@@ -314,7 +314,7 @@ function renderTable(
                 Object.assign(
                   {
                     actionHandler: (action, object) => {
-                      putActoinHandler(action, object, true);
+                      putActionHandler(action, object, true);
                       overlay.close(cb);
                     }
                   },
