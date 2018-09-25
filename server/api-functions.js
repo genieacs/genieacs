@@ -335,9 +335,28 @@ function putResource(resource, id, data) {
   });
 }
 
+function putFile(id, metadata, fileStream) {
+  return new Promise((resolve, reject) => {
+    let options = url.parse(
+      `${config.server.nbi}files/${encodeURIComponent(id)}`
+    );
+
+    options.method = "PUT";
+    options.headers = Object.assign({}, metadata);
+    let _http = options.protocol === "https:" ? https : http;
+    let req = _http.request(options, res => {
+      res.resume();
+      if (res.statusCode === 201) return resolve();
+      else return reject(new Error(`Unexpected status code ${res.statusCode}`));
+    });
+    fileStream.pipe(req);
+  });
+}
+
 exports.postTasks = postTasks;
 exports.deleteResource = deleteResource;
 exports.putResource = putResource;
 exports.updateTags = updateTags;
 exports.filterToMongoQuery = filterToMongoQuery;
 exports.ping = ping;
+exports.putFile = putFile;

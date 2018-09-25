@@ -17,7 +17,9 @@ const RESOURCE_DB = {
   files: "genieacs"
 };
 
-const RESOURCE_COLLECTION = {};
+const RESOURCE_COLLECTION = {
+  files: "fs.files"
+};
 
 function getClient() {
   if (!_clientPromise)
@@ -91,6 +93,8 @@ function query(resource, filter, options, callback) {
             docs = docs.map(d => mongodbFunctions.flattenTask(d));
           else if (resource === "presets")
             docs = docs.map(d => mongodbFunctions.flattenPreset(d));
+          else if (resource === "files")
+            docs = docs.map(d => mongodbFunctions.flattenFile(d));
           return resolve(docs);
         });
       else
@@ -104,6 +108,8 @@ function query(resource, filter, options, callback) {
               doc = mongodbFunctions.flattenTask(doc);
             else if (resource === "presets")
               doc = mongodbFunctions.flattenPreset(doc);
+            else if (resource === "files")
+              doc = mongodbFunctions.flattenFile(doc);
             callback(doc);
           },
           err => {

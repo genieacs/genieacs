@@ -22,6 +22,16 @@ let resources = {
   },
   virtualParameters: {
     ID: { parameter: ["PARAM", "_id"], type: "string" }
+  },
+  files: {
+    ID: { parameter: ["PARAM", "_id"], type: "string" },
+    Type: { parameter: ["PARAM", "metadata.fileType"], type: "string" },
+    OUI: { parameter: ["PARAM", "metadata.oui"], type: "string" },
+    "Product class": {
+      parameter: ["PARAM", "metadata.productClass"],
+      type: "string"
+    },
+    Version: { parameter: ["PARAM", "metadata.version"], type: "string" }
   }
 };
 

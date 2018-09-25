@@ -7,7 +7,8 @@ import "codemirror/mode/javascript/javascript";
 const singular = {
   presets: "preset",
   provisions: "provision",
-  virtualParameters: "virtual parameter"
+  virtualParameters: "virtual parameter",
+  files: "file"
 };
 
 function createField(current, attr, focus) {
@@ -50,6 +51,20 @@ function createField(current, attr, focus) {
         });
 
         if (focus) editor.focus();
+      }
+    });
+  } else if (attr.type === "file") {
+    return m("input", {
+      type: "file",
+      name: attr.id,
+      oncreate: focus
+        ? _vnode => {
+            _vnode.dom.focus();
+          }
+        : null,
+      onchange: e => {
+        current.object[attr.id] = e.target.files;
+        e.redraw = false;
       }
     });
   }
@@ -102,7 +117,8 @@ const component = {
       );
     }
 
-    let buttons = [m("button.primary", { type: "submit" }, "Save")];
+    const submit = m("button.primary", { type: "submit" }, "Save");
+    let buttons = [submit];
 
     if (!current.isNew)
       buttons.push(
@@ -129,9 +145,11 @@ const component = {
         "form",
         {
           onsubmit: e => {
-            e.target.disabled = true;
-            e.preventDefault();
             e.redraw = false;
+            e.target.onsubmit = null;
+            e.preventDefault();
+            for (let elem of e.target.elements) elem.disabled = true;
+            submit.dom.textContent = "Loading ...";
             actionHandler("save", current.object);
           }
         },

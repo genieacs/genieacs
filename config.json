@@ -55,7 +55,10 @@
           }
         },
         "files": {
-          "access": 3
+          "access": 3,
+          "validate": {
+            "pass": true
+          }
         }
       }
     ],

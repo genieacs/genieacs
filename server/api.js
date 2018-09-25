@@ -351,6 +351,61 @@ for (let [resource, flags] of Object.entries(resources)) {
     });
 }
 
+router.put("/files/:id", async (ctx, next) => {
+  const resource = "files";
+  const id = ctx.params.id;
+
+  const log = {
+    message: `Upload ${resource}`,
+    context: ctx,
+    id: id
+  };
+
+  const authorizer = ctx.state.authorizer;
+  if (!authorizer.hasAccess(resource, 3)) {
+    logUnauthorizedWarning(log);
+    return next();
+  }
+
+  let metadata = {
+    fileType: ctx.request.headers["metadata.filetype"] || "",
+    oui: ctx.request.headers["metadata.oui"] || "",
+    productClass: ctx.request.headers["metadata.productclass"] || "",
+    version: ctx.request.headers["metadata.version"] || ""
+  };
+
+  const validate = authorizer.getValidator(resource, metadata);
+  if (!validate("put")) {
+    logUnauthorizedWarning(log);
+    return (ctx.status = 403);
+  }
+
+  let err = await apiFunctions.putFile(id, metadata, ctx.req);
+
+  if (err) {
+    log.message += " failed";
+    logger.accessWarn(log);
+    ctx.body = err;
+    return (ctx.status = 400);
+  }
+
+  log.metadata = metadata;
+  logger.accessInfo(log);
+
+  db.putAudit({
+    username: ctx.state.user.username,
+    action: "put",
+    objectType: resource,
+    objectId: id
+  }).catch(err => {
+    setTimeout(() => {
+      throw err;
+    }, 0);
+  });
+
+  ctx.body = "";
+});
+
 router.post("/devices/:id/tasks", async (ctx, next) => {
   const log = {
     message: "Commit tasks",

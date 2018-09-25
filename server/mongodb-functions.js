@@ -457,6 +457,18 @@ function flattenPreset(preset) {
   return p;
 }
 
+function flattenFile(file) {
+  let f = {};
+  f["_id"] = file["_id"];
+  if (file.metadata) {
+    f["metadata.fileType"] = file.metadata.fileType || "";
+    f["metadata.oui"] = file.metadata.oui || "";
+    f["metadata.productClass"] = file.metadata.productClass || "";
+    f["metadata.version"] = file.metadata.version || "";
+  }
+  return f;
+}
+
 function preProcessPreset(data) {
   let preset = Object.assign({}, data);
   preset.precondition = preset.precondition
@@ -512,6 +524,7 @@ exports.flattenDevice = flattenDevice;
 exports.flattenFault = flattenFault;
 exports.flattenTask = flattenTask;
 exports.flattenPreset = flattenPreset;
+exports.flattenFile = flattenFile;
 exports.preProcessPreset = preProcessPreset;
 exports.preProcessProvision = preProcessProvision;
 exports.preProcessVirtualParameters = preProcessVirtualParameters;

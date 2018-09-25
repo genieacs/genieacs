@@ -61,6 +61,15 @@ const menu = {
         )
       );
 
+    if (window.authorizer.hasAccess("files", 2))
+      tabs.push(
+        m(
+          "li",
+          { class: active["files"] },
+          m("a", { href: "#!/files" }, "Files")
+        )
+      );
+
     return m("nav", m("ul", tabs));
   }
 };

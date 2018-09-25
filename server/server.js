@@ -128,6 +128,13 @@ router.post("/logout", async ctx => {
   });
 });
 
+koa.use(async (ctx, next) => {
+  if (ctx.request.type === "application/octet-stream")
+    ctx.disableBodyParser = true;
+
+  return next();
+});
+
 koa.use(koaBodyParser());
 router.use("/api", api.routes(), api.allowedMethods());
 
