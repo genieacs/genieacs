@@ -207,7 +207,7 @@ function processDeviceSort(sort) {
 function flattenDevice(device) {
   function recursive(input, root, output, timestamp) {
     for (let [name, tree] of Object.entries(input)) {
-      if (root.length === 0)
+      if (!root)
         if (name === "_lastInform") {
           output["Events.Inform"] = {
             value: [Date.parse(tree), "xsd:dateTime"],
@@ -309,7 +309,7 @@ function flattenDevice(device) {
 
       let childrenTimestamp = timestamp;
 
-      if (root.length === 0) childrenTimestamp = +(input["_timestamp"] || 1);
+      if (!root) childrenTimestamp = +(input["_timestamp"] || 1);
       else if (+input["_timestamp"] > timestamp)
         childrenTimestamp = +input["_timestamp"];
 
@@ -329,8 +329,8 @@ function flattenDevice(device) {
         attrs["writableTimestamp"] = childrenTimestamp;
       }
 
-      let r = root.concat(name);
-      output[r.join(".")] = attrs;
+      let r = root ? `${root}.${name}` : name;
+      output[r] = attrs;
 
       if (attrs["object"]) recursive(tree, r, output, childrenTimestamp);
     }
@@ -338,7 +338,7 @@ function flattenDevice(device) {
 
   const newDevice = {};
   const timestamp = new Date(device["_lastInform"] || 1).getTime();
-  recursive(device, [], newDevice, timestamp);
+  recursive(device, "", newDevice, timestamp);
   return newDevice;
 }
 
