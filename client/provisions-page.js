@@ -136,9 +136,9 @@ function renderTable(
 
     let direction = 1;
 
-    let symbol = "\u21f3";
-    if (sort[attr.id] > 0) symbol = "\u2b07";
-    else if (sort[attr.id] < 0) symbol = "\u2b06";
+    let symbol = "\u2981";
+    if (sort[attr.id] > 0) symbol = "\u2bc6";
+    else if (sort[attr.id] < 0) symbol = "\u2bc5";
 
     let sortable = m(
       "button",
