@@ -73,9 +73,9 @@ function renderStagingDownload(task) {
       files.value
         .filter(
           f =>
-            (!f.metadata.oui || f.metadata.oui === oui) &&
-            (!f.metadata.productClass ||
-              f.metadata.productClass === productClass)
+            (!f["metadata.oui"] || f["metadata.oui"] === oui) &&
+            (!f["metadata.productClass"] ||
+              f["metadata.productClass"] === productClass)
         )
         .map(f => f._id)
     )
@@ -90,7 +90,7 @@ function renderStagingDownload(task) {
             task.fileName = f;
             task.fileType = "";
             for (let file of files.value)
-              if (file._id === f) task.fileType = file.metadata.fileType;
+              if (file._id === f) task.fileType = file["metadata.fileType"];
           }
         },
         f
