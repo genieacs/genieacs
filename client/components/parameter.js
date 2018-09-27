@@ -5,6 +5,7 @@ import * as taskQueue from "../task-queue";
 import * as store from "../store";
 import * as expression from "../../common/expression";
 import memoize from "../../common/memoize";
+import timeAgo from "../timeago";
 
 const memoizedParse = memoize(expression.parse);
 
@@ -72,7 +73,19 @@ const component = {
         "✎"
       );
 
-    return m("span.parameter-value", { title: timestamp }, value, edit);
+    return m(
+      "span.parameter-value",
+      {
+        onmouseover: e => {
+          e.redraw = false;
+          const now = Date.now();
+          const localeString = new Date(timestamp).toLocaleString();
+          e.target.title = `${localeString} (${timeAgo(now - timestamp)})`;
+        }
+      },
+      value,
+      edit
+    );
   }
 };
 
