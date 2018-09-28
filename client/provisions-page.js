@@ -12,6 +12,7 @@ import putForm from "./components/put-form";
 import * as overlay from "./overlay";
 import * as smartQuery from "./smart-query";
 import * as expressionParser from "../common/expression-parser";
+import { loadCodeMirror } from "./dynamic-loader";
 
 const PAGE_SIZE = config.ui.pageSize || 10;
 
@@ -106,7 +107,14 @@ function init(args) {
 
   const sort = args.sort;
   const filter = args.filter;
-  return Promise.resolve({ filter, sort });
+
+  return new Promise((resolve, reject) => {
+    loadCodeMirror()
+      .then(() => {
+        resolve({ filter, sort });
+      })
+      .catch(reject);
+  });
 }
 
 function renderTable(

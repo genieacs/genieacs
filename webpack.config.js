@@ -1,6 +1,7 @@
 const nodeExternals = require("webpack-node-externals");
 const CopyWebpackPlugin = require("copy-webpack-plugin");
 const CleanWebpackPlugin = require("clean-webpack-plugin");
+const path = require("path");
 
 const mode = "production";
 
@@ -51,7 +52,8 @@ module.exports = [
     mode: mode,
     entry: "./client/app.js",
     output: {
-      filename: "public/app.js"
+      path: path.resolve(__dirname, "dist/public"),
+      filename: "app.js"
     }
   }
 ];

@@ -22,6 +22,7 @@
     "parsimmon": "^1.12.0"
   },
   "devDependencies": {
+    "babel-eslint": "^8.2.6",
     "clean-webpack-plugin": "^0.1.19",
     "copy-webpack-plugin": "^4.5.2",
     "cssnano": "^4.0.5",

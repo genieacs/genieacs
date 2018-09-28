@@ -1,8 +1,7 @@
 "use strict";
 
 import m from "mithril";
-import { fromTextArea as codeMirrorFromTextArea } from "codemirror";
-import "codemirror/mode/javascript/javascript";
+import { codeMirror } from "../dynamic-loader";
 
 const singular = {
   presets: "preset",
@@ -41,7 +40,7 @@ function createField(current, attr, focus) {
       name: attr.id,
       value: current.object[attr.id],
       oncreate: _vnode => {
-        let editor = codeMirrorFromTextArea(_vnode.dom, {
+        let editor = codeMirror.fromTextArea(_vnode.dom, {
           mode: "javascript",
           lineNumbers: true
         });

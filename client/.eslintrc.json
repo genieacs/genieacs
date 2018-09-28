@@ -2,7 +2,9 @@
   "env": {
     "browser": true
   },
+  "parser": "babel-eslint",
   "parserOptions": {
+    "allowImportExportEverywhere": true,
     "sourceType": "module",
     "ecmaVersion": 8
   }
