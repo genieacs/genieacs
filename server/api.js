@@ -139,7 +139,7 @@ for (let [resource, flags] of Object.entries(resources)) {
 
   // CSV download
   router.get(`/${resource}.csv`, async (ctx, next) => {
-    let options = {};
+    let options = { projection: {} };
     let filter = true;
     if (ctx.request.query.filter)
       filter = expression.parse(ctx.request.query.filter);
@@ -154,8 +154,7 @@ for (let [resource, flags] of Object.entries(resources)) {
       filter: ctx.request.query.filter,
       limit: options.limit,
       skip: options.skip,
-      sort: options.sort,
-      projection: options.projection
+      sort: options.sort
     };
 
     if (!ctx.state.authorizer.hasAccess(resource, 2)) {
@@ -165,12 +164,16 @@ for (let [resource, flags] of Object.entries(resources)) {
 
     const columns = JSON.parse(ctx.request.query.columns);
     const now = Date.now();
-    for (let [k, v] of Object.entries(columns))
-      columns[k] = expression.evaluate(
+
+    for (let [k, v] of Object.entries(columns)) {
+      const e = expression.evaluate(
         expression.parse(v),
         null,
         now
       );
+      columns[k] = e;
+      for (let p of expression.extractParams(e)) options.projection[p] = 1;
+    }
 
     // Exclude temporary tasks and faults
     if (resource === "tasks" || resource === "faults")
@@ -391,17 +394,6 @@ router.put("/files/:id", async (ctx, next) => {
 
   log.metadata = metadata;
   logger.accessInfo(log);
-
-  db.putAudit({
-    username: ctx.state.user.username,
-    action: "put",
-    objectType: resource,
-    objectId: id
-  }).catch(err => {
-    setTimeout(() => {
-      throw err;
-    }, 0);
-  });
 
   ctx.body = "";
 });

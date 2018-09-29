@@ -332,7 +332,8 @@ function flattenDevice(device) {
       let r = root ? `${root}.${name}` : name;
       output[r] = attrs;
 
-      if (attrs["object"]) recursive(tree, r, output, childrenTimestamp);
+      if (attrs["object"] || tree["object"] == null)
+        recursive(tree, r, output, childrenTimestamp);
     }
   }
 

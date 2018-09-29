@@ -60,14 +60,15 @@ function query(resource, filter, options, callback) {
       const collection = client
         .db(RESOURCE_DB[resource])
         .collection(RESOURCE_COLLECTION[resource] || resource);
-      let cursor = collection.find(
-        q,
-        resource === "Devices"
-          ? mongodbFunctions.processDeviceProjection(options.projection)
-          : options.projection
-      );
-      if (options.skip) cursor = cursor.skip(options.skip);
-      if (options.limit) cursor = cursor.limit(options.limit);
+      const cursor = collection.find(q);
+      if (options.projection)
+        cursor.project(
+          resource === "devices"
+            ? mongodbFunctions.processDeviceProjection(options.projection)
+            : options.projection
+        );
+      if (options.skip) cursor.skip(options.skip);
+      if (options.limit) cursor.limit(options.limit);
 
       if (options.sort) {
         let s = Object.entries(options.sort)
@@ -79,7 +80,7 @@ function query(resource, filter, options, callback) {
           );
 
         if (resource === "devices") s = mongodbFunctions.processDeviceSort(s);
-        cursor = cursor.sort(s);
+        cursor.sort(s);
       }
 
       if (!callback)
