@@ -18,11 +18,9 @@ const PAGE_SIZE = config.ui.pageSize || 10;
 const memoizedParse = memoize(expression.parse);
 const memoizedJsonParse = memoize(JSON.parse);
 const memoizedGetSortable = memoize(str => {
-  let expressionParams = expression.extractParams(
-    expression.parse(str)
-  );
+  const expressionParams = expression.extractParams(expression.parse(str));
   if (expressionParams.length === 1) {
-    let param = expression.evaluate(expressionParams[0]);
+    const param = expression.evaluate(expressionParams[0]);
     if (typeof param === "string") return param;
   }
   return null;
@@ -52,7 +50,7 @@ const unpackSmartQuery = memoize(query => {
 function init(args) {
   return new Promise((resolve, reject) => {
     if (!window.authorizer.hasAccess("devices", 2))
-      return reject(new Error("You are not authorized to view this page"));
+      return void reject(new Error("You are not authorized to view this page"));
 
     const filter = args.filter;
     const sort = args.sort;
@@ -76,16 +74,17 @@ function renderTable(
     type: "checkbox",
     checked: devices.length && selected.size === devices.length,
     onchange: e => {
-      for (let d of devices)
+      for (const d of devices) {
         if (e.target.checked) selected.add(d["DeviceID.ID"].value[0]);
         else selected.delete(d["DeviceID.ID"].value[0]);
+      }
     },
     disabled: !total
   });
 
-  let labels = [m("th", selectAll)];
-  for (let param of parameters) {
-    let label = param.label;
+  const labels = [m("th", selectAll)];
+  for (const param of parameters) {
+    const label = param.label;
     let _param;
     if (!param.unsortable && (_param = memoizedGetSortable(param.parameter))) {
       let direction = 1;
@@ -94,7 +93,7 @@ function renderTable(
       if (sort[_param] > 0) symbol = "\u2bc6";
       else if (sort[_param] < 0) symbol = "\u2bc5";
 
-      let sortable = m(
+      const sortable = m(
         "button",
         {
           onclick: () => {
@@ -111,9 +110,9 @@ function renderTable(
     }
   }
 
-  let rows = [];
-  for (let device of devices) {
-    let checkbox = m("input", {
+  const rows = [];
+  for (const device of devices) {
+    const checkbox = m("input", {
       type: "checkbox",
       checked: selected.has(device["DeviceID.ID"].value[0]),
       onchange: e => {
@@ -158,12 +157,13 @@ function renderTable(
     );
   }
 
-  if (!rows.length)
+  if (!rows.length) {
     rows.push(
       m("tr.empty", m("td", { colspan: parameters.length + 1 }, "No devices"))
     );
+  }
 
-  let footerElements = [];
+  const footerElements = [];
   if (total != null) footerElements.push(`${devices.length}/${total}`);
   else footerElements.push(`${devices.length}`);
 
@@ -179,12 +179,13 @@ function renderTable(
     )
   );
 
-  if (downloadUrl)
+  if (downloadUrl) {
     footerElements.push(
       m("a.download-csv", { href: downloadUrl, download: "" }, "Download")
     );
+  }
 
-  let tfoot = m(
+  const tfoot = m(
     "tfoot",
     m("tr", m("td", { colspan: labels.length }, footerElements))
   );
@@ -206,11 +207,12 @@ function renderActions(selected) {
         title: "Reboot selected devices",
         disabled: !selected.size,
         onclick: () => {
-          for (let d of selected)
+          for (const d of selected) {
             taskQueue.queueTask({
               name: "reboot",
               device: d
             });
+          }
         }
       },
       "Reboot"
@@ -224,11 +226,12 @@ function renderActions(selected) {
         title: "Factory reset selected devices",
         disabled: !selected.size,
         onclick: () => {
-          for (let d of selected)
+          for (const d of selected) {
             taskQueue.queueTask({
               name: "factoryReset",
               device: d
             });
+          }
         }
       },
       "Reset"
@@ -246,7 +249,7 @@ function renderActions(selected) {
           if (!confirm(`Deleting ${ids.length} devices. Are you sure?`)) return;
 
           let counter = 1;
-          for (let id of ids) {
+          for (const id of ids) {
             ++counter;
             store
               .deleteResource("devices", id)
@@ -278,7 +281,7 @@ function renderActions(selected) {
           if (!tag) return;
 
           let counter = 1;
-          for (let id of ids) {
+          for (const id of ids) {
             ++counter;
             store
               .updateTags(id, { [tag]: true })
@@ -312,7 +315,7 @@ function renderActions(selected) {
           if (!tag) return;
 
           let counter = 1;
-          for (let id of ids) {
+          for (const id of ids) {
             ++counter;
             store
               .updateTags(id, { [tag]: false })
@@ -345,13 +348,13 @@ const component = {
     }
 
     function onFilterChanged(filter) {
-      let ops = { filter };
+      const ops = { filter };
       if (vnode.attrs.sort) ops.sort = vnode.attrs.sort;
       m.route.set("/devices", ops);
     }
 
     function onSortChange(sort) {
-      let ops = { sort };
+      const ops = { sort };
       if (vnode.attrs.filter) ops.filter = vnode.attrs.filter;
       m.route.set("/devices", ops);
     }
@@ -360,17 +363,19 @@ const component = {
     let filter = vnode.attrs.filter ? memoizedParse(vnode.attrs.filter) : true;
     filter = unpackSmartQuery(filter);
 
-    let devs = store.fetch("devices", filter, {
+    const devs = store.fetch("devices", filter, {
       limit: vnode.state.showCount || PAGE_SIZE,
       sort: sort
     });
-    let count = store.count("devices", filter);
+    const count = store.count("devices", filter);
 
-    let selected = new Set();
-    if (vnode.state.selected)
-      for (let d of devs.value)
+    const selected = new Set();
+    if (vnode.state.selected) {
+      for (const d of devs.value) {
         if (vnode.state.selected.has(d["DeviceID.ID"].value[0]))
           selected.add(d["DeviceID.ID"].value[0]);
+      }
+    }
     vnode.state.selected = selected;
 
     const downloadUrl = getDownloadUrl(

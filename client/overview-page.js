@@ -11,9 +11,10 @@ const memoizedParse = memoize(expression.parse);
 
 const GROUPS = config.ui.overview.groups;
 const CHARTS = {};
-for (let group of Object.values(GROUPS))
-  for (let chartName of Object.values(group["charts"]))
+for (const group of Object.values(GROUPS)) {
+  for (const chartName of Object.values(group["charts"]))
     CHARTS[chartName] = config.ui.overview.charts[chartName];
+}
 
 function queryCharts(charts) {
   charts = Object.assign({}, charts);
@@ -30,10 +31,11 @@ function queryCharts(charts) {
 }
 
 const init = function() {
-  if (!window.authorizer.hasAccess("devices", 1))
+  if (!window.authorizer.hasAccess("devices", 1)) {
     return Promise.reject(
       new Error("You are not authorized to view this page")
     );
+  }
 
   return Promise.resolve({ charts: queryCharts(CHARTS) });
 };
@@ -41,14 +43,14 @@ const init = function() {
 const component = {
   view: vnode => {
     document.title = "Overview - GenieACS";
-    let children = [];
-    for (let group of Object.values(GROUPS)) {
+    const children = [];
+    for (const group of Object.values(GROUPS)) {
       if (group.label) children.push(m("h1", group.label));
 
-      let groupChildren = [];
-      for (let chartName of Object.values(group.charts)) {
+      const groupChildren = [];
+      for (const chartName of Object.values(group.charts)) {
         const chart = vnode.attrs.charts[chartName];
-        let chartChildren = [];
+        const chartChildren = [];
         if (chart.label) chartChildren.push(m("h2", chart.label));
 
         chartChildren.push(m(pieChartComponent, { chart: chart }));

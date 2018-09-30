@@ -13,7 +13,7 @@ function timeAgo(dtime) {
   let res = "";
   let level = 2;
 
-  for (const [u, t] of Object.entries(UNITS))
+  for (const [u, t] of Object.entries(UNITS)) {
     if (dtime >= t) {
       let n;
       if (level > 1) {
@@ -26,6 +26,7 @@ function timeAgo(dtime) {
       else res += `${n} ${u} `;
       if (!--level) break;
     }
+  }
 
   return res + "ago";
 }

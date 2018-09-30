@@ -37,28 +37,29 @@ const component = {
             .commit(
               [task],
               (deviceId, err, connectionRequestStatus, tasks2) => {
-                if (err)
-                  return notifications.push(
-                    "error",
-                    `${deviceId}: ${err.message}`
-                  );
+                if (err) {
+                  notifications.push("error", `${deviceId}: ${err.message}`);
+                  return;
+                }
 
-                for (let t of tasks2)
+                for (const t of tasks2)
                   if (t.status === "stale") taskQueue.deleteTask(t);
 
-                if (connectionRequestStatus !== "OK")
+                if (connectionRequestStatus !== "OK") {
                   notifications.push(
                     "error",
                     `${deviceId}: ${connectionRequestStatus}`
                   );
-                else if (tasks2[0].status === "stale")
+                } else if (tasks2[0].status === "stale") {
                   notifications.push(
                     "error",
                     `${deviceId}: No contact from device`
                   );
-                else if (tasks2[0].status === "fault")
+                } else if (tasks2[0].status === "fault") {
                   notifications.push("error", `${deviceId}: Refresh faulted`);
-                else notifications.push("success", `${deviceId}: Summoned`);
+                } else {
+                  notifications.push("success", `${deviceId}: Summoned`);
+                }
               }
             )
             .then(() => {

@@ -153,9 +153,10 @@ function formatSimple(details, systemd) {
   flatten(details);
 
   let remote = "";
-  if (details.remoteAddress)
+  if (details.remoteAddress) {
     if (details.user) remote = `${details.user}@${details.remoteAddress}: `;
     else remote = `${details.remoteAddress}: `;
+  }
 
   const keys = Object.keys(details);
   const skip = {
@@ -168,8 +169,8 @@ function formatSimple(details, systemd) {
 
   let meta = "";
 
-  let kv = [];
-  for (let k of keys)
+  const kv = [];
+  for (const k of keys)
     if (!skip[k]) kv.push(`${k}=${JSON.stringify(details[k])}`);
 
   if (kv.length) meta = `; ${kv.join(" ")}`;

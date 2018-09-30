@@ -8,24 +8,14 @@ const isArray = Array.isArray;
 
 const regExpCache = new WeakMap();
 
-function* permute(arr) {
-  if (arr.length <= 1) {
-    for (let i = 0; i < arr[0]; ++i) yield [i];
-    return;
-  }
-
-  let slc = arr.slice(1);
-  for (let i = 0; i < arr[0]; ++i)
-    for (let innerArr of permute(slc)) yield [i].concat(innerArr);
-}
-
+const REDUCE_SKIP = {};
 function reduce(exp, callback) {
   let loop = true;
   while (loop) {
     loop = false;
     for (let i = 2; i < exp.length; ++i) {
-      let res = callback(exp[i - 1], exp[i]);
-      if (res !== undefined) {
+      const res = callback(exp[i - 1], exp[i]);
+      if (res !== REDUCE_SKIP) {
         loop = true;
         exp = exp.slice();
         exp.splice(i - 1, 2, res);
@@ -71,11 +61,13 @@ function evaluate(exp, obj, now, cb) {
       return reduce(e, (a, b) => {
         if (!isArray(a)) return a ? b : a;
         if (!isArray(b)) return b ? a : b;
+        return REDUCE_SKIP;
       });
     } else if (e[0] === "OR") {
       return reduce(e, (a, b) => {
         if (!isArray(a)) return a ? a : b;
         if (!isArray(b)) return b ? b : a;
+        return REDUCE_SKIP;
       });
     } else if (e[0] === "NOT") {
       if (!isArray(e[1])) return !e[1];
@@ -131,6 +123,7 @@ function evaluate(exp, obj, now, cb) {
           if (a == null || b == null) return null;
           return a * b;
         }
+        return REDUCE_SKIP;
       });
     } else if (e[0] === "/") {
       return reduce(e, (a, b) => {
@@ -138,6 +131,7 @@ function evaluate(exp, obj, now, cb) {
           if (a == null || b == null) return null;
           return a / b;
         }
+        return REDUCE_SKIP;
       });
     } else if (e[0] === "+") {
       return reduce(e, (a, b) => {
@@ -145,6 +139,7 @@ function evaluate(exp, obj, now, cb) {
           if (a == null || b == null) return null;
           return a + b;
         }
+        return REDUCE_SKIP;
       });
     } else if (e[0] === "-") {
       return reduce(e, (a, b) => {
@@ -152,6 +147,7 @@ function evaluate(exp, obj, now, cb) {
           if (a == null || b == null) return null;
           return a - b;
         }
+        return REDUCE_SKIP;
       });
     } else if (e[0] === "||") {
       return reduce(e, (a, b) => {
@@ -159,6 +155,7 @@ function evaluate(exp, obj, now, cb) {
           if (a == null || b == null) return null;
           return `${a}${b}`;
         }
+        return REDUCE_SKIP;
       });
     }
     return e;
@@ -238,7 +235,7 @@ function likePatternToRegExp(pat, esc = "", flags = "") {
 }
 
 function extractParams(exp) {
-  let params = [];
+  const params = [];
   expressionParser.map(exp, e => {
     if (isArray(e) && e[0] === "PARAM") params.push(e[1]);
     return e;

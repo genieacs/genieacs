@@ -2,7 +2,6 @@
 
 const zlib = require("zlib");
 const Router = require("koa-router");
-const config = require("./config");
 const db = require("./db");
 const apiFunctions = require("./api-functions");
 const expression = require("../common/expression");
@@ -38,7 +37,7 @@ const resources = {
   tasks: 0
 };
 
-for (let [resource, flags] of Object.entries(resources)) {
+for (const [resource, flags] of Object.entries(resources)) {
   router.head(`/${resource}`, async (ctx, next) => {
     let filter = true;
     if (ctx.request.query.filter)
@@ -52,17 +51,18 @@ for (let [resource, flags] of Object.entries(resources)) {
 
     if (!ctx.state.authorizer.hasAccess(resource, 1)) {
       logUnauthorizedWarning(log);
-      return next();
+      return void next();
     }
 
     // Exclude temporary tasks and faults
-    if (resource === "tasks" || resource === "faults")
+    if (resource === "tasks" || resource === "faults") {
       filter = expression.and(filter, [
         "NOT",
         ["<", ["PARAM", "expiry"], Date.now() + 60000]
       ]);
+    }
 
-    let count = await db.count(resource, filter);
+    const count = await db.count(resource, filter);
 
     ctx.set("X-Total-Count", count);
     ctx.body = "";
@@ -72,7 +72,7 @@ for (let [resource, flags] of Object.entries(resources)) {
   });
 
   router.get(`/${resource}`, async (ctx, next) => {
-    let options = {};
+    const options = {};
     let filter = true;
     if (ctx.request.query.filter)
       filter = expression.parse(ctx.request.query.filter);
@@ -80,10 +80,11 @@ for (let [resource, flags] of Object.entries(resources)) {
     if (ctx.request.query.skip) options.skip = +ctx.request.query.skip;
     if (ctx.request.query.sort)
       options.sort = JSON.parse(ctx.request.query.sort);
-    if (ctx.request.query.projection)
+    if (ctx.request.query.projection) {
       options.projection = ctx.request.query.projection
         .split(",")
         .reduce((obj, k) => Object.assign(obj, { [k]: 1 }), {});
+    }
 
     const log = {
       message: `Query ${resource}`,
@@ -97,15 +98,16 @@ for (let [resource, flags] of Object.entries(resources)) {
 
     if (!ctx.state.authorizer.hasAccess(resource, 2)) {
       logUnauthorizedWarning(log);
-      return next();
+      return void next();
     }
 
     // Exclude temporary tasks and faults
-    if (resource === "tasks" || resource === "faults")
+    if (resource === "tasks" || resource === "faults") {
       filter = expression.and(filter, [
         "NOT",
         ["<", ["PARAM", "expiry"], Date.now() + 60000]
       ]);
+    }
 
     let stream;
     switch (ctx.acceptsEncodings("gzip", "deflate", "identity")) {
@@ -139,7 +141,7 @@ for (let [resource, flags] of Object.entries(resources)) {
 
   // CSV download
   router.get(`/${resource}.csv`, async (ctx, next) => {
-    let options = { projection: {} };
+    const options = { projection: {} };
     let filter = true;
     if (ctx.request.query.filter)
       filter = expression.parse(ctx.request.query.filter);
@@ -159,28 +161,25 @@ for (let [resource, flags] of Object.entries(resources)) {
 
     if (!ctx.state.authorizer.hasAccess(resource, 2)) {
       logUnauthorizedWarning(log);
-      return next();
+      return void next();
     }
 
     const columns = JSON.parse(ctx.request.query.columns);
     const now = Date.now();
 
-    for (let [k, v] of Object.entries(columns)) {
-      const e = expression.evaluate(
-        expression.parse(v),
-        null,
-        now
-      );
+    for (const [k, v] of Object.entries(columns)) {
+      const e = expression.evaluate(expression.parse(v), null, now);
       columns[k] = e;
-      for (let p of expression.extractParams(e)) options.projection[p] = 1;
+      for (const p of expression.extractParams(e)) options.projection[p] = 1;
     }
 
     // Exclude temporary tasks and faults
-    if (resource === "tasks" || resource === "faults")
+    if (resource === "tasks" || resource === "faults") {
       filter = expression.and(filter, [
         "NOT",
         ["<", ["PARAM", "expiry"], Date.now() + 60000]
       ]);
+    }
 
     let stream;
     switch (ctx.acceptsEncodings("gzip", "deflate", "identity")) {
@@ -209,24 +208,26 @@ for (let [resource, flags] of Object.entries(resources)) {
       Object.keys(columns).map(k => `"${k.replace(/"/, '""')}"`) + "\n"
     );
     await db.query(resource, filter, options, obj => {
-      let arr = Object.values(columns).map(exp => {
-        let v = expression.evaluate(exp, obj, null, e => {
-          if (Array.isArray(e))
+      const arr = Object.values(columns).map(exp => {
+        const v = expression.evaluate(exp, obj, null, e => {
+          if (Array.isArray(e)) {
             if (e[0] === "PARAM") {
               if (resource === "devices") {
                 if (e[1] === "Tags") {
-                  let tags = [];
-                  for (let p in obj)
+                  const tags = [];
+                  for (const p in obj)
                     if (p.startsWith("Tags.")) tags.push(p.slice(5));
 
                   return tags.join(", ");
                 }
               }
             } else if (e[0] === "FUNC") {
-              if (e[1] === "DATE_STRING")
+              if (e[1] === "DATE_STRING") {
                 if (e[2] && !Array.isArray(e[2]))
                   return new Date(e[2]).toISOString();
+              }
             }
+          }
 
           return e;
         });
@@ -249,15 +250,15 @@ for (let [resource, flags] of Object.entries(resources)) {
       filter: `${RESOURCE_IDS[resource]} = "${ctx.params.id}"`
     };
 
-    let filter = ["=", ["PARAM", RESOURCE_IDS[resource]], ctx.params.id];
+    const filter = ["=", ["PARAM", RESOURCE_IDS[resource]], ctx.params.id];
     if (!ctx.state.authorizer.hasAccess(resource, 2)) {
       logUnauthorizedWarning(log);
-      return next();
+      return void next();
     }
 
-    let res = await db.query(resource, filter);
+    const res = await db.query(resource, filter);
 
-    if (!res.length) return next();
+    if (!res.length) return void next();
 
     logger.accessInfo(log);
     ctx.body = "";
@@ -270,22 +271,22 @@ for (let [resource, flags] of Object.entries(resources)) {
       filter: `${RESOURCE_IDS[resource]} = "${ctx.params.id}"`
     };
 
-    let filter = ["=", ["PARAM", RESOURCE_IDS[resource]], ctx.params.id];
+    const filter = ["=", ["PARAM", RESOURCE_IDS[resource]], ctx.params.id];
     if (!ctx.state.authorizer.hasAccess(resource, 2)) {
       logUnauthorizedWarning(log);
-      return next();
+      return void next();
     }
 
-    let res = await db.query(resource, filter);
+    const res = await db.query(resource, filter);
 
-    if (!res.length) return next();
+    if (!res.length) return void next();
 
     logger.accessInfo(log);
     ctx.body = res[0];
   });
 
   // TODO add PUT, PATCH routes
-  if (flags & RESOURCE_DELETE)
+  if (flags & RESOURCE_DELETE) {
     router.delete(`/${resource}/:id`, async (ctx, next) => {
       const log = {
         message: `Delete ${resource}`,
@@ -294,18 +295,18 @@ for (let [resource, flags] of Object.entries(resources)) {
       };
 
       const authorizer = ctx.state.authorizer;
-      let filter = ["=", ["PARAM", RESOURCE_IDS[resource]], ctx.params.id];
+      const filter = ["=", ["PARAM", RESOURCE_IDS[resource]], ctx.params.id];
       if (!authorizer.hasAccess(resource, 2)) {
         logUnauthorizedWarning(log);
-        return next();
+        return void next();
       }
-      let res = await db.query(resource, filter);
-      if (!res.length) return next();
+      const res = await db.query(resource, filter);
+      if (!res.length) return void next();
 
       const validate = authorizer.getValidator(resource, res[0]);
       if (!validate("delete")) {
         logUnauthorizedWarning(log);
-        return (ctx.status = 403);
+        return void (ctx.status = 403);
       }
 
       await apiFunctions.deleteResource(resource, ctx.params.id);
@@ -314,8 +315,9 @@ for (let [resource, flags] of Object.entries(resources)) {
 
       ctx.body = "";
     });
+  }
 
-  if (flags & RESOURCE_PUT)
+  if (flags & RESOURCE_PUT) {
     router.put(`/${resource}/:id`, async (ctx, next) => {
       const id = ctx.params.id;
 
@@ -328,30 +330,31 @@ for (let [resource, flags] of Object.entries(resources)) {
       const authorizer = ctx.state.authorizer;
       if (!authorizer.hasAccess(resource, 3)) {
         logUnauthorizedWarning(log);
-        return next();
+        return void next();
       }
 
-      let obj = ctx.request.body;
+      const obj = ctx.request.body;
 
       const validate = authorizer.getValidator(resource, obj);
       if (!validate("put")) {
         logUnauthorizedWarning(log);
-        return (ctx.status = 403);
+        return void (ctx.status = 403);
       }
 
-      let err = await apiFunctions.putResource(resource, id, obj);
+      const err = await apiFunctions.putResource(resource, id, obj);
 
       if (err) {
         log.message += " failed";
         logger.accessWarn(log);
         ctx.body = err;
-        return (ctx.status = 400);
+        return void (ctx.status = 400);
       }
 
       logger.accessInfo(log);
 
       ctx.body = "";
     });
+  }
 }
 
 router.put("/files/:id", async (ctx, next) => {
@@ -367,10 +370,10 @@ router.put("/files/:id", async (ctx, next) => {
   const authorizer = ctx.state.authorizer;
   if (!authorizer.hasAccess(resource, 3)) {
     logUnauthorizedWarning(log);
-    return next();
+    return void next();
   }
 
-  let metadata = {
+  const metadata = {
     fileType: ctx.request.headers["metadata.filetype"] || "",
     oui: ctx.request.headers["metadata.oui"] || "",
     productClass: ctx.request.headers["metadata.productclass"] || "",
@@ -380,16 +383,16 @@ router.put("/files/:id", async (ctx, next) => {
   const validate = authorizer.getValidator(resource, metadata);
   if (!validate("put")) {
     logUnauthorizedWarning(log);
-    return (ctx.status = 403);
+    return void (ctx.status = 403);
   }
 
-  let err = await apiFunctions.putFile(id, metadata, ctx.req);
+  const err = await apiFunctions.putFile(id, metadata, ctx.req);
 
   if (err) {
     log.message += " failed";
     logger.accessWarn(log);
     ctx.body = err;
-    return (ctx.status = 400);
+    return void (ctx.status = 400);
   }
 
   log.metadata = metadata;
@@ -406,22 +409,23 @@ router.post("/devices/:id/tasks", async (ctx, next) => {
   };
 
   const authorizer = ctx.state.authorizer;
-  let filter = ["=", ["PARAM", "DeviceID.ID"], ctx.params.id];
+  const filter = ["=", ["PARAM", "DeviceID.ID"], ctx.params.id];
   if (!authorizer.hasAccess("devices", 2)) {
     logUnauthorizedWarning(log);
-    return next();
+    return void next();
   }
-  let devices = await db.query("devices", filter);
-  if (!devices.length) return next();
+  const devices = await db.query("devices", filter);
+  if (!devices.length) return void next();
 
   const validate = authorizer.getValidator("devices", devices[0]);
-  for (let t of ctx.request.body)
+  for (const t of ctx.request.body) {
     if (!validate("task", t)) {
       logUnauthorizedWarning(log);
-      return (ctx.status = 403);
+      return void (ctx.status = 403);
     }
+  }
 
-  let res = await apiFunctions.postTasks(ctx.params.id, ctx.request.body);
+  const res = await apiFunctions.postTasks(ctx.params.id, ctx.request.body);
 
   log.tasks = res.tasks.map(t => t._id).join(",");
 
@@ -440,18 +444,18 @@ router.post("/devices/:id/tags", async (ctx, next) => {
   };
 
   const authorizer = ctx.state.authorizer;
-  let filter = ["=", ["PARAM", "DeviceID.ID"], ctx.params.id];
+  const filter = ["=", ["PARAM", "DeviceID.ID"], ctx.params.id];
   if (!authorizer.hasAccess("devices", 2)) {
     logUnauthorizedWarning(log);
-    return next();
+    return void next();
   }
-  let res = await db.query("devices", filter);
-  if (!res.length) return next();
+  const res = await db.query("devices", filter);
+  if (!res.length) return void next();
 
   const validate = authorizer.getValidator("devices", res[0]);
   if (!validate("tags", ctx.request.body)) {
     logUnauthorizedWarning(log);
-    return (ctx.status = 403);
+    return void (ctx.status = 403);
   }
 
   await apiFunctions.updateTags(ctx.params.id, ctx.request.body);

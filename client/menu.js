@@ -6,8 +6,8 @@ const menu = {
   view: vnode => {
     const active = { [vnode.attrs.page]: "active" };
 
-    let tabs = [];
-    if (window.authorizer.hasAccess("devices", 1))
+    const tabs = [];
+    if (window.authorizer.hasAccess("devices", 1)) {
       tabs.push(
         m(
           "li",
@@ -15,8 +15,9 @@ const menu = {
           m("a", { href: "#!/overview" }, "Overview")
         )
       );
+    }
 
-    if (window.authorizer.hasAccess("devices", 2))
+    if (window.authorizer.hasAccess("devices", 2)) {
       tabs.push(
         m(
           "li",
@@ -24,8 +25,9 @@ const menu = {
           m("a", { href: "#!/devices" }, "Devices")
         )
       );
+    }
 
-    if (window.authorizer.hasAccess("faults", 2))
+    if (window.authorizer.hasAccess("faults", 2)) {
       tabs.push(
         m(
           "li",
@@ -33,8 +35,9 @@ const menu = {
           m("a", { href: "#!/faults" }, "Faults")
         )
       );
+    }
 
-    if (window.authorizer.hasAccess("presets", 2))
+    if (window.authorizer.hasAccess("presets", 2)) {
       tabs.push(
         m(
           "li",
@@ -42,8 +45,9 @@ const menu = {
           m("a", { href: "#!/presets" }, "Presets")
         )
       );
+    }
 
-    if (window.authorizer.hasAccess("provisions", 2))
+    if (window.authorizer.hasAccess("provisions", 2)) {
       tabs.push(
         m(
           "li",
@@ -51,8 +55,9 @@ const menu = {
           m("a", { href: "#!/provisions" }, "Provisions")
         )
       );
+    }
 
-    if (window.authorizer.hasAccess("virtualParameters", 2))
+    if (window.authorizer.hasAccess("virtualParameters", 2)) {
       tabs.push(
         m(
           "li",
@@ -60,8 +65,9 @@ const menu = {
           m("a", { href: "#!/virtualParameters" }, "Virtual Parameters")
         )
       );
+    }
 
-    if (window.authorizer.hasAccess("files", 2))
+    if (window.authorizer.hasAccess("files", 2)) {
       tabs.push(
         m(
           "li",
@@ -69,6 +75,7 @@ const menu = {
           m("a", { href: "#!/files" }, "Files")
         )
       );
+    }
 
     return m("nav", m("ul", tabs));
   }

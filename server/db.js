@@ -22,18 +22,19 @@ const RESOURCE_COLLECTION = {
 };
 
 function getClient() {
-  if (!_clientPromise)
+  if (!_clientPromise) {
     _clientPromise = new Promise((resolve, reject) => {
       const CONNECTION_URL = config.server.mongodbConnectionUrl;
       mongodb.MongoClient.connect(
         CONNECTION_URL,
         { useNewUrlParser: true },
         (err, client) => {
-          if (err) return reject(err);
+          if (err) return void reject(err);
           resolve(client);
         }
       );
     });
+  }
 
   return _clientPromise;
 }
@@ -61,12 +62,13 @@ function query(resource, filter, options, callback) {
         .db(RESOURCE_DB[resource])
         .collection(RESOURCE_COLLECTION[resource] || resource);
       const cursor = collection.find(q);
-      if (options.projection)
+      if (options.projection) {
         cursor.project(
           resource === "devices"
             ? mongodbFunctions.processDeviceProjection(options.projection)
             : options.projection
         );
+      }
       if (options.skip) cursor.skip(options.skip);
       if (options.limit) cursor.limit(options.limit);
 
@@ -83,7 +85,7 @@ function query(resource, filter, options, callback) {
         cursor.sort(s);
       }
 
-      if (!callback)
+      if (!callback) {
         cursor.toArray((err, docs) => {
           if (err) return reject(err);
           if (resource === "devices")
@@ -98,7 +100,7 @@ function query(resource, filter, options, callback) {
             docs = docs.map(d => mongodbFunctions.flattenFile(d));
           return resolve(docs);
         });
-      else
+      } else {
         cursor.forEach(
           doc => {
             if (resource === "devices")
@@ -118,6 +120,7 @@ function query(resource, filter, options, callback) {
             else resolve();
           }
         );
+      }
     });
   });
 }
@@ -152,10 +155,11 @@ function count(resource, filter) {
 }
 
 function disconnect() {
-  if (_clientPromise)
+  if (_clientPromise) {
     _clientPromise.then(client => {
       client.close();
     });
+  }
 }
 
 exports.query = query;

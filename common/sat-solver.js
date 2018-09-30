@@ -33,11 +33,12 @@ function satisfiableAt(clauses, varVals, varnr, val) {
 
   // find next unassigned var to split
   let nextVar = 0;
-  for (let i = 1; i < varVals.length; i++)
+  for (let i = 1; i < varVals.length; i++) {
     if (varVals[i] === 0) {
       nextVar = i;
       break;
     }
+  }
 
   if (nextVar === 0) throw new Error("Error in satisfiableAt");
 
@@ -105,7 +106,7 @@ function unitPropagate(clauses, varVals) {
       let unassignedLit = 0; // 0 means none found for this clause
 
       for (let j = 0; j < clause.length; j++) {
-        let lit = clause[j];
+        const lit = clause[j];
         let nr, polarity;
         if (lit < 0) {
           nr = 0 - lit;
@@ -149,7 +150,7 @@ function unitPropagate(clauses, varVals) {
 
     // some units were derived: iterate the main loop
     for (let j = 0; j < derivedQueue.length; j++) {
-      let lit = derivedQueue[j];
+      const lit = derivedQueue[j];
       let nr, polarity;
       if (lit < 0) {
         nr = 0 - lit;

@@ -4,7 +4,7 @@ const parsimmon = require("parsimmon");
 
 // Turn escaped characters into real ones (e.g. "\\n" becomes "\n").
 function interpretEscapes(str) {
-  let escapes = {
+  const escapes = {
     b: "\b",
     f: "\f",
     n: "\n",
@@ -12,8 +12,8 @@ function interpretEscapes(str) {
     t: "\t"
   };
   return str.replace(/\\(u[0-9a-fA-F]{4}|[^u])/, (_, escape) => {
-    let type = escape.charAt(0);
-    let hex = escape.slice(1);
+    const type = escape.charAt(0);
+    const hex = escape.slice(1);
     if (type === "u") return String.fromCharCode(parseInt(hex, 16));
 
     if (escapes.hasOwnProperty(type)) return escapes[type];
@@ -27,7 +27,7 @@ function map(exp, callback) {
 
   let clone;
   for (let i = 1; i < exp.length; ++i) {
-    let sub = map(exp[i], callback);
+    const sub = map(exp[i], callback);
     if (sub !== exp[i]) {
       clone = clone || exp.slice();
       clone[i] = sub;
@@ -43,7 +43,7 @@ function binaryLeft(operatorsParser, nextParser) {
     parsimmon.seq(operatorsParser, nextParser).many(),
     (first, rest) =>
       rest.reduce((acc, ch) => {
-        let [op, another] = ch;
+        const [op, another] = ch;
         if (Array.isArray(acc) && op === acc[0]) return acc.concat([another]);
         if (Array.isArray(another) && op === another[0])
           return [op, acc].concat(another.slice(1));
@@ -315,8 +315,9 @@ function stringify(exp, level = 0) {
         .join(", ")})`
     );
   } else if (op === "PARAM") {
-    if (typeof exp[1] === "string") return wrap(exp[1]);
-    else if (Array.isArray(exp[1]) && exp[1][0] === "||")
+    if (typeof exp[1] === "string") {
+      return wrap(exp[1]);
+    } else if (Array.isArray(exp[1]) && exp[1][0] === "||") {
       return wrap(
         exp[1]
           .slice(1)
@@ -326,24 +327,27 @@ function stringify(exp, level = 0) {
           })
           .join("")
       );
-    else return wrap(`{${stringify(exp[1])}}`);
+    } else {
+      return wrap(`{${stringify(exp[1])}}`);
+    }
   } else if (op === "IS NULL" || op === "IS NOT NULL") {
     return wrap(`${stringify(exp[1], opLevels[op])} ${op}`);
   } else if (op === "LIKE" || op === "NOT LIKE") {
-    if (exp[3])
+    if (exp[3]) {
       return wrap(
         `${stringify(exp[1], opLevels[op])} ${op} ${stringify(
           exp[2],
           opLevels[op]
         )} ESCAPE ${stringify(exp[3], opLevels[op])}`
       );
-    else
+    } else {
       return wrap(
         `${stringify(exp[1], opLevels[op])} ${op} ${stringify(
           exp[2],
           opLevels[op]
         )}`
       );
+    }
   } else if (op in opLevels) {
     const parts = exp.slice(1).map((e, i) => {
       return stringify(e, opLevels[exp[0]] + Math.min(i - 1, 0));
@@ -357,10 +361,10 @@ function stringify(exp, level = 0) {
 }
 
 function parseLikePattern(pat, esc) {
-  let chars = pat.split("");
+  const chars = pat.split("");
 
   for (let i = 0; i < chars.length; ++i) {
-    let c = chars[i];
+    const c = chars[i];
     if (c === esc) {
       chars[i] = chars[i + 1] || "";
       chars[i + 1] = "";

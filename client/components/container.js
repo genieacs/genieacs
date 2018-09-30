@@ -12,10 +12,10 @@ const component = {
   view: vnode => {
     if (vnode.attrs.filter) {
       const filter = memoizedParse(vnode.attrs.filter);
-      if (!store.evaluateExpression(filter, vnode.attrs.device)) return;
+      if (!store.evaluateExpression(filter, vnode.attrs.device)) return null;
     }
 
-    let children = Object.values(vnode.attrs.components).map(c => {
+    const children = Object.values(vnode.attrs.components).map(c => {
       if (typeof c !== "object") return `${c}`;
       const attrs = Object.assign({}, vnode.attrs, c);
       return m(components.get(attrs.type), attrs);

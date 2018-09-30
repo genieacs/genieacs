@@ -7,7 +7,7 @@ function or(cnf1, cnf2) {
   else if (cnf2.length === 0) return cnf1;
 
   if (cnf1.length > cnf2.length) {
-    let c = cnf1;
+    const c = cnf1;
     cnf1 = cnf2;
     cnf2 = c;
   }
@@ -53,10 +53,11 @@ function booleanCnf(exp) {
     return e;
   });
 
-  for (let [k, v] of ranges)
+  for (const [k, v] of ranges) {
     if (k.endsWith(":number"))
       ranges.set(k, Array.from(v).sort((a, b) => a - b));
     else ranges.set(k, Array.from(v).sort());
+  }
 
   const expressions = new Map();
   const mutuallyExclusive = new Map();
@@ -113,11 +114,12 @@ function booleanCnf(exp) {
 
   function getLikeVariables(lhs, pat, esc) {
     const vars = [];
-    let pats = likePatterns.get(lhs);
+    const pats = likePatterns.get(lhs);
     pat = pats.get(`${esc || ""}:${pat}`);
-    for (let p of pats.values())
+    for (const p of pats.values()) {
       if (pat === p || likePatternIncludes(pat, p))
         vars.push(`${lhs}:like:${JSON.stringify(p)}`);
+    }
 
     return vars.map(key => {
       let f = expressions.get(key);
@@ -185,7 +187,7 @@ function booleanCnf(exp) {
         let rhs = JSON.stringify(clause[2]);
         // For consistency
         if (rhs > lhs) {
-          let t = rhs;
+          const t = rhs;
           rhs = lhs;
           lhs = t;
           op = { ">": "<", ">=": "<=", "<": ">", "<=": ">=" }[op] || op;
@@ -218,8 +220,8 @@ function booleanCnf(exp) {
 
   const cnf = recursive(exp, false);
 
-  for (let m of mutuallyExclusive.values()) {
-    let ar = Array.from(m);
+  for (const m of mutuallyExclusive.values()) {
+    const ar = Array.from(m);
     for (let i = 0; i < ar.length; ++i)
       for (let j = i + 1; j < ar.length; ++j) cnf.push([0 - ar[i], 0 - ar[j]]);
   }

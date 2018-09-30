@@ -37,7 +37,7 @@ const attributes = [
   { id: "metadata.version", label: "Version" }
 ];
 
-let formData = {
+const formData = {
   resource: "files",
   attributes: attributes
     .slice(1) // remove _id from new object form
@@ -55,21 +55,21 @@ const unpackSmartQuery = memoize(query => {
 function putActionHandler(action, object) {
   return new Promise((resolve, reject) => {
     if (action === "save") {
-      let file = object["file"] ? object["file"][0] : null;
+      const file = object["file"] ? object["file"][0] : null;
       delete object["file"];
 
-      if (!file) return reject(new Error("File not selected"));
+      if (!file) return void reject(new Error("File not selected"));
 
-      let id = file.name;
+      const id = file.name;
 
       store
         .resourceExists("files", id)
         .then(exists => {
           if (exists) {
             store.fulfill(0, Date.now());
-            return reject(new Error("File already exists"));
+            return void reject(new Error("File already exists"));
           }
-          let headers = Object.assign(
+          const headers = Object.assign(
             {
               "Content-Type": "application/octet-stream",
               Accept: "application/octet-stream"
@@ -81,9 +81,7 @@ function putActionHandler(action, object) {
             method: "PUT",
             headers: headers,
             url: `/api/files/${encodeURIComponent(id)}`,
-            serialize: body => {
-              return body; // Identity function to prevent JSON.parse on blob data
-            },
+            serialize: body => body, // Identity function to prevent JSON.parse on blob data
             data: file
           })
             .then(() => {
@@ -104,8 +102,8 @@ function putActionHandler(action, object) {
 }
 
 const getDownloadUrl = memoize(filter => {
-  let cols = {};
-  for (let attr of attributes) cols[attr.label] = attr.id;
+  const cols = {};
+  for (const attr of attributes) cols[attr.label] = attr.id;
   return `/api/files.csv?${m.buildQueryString({
     filter: filter,
     columns: JSON.stringify(cols)
@@ -113,10 +111,11 @@ const getDownloadUrl = memoize(filter => {
 });
 
 function init(args) {
-  if (!window.authorizer.hasAccess("files", 2))
+  if (!window.authorizer.hasAccess("files", 2)) {
     return Promise.reject(
       new Error("You are not authorized to view this page")
     );
+  }
 
   const sort = args.sort;
   const filter = args.filter;
@@ -137,16 +136,17 @@ function renderTable(
     type: "checkbox",
     checked: files.length && selected.size === files.length,
     onchange: e => {
-      for (let file of files)
+      for (const file of files) {
         if (e.target.checked) selected.add(file["_id"]);
         else selected.delete(file["_id"]);
+      }
     },
     disabled: !total
   });
 
   const labels = [m("th", selectAll)];
-  for (let attr of attributes) {
-    let label = attr.label;
+  for (const attr of attributes) {
+    const label = attr.label;
 
     let direction = 1;
 
@@ -154,7 +154,7 @@ function renderTable(
     if (sort[attr.id] > 0) symbol = "\u2bc6";
     else if (sort[attr.id] < 0) symbol = "\u2bc5";
 
-    let sortable = m(
+    const sortable = m(
       "button",
       {
         onclick: () => {
@@ -168,9 +168,9 @@ function renderTable(
     labels.push(m("th", [label, sortable]));
   }
 
-  let rows = [];
-  for (let file of files) {
-    let checkbox = m("input", {
+  const rows = [];
+  for (const file of files) {
+    const checkbox = m("input", {
       type: "checkbox",
       checked: selected.has(file["_id"]),
       onchange: e => {
@@ -183,11 +183,12 @@ function renderTable(
       }
     });
 
-    let tds = [m("td", checkbox)];
-    for (let attr of attributes)
+    const tds = [m("td", checkbox)];
+    for (const attr of attributes) {
       if (attr.id == "script")
         tds.push(m("td", { title: file[attr.id] }, file[attr.id]));
       else tds.push(m("td", file[attr.id]));
+    }
 
     rows.push(
       m(
@@ -210,7 +211,7 @@ function renderTable(
   if (!rows.length)
     rows.push(m("tr.empty", m("td", { colspan: labels.length }, "No files")));
 
-  let footerElements = [];
+  const footerElements = [];
   if (total != null) footerElements.push(`${files.length}/${total}`);
   else footerElements.push(`${files.length}`);
 
@@ -226,12 +227,13 @@ function renderTable(
     )
   );
 
-  if (downloadUrl)
+  if (downloadUrl) {
     footerElements.push(
       m("a.download-csv", { href: downloadUrl, download: "" }, "Download")
     );
+  }
 
-  let tfoot = m(
+  const tfoot = m(
     "tfoot",
     m("tr", m("td", { colspan: labels.length }, footerElements))
   );
@@ -261,14 +263,14 @@ function renderTable(
     )
   ];
 
-  if (window.authorizer.hasAccess("files", 3))
+  if (window.authorizer.hasAccess("files", 3)) {
     buttons.push(
       m(
         "button.primary",
         {
           title: "Create new file",
           onclick: () => {
-            let cb = () => {
+            const cb = () => {
               return m(
                 putForm,
                 Object.assign(
@@ -295,6 +297,7 @@ function renderTable(
         "New"
       )
     );
+  }
 
   return [
     m(
@@ -317,13 +320,13 @@ const component = {
     }
 
     function onFilterChanged(filter) {
-      let ops = { filter };
+      const ops = { filter };
       if (vnode.attrs.sort) ops.sort = vnode.attrs.sort;
       m.route.set("/files", ops);
     }
 
     function onSortChange(sort) {
-      let ops = { sort };
+      const ops = { sort };
       if (vnode.attrs.filter) ops.filter = vnode.attrs.filter;
       m.route.set("/files", ops);
     }
@@ -332,17 +335,18 @@ const component = {
     let filter = vnode.attrs.filter ? memoizedParse(vnode.attrs.filter) : true;
     filter = unpackSmartQuery(filter);
 
-    let files = store.fetch("files", filter, {
+    const files = store.fetch("files", filter, {
       limit: vnode.state.showCount || PAGE_SIZE,
       sort: sort
     });
 
-    let count = store.count("files", filter);
+    const count = store.count("files", filter);
 
-    let selected = new Set();
-    if (vnode.state.selected)
-      for (let file of files.value)
+    const selected = new Set();
+    if (vnode.state.selected) {
+      for (const file of files.value)
         if (vnode.state.selected.has(file["_id"])) selected.add(file["_id"]);
+    }
     vnode.state.selected = selected;
 
     const downloadUrl = getDownloadUrl(vnode.attrs.filter);

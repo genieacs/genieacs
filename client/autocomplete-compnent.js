@@ -20,7 +20,7 @@ class Autocomplete {
 
     el.addEventListener("focus", () => {
       this.element = el;
-      let domRect = el.getBoundingClientRect();
+      const domRect = el.getBoundingClientRect();
       this.container.style.left = `${domRect.left}px`;
       this.container.style.width = `${domRect.width}px`;
       this.container.style.top = `${domRect.bottom}px`;
@@ -36,13 +36,15 @@ class Autocomplete {
 
     el.addEventListener("keydown", e => {
       if (this.element !== el) return;
-      if (e.key === "Escape") this.hide();
-      else if (e.key === "Enter")
+      if (e.key === "Escape") {
+        this.hide();
+      } else if (e.key === "Enter") {
         if (this.default != null) {
           el.value = this.default;
           e.preventDefault();
           this.update();
         }
+      }
     });
 
     el.addEventListener("input", () => {
@@ -94,10 +96,10 @@ class Autocomplete {
 
       this.default = suggestions[0];
 
-      for (let suggestion of suggestions) {
-        let e = document.createElement("div");
+      for (const suggestion of suggestions) {
+        const e = document.createElement("div");
         e.className = "suggestion";
-        let t = document.createTextNode(suggestion);
+        const t = document.createTextNode(suggestion);
         e.appendChild(t);
         e.addEventListener("mousedown", ev => {
           ev.preventDefault();

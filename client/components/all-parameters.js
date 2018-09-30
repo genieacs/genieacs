@@ -12,7 +12,7 @@ const component = {
   view: vnode => {
     const device = vnode.attrs.device;
 
-    let search = m("input", {
+    const search = m("input", {
       type: "text",
       placeholder: "Search parameters",
       oninput: e => {
@@ -20,10 +20,10 @@ const component = {
       }
     });
 
-    let instanceRegex = /\.[0-9]+$/;
+    const instanceRegex = /\.[0-9]+$/;
     let re;
     if (vnode.state.searchString) {
-      let keywords = vnode.state.searchString.split(" ").filter(s => s);
+      const keywords = vnode.state.searchString.split(" ").filter(s => s);
       if (keywords.length)
         re = new RegExp(keywords.map(s => escapeRegExp(s)).join(".*"), "i");
     }
@@ -31,22 +31,22 @@ const component = {
     const rows = Object.keys(device)
       .sort()
       .map(k => {
-        let p = device[k];
-        let val = [];
-        let attrs = {};
+        const p = device[k];
+        const val = [];
+        const attrs = {};
         if (re) {
-          let str = p.value && p.value[0] ? `${k} ${p.value[0]}` : k;
+          const str = p.value && p.value[0] ? `${k} ${p.value[0]}` : k;
           if (!re.test(str)) attrs.style = "display: none;";
         }
 
-        if (p.object === false)
+        if (p.object === false) {
           val.push(
             m(
               components.get("parameter"),
               Object.assign({ device: device, parameter: k })
             )
           );
-        else if (p.object && p.writable)
+        } else if (p.object && p.writable) {
           if (instanceRegex.test(k)) {
             val.push(
               m(
@@ -82,6 +82,7 @@ const component = {
               )
             );
           }
+        }
 
         val.push(
           m(

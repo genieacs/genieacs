@@ -18,7 +18,7 @@ function close(callback) {
 }
 
 function render() {
-  if (overlayCallback)
+  if (overlayCallback) {
     return m(
       ".overlay-wrapper",
       {
@@ -50,6 +50,7 @@ function render() {
         overlayCallback()
       )
     );
+  }
 
   return null;
 }

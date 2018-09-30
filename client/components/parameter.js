@@ -11,27 +11,22 @@ const memoizedParse = memoize(expression.parse);
 
 const evaluateParam = memoize((exp, obj, now) => {
   let timestamp = now;
-  let params = new Set();
-  let value = expression.evaluate(
-    memoizedParse(exp),
-    obj,
-    now,
-    e => {
-      if (Array.isArray(e)) {
-        if (e[0] === "PARAM") {
-          params.add(e[1]);
-          if (!Array.isArray(e[1])) {
-            let p = obj[e[1]];
-            if (p && p.valueTimestamp)
-              timestamp = Math.min(timestamp, p.valueTimestamp);
-          }
+  const params = new Set();
+  const value = expression.evaluate(memoizedParse(exp), obj, now, e => {
+    if (Array.isArray(e)) {
+      if (e[0] === "PARAM") {
+        params.add(e[1]);
+        if (!Array.isArray(e[1])) {
+          const p = obj[e[1]];
+          if (p && p.valueTimestamp)
+            timestamp = Math.min(timestamp, p.valueTimestamp);
         }
-        if (e[0] === "FUNC" && e[1] === "DATE_STRING" && !Array.isArray(e[2]))
-          return new Date(e[2]).toLocaleString();
       }
-      return e;
+      if (e[0] === "FUNC" && e[1] === "DATE_STRING" && !Array.isArray(e[2]))
+        return new Date(e[2]).toLocaleString();
     }
-  );
+    return e;
+  });
 
   let parameter = params.size === 1 ? params.values().next().value : null;
   if (Array.isArray(parameter)) parameter = null;
@@ -42,7 +37,7 @@ const component = {
   view: vnode => {
     const device = vnode.attrs.device;
 
-    let { value, timestamp, parameter } = evaluateParam(
+    const { value, timestamp, parameter } = evaluateParam(
       vnode.attrs.parameter,
       vnode.attrs.device,
       store.getTimestamp()
@@ -51,7 +46,7 @@ const component = {
     if (value == null) return null;
 
     let edit;
-    if (device[parameter] && device[parameter].writable)
+    if (device[parameter] && device[parameter].writable) {
       edit = m(
         "button",
         {
@@ -72,6 +67,7 @@ const component = {
         },
         "✎"
       );
+    }
 
     return m(
       "span.parameter-value",

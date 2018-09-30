@@ -3,21 +3,21 @@
 import m from "mithril";
 
 const drawChart = function(chartData) {
-  let slices = chartData.slices;
-  let total = Array.from(Object.values(chartData.slices)).reduce(
+  const slices = chartData.slices;
+  const total = Array.from(Object.values(chartData.slices)).reduce(
     (a, s) => a + (s.count.value || 0),
     0
   );
-  let legend = [];
-  let paths = [];
-  let links = [];
+  const legend = [];
+  const paths = [];
+  const links = [];
   let currentProgressPercentage = 0;
   let startX = Math.cos(2 * Math.PI * currentProgressPercentage) * 100;
   let startY = Math.sin(2 * Math.PI * currentProgressPercentage) * 100;
   let endX, endY;
 
-  for (let slice of Object.values(slices)) {
-    let percent = total > 0 ? (slice.count.value || 0) / total : 0;
+  for (const slice of Object.values(slices)) {
+    const percent = total > 0 ? (slice.count.value || 0) / total : 0;
     legend.push(
       m(".legend-line", [
         m("span.color", {
@@ -41,9 +41,9 @@ const drawChart = function(chartData) {
       currentProgressPercentage += percent;
       endX = Math.cos(2 * Math.PI * currentProgressPercentage) * 100;
       endY = Math.sin(2 * Math.PI * currentProgressPercentage) * 100;
-      let isBigArc = percent > 0.5 ? 1 : 0;
+      const isBigArc = percent > 0.5 ? 1 : 0;
 
-      let sketch =
+      const sketch =
         `M ${startX} ${startY} ` + // Move to the starting point
         `A 100 100 0 ${isBigArc} 1 ${endX} ${endY} ` + // Draw an Arc from starting point to ending point
         `L 0 0 z`; // complete the shape by drawing a line to the center of circle
@@ -58,9 +58,9 @@ const drawChart = function(chartData) {
         })
       );
 
-      let percentageX =
+      const percentageX =
         Math.cos(2 * Math.PI * (currentProgressPercentage - percent / 2)) * 50;
-      let percentageY =
+      const percentageY =
         Math.sin(2 * Math.PI * (currentProgressPercentage - percent / 2)) * 50;
 
       links.push(

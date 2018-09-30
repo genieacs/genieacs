@@ -6,7 +6,6 @@ const url = require("url");
 
 const config = require("./config");
 const db = require("./db");
-const expression = require("../common/expression");
 const mongodbFunctions = require("./mongodb-functions");
 
 function filterToMongoQuery(filter, negate = false, res = {}) {
@@ -25,7 +24,7 @@ function filterToMongoQuery(filter, negate = false, res = {}) {
     filterToMongoQuery(filter[1], !negate, res);
   } else if (op === "=") {
     const param = filter[1][1];
-    let p = (res[param] = res[param] || {});
+    const p = (res[param] = res[param] || {});
     if (negate) p["$ne"] = filter[2];
     else p["$eq"] = filter[2];
   } else if (op === "<>") {
@@ -69,15 +68,15 @@ function filterToMongoQuery(filter, negate = false, res = {}) {
 
 function deleteResource(resource, id) {
   return new Promise((resolve, reject) => {
-    let resourceUrl =
+    const resourceUrl =
       resource === "virtualParameters" ? "virtual_parameters" : resource;
-    let options = url.parse(
+    const options = url.parse(
       `${config.server.nbi}${resourceUrl}/${encodeURIComponent(id)}`
     );
 
     options.method = "DELETE";
 
-    let _http = options.protocol === "https:" ? https : http;
+    const _http = options.protocol === "https:" ? https : http;
 
     _http
       .request(options, res => {
@@ -91,13 +90,13 @@ function deleteResource(resource, id) {
 }
 
 function postTask(task, connectionRequest, callback) {
-  let options = url.parse(
+  const options = url.parse(
     `${config.server.nbi}devices/${encodeURIComponent(task.device)}/tasks${
       connectionRequest ? "?connection_request" : ""
     }`
   );
   options.method = "POST";
-  let _http = options.protocol === "https:" ? https : http;
+  const _http = options.protocol === "https:" ? https : http;
 
   _http
     .request(options, res => {
@@ -114,14 +113,14 @@ function postTask(task, connectionRequest, callback) {
       });
 
       res.on("end", () => {
-        let buf = new Buffer(bytes);
+        const buf = Buffer.allocUnsafe(bytes);
         let o = 0;
-        for (let c of chunks) {
+        for (const c of chunks) {
           c.copy(buf, o, 0, c.length);
           o += c.length;
         }
         try {
-          let t = JSON.parse(buf);
+          const t = JSON.parse(buf);
           let connectionRequestStatus;
           if (connectionRequest) {
             connectionRequestStatus = "OK";
@@ -144,16 +143,16 @@ function postTask(task, connectionRequest, callback) {
 function postTasks(deviceId, tasks) {
   return new Promise((resolve, reject) => {
     let connectionRequestStatus;
-    let promises = [];
-    for (let [idx, task] of tasks.entries()) {
+    const promises = [];
+    for (const [idx, task] of tasks.entries()) {
       task.device = deviceId;
       promises.push(
         new Promise((res, rej) => {
-          let conReq = idx === tasks.length - 1;
+          const conReq = idx === tasks.length - 1;
           delete task._id;
           task.expiry = 5;
           postTask(task, conReq, (err, t, crs) => {
-            if (err) return rej(err);
+            if (err) return void rej(err);
             if (conReq) connectionRequestStatus = crs;
             res({ _id: t._id, status: "pending" });
           });
@@ -163,14 +162,15 @@ function postTasks(deviceId, tasks) {
 
     Promise.all(promises)
       .then(statuses => {
-        if (connectionRequestStatus !== "OK")
-          return resolve({
+        if (connectionRequestStatus !== "OK") {
+          return void resolve({
             connectionRequest: connectionRequestStatus,
             tasks: statuses
           });
+        }
 
-        let promises2 = [];
-        for (let s of statuses) {
+        const promises2 = [];
+        for (const s of statuses) {
           promises2.push(db.query("tasks", ["=", ["PARAM", "_id"], s._id]));
           promises2.push(
             db.query("faults", [
@@ -183,7 +183,7 @@ function postTasks(deviceId, tasks) {
 
         Promise.all(promises2)
           .then(res => {
-            for (let [i, r] of statuses.entries()) {
+            for (const [i, r] of statuses.entries()) {
               if (res[i * 2].length === 0) {
                 r.status = "done";
               } else if (res[i * 2 + 1].length === 1) {
@@ -216,7 +216,7 @@ function updateTags(deviceId, tags) {
           );
           if (onOff) options.method = "POST";
           else options.method = "DELETE";
-          let _http = options.protocol === "https:" ? https : http;
+          const _http = options.protocol === "https:" ? https : http;
 
           _http
             .request(options, res => {
@@ -237,17 +237,19 @@ function ping(host) {
       `${config.server.nbi}ping/${encodeURIComponent(host)}`
     );
 
-    let _http = options.protocol === "https:" ? https : http;
+    const _http = options.protocol === "https:" ? https : http;
     _http
       .request(options, res => {
         if (res.statusCode === 404) {
           res.resume();
-          return resolve({});
+          return void resolve({});
         }
 
         if (res.statusCode !== 200) {
           res.resume();
-          return reject(new Error(`Unexpected status code ${res.statusCode}`));
+          return void reject(
+            new Error(`Unexpected status code ${res.statusCode}`)
+          );
         }
 
         const chunks = [];
@@ -258,18 +260,19 @@ function ping(host) {
         });
 
         res.on("end", () => {
-          let buf = new Buffer(bytes);
+          const buf = Buffer.allocUnsafe(bytes);
           let o = 0;
-          for (let c of chunks) {
+          for (const c of chunks) {
             c.copy(buf, o, 0, c.length);
             o += c.length;
           }
-          let m = buf
+          const m = buf
             .toString()
             .match(
               /(\d) packets transmitted, (\d) received, ([\d.%]+) packet loss[^]*([\d.]+)\/([\d.]+)\/([\d.]+)\/([\d.]+)/
             );
-          if (!m) return reject(new Error("Could not parse ping response"));
+          if (!m)
+            return void reject(new Error("Could not parse ping response"));
 
           resolve({
             packetsTransmitted: +m[1],
@@ -288,15 +291,15 @@ function ping(host) {
 
 function putResource(resource, id, data) {
   return new Promise((resolve, reject) => {
-    let resourceUrl =
+    const resourceUrl =
       resource === "virtualParameters" ? "virtual_parameters" : resource;
-    let options = url.parse(
+    const options = url.parse(
       `${config.server.nbi}${resourceUrl}/${encodeURIComponent(id)}`
     );
 
     options.method = "PUT";
 
-    let _http = options.protocol === "https:" ? https : http;
+    const _http = options.protocol === "https:" ? https : http;
 
     if (resource === "presets") data = mongodbFunctions.preProcessPreset(data);
 
@@ -306,7 +309,7 @@ function putResource(resource, id, data) {
     if (resource === "virtualParameters")
       data = mongodbFunctions.preProcessVirtualParameters(data);
 
-    let body = typeof data !== "string" ? JSON.stringify(data) : data;
+    const body = typeof data !== "string" ? JSON.stringify(data) : data;
     _http
       .request(options, res => {
         const chunks = [];
@@ -317,14 +320,16 @@ function putResource(resource, id, data) {
         });
 
         res.on("end", () => {
-          if (res.statusCode === 200) return resolve();
-          else if (res.statusCode !== 400)
-            return reject(
+          if (res.statusCode === 200) {
+            return void resolve();
+          } else if (res.statusCode !== 400) {
+            return void reject(
               new Error(`Unexpected status code ${res.statusCode}`)
             );
-          let buf = new Buffer(bytes);
+          }
+          const buf = Buffer.allocUnsafe(bytes);
           let o = 0;
-          for (let c of chunks) {
+          for (const c of chunks) {
             c.copy(buf, o, 0, c.length);
             o += c.length;
           }
@@ -337,17 +342,22 @@ function putResource(resource, id, data) {
 
 function putFile(id, metadata, fileStream) {
   return new Promise((resolve, reject) => {
-    let options = url.parse(
+    const options = url.parse(
       `${config.server.nbi}files/${encodeURIComponent(id)}`
     );
 
     options.method = "PUT";
     options.headers = Object.assign({}, metadata);
-    let _http = options.protocol === "https:" ? https : http;
-    let req = _http.request(options, res => {
+    const _http = options.protocol === "https:" ? https : http;
+    const req = _http.request(options, res => {
       res.resume();
-      if (res.statusCode === 201) return resolve();
-      else return reject(new Error(`Unexpected status code ${res.statusCode}`));
+      if (res.statusCode === 201) {
+        return void resolve();
+      } else {
+        return void reject(
+          new Error(`Unexpected status code ${res.statusCode}`)
+        );
+      }
     });
     fileStream.pipe(req);
   });

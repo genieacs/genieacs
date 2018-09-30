@@ -14,7 +14,7 @@ const component = {
   view: vnode => {
     const device = vnode.attrs.device;
     const chart = CHARTS[vnode.attrs.chart];
-    for (let slice of Object.values(chart.slices)) {
+    for (const slice of Object.values(chart.slices)) {
       const filter = memoizedParse(slice.filter);
       if (store.evaluateExpression(filter, device)) {
         const dot = m(
@@ -35,6 +35,7 @@ const component = {
         return m("span.overview-dot", dot, `${slice.label}`);
       }
     }
+    return null;
   }
 };
 

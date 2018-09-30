@@ -20,7 +20,7 @@ const component = {
     const thead = m("thead", m("tr", headers));
 
     const rows = [];
-    for (let f of faults.value)
+    for (const f of faults.value) {
       rows.push([
         m("td", f["channel"]),
         m("td", f["code"]),
@@ -51,14 +51,17 @@ const component = {
           )
         )
       ]);
+    }
 
     let tbody;
-    if (rows.length) tbody = m("tbody", rows.map(r => m("tr", r)));
-    else
+    if (rows.length) {
+      tbody = m("tbody", rows.map(r => m("tr", r)));
+    } else {
       tbody = m(
         "tbody",
         m("tr.empty", m("td", { colspan: headers.length }, "No faults"))
       );
+    }
 
     return m("table.table", thead, tbody);
   }

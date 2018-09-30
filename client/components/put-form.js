@@ -12,8 +12,8 @@ const singular = {
 
 function createField(current, attr, focus) {
   if (attr.type === "combo") {
-    let options = [m("option", { value: "" }, "--Please choose--")];
-    for (let op of attr.options) options.push(m("option", { value: op }, op));
+    const options = [m("option", { value: "" }, "--Please choose--")];
+    for (const op of attr.options) options.push(m("option", { value: op }, op));
 
     let selected = "";
     if (attr.options.includes(current.object[attr.id]))
@@ -40,7 +40,7 @@ function createField(current, attr, focus) {
       name: attr.id,
       value: current.object[attr.id],
       oncreate: _vnode => {
-        let editor = codeMirror.fromTextArea(_vnode.dom, {
+        const editor = codeMirror.fromTextArea(_vnode.dom, {
           mode: "javascript",
           lineNumbers: true
         });
@@ -87,21 +87,22 @@ function createField(current, attr, focus) {
 
 const component = {
   view: vnode => {
-    let actionHandler = vnode.attrs.actionHandler;
-    let attributes = vnode.attrs.attributes;
-    let resource = vnode.attrs.resource;
-    let base = vnode.attrs.base || {};
-    if (!vnode.state.current)
+    const actionHandler = vnode.attrs.actionHandler;
+    const attributes = vnode.attrs.attributes;
+    const resource = vnode.attrs.resource;
+    const base = vnode.attrs.base || {};
+    if (!vnode.state.current) {
       vnode.state.current = {
         isNew: !base["_id"],
         object: Object.assign({}, base)
       };
+    }
 
-    let current = vnode.state.current;
+    const current = vnode.state.current;
 
-    let form = [];
+    const form = [];
     let focused = false;
-    for (let attr of attributes) {
+    for (const attr of attributes) {
       let focus = false;
       if (!focused && (current.isNew || attr.id !== "_id"))
         focus = focused = true;
@@ -117,9 +118,9 @@ const component = {
     }
 
     const submit = m("button.primary", { type: "submit" }, "Save");
-    let buttons = [submit];
+    const buttons = [submit];
 
-    if (!current.isNew)
+    if (!current.isNew) {
       buttons.push(
         m(
           "button.primary",
@@ -135,10 +136,11 @@ const component = {
           "Delete"
         )
       );
+    }
 
     form.push(m(".actions-bar", buttons));
 
-    let children = [
+    const children = [
       m("h1", `${current.isNew ? "New" : "Editing"} ${singular[resource]}`),
       m(
         "form",
@@ -147,7 +149,7 @@ const component = {
             e.redraw = false;
             e.target.onsubmit = null;
             e.preventDefault();
-            for (let elem of e.target.elements) elem.disabled = true;
+            for (const elem of e.target.elements) elem.disabled = true;
             submit.dom.textContent = "Loading ...";
             actionHandler("save", current.object);
           }

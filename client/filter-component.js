@@ -17,8 +17,8 @@ const getAutocomplete = memoize(resource => {
 
 function parseFilter(f) {
   if (/^[\s0-9a-zA-Z]+:/.test(f)) {
-    let k = f.split(":", 1)[0];
-    let v = f.slice(k.length + 1).trim();
+    const k = f.split(":", 1)[0];
+    const v = f.slice(k.length + 1).trim();
     return ["FUNC", "Q", k.trim(), v];
   }
   return expression.parse(f);
@@ -35,7 +35,7 @@ const splitFilter = memoize(filter => {
   const list = [];
   const f = expression.parse(filter);
   if (Array.isArray(f) && f[0] === "AND")
-    for (let ff of f.slice(1)) list.push(stringifyFilter(ff));
+    for (const ff of f.slice(1)) list.push(stringifyFilter(ff));
   else list.push(stringifyFilter(f));
 
   list.push("");
@@ -59,6 +59,7 @@ const component = {
         } catch (err) {
           vnode.state.filterInvalid |= 1 << idx;
         }
+        return null;
       });
       vnode.state.filterList.push("");
 

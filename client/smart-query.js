@@ -3,7 +3,7 @@
 import config from "./config";
 import * as expression from "../common/expression";
 
-let resources = {
+const resources = {
   devices: {},
   faults: {
     Device: { parameter: ["PARAM", "device"], type: "string" },
@@ -35,11 +35,12 @@ let resources = {
   }
 };
 
-for (let v of Object.values(config.ui.filters))
+for (const v of Object.values(config.ui.filters)) {
   resources.devices[v.label] = {
     parameter: expression.parse(v.parameter),
     type: (v.type || "").split(",").map(s => s.trim())
   };
+}
 
 function getLabels(resource) {
   if (!resources[resource]) return [];
@@ -48,14 +49,15 @@ function getLabels(resource) {
 
 function queryNumber(param, value) {
   let op = "=";
-  for (let o of ["<>", "=", "<=", "<", ">=", ">"])
+  for (const o of ["<>", "=", "<=", "<", ">=", ">"]) {
     if (value.startsWith(o)) {
       op = o;
       value = value.slice(o.length).trim();
       break;
     }
+  }
 
-  let v = parseInt(value);
+  const v = parseInt(value);
   if (v !== +value) return null;
 
   return [op, param, v];
@@ -68,12 +70,13 @@ function queryString(param, value) {
 function queryMac(param, value) {
   value = value.replace(/[^a-f0-9]/gi, "").toLowerCase();
   if (!value) return null;
-  if (value.length === 12)
+  if (value.length === 12) {
     return [
       "LIKE",
       ["FUNC", "LOWER", param],
       value.replace(/(..)(?!$)/g, "$1:")
     ];
+  }
 
   return [
     "OR",
@@ -90,20 +93,20 @@ function unpack(resource, label, value) {
   if (!resources[resource]) return null;
   const type = resources[resource][label].type;
   value = value.trim();
-  let res = ["OR"];
+  const res = ["OR"];
 
   if (type.length === 0 || type.includes("number")) {
-    let q = queryNumber(resources[resource][label].parameter, value);
+    const q = queryNumber(resources[resource][label].parameter, value);
     if (q) res.push(q);
   }
 
   if (type.length === 0 || type.includes("string")) {
-    let q = queryString(resources[resource][label].parameter, value);
+    const q = queryString(resources[resource][label].parameter, value);
     if (q) res.push(q);
   }
 
   if (type.includes("mac")) {
-    let q = queryMac(resources[resource][label].parameter, value);
+    const q = queryMac(resources[resource][label].parameter, value);
     if (q) res.push(q);
   }
 

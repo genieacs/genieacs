@@ -42,11 +42,10 @@ function getPermissionSets(roles) {
             "virtualParameters",
             "files"
           ].includes(k)
-        )
+        ) {
           if (v.filter == null || v.filter === "") v.filter = true;
-          else {
-            v.filter = expression.parse(v.filter);
-          }
+          else v.filter = expression.parse(v.filter);
+        }
       }
       return p;
     });
@@ -76,11 +75,13 @@ koa.use(
 );
 
 koa.use(async (ctx, next) => {
-  if (ctx.state.user && ctx.state.user.roles)
+  if (ctx.state.user && ctx.state.user.roles) {
     ctx.state.authorizer = new Authorizer(
       getPermissionSets(ctx.state.user.roles)
     );
-  else ctx.state.authorizer = new Authorizer([]);
+  } else {
+    ctx.state.authorizer = new Authorizer([]);
+  }
 
   return next();
 });
@@ -89,7 +90,7 @@ router.post("/login", async ctx => {
   const username = ctx.request.body.username;
   const password = ctx.request.body.password;
 
-  let log = {
+  const log = {
     message: "Log in",
     context: ctx,
     username: username
@@ -110,10 +111,9 @@ router.post("/login", async ctx => {
     logger.accessWarn(log);
   }
 
-  let roles;
-  roles = await authSimple(username, password);
+  const roles = await authSimple(username, password);
 
-  if (roles) return success(roles, "simple");
+  if (roles) return void success(roles, "simple");
 
   failure();
 });
@@ -172,7 +172,7 @@ koa.use(
 koa.use(router.routes());
 koa.use(koaStatic("./public"));
 
-let server = http
+const server = http
   .createServer(koa.callback())
   .listen(config.server.port, config.server.interface);
 

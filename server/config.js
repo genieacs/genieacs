@@ -3,7 +3,7 @@
 const fs = require("fs");
 const configFile = JSON.parse(fs.readFileSync("./config.json"));
 
-let config;
+const config = loadConfig(configFile);
 
 function getClientConfig() {
   return Object.assign({}, config, {
@@ -32,7 +32,5 @@ function loadConfig(conf, root = {}) {
   }
   return root;
 }
-
-config = loadConfig(configFile);
 
 module.exports = Object.assign({}, config, { getClientConfig });

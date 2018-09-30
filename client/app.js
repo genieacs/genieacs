@@ -51,14 +51,14 @@ function pagify(pageName, page) {
     if (!page.init) {
       state = null;
       fulfill();
-      return;
+      return null;
     }
 
     return new Promise(resolve => {
       page
         .init(args)
         .then(st => {
-          if (!st) return m.route.set("/");
+          if (!st) return void m.route.set("/");
           state = st;
           resolve();
           fulfill();

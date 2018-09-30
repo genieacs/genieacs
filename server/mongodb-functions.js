@@ -44,7 +44,7 @@ function processDeviceFilter(filter) {
       });
 
       if (typeof e[2] === "number") {
-        let alt = e.slice();
+        const alt = e.slice();
         alt[2] = new Date(e[2]);
         e = ["OR", e, alt];
       }
@@ -58,7 +58,7 @@ function processTasksFilter(filter) {
   return expressionParser.map(filter, exp => {
     if (!Array.isArray(exp)) return exp;
     if (["=", "<>", ">", ">=", "<", "<="].includes(exp[0])) {
-      let e = exp.slice();
+      const e = exp.slice();
       if (e[1][0] === "PARAM" && e[1][1] === "_id")
         e[2] = new mongodb.ObjectID(e[2]);
       else if (e[1][0] === "PARAM" && e[1][1] === "timestamp")
@@ -75,7 +75,7 @@ function processFaultsFilter(filter) {
   return expressionParser.map(filter, exp => {
     if (!Array.isArray(exp)) return exp;
     if (["=", "<>", ">", ">=", "<", "<="].includes(exp[0])) {
-      let e = exp.slice();
+      const e = exp.slice();
       if (e[1][0] === "PARAM" && e[1][1] === "timestamp") e[2] = new Date(e[2]);
       else if (e[1][0] === "PARAM" && e[1][1] === "expiry")
         e[2] = new Date(e[2]);
@@ -101,7 +101,7 @@ function filterToMongoQuery(filter, negate = false, res = {}) {
     filterToMongoQuery(filter[1], !negate, res);
   } else if (op === "=") {
     const param = filter[1][1];
-    let p = (res[param] = res[param] || {});
+    const p = (res[param] = res[param] || {});
     if (negate) p["$ne"] = filter[2];
     else p["$eq"] = filter[2];
   } else if (op === "<>") {
@@ -141,17 +141,19 @@ function filterToMongoQuery(filter, negate = false, res = {}) {
     let param;
     let flags;
     if (filter[1][0] === "FUNC" && filter[1][1] === "UPPER") {
-      if (filter[2] !== filter[2].toUpperCase())
+      if (filter[2] !== filter[2].toUpperCase()) {
         throw new Error(
           "Cannot compare UPPER() against non upper case pattern"
         );
+      }
       param = filter[1][2][1];
       flags = "i";
     } else if (filter[1][0] === "FUNC" && filter[1][1] === "LOWER") {
-      if (filter[2] !== filter[2].toLowerCase())
+      if (filter[2] !== filter[2].toLowerCase()) {
         throw new Error(
           "Cannot compare LOWER() against non lower case pattern"
         );
+      }
       param = filter[1][2][1];
       flags = "i";
     } else {
@@ -171,7 +173,7 @@ function filterToMongoQuery(filter, negate = false, res = {}) {
 function processDeviceProjection(projection) {
   if (!projection) return projection;
   const p = {};
-  for (const [k, v] of Object.entries(projection))
+  for (const [k, v] of Object.entries(projection)) {
     if (k === "DeviceID.ID") {
       p["_id"] = 1;
     } else if (k.startsWith("DeviceID")) {
@@ -189,6 +191,7 @@ function processDeviceProjection(projection) {
     } else {
       p[k] = v;
     }
+  }
 
   return p;
 }
@@ -196,18 +199,19 @@ function processDeviceProjection(projection) {
 function processDeviceSort(sort) {
   if (!sort) return sort;
   const s = {};
-  for (const [k, v] of Object.entries(sort))
+  for (const [k, v] of Object.entries(sort)) {
     if (k === "DeviceID.ID") s["_id"] = v;
     else if (k === "Events.Inform") s["_lastInform"] = v;
     else s[k] = v;
+  }
 
   return s;
 }
 
 function flattenDevice(device) {
   function recursive(input, root, output, timestamp) {
-    for (let [name, tree] of Object.entries(input)) {
-      if (!root)
+    for (const [name, tree] of Object.entries(input)) {
+      if (!root) {
         if (name === "_lastInform") {
           output["Events.Inform"] = {
             value: [Date.parse(tree), "xsd:dateTime"],
@@ -294,7 +298,7 @@ function flattenDevice(device) {
             objectTimestamp: timestamp
           };
 
-          for (let t of tree)
+          for (const t of tree) {
             output[`Tags.${t}`] = {
               value: [true, "xsd:boolean"],
               valueTimestamp: timestamp,
@@ -303,7 +307,9 @@ function flattenDevice(device) {
               object: false,
               objectTimestamp: timestamp
             };
+          }
         }
+      }
 
       if (name.startsWith("_")) continue;
 
@@ -329,7 +335,7 @@ function flattenDevice(device) {
         attrs["writableTimestamp"] = childrenTimestamp;
       }
 
-      let r = root ? `${root}.${name}` : name;
+      const r = root ? `${root}.${name}` : name;
       output[r] = attrs;
 
       if (attrs["object"] || tree["object"] == null)
@@ -348,14 +354,14 @@ function flattenFault(fault) {
   if (f.timestamp) f.timestamp = +f.timestamp;
   if (f.expiry) f.expiry = +f.expiry;
   if (f.detail) {
-    for (let [k, v] of Object.entries(f.detail)) fault[`detail.${k}`] = v;
+    for (const [k, v] of Object.entries(f.detail)) fault[`detail.${k}`] = v;
     delete f.detail;
   }
   return f;
 }
 
 function flattenTask(task) {
-  let t = Object.assign({}, task);
+  const t = Object.assign({}, task);
   t._id = "" + t._id;
   if (t.timestamp) t.timestamp = +t.timestamp;
   if (t.expiry) t.expiry = +t.expiry;
@@ -363,20 +369,21 @@ function flattenTask(task) {
 }
 
 function mongoQueryToFilter(query) {
-  let expressions = [];
+  const expressions = [];
   function recursive(_query) {
-    for (let [k, v] of Object.entries(_query))
+    for (const [k, v] of Object.entries(_query)) {
       if (k[0] == "$") {
-        if (k == "$and") for (let vv of Object.values(v)) recursive(vv);
+        if (k == "$and") for (const vv of Object.values(v)) recursive(vv);
         else throw new Error(`Operator ${k} not supported`);
       } else if (k == "_tags") {
         if (typeof v === "object") {
           if (Array.isArray(v)) throw new Error(`Invalid type`);
 
-          for (let [kk, vv] of Object.entries(v))
+          for (const [kk, vv] of Object.entries(v)) {
             if (kk == "$ne")
               expressions.push(["IS NULL", ["PARAM", `Tags.${vv}`]]);
             else throw new Error(`Operator ${kk} not supported`);
+          }
         } else {
           expressions.push(["IS NOT NULL", ["PARAM", `Tags.${v}`]]);
         }
@@ -388,7 +395,7 @@ function mongoQueryToFilter(query) {
       } else if (typeof v === "object") {
         if (Array.isArray(v)) throw new Error(`Invalid type`);
 
-        for (let [kk, vv] of Object.entries(v)) {
+        for (const [kk, vv] of Object.entries(v)) {
           let op;
           switch (kk) {
             case "$eq":
@@ -417,6 +424,7 @@ function mongoQueryToFilter(query) {
       } else {
         expressions.push(["=", ["PARAM", k], v]);
       }
+    }
   }
   recursive(query);
 
@@ -428,7 +436,7 @@ function mongoQueryToFilter(query) {
 }
 
 function flattenPreset(preset) {
-  let p = Object.assign({}, preset);
+  const p = Object.assign({}, preset);
   if (p.precondition) {
     p.precondition = mongoQueryToFilter(JSON.parse(p.precondition));
     p.precondition = p.precondition.length
@@ -437,12 +445,12 @@ function flattenPreset(preset) {
   }
 
   if (p.events) {
-    let e = [];
-    for (let [k, v] of Object.entries(p.events)) e.push(v ? k : `-${k}`);
+    const e = [];
+    for (const [k, v] of Object.entries(p.events)) e.push(v ? k : `-${k}`);
     p.events = e.join(", ");
   }
 
-  let provision = p.configurations[0];
+  const provision = p.configurations[0];
   if (
     p.configurations.length != 1 ||
     provision.type != "provision" ||
@@ -459,7 +467,7 @@ function flattenPreset(preset) {
 }
 
 function flattenFile(file) {
-  let f = {};
+  const f = {};
   f["_id"] = file["_id"];
   if (file.metadata) {
     f["metadata.fileType"] = file.metadata.fileType || "";
@@ -471,14 +479,14 @@ function flattenFile(file) {
 }
 
 function preProcessPreset(data) {
-  let preset = Object.assign({}, data);
+  const preset = Object.assign({}, data);
   preset.precondition = preset.precondition
     ? filterToMongoQuery(expression.parse(preset.precondition))
     : {};
   preset.precondition = JSON.stringify(preset.precondition);
 
-  let events = {};
-  if (preset.events)
+  const events = {};
+  if (preset.events) {
     for (let e of preset.events.split(",")) {
       let v = true;
       e = e.trim();
@@ -488,12 +496,13 @@ function preProcessPreset(data) {
       }
       if (e) events[e] = v;
     }
+  }
 
   preset.events = events;
 
   if (!preset.provision) throw new Error("Invalid preset provision");
 
-  let configuration = {
+  const configuration = {
     type: "provision",
     name: preset.provision
   };

@@ -9,7 +9,7 @@ import * as expressionParser from "../../common/expression-parser";
 
 const component = {
   oninit: vnode => {
-    let obj = expression.parse(vnode.attrs.parameter);
+    const obj = expression.parse(vnode.attrs.parameter);
     if (!Array.isArray(obj) || !obj[0] === "PARAM")
       throw new Error("Object must be a parameter path");
     vnode.state.object = obj[1];
@@ -30,19 +30,20 @@ const component = {
 
     const instances = new Set();
     const prefix = `${object}.`;
-    for (let p in device)
+    for (const p in device) {
       if (p.startsWith(prefix)) {
-        let i = p.indexOf(".", prefix.length);
+        const i = p.indexOf(".", prefix.length);
         if (i === -1) instances.add(p);
         else instances.add(p.slice(0, i));
       }
+    }
 
     const headers = Object.values(parameters).map(p => m("th", p.label));
 
     const thead = m("thead", m("tr", headers));
 
     const rows = [];
-    for (let i of instances) {
+    for (const i of instances) {
       const row = parameters.map(p => {
         const param = expressionParser.map(p.parameter, e => {
           if (Array.isArray(e) && e[0] === "PARAM")
@@ -62,7 +63,7 @@ const component = {
         );
       });
 
-      if (device[i].writable === true)
+      if (device[i].writable === true) {
         row.push(
           m(
             "td",
@@ -82,15 +83,17 @@ const component = {
             )
           )
         );
+      }
       rows.push(m("tr", row));
     }
 
-    if (!rows.length)
+    if (!rows.length) {
       rows.push(
         m("tr.empty", m("td", { colspan: headers.length }, "No instances"))
       );
+    }
 
-    if (device[object].writable === true)
+    if (device[object].writable === true) {
       rows.push(
         m(
           "tr",
@@ -114,6 +117,7 @@ const component = {
           )
         )
       );
+    }
 
     let label;
     if (vnode.attrs.label) label = m("h2", vnode.attrs.label);

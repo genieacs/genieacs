@@ -13,7 +13,7 @@ const component = {
     vnode.state.timeout = null;
   },
   view: vnode => {
-    let refresh = () => {
+    const refresh = () => {
       const device = vnode.attrs.device;
       let param =
         device["InternetGatewayDevice.ManagementServer.ConnectionRequestURL"];
@@ -34,20 +34,22 @@ const component = {
         });
     };
 
-    let t = vnode.state.timestamp + REFRESH_INTERVAL - Date.now();
+    const t = vnode.state.timestamp + REFRESH_INTERVAL - Date.now();
     clearTimeout(vnode.state.timeout);
     if (t <= 0) refresh();
     else vnode.state.timeout = setTimeout(refresh, t);
 
     if (vnode.state.host) {
       let status = "";
-      if (vnode.state.ping)
+      if (vnode.state.ping) {
         if (vnode.state.ping.avg != null)
           status = `${Math.trunc(vnode.state.ping.avg)} ms`;
         else status = "Unreachable";
+      }
 
       return m("div", `Pinging ${vnode.state.host}: ${status}`);
     }
+    return null;
   }
 };
 

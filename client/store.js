@@ -1,7 +1,6 @@
 "use strict";
 
 import m from "mithril";
-import config from "./config";
 import * as expressionParser from "../common/expression-parser";
 import * as expression from "../common/expression";
 import memoize from "../common/memoize";
@@ -23,7 +22,7 @@ const queries = {
 };
 
 const resources = {};
-for (let r of [
+for (const r of [
   "devices",
   "faults",
   "files",
@@ -31,13 +30,14 @@ for (let r of [
   "provisions",
   "virtualParameters",
   "files"
-])
+]) {
   resources[r] = {
     objects: new Map(),
     count: new Map(),
     fetch: new Map(),
     combinedFilter: null
   };
+}
 
 class QueryResponse {
   get fulfilled() {
@@ -79,11 +79,12 @@ function limitFilter(filter, sort, bookmark) {
     arr.reduce((cur, kv) => {
       const [param, asc] = kv;
       if (asc <= 0) {
-        if (bookmark[param] == null)
+        if (bookmark[param] == null) {
           return expression.or(
             ["IS NOT NULL", ["PARAM", param]],
             expression.and(["IS NULL", ["PARAM", param]], cur)
           );
+        }
 
         let f = null;
 
@@ -124,13 +125,15 @@ function compareFunction(sort) {
     for (const [param, asc] of sortEntries) {
       let v1 = a[param];
       let v2 = b[param];
-      if (v1 != null && typeof v1 === "object")
+      if (v1 != null && typeof v1 === "object") {
         if (v1.value) v1 = v1.value[0];
         else v1 = null;
+      }
 
-      if (v2 != null && typeof v2 === "object")
+      if (v2 != null && typeof v2 === "object") {
         if (v2.value) v2 = v2.value[0];
         else v2 = null;
+      }
 
       if (v1 > v2) {
         return asc;
@@ -153,23 +156,24 @@ function compareFunction(sort) {
 
 function findMatches(resourceType, filter, sort, limit) {
   // Handle "tag =" and "tag <>" special cases
-  if (resourceType === "devices")
+  if (resourceType === "devices") {
     filter = expressionParser.map(filter, e => {
       if (
         Array.isArray(e) &&
         Array.isArray(e[1]) &&
         e[1][0] === "PARAM" &&
         e[1][1] === "tag"
-      )
+      ) {
         if (e[0] === "=") return ["IS NOT NULL", ["PARAM", `Tags.${e[2]}`]];
         else if (e[0] === "<>") return ["IS NULL", ["PARAM", `Tags.${e[2]}`]];
+      }
       return e;
     });
+  }
 
   let value = [];
-  for (let obj of resources[resourceType].objects.values())
-    if (expression.evaluate(filter, obj, fulfillTimestamp))
-      value.push(obj);
+  for (const obj of resources[resourceType].objects.values())
+    if (expression.evaluate(filter, obj, fulfillTimestamp)) value.push(obj);
 
   value = value.sort(compareFunction(sort));
   if (limit) value = value.slice(0, limit);
@@ -181,7 +185,7 @@ function inferQuery(resourceType, queryResponse) {
   const limit = queries.limit.get(queryResponse);
   let filter = queries.filter.get(queryResponse);
   filter = unpackExpression(filter);
-  let bookmark = queries.bookmark.get(queryResponse);
+  const bookmark = queries.bookmark.get(queryResponse);
   const sort = queries.sort.get(queryResponse);
   if (bookmark || !limit) {
     if (bookmark) filter = limitFilter(filter, sort, bookmark);
@@ -208,7 +212,7 @@ function fetch(resourceType, filter, options = {}) {
     sort["DeviceID.ID"] = sort["DeviceID.ID"] || 1;
   else sort["_id"] = sort["_id"] || 1;
 
-  let key = `${filterStr}:${limit}:${JSON.stringify(sort)}`;
+  const key = `${filterStr}:${limit}:${JSON.stringify(sort)}`;
   let queryResponse = resources[resourceType].fetch.get(key);
   if (queryResponse) return queryResponse;
 
@@ -225,15 +229,15 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
   let updated = false;
 
   if (_fulfillTimestamp > fulfillTimestamp) {
-    for (let resource of Object.values(resources))
+    for (const resource of Object.values(resources))
       resource.combinedFilter = null;
     fulfillTimestamp = _fulfillTimestamp;
   }
 
   const allPromises = [];
 
-  for (let [resourceType, resource] of Object.entries(resources))
-    for (let [queryResponseKey, queryResponse] of resource.count) {
+  for (const [resourceType, resource] of Object.entries(resources)) {
+    for (const [queryResponseKey, queryResponse] of resource.count) {
       if (!(queries.accessed.get(queryResponse) >= accessTimestamp)) {
         resource.count.delete(queryResponseKey);
         continue;
@@ -269,11 +273,12 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
         );
       }
     }
+  }
 
-  let toFetchAll = {};
+  const toFetchAll = {};
 
-  for (let [resourceType, resource] of Object.entries(resources))
-    for (let [queryResponseKey, queryResponse] of resource.fetch) {
+  for (const [resourceType, resource] of Object.entries(resources)) {
+    for (const [queryResponseKey, queryResponse] of resource.fetch) {
       if (!(queries.accessed.get(queryResponse) >= accessTimestamp)) {
         resource.fetch.delete(queryResponseKey);
         continue;
@@ -287,7 +292,7 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
         toFetchAll[resourceType].push(queryResponse);
         const limit = queries.limit.get(queryResponse);
         const sort = queries.sort.get(queryResponse);
-        if (limit)
+        if (limit) {
           allPromises.push(
             new Promise((resolve, reject) => {
               updated = true;
@@ -308,12 +313,15 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
                 .then(res => {
                   if (res.length) {
                     // Generate bookmark object
-                    let bm = Object.keys(sort).reduce((b, k) => {
-                      if (res[0][k] != null)
+                    const bm = Object.keys(sort).reduce((b, k) => {
+                      if (res[0][k] != null) {
                         if (typeof res[0][k] === "object") {
                           if (res[0][k].value != null)
                             b[k] = res[0][k].value[0];
-                        } else b[k] = res[0][k];
+                        } else {
+                          b[k] = res[0][k];
+                        }
+                      }
 
                       return b;
                     }, {});
@@ -326,8 +334,10 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
                 .catch(reject);
             })
           );
+        }
       }
     }
+  }
 
   return new Promise((resolve, reject) => {
     Promise.all(allPromises)
@@ -368,11 +378,12 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
           if (!resources[resourceType].combinedFilter)
             deleted = new Set(resources[resourceType].objects.keys());
           let combinedFilterDiff = combinedFilter;
-          if (resources[resourceType].combinedFilter)
+          if (resources[resourceType].combinedFilter) {
             combinedFilterDiff = expression.and(
               combinedFilterDiff,
               expression.not(resources[resourceType].combinedFilter)
             );
+          }
           resources[resourceType].combinedFilter = expression.or(
             combinedFilter,
             resources[resourceType].combinedFilter
@@ -389,7 +400,7 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
                   })
               })
                 .then(res => {
-                  for (let r of res) {
+                  for (const r of res) {
                     const id =
                       resourceType === "devices"
                         ? r["DeviceID.ID"].value[0]
@@ -398,7 +409,7 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
                     deleted.delete(id);
                   }
 
-                  for (let d of deleted) {
+                  for (const d of deleted) {
                     const obj = resources[resourceType].objects.get(d);
                     if (
                       expression.evaluate(
@@ -410,7 +421,7 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
                       resources[resourceType].objects.delete(d);
                   }
 
-                  for (let queryResponse of toFetch) {
+                  for (const queryResponse of toFetch) {
                     let filter = queries.filter.get(queryResponse);
                     filter = unpackExpression(filter);
                     const limit = queries.limit.get(queryResponse);
@@ -444,7 +455,7 @@ function getTimestamp() {
 }
 
 function postTasks(deviceId, tasks) {
-  for (let t of tasks) {
+  for (const t of tasks) {
     t.status = "pending";
     t.device = deviceId;
   }
@@ -459,8 +470,8 @@ function postTasks(deviceId, tasks) {
         const connectionRequestStatus = xhr.getResponseHeader(
           "Connection-Request"
         );
-        let st = JSON.parse(xhr.response);
-        for (let [i, t] of st.entries()) {
+        const st = JSON.parse(xhr.response);
+        for (const [i, t] of st.entries()) {
           tasks[i]._id = t._id;
           tasks[i].status = t.status;
           tasks[i].fault = t.fault;
@@ -487,7 +498,7 @@ function deleteResource(resourceType, id) {
 }
 
 function putResource(resourceType, id, object) {
-  for (let k in object) if (object[k] === undefined) object[k] = null;
+  for (const k in object) if (object[k] === undefined) object[k] = null;
 
   return m.request({
     method: "PUT",
@@ -498,7 +509,7 @@ function putResource(resourceType, id, object) {
 
 function resourceExists(resource, id) {
   const param = resource === "devices" ? "DeviceID.ID" : "_id";
-  let filter = ["=", ["PARAM", param], id];
+  const filter = ["=", ["PARAM", param], id];
   return m.request({
     method: "HEAD",
     url:

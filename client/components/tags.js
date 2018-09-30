@@ -11,7 +11,7 @@ const component = {
     if (vnode.attrs.writable != null) writable = vnode.attrs.writable;
 
     const tags = [];
-    for (let p of Object.keys(device))
+    for (const p of Object.keys(device))
       if (p.startsWith("Tags.")) tags.push(p.slice(5));
 
     tags.sort();

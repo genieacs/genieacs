@@ -7,7 +7,7 @@ import * as notifications from "./notifications";
 
 const userMenu = {
   view: () => {
-    if (window.username)
+    if (window.username) {
       return m(
         "div.user-menu",
         window.username,
@@ -32,7 +32,7 @@ const userMenu = {
           "Log out"
         )
       );
-    else
+    } else {
       return m(
         "div.user-menu",
         m(
@@ -43,6 +43,7 @@ const userMenu = {
           "Log in"
         )
       );
+    }
   }
 };
 

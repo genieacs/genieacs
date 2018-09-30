@@ -89,7 +89,7 @@ function renderStagingDownload(task) {
           onclick: () => {
             task.fileName = f;
             task.fileType = "";
-            for (let file of files.value)
+            for (const file of files.value)
               if (file._id === f) task.fileType = file["metadata.fileType"];
           }
         },
@@ -110,8 +110,8 @@ function renderStagingDownload(task) {
 }
 
 function renderStaging(staging) {
-  let elements = [];
-  for (let s of staging) {
+  const elements = [];
+  for (const s of staging) {
     const queueFunc = () => {
       staging.delete(s);
       taskQueue.queueTask(s);
@@ -143,19 +143,19 @@ function renderStaging(staging) {
 }
 
 function renderQueue(queue) {
-  let details = [];
-  let devices = {};
-  for (let t of queue) {
+  const details = [];
+  const devices = {};
+  for (const t of queue) {
     devices[t.device] = devices[t.device] || [];
     devices[t.device].push(t);
   }
 
-  for (let [k, v] of Object.entries(devices)) {
+  for (const [k, v] of Object.entries(devices)) {
     details.push(m("strong", k));
-    for (let t of v) {
-      let actions = [];
+    for (const t of v) {
+      const actions = [];
 
-      if (t.status === "fault" || t.status === "stale")
+      if (t.status === "fault" || t.status === "stale") {
         actions.push(
           m(
             "button",
@@ -168,6 +168,7 @@ function renderQueue(queue) {
             "↺"
           )
         );
+      }
 
       actions.push(
         m(
@@ -182,7 +183,7 @@ function renderQueue(queue) {
         )
       );
 
-      if (t.name === "setParameterValues")
+      if (t.name === "setParameterValues") {
         details.push(
           m(
             `div.${t.status}`,
@@ -197,7 +198,7 @@ function renderQueue(queue) {
             m(".actions", actions)
           )
         );
-      else if (t.name === "refreshObject")
+      } else if (t.name === "refreshObject") {
         details.push(
           m(
             `div.${t.status}`,
@@ -205,13 +206,13 @@ function renderQueue(queue) {
             m(".actions", actions)
           )
         );
-      else if (t.name === "reboot")
+      } else if (t.name === "reboot") {
         details.push(m(`div.${t.status}`, "Reboot", m(".actions", actions)));
-      else if (t.name === "factoryReset")
+      } else if (t.name === "factoryReset") {
         details.push(
           m(`div.${t.status}`, "Factory reset", m(".actions", actions))
         );
-      else if (t.name === "addObject")
+      } else if (t.name === "addObject") {
         details.push(
           m(
             `div.${t.status}`,
@@ -219,7 +220,7 @@ function renderQueue(queue) {
             m(".actions", actions)
           )
         );
-      else if (t.name === "deleteObject")
+      } else if (t.name === "deleteObject") {
         details.push(
           m(
             `div.${t.status}`,
@@ -227,7 +228,7 @@ function renderQueue(queue) {
             m(".actions", actions)
           )
         );
-      else if (t.name === "getParameterValues")
+      } else if (t.name === "getParameterValues") {
         details.push(
           m(
             `div.${t.status}`,
@@ -235,7 +236,7 @@ function renderQueue(queue) {
             m(".actions", actions)
           )
         );
-      else if (t.name === "download")
+      } else if (t.name === "download") {
         details.push(
           m(
             `div.${t.status}`,
@@ -243,7 +244,9 @@ function renderQueue(queue) {
             m(".actions", actions)
           )
         );
-      else details.push(m(`div.${t.status}`, t.name, m(".actions", actions)));
+      } else {
+        details.push(m(`div.${t.status}`, t.name, m(".actions", actions)));
+      }
     }
   }
 
@@ -253,7 +256,7 @@ function renderQueue(queue) {
 function renderNotifications(notifs) {
   const notificationElements = [];
 
-  for (let n of notifs)
+  for (const n of notifs) {
     notificationElements.push(
       m(
         "div.notification",
@@ -276,6 +279,7 @@ function renderNotifications(notifs) {
         n.message
       )
     );
+  }
   return notificationElements;
 }
 
@@ -286,13 +290,13 @@ const component = {
     const notifs = notifications.getNotifications();
 
     let drawerElement, statusElement;
-    let notificationElements = renderNotifications(notifs);
-    let stagingElements = renderStaging(staging);
-    let queueElements = renderQueue(queue);
+    const notificationElements = renderNotifications(notifs);
+    const stagingElements = renderStaging(staging);
+    const queueElements = renderQueue(queue);
 
     function repositionNotifications() {
       let top = 10;
-      for (let c of notificationElements) {
+      for (const c of notificationElements) {
         c.dom.style.top = top;
         top += c.dom.offsetHeight + 10;
       }
@@ -300,20 +304,21 @@ const component = {
 
     function resizeDrawer() {
       let height = statusElement.dom.offsetTop + statusElement.dom.offsetHeight;
-      if (stagingElements.length)
-        for (let s of stagingElements)
+      if (stagingElements.length) {
+        for (const s of stagingElements)
           height = Math.max(height, s.dom.offsetTop + s.dom.offsetHeight);
-      else if (vnode.state.mouseIn)
-        for (let c of drawerElement.children)
+      } else if (vnode.state.mouseIn) {
+        for (const c of drawerElement.children)
           height = Math.max(height, c.dom.offsetTop + c.dom.offsetHeight);
+      }
       drawerElement.dom.style.height = height;
     }
 
     if (stagingElements.length + queueElements.length) {
       const statusCount = { queued: 0, pending: 0, fault: 0, stale: 0 };
-      for (let t of queue) statusCount[t.status] += 1;
+      for (const t of queue) statusCount[t.status] += 1;
 
-      let actions = m(
+      const actions = m(
         ".actions",
         m(
           "button.primary",
@@ -321,18 +326,20 @@ const component = {
             title: "Commit queued tasks",
             disabled: !statusCount.queued,
             onclick: () => {
-              let tasks = Array.from(taskQueue.getQueue()).filter(
+              const tasks = Array.from(taskQueue.getQueue()).filter(
                 t => t.status === "queued"
               );
               taskQueue
                 .commit(
                   tasks,
                   (deviceId, err, connectionRequestStatus, tasks2) => {
-                    if (err)
-                      return notifications.push(
+                    if (err) {
+                      notifications.push(
                         "error",
                         `${deviceId}: ${err.message}`
                       );
+                      return;
+                    }
 
                     if (connectionRequestStatus !== "OK") {
                       notifications.push(
@@ -342,7 +349,7 @@ const component = {
                       return;
                     }
 
-                    for (let t of tasks2)
+                    for (const t of tasks2) {
                       if (t.status === "stale") {
                         notifications.push(
                           "error",
@@ -356,6 +363,7 @@ const component = {
                         );
                         return;
                       }
+                    }
 
                     notifications.push(
                       "success",

@@ -39,10 +39,10 @@ const unpackSmartQuery = memoize(query => {
 
 function putActionHandler(action, object, isNew) {
   if (action === "save") {
-    let id = object["_id"];
+    const id = object["_id"];
     delete object["_id"];
 
-    if (!id) return notifications.push("error", "ID can not be empty");
+    if (!id) return void notifications.push("error", "ID can not be empty");
 
     store
       .resourceExists("presets", id)
@@ -90,14 +90,14 @@ function putActionHandler(action, object, isNew) {
   }
 }
 
-let formData = {
+const formData = {
   resource: "presets",
   attributes: attributes
 };
 
 const getDownloadUrl = memoize(filter => {
-  let cols = {};
-  for (let attr of attributes) cols[attr.label] = attr.id;
+  const cols = {};
+  for (const attr of attributes) cols[attr.label] = attr.id;
   return `/api/presets.csv?${m.buildQueryString({
     filter: filter,
     columns: JSON.stringify(cols)
@@ -105,10 +105,11 @@ const getDownloadUrl = memoize(filter => {
 });
 
 function init(args) {
-  if (!window.authorizer.hasAccess("presets", 2))
+  if (!window.authorizer.hasAccess("presets", 2)) {
     return Promise.reject(
       new Error("You are not authorized to view this page")
     );
+  }
 
   const sort = args.sort;
   const filter = args.filter;
@@ -129,17 +130,18 @@ function renderTable(
     type: "checkbox",
     checked: presets.length && selected.size === presets.length,
     onchange: e => {
-      for (let preset of presets)
+      for (const preset of presets) {
         if (e.target.checked) selected.add(preset["_id"]);
         else selected.delete(preset["_id"]);
+      }
     },
     disabled: !total
   });
 
   const labels = [m("th", selectAll)];
 
-  for (let attr of attributes) {
-    let label = attr.label;
+  for (const attr of attributes) {
+    const label = attr.label;
 
     if (attr.unsortable) {
       labels.push(m("th", label));
@@ -152,7 +154,7 @@ function renderTable(
     if (sort[attr.id] > 0) symbol = "\u2bc6";
     else if (sort[attr.id] < 0) symbol = "\u2bc5";
 
-    let sortable = m(
+    const sortable = m(
       "button",
       {
         onclick: () => {
@@ -166,9 +168,9 @@ function renderTable(
     labels.push(m("th", [label, sortable]));
   }
 
-  let rows = [];
-  for (let preset of presets) {
-    let checkbox = m("input", {
+  const rows = [];
+  for (const preset of presets) {
+    const checkbox = m("input", {
       type: "checkbox",
       checked: selected.has(preset["_id"]),
       onchange: e => {
@@ -182,14 +184,15 @@ function renderTable(
     });
 
     let devicesUrl = "/#!/devices";
-    if (preset["precondition"].length)
+    if (preset["precondition"].length) {
       devicesUrl += `?${m.buildQueryString({
         filter: preset["precondition"]
       })}`;
+    }
 
-    let tds = [m("td", checkbox)];
-    for (let attr of attributes)
-      if (attr.id === "precondition")
+    const tds = [m("td", checkbox)];
+    for (const attr of attributes) {
+      if (attr.id === "precondition") {
         tds.push(
           m(
             "td",
@@ -197,7 +200,10 @@ function renderTable(
             m("a", { href: devicesUrl }, preset[attr.id])
           )
         );
-      else tds.push(m("td", preset[attr.id]));
+      } else {
+        tds.push(m("td", preset[attr.id]));
+      }
+    }
 
     tds.push(
       m(
@@ -206,7 +212,7 @@ function renderTable(
           "a",
           {
             onclick: () => {
-              let cb = () => {
+              const cb = () => {
                 return m(
                   putForm,
                   Object.assign(
@@ -250,7 +256,7 @@ function renderTable(
   if (!rows.length)
     rows.push(m("tr.empty", m("td", { colspan: labels.length }, "No presets")));
 
-  let footerElements = [];
+  const footerElements = [];
   if (total != null) footerElements.push(`${presets.length}/${total}`);
   else footerElements.push(`${presets.length}`);
 
@@ -266,12 +272,13 @@ function renderTable(
     )
   );
 
-  if (downloadUrl)
+  if (downloadUrl) {
     footerElements.push(
       m("a.download-csv", { href: downloadUrl, download: "" }, "Download")
     );
+  }
 
-  let tfoot = m(
+  const tfoot = m(
     "tfoot",
     m("tr", m("td", { colspan: labels.length }, footerElements))
   );
@@ -301,14 +308,14 @@ function renderTable(
     )
   ];
 
-  if (window.authorizer.hasAccess("presets", 3))
+  if (window.authorizer.hasAccess("presets", 3)) {
     buttons.push(
       m(
         "button.primary",
         {
           title: "Create new preset",
           onclick: () => {
-            let cb = () => {
+            const cb = () => {
               return m(
                 putForm,
                 Object.assign(
@@ -328,6 +335,7 @@ function renderTable(
         "New"
       )
     );
+  }
 
   return [
     m(
@@ -350,13 +358,13 @@ const component = {
     }
 
     function onFilterChanged(filter) {
-      let ops = { filter };
+      const ops = { filter };
       if (vnode.attrs.sort) ops.sort = vnode.attrs.sort;
       m.route.set("/presets", ops);
     }
 
     function onSortChange(sort) {
-      let ops = { sort };
+      const ops = { sort };
       if (vnode.attrs.filter) ops.filter = vnode.attrs.filter;
       m.route.set("/presets", ops);
     }
@@ -365,15 +373,15 @@ const component = {
     let filter = vnode.attrs.filter ? memoizedParse(vnode.attrs.filter) : true;
     filter = unpackSmartQuery(filter);
 
-    let presets = store.fetch("presets", filter, {
+    const presets = store.fetch("presets", filter, {
       limit: vnode.state.showCount || PAGE_SIZE,
       sort: sort
     });
-    let count = store.count("presets", filter);
+    const count = store.count("presets", filter);
 
     const provisions = store.fetch("provisions", true);
     if (provisions.fulfilled) {
-      let provisionAttr = attributes.find(attr => {
+      const provisionAttr = attributes.find(attr => {
         return attr.id === "provision";
       });
       provisionAttr.options = provisions.value.map(v => {
@@ -381,11 +389,13 @@ const component = {
       });
     }
 
-    let selected = new Set();
-    if (vnode.state.selected)
-      for (let preset of presets.value)
+    const selected = new Set();
+    if (vnode.state.selected) {
+      for (const preset of presets.value) {
         if (vnode.state.selected.has(preset["_id"]))
           selected.add(preset["_id"]);
+      }
+    }
     vnode.state.selected = selected;
 
     const downloadUrl = getDownloadUrl(vnode.attrs.filter);

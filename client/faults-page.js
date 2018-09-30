@@ -24,10 +24,11 @@ const attributes = [
 ];
 
 const getDownloadUrl = memoize(filter => {
-  let cols = {};
-  for (let attr of attributes)
+  const cols = {};
+  for (const attr of attributes) {
     cols[attr.label] =
       attr.id === "timestamp" ? `DATE_STRING(${attr.id})` : attr.id;
+  }
 
   return `/api/faults.csv?${m.buildQueryString({
     filter: filter,
@@ -44,10 +45,11 @@ const unpackSmartQuery = memoize(query => {
 });
 
 function init(args) {
-  if (!window.authorizer.hasAccess("faults", 2))
+  if (!window.authorizer.hasAccess("faults", 2)) {
     return Promise.reject(
       new Error("You are not authorized to view this page")
     );
+  }
 
   const sort = args.sort;
   const filter = args.filter;
@@ -68,16 +70,17 @@ function renderTable(
     type: "checkbox",
     checked: faults.length && selected.size === faults.length,
     onchange: e => {
-      for (let f of faults)
+      for (const f of faults) {
         if (e.target.checked) selected.add(f["_id"]);
         else selected.delete(f["_id"]);
+      }
     },
     disabled: !total
   });
 
   const labels = [m("th", selectAll)];
-  for (let attr of attributes) {
-    let label = attr.label;
+  for (const attr of attributes) {
+    const label = attr.label;
 
     let direction = 1;
 
@@ -85,7 +88,7 @@ function renderTable(
     if (sort[attr.id] > 0) symbol = "\u2bc6";
     else if (sort[attr.id] < 0) symbol = "\u2bc5";
 
-    let sortable = m(
+    const sortable = m(
       "button",
       {
         onclick: () => {
@@ -99,9 +102,9 @@ function renderTable(
     labels.push(m("th", [label, sortable]));
   }
 
-  let rows = [];
-  for (let f of faults) {
-    let checkbox = m("input", {
+  const rows = [];
+  for (const f of faults) {
+    const checkbox = m("input", {
       type: "checkbox",
       checked: selected.has(f["_id"]),
       onchange: e => {
@@ -116,13 +119,14 @@ function renderTable(
 
     const deviceHref = `#!/devices/${encodeURIComponent(f["device"])}`;
 
-    let tds = [m("td", checkbox)];
-    for (let attr of attributes)
+    const tds = [m("td", checkbox)];
+    for (const attr of attributes) {
       if (attr.id === "device")
         tds.push(m("a", { href: deviceHref }, f[attr.id]));
       else if (attr.id === "timestamp")
         tds.push(m("td", new Date(f[attr.id]).toLocaleString()));
       else tds.push(m("td", f[attr.id]));
+    }
 
     rows.push(
       m(
@@ -145,7 +149,7 @@ function renderTable(
   if (!rows.length)
     rows.push(m("tr.empty", m("td", { colspan: 7 }, "No faults")));
 
-  let footerElements = [];
+  const footerElements = [];
   if (total != null) footerElements.push(`${faults.length}/${total}`);
   else footerElements.push(`${faults.length}`);
 
@@ -161,12 +165,13 @@ function renderTable(
     )
   );
 
-  if (downloadUrl)
+  if (downloadUrl) {
     footerElements.push(
       m("a.download-csv", { href: downloadUrl, download: "" }, "Download")
     );
+  }
 
-  let tfoot = m(
+  const tfoot = m(
     "tfoot",
     m("tr", m("td", { colspan: labels.length }, footerElements))
   );
@@ -217,13 +222,13 @@ const component = {
     }
 
     function onFilterChanged(filter) {
-      let ops = { filter };
+      const ops = { filter };
       if (vnode.attrs.sort) ops.sort = vnode.attrs.sort;
       m.route.set("/faults", ops);
     }
 
     function onSortChange(sort) {
-      let ops = { sort };
+      const ops = { sort };
       if (vnode.attrs.filter) ops.filter = vnode.attrs.filter;
       m.route.set("/faults", ops);
     }
@@ -232,16 +237,17 @@ const component = {
     let filter = vnode.attrs.filter ? memoizedParse(vnode.attrs.filter) : true;
     filter = unpackSmartQuery(filter);
 
-    let faults = store.fetch("faults", filter, {
+    const faults = store.fetch("faults", filter, {
       limit: vnode.state.showCount || PAGE_SIZE,
       sort: sort
     });
-    let count = store.count("faults", filter);
+    const count = store.count("faults", filter);
 
-    let selected = new Set();
-    if (vnode.state.selected)
-      for (let f of faults.value)
+    const selected = new Set();
+    if (vnode.state.selected) {
+      for (const f of faults.value)
         if (vnode.state.selected.has(f["_id"])) selected.add(f["_id"]);
+    }
     vnode.state.selected = selected;
 
     const downloadUrl = getDownloadUrl(vnode.attrs.filter);
