@@ -253,7 +253,40 @@ i {
   }
 }
 
+#content-wrapper {
+  display: flex;
+}
+
+#side-menu {
+  width: 200px;
+  & > ul {
+    padding: 0;
+    list-style: none;
+
+    & > li {
+      & > a {
+        display: block;
+        text-decoration: none;
+        margin: 5px 0;
+        padding: 8px;
+        border-bottom-right-radius: 6px;
+        border-top-right-radius: 6px;
+        background-color: var(--color3);
+        &:hover {
+          background-color: var(--color4);
+          color: var(--color3);
+        }
+      }
+
+      &.active {
+        font-weight: bold;
+      }
+    }
+  }
+}
+
 #content {
+  flex-grow: 1;
   margin: 10px;
   min-height: 250px;
 }

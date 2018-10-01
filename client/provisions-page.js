@@ -353,13 +353,13 @@ const component = {
     function onFilterChanged(filter) {
       const ops = { filter };
       if (vnode.attrs.sort) ops.sort = vnode.attrs.sort;
-      m.route.set("/provisions", ops);
+      m.route.set(m.route.get(), ops);
     }
 
     function onSortChange(sort) {
       const ops = { sort };
       if (vnode.attrs.filter) ops.filter = vnode.attrs.filter;
-      m.route.set("/provisions", ops);
+      m.route.set(m.route.get(), ops);
     }
 
     const sort = vnode.attrs.sort ? memoizedJsonParse(vnode.attrs.sort) : {};

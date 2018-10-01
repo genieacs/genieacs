@@ -37,44 +37,18 @@ const menu = {
       );
     }
 
-    if (window.authorizer.hasAccess("presets", 2)) {
-      tabs.push(
-        m(
-          "li",
-          { class: active["presets"] },
-          m("a", { href: "#!/presets" }, "Presets")
-        )
-      );
-    }
-
-    if (window.authorizer.hasAccess("provisions", 2)) {
-      tabs.push(
-        m(
-          "li",
-          { class: active["provisions"] },
-          m("a", { href: "#!/provisions" }, "Provisions")
-        )
-      );
-    }
-
-    if (window.authorizer.hasAccess("virtualParameters", 2)) {
-      tabs.push(
-        m(
-          "li",
-          { class: active["virtualParameters"] },
-          m("a", { href: "#!/virtualParameters" }, "Virtual Parameters")
-        )
-      );
-    }
-
-    if (window.authorizer.hasAccess("files", 2)) {
-      tabs.push(
-        m(
-          "li",
-          { class: active["files"] },
-          m("a", { href: "#!/files" }, "Files")
-        )
-      );
+    const adminPages = ["presets", "provisions", "virtualParameters", "files"];
+    for (const page of adminPages) {
+      if (window.authorizer.hasAccess(page, 2)) {
+        tabs.push(
+          m(
+            "li",
+            { class: active["admin"] },
+            m("a", { href: "#!/admin" }, "Admin")
+          )
+        );
+        break;
+      }
     }
 
     return m("nav", m("ul", tabs));

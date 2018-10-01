@@ -19,6 +19,8 @@ import * as notifications from "./notifications";
 
 window.authorizer = new Authorizer(window.permissionSets);
 
+const adminPages = ["presets", "provisions", "virtualParameters", "files"];
+
 let state;
 
 let lastRenderTimestamp = 0;
@@ -77,14 +79,33 @@ function pagify(pageName, page) {
   return component;
 }
 
+function redirectAdminPage() {
+  const component = {
+    onmatch: () => {
+      for (const page of adminPages) {
+        if (window.authorizer.hasAccess(page, 2)) {
+          m.route.set(`/admin/${page}`);
+          return null;
+        }
+      }
+      return null;
+    }
+  };
+  return component;
+}
+
 m.route(document.body, "/overview", {
   "/login": pagify("login", loginPage),
   "/overview": pagify("overview", overviewPage),
   "/devices": pagify("devices", devicesPage),
   "/devices/:id": pagify("devices", devicePage),
   "/faults": pagify("faults", faultsPage),
-  "/presets": pagify("presets", presetsPage),
-  "/provisions": pagify("provisions", provisionsPage),
-  "/virtualParameters": pagify("virtualParameters", virtualParametersPage),
-  "/files": pagify("files", filesPage)
+  "/admin": redirectAdminPage(),
+  "/admin/presets": pagify("presets", presetsPage),
+  "/admin/provisions": pagify("provisions", provisionsPage),
+  "/admin/virtualParameters": pagify(
+    "virtualParameters",
+    virtualParametersPage
+  ),
+  "/admin/files": pagify("files", filesPage)
 });
