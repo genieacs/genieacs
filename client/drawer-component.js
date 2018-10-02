@@ -15,25 +15,54 @@ function mval(val) {
 }
 
 function renderStagingSpv(task, queueFunc, cancelFunc) {
-  const input = m("input", {
-    value: task.parameterValues[0][1],
-    oninput: e => {
-      e.redraw = false;
-      task.parameterValues[0][1] = input.dom.value;
-    },
-    onkeydown: e => {
-      if (e.keyCode === 13) queueFunc();
-      else if (e.keyCode === 27) cancelFunc();
-      else e.redraw = false;
-    },
-    oncreate: vnode => {
-      vnode.dom.focus();
-      vnode.dom.select();
-      // Need to prevent scrolling on focus because
-      // we're animating height and using overflow: hidden
-      vnode.dom.parentNode.parentNode.scrollTop = 0;
-    }
-  });
+  function keydown(e) {
+    if (e.keyCode === 13) queueFunc();
+    else if (e.keyCode === 27) cancelFunc();
+    else e.redraw = false;
+  }
+
+  let input;
+  if (task.parameterValues[0][2] === "xsd:boolean") {
+    input = m(
+      "select",
+      {
+        value: task.parameterValues[0][1].toString(),
+        onchange: e => {
+          e.redraw = false;
+          task.parameterValues[0][1] = input.dom.value;
+        },
+        onkeydown: keydown,
+        oncreate: vnode => {
+          vnode.dom.focus();
+        }
+      },
+      [
+        m("option", { value: "true" }, "true"),
+        m("option", { value: "false" }, "false")
+      ]
+    );
+  } else {
+    input = m("input", {
+      type: ["xsd:dateTime", "xsd:int", "xsd:unsignedInt"].includes(
+        task.parameterValues[0][2]
+      )
+        ? "number"
+        : "text",
+      value: task.parameterValues[0][1],
+      oninput: e => {
+        e.redraw = false;
+        task.parameterValues[0][1] = input.dom.value;
+      },
+      onkeydown: keydown,
+      oncreate: vnode => {
+        vnode.dom.focus();
+        vnode.dom.select();
+        // Need to prevent scrolling on focus because
+        // we're animating height and using overflow: hidden
+        vnode.dom.parentNode.parentNode.scrollTop = 0;
+      }
+    });
+  }
 
   return [m("span", "Editing ", mparam(task.parameterValues[0][0])), input];
 }
