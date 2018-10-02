@@ -183,12 +183,10 @@ function renderTable(
     const tds = [m("td", checkbox)];
     for (const attr of attributes) {
       if (attr.id == "script") {
+        const firstLines = virtualParameter[attr.id].split("\n", 11);
+        if (firstLines.length > 10) firstLines[10] = ["\ufe19"];
         tds.push(
-          m(
-            "td",
-            { title: virtualParameter[attr.id] },
-            virtualParameter[attr.id]
-          )
+          m("td", { title: firstLines.join("\n") }, firstLines[0] || "")
         );
       } else {
         tds.push(m("td", virtualParameter[attr.id]));

@@ -181,9 +181,15 @@ function renderTable(
 
     const tds = [m("td", checkbox)];
     for (const attr of attributes) {
-      if (attr.id == "script")
-        tds.push(m("td", { title: provision[attr.id] }, provision[attr.id]));
-      else tds.push(m("td", provision[attr.id]));
+      if (attr.id == "script") {
+        const firstLines = provision[attr.id].split("\n", 11);
+        if (firstLines.length > 10) firstLines[10] = ["\ufe19"];
+        tds.push(
+          m("td", { title: firstLines.join("\n") }, firstLines[0] || "")
+        );
+      } else {
+        tds.push(m("td", provision[attr.id]));
+      }
     }
 
     tds.push(
