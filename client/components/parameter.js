@@ -69,19 +69,24 @@ const component = {
       );
     }
 
-    return m(
+    const el = m(
       "span.parameter-value",
       {
         onmouseover: e => {
           e.redraw = false;
-          const now = Date.now();
-          const localeString = new Date(timestamp).toLocaleString();
-          e.target.title = `${localeString} (${timeAgo(now - timestamp)})`;
+          // Don't update any child element
+          if (e.target === el.dom) {
+            const now = Date.now();
+            const localeString = new Date(timestamp).toLocaleString();
+            e.target.title = `${localeString} (${timeAgo(now - timestamp)})`;
+          }
         }
       },
       value,
       edit
     );
+
+    return el;
   }
 };
 
