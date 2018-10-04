@@ -1,7 +1,7 @@
 "use strict";
 
 import m from "mithril";
-import { codeMirror } from "../dynamic-loader";
+import { codeMirror } from "./dynamic-loader";
 
 const singular = {
   presets: "preset",

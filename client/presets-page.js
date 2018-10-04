@@ -8,7 +8,7 @@ import * as overlay from "./overlay";
 import * as store from "./store";
 import * as expression from "../common/expression";
 import * as notifications from "./notifications";
-import putForm from "./components/put-form";
+import putFormComponent from "./put-form-component";
 import memoize from "../common/memoize";
 import * as smartQuery from "./smart-query";
 import * as expressionParser from "../common/expression-parser";
@@ -214,7 +214,7 @@ function renderTable(
             onclick: () => {
               const cb = () => {
                 return m(
-                  putForm,
+                  putFormComponent,
                   Object.assign(
                     {
                       base: preset,
@@ -317,7 +317,7 @@ function renderTable(
           onclick: () => {
             const cb = () => {
               return m(
-                putForm,
+                putFormComponent,
                 Object.assign(
                   {
                     actionHandler: (action, object) => {
