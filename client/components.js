@@ -11,6 +11,7 @@ import allParameters from "./components/all-parameters";
 import deviceActions from "./components/device-actions";
 import tags from "./components/tags";
 import ping from "./components/ping";
+import deviceLink from "./components/device-link";
 
 function get(name) {
   if (name === "parameter") return parameter;
@@ -24,6 +25,7 @@ function get(name) {
   else if (name === "device-actions") return deviceActions;
   else if (name === "tags") return tags;
   else if (name === "ping") return ping;
+  else if (name === "device-link") return deviceLink;
   else throw new Error(`No such component '${name}'`);
 }
 

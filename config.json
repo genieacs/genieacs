@@ -107,7 +107,13 @@
     "index": [
       {
         "label": "Serial number",
-        "parameter": "DeviceID.SerialNumber"
+        "parameter": "DeviceID.SerialNumber",
+        "type": "device-link",
+        "components": [
+          {
+            "type": "parameter"
+          }
+        ]
       },
       {
         "label": "Product class",
