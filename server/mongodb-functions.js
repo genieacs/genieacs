@@ -485,6 +485,8 @@ function preProcessPreset(data) {
     : {};
   preset.precondition = JSON.stringify(preset.precondition);
 
+  preset.weight = parseInt(preset.weight) || 0;
+
   const events = {};
   if (preset.events) {
     for (let e of preset.events.split(",")) {
