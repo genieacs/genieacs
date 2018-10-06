@@ -226,7 +226,7 @@ function likePatternToRegExp(pat, esc = "", flags = "") {
     "\\_": "."
   };
   let chars = expressionParser.parseLikePattern(pat, esc);
-  if (!chars.length) return new RegExp("", flags);
+  if (!chars.length) return new RegExp("^$", flags);
   chars = chars.map(c => convChars[c] || c);
   chars[0] = chars[0] === ".*" ? "" : "^" + chars[0];
   const l = chars.length - 1;
