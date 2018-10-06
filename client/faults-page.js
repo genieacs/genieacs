@@ -9,6 +9,8 @@ import * as expression from "../common/expression";
 import memoize from "../common/memoize";
 import * as smartQuery from "./smart-query";
 import * as expressionParser from "../common/expression-parser";
+import { loadYaml, yaml } from "./dynamic-loader";
+import longTextComponent from "./long-text-component";
 
 const PAGE_SIZE = config.ui.pageSize || 10;
 
@@ -19,6 +21,8 @@ const attributes = [
   { id: "device", label: "Device" },
   { id: "channel", label: "Channel" },
   { id: "code", label: "Code" },
+  { id: "message", label: "Message" },
+  { id: "detail", label: "Detail", unsortable: true },
   { id: "retries", label: "Retries" },
   { id: "timestamp", label: "Timestamp" }
 ];
@@ -53,7 +57,13 @@ function init(args) {
 
   const sort = args.sort;
   const filter = args.filter;
-  return Promise.resolve({ filter, sort });
+  return new Promise((resolve, reject) => {
+    loadYaml()
+      .then(() => {
+        resolve({ filter, sort });
+      })
+      .catch(reject);
+  });
 }
 
 function renderTable(
@@ -82,7 +92,13 @@ function renderTable(
   for (const attr of attributes) {
     const label = attr.label;
 
-    let direction = 1;
+    if (attr.unsortable) {
+      labels.push(m("th", label));
+      continue;
+    }
+
+    // Offset direction by 1 since sort["_id"] = -1
+    let direction = 2;
 
     let symbol = "\u2981";
     if (sort[attr.id] > 0) symbol = "\u2bc6";
@@ -121,11 +137,17 @@ function renderTable(
 
     const tds = [m("td", checkbox)];
     for (const attr of attributes) {
-      if (attr.id === "device")
-        tds.push(m("a", { href: deviceHref }, f[attr.id]));
-      else if (attr.id === "timestamp")
+      if (attr.id === "device") {
+        tds.push(m("td", m("a", { href: deviceHref }, f[attr.id])));
+      } else if (attr.id === "timestamp") {
         tds.push(m("td", new Date(f[attr.id]).toLocaleString()));
-      else tds.push(m("td", f[attr.id]));
+      } else if (attr.id === "detail") {
+        tds.push(
+          m("td", m(longTextComponent, { text: yaml.stringify(f[attr.id]) }))
+        );
+      } else {
+        tds.push(m("td", f[attr.id]));
+      }
     }
 
     rows.push(

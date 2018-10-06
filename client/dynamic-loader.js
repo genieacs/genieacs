@@ -1,6 +1,7 @@
 "use strict";
 
 let codeMirror;
+let yaml;
 
 function loadCodeMirror() {
   if (codeMirror) return Promise.resolve();
@@ -19,4 +20,17 @@ function loadCodeMirror() {
   });
 }
 
-export { loadCodeMirror, codeMirror };
+function loadYaml() {
+  if (yaml) return Promise.resolve();
+
+  return new Promise((resolve, reject) => {
+    import(/* webpackChunkName: "yaml" */ "yaml")
+      .then(module => {
+        yaml = module;
+        resolve();
+      })
+      .catch(reject);
+  });
+}
+
+export { loadCodeMirror, codeMirror, loadYaml, yaml };

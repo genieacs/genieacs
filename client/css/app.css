@@ -637,3 +637,22 @@ span.tag {
     }
   }
 }
+
+span.long-text {
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 400px;
+  cursor: pointer;
+  &:hover {
+    text-decoration: underline;
+    text-decoration-style: dotted;
+  }
+}
+
+textarea.long-text {
+  font-family: monospace;
+  min-width: 10vw;
+  min-height: 10vh;
+}

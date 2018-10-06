@@ -353,10 +353,6 @@ function flattenFault(fault) {
   const f = Object.assign({}, fault);
   if (f.timestamp) f.timestamp = +f.timestamp;
   if (f.expiry) f.expiry = +f.expiry;
-  if (f.detail) {
-    for (const [k, v] of Object.entries(f.detail)) fault[`detail.${k}`] = v;
-    delete f.detail;
-  }
   return f;
 }
 
