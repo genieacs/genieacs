@@ -208,13 +208,18 @@ function processDeviceSort(sort) {
   return s;
 }
 
+function parseDate(d) {
+  const n = +d;
+  return isNaN(n) ? "" + d : n;
+}
+
 function flattenDevice(device) {
   function recursive(input, root, output, timestamp) {
     for (const [name, tree] of Object.entries(input)) {
       if (!root) {
         if (name === "_lastInform") {
           output["Events.Inform"] = {
-            value: [Date.parse(tree), "xsd:dateTime"],
+            value: [parseDate(tree), "xsd:dateTime"],
             valueTimestamp: timestamp,
             writable: false,
             writableTimestamp: timestamp,
@@ -223,7 +228,7 @@ function flattenDevice(device) {
           };
         } else if (name === "_registered") {
           output["Events.Registered"] = {
-            value: [Date.parse(tree), "xsd:dateTime"],
+            value: [parseDate(tree), "xsd:dateTime"],
             valueTimestamp: timestamp,
             writable: false,
             writableTimestamp: timestamp,
@@ -232,7 +237,7 @@ function flattenDevice(device) {
           };
         } else if (name === "_lastBoot") {
           output["Events.1_BOOT"] = {
-            value: [Date.parse(tree), "xsd:dateTime"],
+            value: [parseDate(tree), "xsd:dateTime"],
             valueTimestamp: timestamp,
             writable: false,
             writableTimestamp: timestamp,
@@ -241,7 +246,7 @@ function flattenDevice(device) {
           };
         } else if (name === "_lastBootstrap") {
           output["Events.0_BOOTSTRAP"] = {
-            value: [Date.parse(tree), "xsd:dateTime"],
+            value: [parseDate(tree), "xsd:dateTime"],
             valueTimestamp: timestamp,
             writable: false,
             writableTimestamp: timestamp,
