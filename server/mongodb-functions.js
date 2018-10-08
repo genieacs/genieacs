@@ -201,8 +201,12 @@ function processDeviceSort(sort) {
   const s = {};
   for (const [k, v] of Object.entries(sort)) {
     if (k === "DeviceID.ID") s["_id"] = v;
+    else if (k.startsWith("DeviceID.")) s[`_deviceId._${k.slice(9)}`] = v;
     else if (k === "Events.Inform") s["_lastInform"] = v;
-    else s[k] = v;
+    else if (k === "Events.Registered") s["_registered"] = v;
+    else if (k === "Events.1_BOOT") s["_lastBoot"] = v;
+    else if (k === "Events.0_BOOTSTRAP") s["_lastBootstrap"] = v;
+    else s[`${k}._value`] = v;
   }
 
   return s;
