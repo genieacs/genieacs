@@ -44,6 +44,7 @@ const component = {
                   })
                   .catch(err => {
                     notifications.push("error", err.message);
+                    store.fulfill(Date.now(), Date.now());
                   });
               }
             },

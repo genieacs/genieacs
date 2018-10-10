@@ -79,6 +79,7 @@ function putActionHandler(action, object, isNew) {
       })
       .catch(err => {
         notifications.push("error", err.message);
+        store.fulfill(0, Date.now());
       });
   } else {
     throw new Error("Undefined action");
@@ -294,6 +295,7 @@ function renderTable(
             })
             .catch(err => {
               notifications.push("error", err.message);
+              store.fulfill(0, Date.now());
             });
         }
       },

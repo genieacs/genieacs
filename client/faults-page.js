@@ -216,6 +216,7 @@ function renderTable(
             })
             .catch(err => {
               notifications.push("error", err.message);
+              store.fulfill(0, Date.now());
             });
         }
       },
