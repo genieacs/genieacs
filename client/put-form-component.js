@@ -42,7 +42,15 @@ function createField(current, attr, focus) {
       oncreate: _vnode => {
         const editor = codeMirror.fromTextArea(_vnode.dom, {
           mode: "javascript",
-          lineNumbers: true
+          lineNumbers: true,
+          extraKeys: {
+            "Ctrl-Enter": () => {
+              _vnode.dom.form.querySelector("button[type=submit]").click();
+            },
+            "Cmd-Enter": () => {
+              _vnode.dom.form.querySelector("button[type=submit]").click();
+            }
+          }
         });
 
         editor.on("change", e => {
