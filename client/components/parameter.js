@@ -6,6 +6,7 @@ import * as store from "../store";
 import * as expression from "../../common/expression";
 import memoize from "../../common/memoize";
 import timeAgo from "../timeago";
+import longTextComponent from "../long-text-component";
 
 const memoizedParse = memoize(expression.parse);
 
@@ -69,9 +70,12 @@ const component = {
       );
     }
 
-    const el = m(
-      "span.parameter-value",
+    const el = m(longTextComponent, { text: value });
+
+    return m(
+      "span",
       {
+        class: "parameter-value",
         onmouseover: e => {
           e.redraw = false;
           // Don't update any child element
@@ -82,11 +86,9 @@ const component = {
           }
         }
       },
-      value,
+      el,
       edit
     );
-
-    return el;
   }
 };
 

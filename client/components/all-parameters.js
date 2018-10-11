@@ -3,6 +3,7 @@
 import m from "mithril";
 import * as components from "../components";
 import * as taskQueue from "../task-queue";
+import longTextComponent from "../long-text-component";
 
 function escapeRegExp(str) {
   return str.replace(/[-[\]/{}()*+?.\\^$|]/g, "\\$&");
@@ -101,7 +102,12 @@ const component = {
           )
         );
 
-        return m("tr", attrs, m("td.left", k), m("td.right", val));
+        return m(
+          "tr",
+          attrs,
+          m("td.left", m(longTextComponent, { text: k })),
+          m("td.right", val)
+        );
       });
 
     return m(

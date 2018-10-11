@@ -538,10 +538,13 @@ span.na {
 
     & > table {
       width: 100%;
+      table-layout: fixed;
       border-spacing: 0;
       & > tbody {
         & > tr {
           & > td {
+            overflow: hidden;
+            white-space: nowrap;
             border-bottom: 1px dotted var(--color1);
           }
           transition: background-color var(--fade);
@@ -550,6 +553,9 @@ span.na {
           }
 
           & > td.left {
+            & > * {
+              max-width: 100%;
+            }
           }
           & > td.right {
             text-align: right;
@@ -644,6 +650,9 @@ span.long-text {
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 400px;
+}
+
+span.long-text-overflowed {
   cursor: pointer;
   &:hover {
     text-decoration: underline;
