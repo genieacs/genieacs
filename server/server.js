@@ -169,26 +169,24 @@ koa.use(
     flush: require("zlib").Z_SYNC_FLUSH
   })
 );
-koa.use(router.routes());
-koa.use(koaStatic("./public"));
 
 const server = http
   .createServer(koa.callback())
   .listen(config.server.port, config.server.interface);
 
+koa.use(async (ctx, next) => {
+  await next();
+  if (!server.listening) ctx.set("Connection", "close");
+});
+
+koa.use(router.routes());
+koa.use(koaStatic("./public"));
+
 function closeServer(timeout) {
   return new Promise(resolve => {
-    setTimeout(() => {
-      if (!resolve) return;
-      // Ignore HTTP requests from alive connections
-      server.removeListener("request", koa.callback());
-      server.setTimeout(1);
-
-      setTimeout(resolve, 1000);
-    }, timeout).unref();
-
     // prevent new sockets to connect and close server eventually.
     server.close(resolve);
+    setTimeout(resolve, timeout).unref();
   });
 }
 
