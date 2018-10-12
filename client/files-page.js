@@ -52,13 +52,14 @@ const unpackSmartQuery = memoize(query => {
   });
 });
 
-function putActionHandler(action, object) {
+function putActionHandler(action, _object) {
   return new Promise((resolve, reject) => {
+    const object = Object.assign({}, _object);
     if (action === "save") {
       const file = object["file"] ? object["file"][0] : null;
       delete object["file"];
 
-      if (!file) return void reject(new Error("File not selected"));
+      if (!file) return void resolve({ file: "File not selected" });
 
       const id = file.name;
 
@@ -67,7 +68,7 @@ function putActionHandler(action, object) {
         .then(exists => {
           if (exists) {
             store.fulfill(0, Date.now());
-            return void reject(new Error("File already exists"));
+            return void resolve({ file: "File already exists" });
           }
           const headers = Object.assign(
             {
@@ -277,15 +278,23 @@ function renderTable(
                 Object.assign(
                   {
                     actionHandler: (action, object) => {
-                      putActionHandler(action, object)
-                        .then(() => {
-                          overlay.close(cb);
-                        })
-                        .catch(err => {
-                          notifications.push("error", err.message);
-                          overlay.close(cb);
-                          m.redraw();
-                        });
+                      return new Promise(resolve => {
+                        putActionHandler(action, object)
+                          .then(errors => {
+                            errors = errors ? Object.values(errors) : [];
+                            if (errors.length) {
+                              for (const err of errors)
+                                notifications.push("error", err);
+                            } else {
+                              overlay.close(cb);
+                            }
+                            resolve();
+                          })
+                          .catch(err => {
+                            notifications.push("error", err.message);
+                            resolve();
+                          });
+                      });
                     }
                   },
                   formData

@@ -37,58 +37,62 @@ const unpackSmartQuery = memoize(query => {
   });
 });
 
-function putActionHandler(action, object, isNew) {
-  if (action === "save") {
-    const id = object["_id"];
-    delete object["_id"];
+function putActionHandler(action, _object, isNew) {
+  return new Promise((resolve, reject) => {
+    const object = Object.assign({}, _object);
+    if (action === "save") {
+      const id = object["_id"];
+      delete object["_id"];
 
-    if (!id) return void notifications.push("error", "ID can not be empty");
+      const errors = {};
 
-    store
-      .resourceExists("presets", id)
-      .then(exists => {
-        if (exists && isNew) {
-          notifications.push("error", "Preset already exists");
-          store.fulfill(0, Date.now());
-          return;
-        }
+      if (!id) errors["_id"] = "ID can not be empty";
+      if (!object.provision) errors.provision = "Provision not selected";
 
-        if (!exists && !isNew) {
-          notifications.push("error", "Preset already deleted");
-          store.fulfill(0, Date.now());
-          return;
-        }
+      if (Object.keys(errors).length) return void resolve(errors);
 
-        store
-          .putResource("presets", id, object)
-          .then(() => {
-            notifications.push(
-              "success",
-              `Preset ${exists ? "updated" : "created"}`
-            );
+      store
+        .resourceExists("presets", id)
+        .then(exists => {
+          if (exists && isNew) {
             store.fulfill(0, Date.now());
-          })
-          .catch(err => {
-            notifications.push("error", err.message);
-          });
-      })
-      .catch(err => {
-        notifications.push("error", err.message);
-      });
-  } else if (action === "delete") {
-    store
-      .deleteResource("presets", object["_id"])
-      .then(() => {
-        notifications.push("success", "Preset deleted");
-        store.fulfill(0, Date.now());
-      })
-      .catch(err => {
-        notifications.push("error", err.message);
-        store.fulfill(0, Date.now());
-      });
-  } else {
-    throw new Error("Undefined action");
-  }
+            return void resolve({ _id: "Preset already exists" });
+          }
+
+          if (!exists && !isNew) {
+            store.fulfill(0, Date.now());
+            return void resolve({ _id: "Preset does not exist" });
+          }
+
+          store
+            .putResource("presets", id, object)
+            .then(() => {
+              notifications.push(
+                "success",
+                `Preset ${exists ? "updated" : "created"}`
+              );
+              store.fulfill(0, Date.now());
+              resolve();
+            })
+            .catch(reject);
+        })
+        .catch(reject);
+    } else if (action === "delete") {
+      store
+        .deleteResource("presets", object["_id"])
+        .then(() => {
+          notifications.push("success", "Preset deleted");
+          store.fulfill(0, Date.now());
+          resolve();
+        })
+        .catch(err => {
+          reject(err);
+          store.fulfill(0, Date.now());
+        });
+    } else {
+      reject(new Error("Undefined action"));
+    }
+  });
 }
 
 const formData = {
@@ -220,8 +224,23 @@ function renderTable(
                     {
                       base: preset,
                       actionHandler: (action, object) => {
-                        overlay.close(cb);
-                        putActionHandler(action, object, false);
+                        return new Promise(resolve => {
+                          putActionHandler(action, object, false)
+                            .then(errors => {
+                              errors = errors ? Object.values(errors) : [];
+                              if (errors.length) {
+                                for (const err of errors)
+                                  notifications.push("error", err);
+                              } else {
+                                overlay.close(cb);
+                              }
+                              resolve();
+                            })
+                            .catch(err => {
+                              notifications.push("error", err.message);
+                              resolve();
+                            });
+                        });
                       }
                     },
                     formData
@@ -323,8 +342,23 @@ function renderTable(
                 Object.assign(
                   {
                     actionHandler: (action, object) => {
-                      putActionHandler(action, object, true);
-                      overlay.close(cb);
+                      return new Promise(resolve => {
+                        putActionHandler(action, object, true)
+                          .then(errors => {
+                            errors = errors ? Object.values(errors) : [];
+                            if (errors.length) {
+                              for (const err of errors)
+                                notifications.push("error", err);
+                            } else {
+                              overlay.close(cb);
+                            }
+                            resolve();
+                          })
+                          .catch(err => {
+                            notifications.push("error", err.message);
+                            resolve();
+                          });
+                      });
                     }
                   },
                   formData

@@ -138,7 +138,9 @@ const component = {
             onclick: e => {
               e.redraw = false;
               e.target.disabled = true;
-              actionHandler("delete", current.object);
+              actionHandler("delete", current.object).then(() => {
+                e.target.disabled = false;
+              });
             }
           },
           "Delete"
@@ -155,11 +157,16 @@ const component = {
         {
           onsubmit: e => {
             e.redraw = false;
-            e.target.onsubmit = null;
+            // const onsubmit = e.target.onsubmit;
             e.preventDefault();
-            for (const elem of e.target.elements) elem.disabled = true;
-            submit.dom.textContent = "Loading ...";
-            actionHandler("save", current.object);
+            // e.target.onsubmit = null;
+            submit.dom.disabled = true;
+            // submit.dom.textContent = "Loading ...";
+            actionHandler("save", current.object).then(() => {
+              // submit.dom.textContent = "Save";
+              // e.target.onsubmit = onsubmit;
+              submit.dom.disabled = false;
+            });
           }
         },
         form
