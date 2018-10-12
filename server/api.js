@@ -296,7 +296,7 @@ for (const [resource, flags] of Object.entries(resources)) {
 
       const authorizer = ctx.state.authorizer;
       const filter = ["=", ["PARAM", RESOURCE_IDS[resource]], ctx.params.id];
-      if (!authorizer.hasAccess(resource, 2)) {
+      if (!authorizer.hasAccess(resource, 3)) {
         logUnauthorizedWarning(log);
         return void next();
       }
@@ -410,7 +410,7 @@ router.post("/devices/:id/tasks", async (ctx, next) => {
 
   const authorizer = ctx.state.authorizer;
   const filter = ["=", ["PARAM", "DeviceID.ID"], ctx.params.id];
-  if (!authorizer.hasAccess("devices", 2)) {
+  if (!authorizer.hasAccess("devices", 3)) {
     logUnauthorizedWarning(log);
     return void next();
   }
@@ -445,7 +445,7 @@ router.post("/devices/:id/tags", async (ctx, next) => {
 
   const authorizer = ctx.state.authorizer;
   const filter = ["=", ["PARAM", "DeviceID.ID"], ctx.params.id];
-  if (!authorizer.hasAccess("devices", 2)) {
+  if (!authorizer.hasAccess("devices", 3)) {
     logUnauthorizedWarning(log);
     return void next();
   }
