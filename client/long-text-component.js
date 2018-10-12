@@ -15,21 +15,16 @@ const component = {
         title: text,
         onclick: () => {
           overlay.open(() => {
-            return m(
-              "textarea.long-text",
-              {
-                cols: 80,
-                rows: 24,
-                readonly: "",
-                oncreate: vnode2 => {
-                  setTimeout(() => {
-                    vnode2.dom.focus();
-                    vnode2.dom.select();
-                  }, 50);
-                }
-              },
-              text
-            );
+            return m("textarea.long-text", {
+              value: text,
+              cols: 80,
+              rows: 24,
+              readonly: "",
+              oncreate: vnode2 => {
+                vnode2.dom.focus();
+                vnode2.dom.select();
+              }
+            });
           });
         }
       },
