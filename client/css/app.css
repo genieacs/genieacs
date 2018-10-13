@@ -665,3 +665,10 @@ textarea.long-text {
   min-width: 10vw;
   min-height: 10vh;
 }
+
+span.parameter-value {
+  & > span:empty::before {
+    content: "blank";
+    color: #aaa;
+  }
+}
