@@ -7,6 +7,7 @@ class Autocomplete {
     this.hideTimeout = null;
     this.visible = false;
     this.default = null;
+    this.selection = null;
 
     this.container = document.createElement("div");
     this.container.style.position = "absolute";
@@ -30,25 +31,34 @@ class Autocomplete {
     el.addEventListener("blur", () => {
       if (this.element !== el) return;
       if (!this.visible) return;
-      this.default = null;
       this.hide();
     });
 
     el.addEventListener("keydown", e => {
       if (this.element !== el) return;
       if (e.key === "Escape") {
-        this.hide();
+        if (this.visible) this.hide();
       } else if (e.key === "Enter") {
         if (this.default != null) {
           el.value = this.default;
           e.preventDefault();
           this.update();
         }
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        if (this.selection == null) this.selection = 0;
+        else ++this.selection;
+        this.update();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        --this.selection;
+        this.update();
       }
     });
 
     el.addEventListener("input", () => {
       if (this.element !== el) return;
+      this.selection = null;
       this.update();
     });
   }
@@ -57,6 +67,7 @@ class Autocomplete {
     this.container.style.opacity = 0;
     this.visible = false;
     this.default = null;
+    this.selection = null;
     clearTimeout(this.hideTimeout);
     this.hideTimeout = setTimeout(() => {
       this.hideTimeout = null;
@@ -94,11 +105,19 @@ class Autocomplete {
         this.visible = true;
       }
 
-      this.default = suggestions[0];
+      if (this.selection != null) {
+        this.selection =
+          ((this.selection % suggestions.length) + suggestions.length) %
+          suggestions.length;
+        this.default = suggestions[this.selection];
+      } else {
+        this.default = suggestions[0];
+      }
 
-      for (const suggestion of suggestions) {
+      for (const [idx, suggestion] of suggestions.entries()) {
         const e = document.createElement("div");
-        e.className = "suggestion";
+        e.classList.add("suggestion");
+        if (idx === this.selection) e.classList.add("selected");
         const t = document.createTextNode(suggestion);
         e.appendChild(t);
         e.addEventListener("mousedown", ev => {

@@ -638,6 +638,8 @@ span.tag {
   transition: opacity var(--fade);
   & > .suggestion {
     padding: 5px;
+
+    &.selected,
     &:hover {
       background-color: var(--color3);
     }
