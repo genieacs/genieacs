@@ -420,9 +420,20 @@ const component = {
       const provisionAttr = attributes.find(attr => {
         return attr.id === "provision";
       });
-      provisionAttr.options = provisions.value.map(v => {
-        return v["_id"];
-      });
+
+      const provisionIds = new Set([
+        "refresh",
+        "value",
+        "tag",
+        "reboot",
+        "reset",
+        "download",
+        "instances"
+      ]);
+
+      for (const p of provisions.value) provisionIds.add(p["_id"]);
+
+      provisionAttr.options = Array.from(provisionIds);
     }
 
     const selected = new Set();
