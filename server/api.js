@@ -1,6 +1,6 @@
 "use strict";
 
-const zlib = require("zlib");
+const stream = require("stream");
 const Router = require("koa-router");
 const db = require("./db");
 const apiFunctions = require("./api-functions");
@@ -109,32 +109,15 @@ for (const [resource, flags] of Object.entries(resources)) {
       ]);
     }
 
-    let stream;
-    switch (ctx.acceptsEncodings("gzip", "deflate", "identity")) {
-      case "gzip":
-        stream = zlib.createGzip({ flush: zlib.constants.Z_SYNC_FLUSH });
-        stream.pipe(ctx.res);
-        ctx.set("Content-Encoding", "gzip");
-        break;
-      case "deflate":
-        stream = zlib.createDeflate({ flush: zlib.constants.Z_SYNC_FLUSH });
-        stream.pipe(ctx.res);
-        ctx.set("Content-Encoding", "deflate");
-        break;
-      default:
-        stream = ctx.res;
-        break;
-    }
-
-    ctx.body = ctx.res;
+    ctx.body = new stream.PassThrough();
     ctx.type = "application/json";
 
     let c = 0;
-    stream.write("[\n");
+    ctx.body.write("[\n");
     await db.query(resource, filter, options, obj => {
-      stream.write((c++ ? "," : "") + JSON.stringify(obj) + "\n");
+      ctx.body.write((c++ ? "," : "") + JSON.stringify(obj) + "\n");
     });
-    stream.end("]");
+    ctx.body.end("]");
 
     logger.accessInfo(log);
   });
@@ -181,30 +164,13 @@ for (const [resource, flags] of Object.entries(resources)) {
       ]);
     }
 
-    let stream;
-    switch (ctx.acceptsEncodings("gzip", "deflate", "identity")) {
-      case "gzip":
-        stream = zlib.createGzip({ flush: zlib.constants.Z_SYNC_FLUSH });
-        stream.pipe(ctx.res);
-        ctx.set("Content-Encoding", "gzip");
-        break;
-      case "deflate":
-        stream = zlib.createDeflate({ flush: zlib.constants.Z_SYNC_FLUSH });
-        stream.pipe(ctx.res);
-        ctx.set("Content-Encoding", "deflate");
-        break;
-      default:
-        stream = ctx.res;
-        break;
-    }
-
-    ctx.body = ctx.res;
+    ctx.body = new stream.PassThrough();
     ctx.type = "text/csv";
     ctx.attachment(
       `${resource}-${new Date(now).toISOString().replace(/[:.]/g, "")}.csv`
     );
 
-    stream.write(
+    ctx.body.write(
       Object.keys(columns).map(k => `"${k.replace(/"/, '""')}"`) + "\n"
     );
     await db.query(resource, filter, options, obj => {
@@ -236,9 +202,9 @@ for (const [resource, flags] of Object.entries(resources)) {
         if (typeof v === "string") return `"${v.replace(/"/g, '""')}"`;
         return v;
       });
-      stream.write(arr.join(",") + "\n");
+      ctx.body.write(arr.join(",") + "\n");
     });
-    stream.end();
+    ctx.body.end();
 
     logger.accessInfo(log);
   });
