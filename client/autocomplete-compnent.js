@@ -114,10 +114,15 @@ class Autocomplete {
         this.default = suggestions[0];
       }
 
+      let selectedElement;
       for (const [idx, suggestion] of suggestions.entries()) {
         const e = document.createElement("div");
         e.classList.add("suggestion");
-        if (idx === this.selection) e.classList.add("selected");
+        if (idx === this.selection) {
+          e.classList.add("selected");
+          selectedElement = e;
+        }
+
         const t = document.createTextNode(suggestion);
         e.appendChild(t);
         e.addEventListener("mousedown", ev => {
@@ -126,6 +131,21 @@ class Autocomplete {
           if (this.element === el) this.update(el);
         });
         this.container.appendChild(e);
+      }
+
+      // Ensure selected element is in view
+      if (selectedElement) {
+        this.container.scrollTop = Math.min(
+          this.container.scrollTop,
+          selectedElement.offsetTop
+        );
+
+        this.container.scrollTop = Math.max(
+          this.container.scrollTop,
+          selectedElement.offsetTop +
+            selectedElement.scrollHeight -
+            this.container.clientHeight
+        );
       }
     });
   }
