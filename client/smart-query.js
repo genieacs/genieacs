@@ -63,6 +63,22 @@ function queryNumber(param, value) {
   return [op, param, v];
 }
 
+function queryTimestamp(param, value) {
+  let op = "=";
+  for (const o of ["<>", "=", "<=", "<", ">=", ">"]) {
+    if (value.startsWith(o)) {
+      op = o;
+      value = value.slice(o.length).trim();
+      break;
+    }
+  }
+
+  let v = parseInt(value);
+  if (v !== +value) v = Date.parse(value);
+  if (isNaN(v)) return null;
+  return [op, param, v];
+}
+
 function queryString(param, value) {
   return ["LIKE", ["FUNC", "LOWER", param], value.toLowerCase()];
 }
@@ -102,6 +118,11 @@ function unpack(resource, label, value) {
 
   if (type.length === 0 || type.includes("string")) {
     const q = queryString(resources[resource][label].parameter, value);
+    if (q) res.push(q);
+  }
+
+  if (type.length === 0 || type.includes("timestamp")) {
+    const q = queryTimestamp(resources[resource][label].parameter, value);
     if (q) res.push(q);
   }
 
