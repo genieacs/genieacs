@@ -18,6 +18,9 @@ const component = {
       placeholder: "Search parameters",
       oninput: e => {
         vnode.state.searchString = e.target.value;
+        e.redraw = false;
+        clearTimeout(vnode.state.timeout);
+        vnode.state.timeout = setTimeout(m.redraw, 500);
       }
     });
 
