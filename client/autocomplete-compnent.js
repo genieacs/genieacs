@@ -22,9 +22,9 @@ class Autocomplete {
     el.addEventListener("focus", () => {
       this.element = el;
       const domRect = el.getBoundingClientRect();
-      this.container.style.left = `${domRect.left}px`;
+      this.container.style.left = `${domRect.left + window.pageXOffset}px`;
       this.container.style.width = `${domRect.width}px`;
-      this.container.style.top = `${domRect.bottom}px`;
+      this.container.style.top = `${domRect.bottom + window.pageYOffset}px`;
       this.update();
     });
 
