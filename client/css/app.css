@@ -41,6 +41,10 @@ a {
     color: white;
     background-color: var(--color4);
   }
+  /* text-decoration does not propagate to inline-block children */
+  & span {
+    text-decoration: inherit;
+  }
 }
 
 strong,
@@ -648,10 +652,15 @@ span.tag {
 
 span.long-text {
   display: inline-block;
-  overflow: hidden;
+  overflow-x: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 400px;
+  /*
+  "overflow: hidden" changes the baseline as explained here:
+  https://stackoverflow.com/questions/9273016/why-is-this-inline-block-element-pushed-downward
+  */
+  vertical-align: top;
 }
 
 span.long-text-overflowed {
