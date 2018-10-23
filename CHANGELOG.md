@@ -1,5 +1,18 @@
 # Change Log
 
+## 1.1.3 (2018-10-23)
+
+- New config option (MAX_COMMIT_ITERATIONS) to avoid max commit iterations
+faults for more complex scripts.
+- Support base64 and hexBinary parameter types.
+- Strict parsing of number values in queries (e.g. "123abc" no longer accepted
+as 123).
+- Mixing $ne and $not operators is not allowed. Now it throws an error instead
+of returning incorrect results.
+- When a task expires, any associated fault is also deleted.
+- API now accepts 'timeout' argument when posting a task.
+- A number of stability fixes.
+
 ## 1.1.2 (2018-02-24)
 
 - A large number of bug fixes as well as stability and performance improvements.
