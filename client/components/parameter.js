@@ -70,7 +70,7 @@ const component = {
       );
     }
 
-    const el = m(longTextComponent, { text: value });
+    const el = m(longTextComponent, { text: `${value}` });
 
     return m(
       "span",
