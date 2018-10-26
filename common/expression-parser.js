@@ -122,7 +122,7 @@ const lang = parsimmon.createLanguage({
   Parameter: function(r) {
     return parsimmon
       .alt(
-        parsimmon.regexp(/[a-zA-Z0-9_.*]+/),
+        parsimmon.regexp(/[a-zA-Z0-9_.*-]+/),
         r.Expression.wrap(
           parsimmon.string("{").skip(parsimmon.optWhitespace),
           parsimmon.string("}")
