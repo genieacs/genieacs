@@ -5,6 +5,8 @@ const config = require("./config");
 const mongodbFunctions = require("./mongodb-functions");
 const expression = require("../common/expression");
 
+const CACHE_TTL = 300000;
+
 let _clientPromise = null;
 
 const RESOURCE_DB = {
@@ -14,12 +16,20 @@ const RESOURCE_DB = {
   presets: "genieacs",
   provisions: "genieacs",
   virtualParameters: "genieacs",
-  files: "genieacs"
+  files: "genieacs",
+  cache: "genieacs-ui"
 };
 
 const RESOURCE_COLLECTION = {
   files: "fs.files"
 };
+
+function ensureIndexes(client) {
+  client
+    .db(RESOURCE_DB["cache"])
+    .collection("cache")
+    .createIndex({ expire: 1 }, { expireAfterSeconds: 0 });
+}
 
 function getClient() {
   if (!_clientPromise) {
@@ -30,6 +40,7 @@ function getClient() {
         { useNewUrlParser: true },
         (err, client) => {
           if (err) return void reject(err);
+          ensureIndexes(client);
           resolve(client);
         }
       );
@@ -37,6 +48,39 @@ function getClient() {
   }
 
   return _clientPromise;
+}
+
+function cache(key, valueGetter, ttl) {
+  return new Promise((resolve, reject) => {
+    getClient()
+      .then(client => {
+        const collection = client.db(RESOURCE_DB["cache"]).collection("cache");
+        collection.findOne({ _id: key }, (err, doc) => {
+          if (err) return void reject(err);
+          if (doc != null) return void resolve(JSON.parse(doc.value));
+          valueGetter()
+            .then(res => {
+              const expire = Date.now() + (ttl || CACHE_TTL);
+              const cacheDoc = {
+                _id: key,
+                value: JSON.stringify(res),
+                expire: new Date(expire)
+              };
+              collection.updateOne(
+                { _id: key },
+                { $set: cacheDoc },
+                { upsert: true },
+                err => {
+                  if (err) reject(err);
+                  else resolve(res);
+                }
+              );
+            })
+            .catch(reject);
+        });
+      })
+      .catch(reject);
+  });
 }
 
 function query(resource, filter, options, callback) {
@@ -164,4 +208,5 @@ function disconnect() {
 
 exports.query = query;
 exports.count = count;
+exports.cache = cache;
 exports.disconnect = disconnect;
