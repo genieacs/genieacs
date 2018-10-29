@@ -138,7 +138,7 @@ function count(resource, filter) {
       filter = mongodbFunctions.processFaultsFilter(filter);
     q = mongodbFunctions.filterToMongoQuery(filter);
   } else if (filter != null && !filter) {
-    return Promise.resolve([]);
+    return Promise.resolve(0);
   }
 
   return new Promise((resolve, reject) => {
