@@ -235,12 +235,12 @@ function likePatternToRegExp(pat, esc = "", flags = "") {
 }
 
 function extractParams(exp) {
-  const params = [];
+  const params = new Set();
   expressionParser.map(exp, e => {
-    if (isArray(e) && e[0] === "PARAM") params.push(e[1]);
+    if (isArray(e) && e[0] === "PARAM") params.add(e[1]);
     return e;
   });
-  return params;
+  return Array.from(params);
 }
 
 exports.evaluate = evaluate;
