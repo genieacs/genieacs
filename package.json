@@ -36,6 +36,7 @@
     "redis": "^2.6.5"
   },
   "devDependencies": {
+    "ava": "^1.1.0",
     "babel-eslint": "^8.2.6",
     "codemirror": "^5.40.0",
     "cssnano": "^4.0.5",
@@ -55,8 +56,8 @@
     "compile": "echo 'Compile step no longer required, skipping.'",
     "configure": "if [ ! -f ./config/config.json ]; then cp ./config/config-sample.json ./config/config.json; fi",
     "install": "npm run configure",
-    "test": "node test",
-    "lint": "eslint --fix lib ui build bin/*; prettier --write \"lib/**/*.js\" \"ui/**/*.js\" \"build/**/*.js\" bin/*",
+    "test": "ava --verbose --color",
+    "lint": "eslint --fix lib ui build test bin/*; prettier --write \"lib/**/*.js\" \"ui/**/*.js\" \"build/**/*.js\" \"test/**/*.js\" bin/*",
     "build": "node build/build"
   }
 }
