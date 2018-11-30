@@ -64,6 +64,45 @@ Note: For production deployment make sure to run those as background services.
 For further details about installation and configuration, refer to the
 [wiki section](https://github.com/genieacs/genieacs/wiki).
 
+### Docker deployment
+
+Maybe you want to deploy in your machine without installing all dependencies.  
+In this case, you can simply run:
+
+```shell
+# You volume must have this file
+cp config/config-sample.json config/config.json
+docker-compose up -d
+```
+
+This will turn on:
+
+- MongoDB
+- Redis
+- CWMP
+- FS
+- NBI
+
+Then you can test your devices directly in your machine.  
+If you change some code, you can just restart the service you changed by docker-compose.  
+The source is already mounted to make development easier.
+
+Useful commands when deployed by docker-compose:
+
+```shell
+# See logs like tailf
+docker-compose logs -f [service]
+
+# Restart some service
+docker-compose restart [service]
+
+# Build again (if you add some new in package.json)
+docker-compose build [service]
+
+# Access mongodb database
+docker-compose exec mongo mongo genieacs
+```
+
 ## Support
 
 The [forum](https://forum.genieacs.com) is a good place to get guidance and

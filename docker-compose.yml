@@ -1,0 +1,59 @@
+version: '2'
+
+services:
+  mongo:
+    image: mongo:3.4
+    volumes:
+      - /data/db
+    expose:
+      - 27017
+
+  redis:
+    image: redis:alpine
+    expose:
+      - 6379
+
+  cwmp:
+    build: .
+    links:
+      - mongo
+      - redis
+    env_file:
+      - config/config.env
+    volumes:
+      - ".:/usr/lib/genieacs"
+      - "/usr/lib/genieacs/node_modules"
+    entrypoint: "/bin/ash"
+    command: ["-c", "npm run compile && genieacs-cwmp"]
+    ports:
+      - "7547:7547"
+
+  nbi:
+    build: .
+    links:
+      - mongo
+      - redis
+    env_file:
+      - config/config.env
+    volumes:
+      - ".:/usr/lib/genieacs"
+      - "/usr/lib/genieacs/node_modules"
+    entrypoint: "/bin/ash"
+    command: ["-c", "npm run compile && genieacs-nbi"]
+    ports:
+      - "7557:7557"
+
+  fs:
+    build: .
+    links:
+      - mongo
+      - redis
+    env_file:
+      - config/config.env
+    volumes:
+      - ".:/usr/lib/genieacs"
+      - "/usr/lib/genieacs/node_modules"
+    entrypoint: "/bin/ash"
+    command: ["-c", "npm run compile && genieacs-fs"]
+    ports:
+      - "7567:7567"
