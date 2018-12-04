@@ -115,6 +115,15 @@ const component = {
 
     return m(
       ".all-parameters",
+      m(
+        "a.download-csv",
+        {
+          href: `/api/devices/${device["DeviceID.ID"].value[0]}.csv`,
+          download: "",
+          style: "float: right;"
+        },
+        "Download"
+      ),
       search,
       m(".parameter-list", m("table", m("tbody", rows)))
     );

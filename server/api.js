@@ -37,6 +37,53 @@ const resources = {
   tasks: 0
 };
 
+router.get(`/devices/:id.csv`, async ctx => {
+  const log = {
+    message: "Query device (CSV)",
+    context: ctx,
+    id: ctx.params.id
+  };
+
+  const filter = ["=", ["PARAM", RESOURCE_IDS.devices], ctx.params.id];
+
+  if (!ctx.state.authorizer.hasAccess("devices", 2)) {
+    logUnauthorizedWarning(log);
+    return void (ctx.status = 404);
+  }
+
+  const res = await db.query("devices", filter);
+  if (!res[0]) return void (ctx.status = 404);
+
+  ctx.type = "text/csv";
+  ctx.attachment(
+    `device-${ctx.params.id}-${new Date()
+      .toISOString()
+      .replace(/[:.]/g, "")}.csv`
+  );
+
+  ctx.body = new stream.PassThrough();
+  ctx.body.write(
+    "Parameter,Object,Object timestamp,Writable,Writable timestamp,Value,Value type,Value timestamp\n"
+  );
+
+  for (const k of Object.keys(res[0]).sort()) {
+    const p = res[0][k];
+    const row = [
+      k,
+      p.object,
+      p.objectTimestamp,
+      p.writable,
+      p.writableTimestamp,
+      p.value != null ? `"${p.value[0].toString().replace(/"/g, '""')}"` : "",
+      p.value != null ? p.value[1] : "",
+      p.valueTimestamp
+    ];
+    ctx.body.write(row.map(r => (r != null ? r : "")).join(",") + "\n");
+  }
+  ctx.body.end();
+  logger.accessInfo(log);
+});
+
 for (const [resource, flags] of Object.entries(resources)) {
   router.head(`/${resource}`, async (ctx, next) => {
     let filter = true;

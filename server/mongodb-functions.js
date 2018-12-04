@@ -330,7 +330,10 @@ function flattenDevice(device) {
 
       const attrs = {};
       if (tree["_value"] != null) {
-        attrs["value"] = [tree["_value"], tree["_type"]];
+        attrs["value"] = [
+          tree["_value"] instanceof Date ? +tree["_value"] : tree["_value"],
+          tree["_type"]
+        ];
         attrs["valueTimestamp"] = +(tree["_timestamp"] || childrenTimestamp);
         attrs["object"] = false;
         attrs["objectTimestamp"] = childrenTimestamp;

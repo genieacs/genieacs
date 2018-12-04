@@ -528,7 +528,6 @@ span.na {
 }
 
 .all-parameters {
-  font-family: monospace;
   & > input {
     font-family: monospace;
     margin-bottom: 2px;
@@ -537,6 +536,7 @@ span.na {
   }
 
   & > .parameter-list {
+    font-family: monospace;
     overflow-y: scroll;
     height: 200px;
 
