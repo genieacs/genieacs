@@ -6,6 +6,9 @@ import * as taskQueue from "../task-queue";
 import * as store from "../store";
 import * as expression from "../../common/expression";
 import * as expressionParser from "../../common/expression-parser";
+import memoize from "../../common/memoize";
+
+const memoizeParse = memoize(expression.parse);
 
 const component = {
   oninit: vnode => {
@@ -44,6 +47,17 @@ const component = {
 
     const rows = [];
     for (const i of instances) {
+      let filter =
+        vnode.attrs.filter != null ? memoizeParse(vnode.attrs.filter) : true;
+
+      filter = expressionParser.map(filter, e => {
+        if (Array.isArray(e) && e[0] === "PARAM")
+          return ["PARAM", ["||", i, ".", e[1]]];
+        return e;
+      });
+
+      if (!store.evaluateExpression(filter, device)) continue;
+
       const row = parameters.map(p => {
         const param = expressionParser.map(p.parameter, e => {
           if (Array.isArray(e) && e[0] === "PARAM")
