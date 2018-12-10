@@ -15,6 +15,7 @@
     "curly": ["error", "multi-or-nest", "consistent"],
     "consistent-return": ["error", {"treatUndefinedAsUnspecified": true}],
     "no-buffer-constructor": "error",
-    "prefer-const": ["error", {"destructuring": "all"}]
+    "prefer-const": ["error", {"destructuring": "all"}],
+    "eqeqeq": ["error", "always", {"null": "ignore"}]
   }
 }
