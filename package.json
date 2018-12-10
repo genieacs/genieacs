@@ -1,6 +1,6 @@
 {
   "name": "genieacs",
-  "version": "1.1.2",
+  "version": "1.2.0-dev",
   "description": "A TR-069 Auto Configuration Server (ACS)",
   "repository": {
     "type": "git",
@@ -20,19 +20,19 @@
   },
   "dependencies": {
     "later": "^1.2.0",
-    "libxmljs": "^0.18.7",
+    "libxmljs": "^0.19.5",
     "mongodb": "^3.1.10",
-    "seedrandom": "^2.4.3"
+    "seedrandom": "^2.4.4"
   },
   "optionalDependencies": {
     "redis": "^2.6.5"
   },
   "devDependencies": {
-    "eslint": "^5.4.0",
-    "prettier": "^1.14.2"
+    "eslint": "^5.10.0",
+    "prettier": "^1.15.3"
   },
   "engines": {
-    "node": ">=6.9.2 <9.0"
+    "node": ">=8.14.0"
   },
   "scripts": {
     "compile": "echo 'Compile step no longer required, skipping.'",
