@@ -363,6 +363,14 @@ function postTasks(tasks, callback) {
   });
 }
 
+function updateTags(deviceId, tags) {
+  return m.request({
+    method: "POST",
+    url: `/api/devices/${encodeURIComponent(deviceId)}/tags`,
+    data: tags
+  });
+}
+
 function deleteResource(resourceType, id) {
   return m.request({
     method: "DELETE",
@@ -393,6 +401,7 @@ export {
   unpackFilter,
   getTimestamp,
   postTasks,
+  updateTags,
   deleteResource,
   evaluateExpression
 };

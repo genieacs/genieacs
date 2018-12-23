@@ -496,3 +496,19 @@ span.na {
     margin-right: 10px;
   }
 }
+
+span.tag {
+  display: inline-block;
+  background-image: url('data:image/svg+xml;utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="190" height="16"><path d="M6.59 15.42l-6-6a2 2 0 0 1 0-2.83l6-6A2 2 0 0 1 8 0h180a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-1.41-.58zM4.35 6.59A2 2 0 1 0 7.17 9.4 2 2 0 0 0 4.35 6.6z" fill="#e8d5b2"></path></svg>');
+  background-size: cover;
+  background-repeat: no-repeat;
+  border-radius: 0.2em;
+  padding-left: 1em;
+  padding-right: 0.2em;
+}
+
+.tags {
+  & > .tag {
+    margin-right: 0.5em;
+  }
+}

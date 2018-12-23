@@ -86,4 +86,9 @@ router.post("/devices/:id/tasks", async ctx => {
   ctx.body = res.tasks;
 });
 
+router.post("/devices/:id/tags", async ctx => {
+  await apiFunctions.updateTags(ctx.params.id, ctx.request.body);
+  ctx.body = "";
+});
+
 module.exports = router;

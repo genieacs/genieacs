@@ -340,7 +340,35 @@ function postTasks(deviceId, tasks) {
   });
 }
 
+function updateTags(deviceId, tags) {
+  return Promise.all(
+    Object.entries(tags).map(
+      ([tag, onOff]) =>
+        new Promise((resolve, reject) => {
+          const options = url.parse(
+            `${config.get(
+              "server.nbi"
+            )}devices/${deviceId}/tags/${encodeURIComponent(tag)}`
+          );
+          if (onOff) options.method = "POST";
+          else options.method = "DELETE";
+          let _http = options.protocol === "https:" ? https : http;
+
+          _http
+            .request(options, res => {
+              res.resume();
+              if (res.statusCode === 200) resolve();
+              else
+                reject(new Error(`Unexpected status code ${res.statusCode}`));
+            })
+            .end();
+        })
+    )
+  );
+}
+
 exports.query = query;
 exports.count = count;
 exports.postTasks = postTasks;
 exports.deleteResource = deleteResource;
+exports.updateTags = updateTags;
