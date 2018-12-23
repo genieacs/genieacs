@@ -2,22 +2,26 @@
 
 const Router = require("koa-router");
 
+const db = require("./db");
 const apiFunctions = require("./api-functions");
 const Filter = require("../common/filter");
 
 const router = new Router();
 
+const RESOURCE_DELETE = 1 << 0;
+const RESOURCE_DB = 1 << 1;
+
 const resources = {
-  devices: true,
-  presets: true,
-  provisions: true,
-  files: true,
-  virtual_parameters: true,
-  faults: true,
-  tasks: false
+  devices: 0 | RESOURCE_DELETE,
+  presets: 0 | RESOURCE_DELETE,
+  provisions: 0 | RESOURCE_DELETE,
+  files: 0 | RESOURCE_DELETE,
+  virtual_parameters: 0 | RESOURCE_DELETE,
+  faults: 0 | RESOURCE_DELETE,
+  tasks: 0
 };
 
-for (let [resource, update] of Object.entries(resources)) {
+for (let [resource, flags] of Object.entries(resources)) {
   router.head(`/${resource}`, async (ctx, next) => {
     let filter, limit;
     if (ctx.request.query.filter) filter = new Filter(ctx.request.query.filter);
@@ -31,16 +35,20 @@ for (let [resource, update] of Object.entries(resources)) {
       filter = f.and(filter);
     }
 
-    let count = await apiFunctions.count(resource, filter, limit);
+    let count;
+    if (flags & RESOURCE_DB) count = await db.count(resource, filter, limit);
+    else count = await apiFunctions.count(resource, filter, limit);
+
     ctx.set("X-Total-Count", count);
     ctx.body = "";
   });
 
   router.get(`/${resource}`, async (ctx, next) => {
-    let filter, limit, skip;
+    let filter, limit, skip, projection;
     if (ctx.request.query.filter) filter = new Filter(ctx.request.query.filter);
     if (ctx.request.query.limit) limit = +ctx.request.query.limit;
     if (ctx.request.query.skip) skip = +ctx.request.query.skip;
+    if (ctx.request.query.projection) projection = ctx.request.query.projection;
 
     if (!ctx.state.authorizer.hasAccess(resource, 2)) return next();
 
@@ -50,20 +58,23 @@ for (let [resource, update] of Object.entries(resources)) {
       filter = f.and(filter);
     }
 
-    ctx.body = await apiFunctions.query(
-      resource,
-      filter,
-      limit,
-      skip,
-      ctx.request.query.projection
-    );
+    let res;
+    if (flags & RESOURCE_DB)
+      res = await db.query(resource, filter, limit, skip);
+    else
+      res = await apiFunctions.query(resource, filter, limit, skip, projection);
+
+    ctx.body = res;
   });
 
   router.head(`/${resource}/:id`, async (ctx, next) => {
     let filter = new Filter(`DeviceID.ID = "${ctx.params.id}"`);
     if (!ctx.state.authorizer.hasAccess(resource, 2)) return next();
 
-    let res = await apiFunctions.query(resource, filter);
+    let res;
+    if (flags & RESOURCE_DB) res = await db.query(resource, filter);
+    else res = await apiFunctions.query(resource, filter);
+
     if (!res.length) return next();
     ctx.body = "";
   });
@@ -72,13 +83,15 @@ for (let [resource, update] of Object.entries(resources)) {
     let filter = new Filter(`DeviceID.ID = "${ctx.params.id}"`);
     if (!ctx.state.authorizer.hasAccess(resource, 2)) return next();
 
-    let res = await apiFunctions.query(resource, filter);
+    let res;
+    if (flags & RESOURCE_DB) res = await db.query(resource, filter);
+    else res = await apiFunctions.query(resource, filter);
     if (!res.length) return next();
     ctx.body = res[0];
   });
 
   // TODO add PUT, PATCH routes
-  if (update)
+  if (flags & RESOURCE_DELETE && !(flags & RESOURCE_DB))
     router.delete(`/${resource}/:id`, async (ctx, next) => {
       const authorizer = ctx.state.authorizer;
       let filter = new Filter(`DeviceID.ID = "${ctx.params.id}"`);

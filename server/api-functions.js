@@ -24,20 +24,20 @@ function unpackTimestamps(filter) {
   });
 }
 
-function filterToQuery(filter, negate = false, res = {}) {
+function filterToMongoQuery(filter, negate = false, res = {}) {
   const op = filter[0];
 
   if ((!negate && op === "AND") || (negate && op === "OR")) {
     res["$and"] = res["$and"] || [];
     for (let i = 1; i < filter.length; ++i)
-      res["$and"].push(filterToQuery(filter[i], negate));
+      res["$and"].push(filterToMongoQuery(filter[i], negate));
   } else if ((!negate && op === "OR") || (negate && op === "AND")) {
     res["$or"] = res["$or"] || [];
 
     for (let i = 1; i < filter.length; ++i)
-      res["$or"].push(filterToQuery(filter[i], negate));
+      res["$or"].push(filterToMongoQuery(filter[i], negate));
   } else if (op === "NOT") {
-    filterToQuery(filter[1], !negate, res);
+    filterToMongoQuery(filter[1], !negate, res);
   } else if (op === "=") {
     let p = (res[filter[1]] = res[filter[1]] || {});
     if (negate) p["$ne"] = filter[2];
@@ -84,7 +84,7 @@ function count(resource, filter, limit) {
       filter = filter.evaluateExpressions();
       let ast = unpackTimestamps(filter.ast);
 
-      let q = filterToQuery(ast);
+      let q = filterToMongoQuery(ast);
       if (resource === "devices") q = device.transposeQuery(q);
       qs.query = JSON.stringify(q);
     }
@@ -121,7 +121,7 @@ function query(resource, filter, limit, skip, projection, callback) {
       filter = filter.evaluateExpressions();
       let ast = unpackTimestamps(filter.ast);
 
-      let q = filterToQuery(ast);
+      let q = filterToMongoQuery(ast);
       if (resource === "devices") q = device.transposeQuery(q);
 
       qs.query = JSON.stringify(q);
@@ -372,3 +372,4 @@ exports.count = count;
 exports.postTasks = postTasks;
 exports.deleteResource = deleteResource;
 exports.updateTags = updateTags;
+exports.filterToMongoQuery = filterToMongoQuery;

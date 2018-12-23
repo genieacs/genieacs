@@ -266,6 +266,11 @@ table.table {
   & td {
     margin: 0;
     padding: 0.2em 0.5em;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 400px;
   }
 
   & tfoot td > a {

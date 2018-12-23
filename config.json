@@ -1,6 +1,7 @@
 {
   "server.port": 3000,
   "server.nbi": "http://127.0.0.1:7557/",
+  "server.mongodbConnectionUrl": "mongodb://127.0.0.1:27017",
   "server.jwtSecret": "jwtSecret",
   "auth.simple.users.admin.password": "admin",
   "auth.simple.users.admin.roles": "admin",
