@@ -205,6 +205,36 @@ function parseExpression(exp) {
   return lang.ValueExpression.tryParse(exp);
 }
 
+function evaluateExpressions(ast, funcCallback) {
+  return map(ast, exp => {
+    if (exp[0] === "FUNC") {
+      return funcCallback(exp);
+    } else if (exp[0] === "*") {
+      let v = exp[1];
+      for (let i = 2; i < exp.length; ++i) v *= exp[i];
+      return v;
+    } else if (exp[0] === "/") {
+      let v = exp[1];
+      for (let i = 2; i < exp.length; ++i) v /= exp[i];
+      return v;
+    } else if (exp[0] === "+") {
+      let v = exp[1];
+      for (let i = 2; i < exp.length; ++i) v += exp[i];
+      return v;
+    } else if (exp[0] === "-") {
+      let v = exp[1];
+      for (let i = 2; i < exp.length; ++i) v -= exp[i];
+      return v;
+    } else if (exp[0] === "||") {
+      return exp.slice(1).join("");
+    }
+  });
+}
+
+function parseParameter(p) {
+  return lang.Parameter.tryParse(p);
+}
+
 function stringify(filter) {
   function value(v) {
     if (Array.isArray(v))
@@ -275,5 +305,7 @@ function map(filter, callback) {
 
 exports.parse = parse;
 exports.parseExpression = parseExpression;
+exports.evaluateExpressions = evaluateExpressions;
+exports.parseParameter = parseParameter;
 exports.stringify = stringify;
 exports.map = map;

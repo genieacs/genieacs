@@ -109,9 +109,9 @@ function recursive(input, root, output, timestamp) {
       childrenTimestamp = input["_timestamp"];
 
     const attrs = {};
-    if (tree["_value"]) {
+    if (tree["_value"] != null) {
       attrs["value"] = [tree["_value"], tree["_type"]];
-      attrs["valueTimestamp"] = childrenTimestamp;
+      attrs["valueTimestamp"] = tree["_timestamp"] || childrenTimestamp;
       attrs["object"] = false;
       attrs["objectTimestamp"] = childrenTimestamp;
     } else if (tree["_object"] != null) {

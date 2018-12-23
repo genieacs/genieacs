@@ -3,10 +3,12 @@
 import m from "mithril";
 import Filter from "../common/filter";
 import * as config from "./config";
+import * as filterParser from "../common/filter-parser";
 
 let fulfillTimestamp = 0;
 
-let unpackedFilters = new WeakMap();
+let unpackedFiltersCache = new WeakMap();
+let expressionsCache = new WeakMap();
 
 const queries = {
   filter: new WeakMap(),
@@ -45,10 +47,10 @@ class QueryResponse {
 }
 
 function unpackFilter(filter) {
-  let f = unpackedFilters.get(filter);
+  let f = unpackedFiltersCache.get(filter);
   if (!f) {
     f = f.evaluateExpressions(fulfillTimestamp);
-    unpackedFilters.set(filter, f);
+    unpackedFiltersCache.set(filter, f);
   }
   return f;
 }
@@ -118,7 +120,9 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
   let updated = false;
 
   if (_fulfillTimestamp > fulfillTimestamp) {
-    unpackedFilters = new WeakMap();
+    unpackedFiltersCache = new WeakMap();
+    expressionsCache = new WeakMap();
+
     for (let resource of Object.values(resources))
       resource.combinedFilter = null;
     fulfillTimestamp = _fulfillTimestamp;
@@ -366,6 +370,22 @@ function deleteResource(resourceType, id) {
   });
 }
 
+function evaluateExpression(exp, device) {
+  if (!Array.isArray(exp)) return exp;
+
+  let exps = expressionsCache.get(exp);
+  if (!exps) expressionsCache.set(exp, (exps = new WeakMap()));
+
+  if (!exps.has(device)) {
+    let v = filterParser.evaluateExpressions(exp, e => {
+      if (e[0] === "FUNC" && e[1] === "NOW") return fulfillTimestamp;
+    });
+    exps.set(device, v);
+  }
+
+  return exps.get(device);
+}
+
 export {
   count,
   fetch,
@@ -373,5 +393,6 @@ export {
   unpackFilter,
   getTimestamp,
   postTasks,
-  deleteResource
+  deleteResource,
+  evaluateExpression
 };

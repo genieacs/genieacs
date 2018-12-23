@@ -12,7 +12,12 @@ import * as components from "./components";
 function init(args) {
   return new Promise(resolve => {
     let filter = new Filter(args.filter);
-    resolve({ filter: filter });
+    let indexParameters = Object.values(config.get("ui.index")).map(p =>
+      Object.assign({}, p, {
+        parameter: filterParser.parseParameter(p.parameter)
+      })
+    );
+    resolve({ filter: filter, indexParameters: indexParameters });
   });
 }
 
@@ -65,7 +70,10 @@ function renderTable(
         },
         m("td", checkbox),
         parameters.map(p => {
-          const attrs = Object.assign({ device: device }, p);
+          const attrs = Object.assign({}, p, {
+            device: device,
+            parameter: store.evaluateExpression(p.parameter, device)
+          });
           const comp = m(components.get(attrs.type || "parameter"), attrs);
           return m("td", comp);
         }),
@@ -156,7 +164,7 @@ const component = {
       }),
       renderTable(
         devs,
-        Object.values(config.get("ui.index")),
+        vnode.attrs.indexParameters,
         count.value,
         selected,
         showMore

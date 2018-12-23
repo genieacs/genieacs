@@ -85,6 +85,7 @@
   "ui.device.1.parameters.11.label": "WLAN passphrase",
   "ui.device.1.parameters.11.parameter": "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.KeyPassphrase",
   "ui.device.2.type": "parameter-table",
+  "ui.device.2.label": "WLAN hosts",
   "ui.device.2.object": "InternetGatewayDevice.LANDevice.1.Hosts.Host",
   "ui.device.2.parameters.1.label": "Host name",
   "ui.device.2.parameters.1.parameter": "HostName",

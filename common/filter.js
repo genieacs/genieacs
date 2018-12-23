@@ -67,28 +67,9 @@ class Filter {
 
   evaluateExpressions(now = Date.now()) {
     if (!this.ast) return this;
-    let ast = filterParser.map(this.ast, exp => {
-      if (exp[0] === "FUNC" && exp[1] === "NOW") {
-        return now;
-      } else if (exp[0] === "*") {
-        let v = exp[1];
-        for (let i = 2; i < exp.length; ++i) v *= exp[i];
-        return v;
-      } else if (exp[0] === "/") {
-        let v = exp[1];
-        for (let i = 2; i < exp.length; ++i) v /= exp[i];
-        return v;
-      } else if (exp[0] === "+") {
-        let v = exp[1];
-        for (let i = 2; i < exp.length; ++i) v += exp[i];
-        return v;
-      } else if (exp[0] === "-") {
-        let v = exp[1];
-        for (let i = 2; i < exp.length; ++i) v -= exp[i];
-        return v;
-      } else if (exp[0] === "||") {
-        return exp.slice(1).join("");
-      }
+
+    let ast = filterParser.evaluateExpressions(this.ast, exp => {
+      if (exp[0] === "FUNC" && exp[1] === "NOW") return now;
     });
 
     if (ast === this.ast) return this;

@@ -4,20 +4,30 @@ import m from "mithril";
 import * as taskQueue from "../task-queue";
 import * as store from "../store";
 import * as notifications from "../notifications";
+import * as filterParser from "../../common/filter-parser";
 
 const component = {
+  oninit: vnode => {
+    vnode.state.parameters = Object.values(vnode.attrs.parameters).map(
+      parameter => filterParser.parseParameter(parameter)
+    );
+  },
   view: vnode => {
+    const device = vnode.attrs.device;
+
     return m(
       "button.primary",
       {
         title: "Initiate session and refresh basic parameters",
         onclick: e => {
           e.target.disabled = true;
-          const params = Object.values(vnode.attrs.parameters);
+          const params = vnode.state.parameters.map(p =>
+            store.evaluateExpression(p, device)
+          );
           const task = {
             name: "getParameterValues",
             parameterNames: params,
-            device: vnode.attrs.device["DeviceID.ID"].value[0]
+            device: device["DeviceID.ID"].value[0]
           };
 
           taskQueue

@@ -3,12 +3,23 @@
 import m from "mithril";
 import * as components from "../components";
 import * as taskQueue from "../task-queue";
+import * as store from "../store";
+import * as filterParser from "../../common/filter-parser";
 
 const component = {
+  oninit: vnode => {
+    vnode.state.object = filterParser.parseParameter(vnode.attrs.object);
+    vnode.state.parameters = Object.values(vnode.attrs.parameters).map(
+      parameter => {
+        let p = filterParser.parseParameter(parameter.parameter);
+        return Object.assign({}, parameter, { parameter: p });
+      }
+    );
+  },
   view: vnode => {
     const device = vnode.attrs.device;
-    const object = vnode.attrs.object;
-    const parameters = vnode.attrs.parameters;
+    const object = store.evaluateExpression(vnode.state.object, device);
+    const parameters = vnode.state.parameters;
 
     if (!device[object]) return null;
 
@@ -27,17 +38,19 @@ const component = {
 
     const rows = [];
     for (let i of instances) {
-      const row = Object.values(parameters).map(p =>
+      const row = parameters.map(p =>
         m(
           "td",
           m(
             components.get("parameter"),
-            Object.assign({ device: device }, p, {
-              parameter: `${i}.${p.parameter}`
+            Object.assign({}, p, {
+              device: device,
+              parameter: `${i}.${store.evaluateExpression(p.parameter, device)}`
             })
           )
         )
       );
+
       if (device[i].writable === true)
         row.push(
           m(
@@ -90,7 +103,11 @@ const component = {
           )
         )
       );
-    return m("table.table", thead, m("tbody", rows));
+
+    let label;
+    if (vnode.attrs.label) label = m("h2", vnode.attrs.label);
+
+    return [label, m("table.table", thead, m("tbody", rows))];
   }
 };
 
