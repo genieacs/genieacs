@@ -11,7 +11,7 @@ const component = {
     if (!param || !param.value) return m("span.na", "N/A");
     let value = param.value[0];
     if (param.value[1] === "xsd:dateTime")
-      value = new Date(value).toISOString();
+      value = new Date(value).toLocaleString();
 
     let edit;
     if (param.writable)

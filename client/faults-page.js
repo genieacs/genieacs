@@ -9,7 +9,7 @@ import * as store from "./store";
 import * as notifications from "./notifications";
 
 function init(args) {
-  if (!window.authorizer.hasAccess("devices", 2))
+  if (!window.authorizer.hasAccess("faults", 2))
     return Promise.reject(
       new Error("You are not authorized to view this page")
     );
@@ -77,7 +77,7 @@ function renderTable(faultsResponse, total, selected, showMoreCallback) {
         m("td", f["code"]),
         m("td", f["message"]),
         m("td", f["retries"]),
-        m("td", f["timestamp"])
+        m("td", new Date(f["timestamp"]).toLocaleString())
       )
     );
   }
