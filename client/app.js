@@ -4,11 +4,15 @@ import m from "mithril";
 
 import layout from "./layout";
 import * as store from "./store";
+import * as loginPage from "./login-page";
 import * as overviewPage from "./overview-page";
 import * as devicesPage from "./devices-page";
 import * as devicePage from "./device-page";
 import * as errorPage from "./error-page";
 import * as faultsPage from "./faults-page";
+import Authorizer from "../common/authorizer";
+
+window.authorizer = new Authorizer(window.permissionSets);
 
 let state;
 
@@ -29,17 +33,18 @@ function pagify(pageName, page) {
   const component = {
     render: () => {
       lastRenderTimestamp = Date.now();
-      let c;
-      if (state && state.error) c = m(errorPage.component, state);
-      else c = m(layout, { page: pageName }, m(page.component, state));
+      let p;
+      if (state && state.error) p = m(errorPage.component, state);
+      else p = m(page.component, state);
       fulfill();
-      return c;
+      return m(layout, { page: pageName }, p);
     }
   };
 
   component.onmatch = args => {
     pageVisitTimestamp = Date.now();
     if (!page.init) {
+      state = null;
       fulfill();
       return;
     }
@@ -64,6 +69,7 @@ function pagify(pageName, page) {
 }
 
 m.route(document.body, "/overview", {
+  "/login": pagify("login", loginPage),
   "/overview": pagify("overview", overviewPage),
   "/devices": pagify("devices", devicesPage),
   "/devices/:id": pagify("devices", devicePage),

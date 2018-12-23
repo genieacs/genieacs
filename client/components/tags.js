@@ -29,14 +29,18 @@ const component = {
             {
               onclick: e => {
                 e.target.disabled = true;
+                const deviceId = device["DeviceID.ID"].value[0];
                 store
-                  .updateTags(device["DeviceID.ID"].value[0], { [tag]: false })
+                  .updateTags(deviceId, { [tag]: false })
                   .then(() => {
                     e.target.disabled = false;
-                    notifications.push("success", `Tag '${tag}' unassigned`);
+                    notifications.push("success", `${deviceId}: Tags updated`);
                     store.fulfill(0, Date.now());
                   })
-                  .catch(err => notifications.push("error", err.message));
+                  .catch(err => {
+                    e.target.disabled = false;
+                    notifications.push("error", `${deviceId}: ${err.message}`);
+                  });
               }
             },
             "✕"
@@ -50,6 +54,7 @@ const component = {
           {
             onclick: e => {
               e.target.disabled = true;
+              const deviceId = device["DeviceID.ID"].value[0];
               const tag = prompt(`Enter tag to assign to device:`);
               if (!tag) {
                 e.target.disabled = false;
@@ -57,13 +62,16 @@ const component = {
               }
 
               store
-                .updateTags(device["DeviceID.ID"].value[0], { [tag]: true })
+                .updateTags(deviceId, { [tag]: true })
                 .then(() => {
                   e.target.disabled = false;
-                  notifications.push("success", `Tag '${tag}' assigned`);
+                  notifications.push("success", `${deviceId}: Tags updated`);
                   store.fulfill(0, Date.now());
                 })
-                .catch(err => notifications.push("error", err.message));
+                .catch(err => {
+                  e.target.disabled = false;
+                  notifications.push("error", `${deviceId}: ${err.message}`);
+                });
             }
           },
           "🞢"

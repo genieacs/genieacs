@@ -243,41 +243,46 @@ const component = {
                 t => t.status === "queued"
               );
               taskQueue
-                .commit(tasks, (deviceId, connectionRequestStatus, tasks2) => {
-                  if (connectionRequestStatus !== "OK") {
-                    notifications.push(
-                      "error",
-                      `${deviceId}: ${connectionRequestStatus}`
-                    );
-                    return;
-                  }
-
-                  for (let t of tasks2)
-                    if (t.status === "stale") {
-                      notifications.push(
+                .commit(
+                  tasks,
+                  (deviceId, err, connectionRequestStatus, tasks2) => {
+                    if (err)
+                      return notifications.push(
                         "error",
-                        `${deviceId}: No contact from device`
+                        `${deviceId}: ${err.message}`
                       );
-                      return;
-                    } else if (t.status === "fault") {
+
+                    if (connectionRequestStatus !== "OK") {
                       notifications.push(
                         "error",
-                        `${deviceId}: Task(s) faulted`
+                        `${deviceId}: ${connectionRequestStatus}`
                       );
                       return;
                     }
 
-                  notifications.push(
-                    "success",
-                    `${deviceId}: Task(s) committed`
-                  );
-                })
+                    for (let t of tasks2)
+                      if (t.status === "stale") {
+                        notifications.push(
+                          "error",
+                          `${deviceId}: No contact from device`
+                        );
+                        return;
+                      } else if (t.status === "fault") {
+                        notifications.push(
+                          "error",
+                          `${deviceId}: Task(s) faulted`
+                        );
+                        return;
+                      }
+
+                    notifications.push(
+                      "success",
+                      `${deviceId}: Task(s) committed`
+                    );
+                  }
+                )
                 .then(() => {
                   store.fulfill(0, Date.now());
-                })
-                .catch(err => {
-                  notifications.push("error", err.message);
-                  throw err;
                 });
             }
           },

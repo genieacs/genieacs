@@ -50,11 +50,12 @@ const component = {
           title: "Delete device",
           onclick: () => {
             if (!confirm("Deleting this device. Are you sure?")) return;
+            const deviceId = device["DeviceID.ID"].value[0];
 
             store
-              .deleteResource("devices", device["DeviceID.ID"].value[0])
+              .deleteResource("devices", deviceId)
               .then(() => {
-                notifications.push("success", "Device deleted");
+                notifications.push("success", `${deviceId}: Device deleted`);
                 m.route.set("/devices");
               })
               .catch(err => {

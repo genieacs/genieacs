@@ -31,23 +31,33 @@ const component = {
           };
 
           taskQueue
-            .commit([task], (deviceId, connectionRequestStatus, tasks2) => {
-              for (let t of tasks2)
-                if (t.status === "stale") taskQueue.deleteTask(t);
-              if (connectionRequestStatus !== "OK")
-                notifications.push(
-                  "error",
-                  `${deviceId}: ${connectionRequestStatus}`
-                );
-              else if (tasks2[0].status === "stale")
-                notifications.push(
-                  "error",
-                  `${deviceId}: No contact from device`
-                );
-              else if (tasks2[0].status === "fault")
-                notifications.push("error", `${deviceId}: Refresh faulted`);
-              else notifications.push("success", `${deviceId}: Summoned`);
-            })
+            .commit(
+              [task],
+              (deviceId, err, connectionRequestStatus, tasks2) => {
+                if (err)
+                  return notifications.push(
+                    "error",
+                    `${deviceId}: ${err.message}`
+                  );
+
+                for (let t of tasks2)
+                  if (t.status === "stale") taskQueue.deleteTask(t);
+
+                if (connectionRequestStatus !== "OK")
+                  notifications.push(
+                    "error",
+                    `${deviceId}: ${connectionRequestStatus}`
+                  );
+                else if (tasks2[0].status === "stale")
+                  notifications.push(
+                    "error",
+                    `${deviceId}: No contact from device`
+                  );
+                else if (tasks2[0].status === "fault")
+                  notifications.push("error", `${deviceId}: Refresh faulted`);
+                else notifications.push("success", `${deviceId}: Summoned`);
+              }
+            )
             .then(() => {
               e.target.disabled = false;
               store.fulfill(0, Date.now());

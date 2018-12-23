@@ -12,7 +12,10 @@ import * as taskQueue from "./task-queue";
 import * as notifications from "./notifications";
 
 function init(args) {
-  return new Promise(resolve => {
+  return new Promise((resolve, reject) => {
+    if (!window.authorizer.hasAccess("devices", 2))
+      return reject(new Error("You are not authorized to view this page"));
+
     let filter = new Filter(args.filter);
     let indexParameters = Object.values(config.get("ui.index")).map(p =>
       Object.assign({}, p, {
@@ -177,14 +180,21 @@ function renderActions(selected) {
           const ids = Array.from(selected);
           if (!confirm(`Deleting ${ids.length} devices. Are you sure?`)) return;
 
-          Promise.all(ids.map(id => store.deleteResource("devices", id)))
-            .then(() => {
-              notifications.push("success", `${ids.size} devices deleted`);
-              store.fulfill(0, Date.now());
-            })
-            .catch(err => {
-              notifications.push("error", err.message);
-            });
+          let counter = 1;
+          for (let id of ids) {
+            ++counter;
+            store
+              .deleteResource("devices", id)
+              .then(() => {
+                notifications.push("success", `${id}: Deleted`);
+                if (--counter === 0) store.fulfill(0, Date.now());
+              })
+              .catch(err => {
+                notifications.push("error", `${id}: ${err.message}`);
+                if (--counter === 0) store.fulfill(0, Date.now());
+              });
+          }
+          if (--counter === 0) store.fulfill(0, Date.now());
         }
       },
       "Delete"
@@ -202,19 +212,21 @@ function renderActions(selected) {
           const tag = prompt(`Enter tag to assign to ${ids.length} devices:`);
           if (!tag) return;
 
-          Promise.all(
-            ids.map(id => {
-              store.updateTags(id, { [tag]: true });
-            })
-          )
-            .then(() => {
-              notifications.push(
-                "success",
-                `Tag '${tag}' assigned to ${ids.length} devices`
-              );
-              store.fulfill(0, Date.now());
-            })
-            .catch(err => notifications.push("error", err.message));
+          let counter = 1;
+          for (let id of ids) {
+            ++counter;
+            store
+              .updateTags(id, { [tag]: true })
+              .then(() => {
+                notifications.push("success", `${id}: Tags updated`);
+                if (--counter === 0) store.fulfill(0, Date.now());
+              })
+              .catch(err => {
+                notifications.push("error", `${id}: ${err.message}`);
+                if (--counter === 0) store.fulfill(0, Date.now());
+              });
+          }
+          if (--counter === 0) store.fulfill(0, Date.now());
         }
       },
       "Tag"
@@ -234,19 +246,21 @@ function renderActions(selected) {
           );
           if (!tag) return;
 
-          Promise.all(
-            ids.map(id => {
-              store.updateTags(id, { [tag]: false });
-            })
-          )
-            .then(() => {
-              notifications.push(
-                "success",
-                `Tag '${tag}' unassigned from ${ids.length} devices`
-              );
-              store.fulfill(0, Date.now());
-            })
-            .catch(err => notifications.push("error", err.message));
+          let counter = 1;
+          for (let id of ids) {
+            ++counter;
+            store
+              .updateTags(id, { [tag]: false })
+              .then(() => {
+                notifications.push("success", `${id}: Tags updated`);
+                if (--counter === 0) store.fulfill(0, Date.now());
+              })
+              .catch(err => {
+                notifications.push("error", `${id}: ${err.message}`);
+                if (--counter === 0) store.fulfill(0, Date.now());
+              });
+          }
+          if (--counter === 0) store.fulfill(0, Date.now());
         }
       },
       "Untag"

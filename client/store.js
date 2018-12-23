@@ -323,43 +323,33 @@ function getTimestamp() {
   return fulfillTimestamp;
 }
 
-function postTasks(tasks, callback) {
+function postTasks(deviceId, tasks) {
+  for (let t of tasks) {
+    t.status = "pending";
+    t.device = deviceId;
+  }
+
   return new Promise((resolve, reject) => {
-    let devices = {};
-    for (let t of tasks) {
-      t.status = "pending";
-      devices[t.device] = devices[t.device] || [];
-      devices[t.device].push(t);
-    }
-
-    let promises = [];
-    for (let [deviceId, tasks2] of Object.entries(devices))
-      promises.push(
-        m.request({
-          method: "POST",
-          url: `/api/devices/${encodeURIComponent(deviceId)}/tasks`,
-          data: tasks2,
-          extract: xhr => {
-            const connectionRequestStatus = xhr.getResponseHeader(
-              "Connection-Request"
-            );
-            let st = JSON.parse(xhr.response);
-            for (let [i, t] of st.entries()) {
-              tasks2[i]._id = t._id;
-              tasks2[i].status = t.status;
-              tasks2[i].fault = t.fault;
-            }
-            if (callback) callback(deviceId, connectionRequestStatus, tasks2);
+    m
+      .request({
+        method: "POST",
+        url: `/api/devices/${encodeURIComponent(deviceId)}/tasks`,
+        data: tasks,
+        extract: xhr => {
+          if (xhr.status !== 200) throw new Error(xhr.response);
+          const connectionRequestStatus = xhr.getResponseHeader(
+            "Connection-Request"
+          );
+          let st = JSON.parse(xhr.response);
+          for (let [i, t] of st.entries()) {
+            tasks[i]._id = t._id;
+            tasks[i].status = t.status;
+            tasks[i].fault = t.fault;
           }
-        })
-      );
-
-    Promise.all(promises)
-      .then(() => resolve(tasks))
-      .catch(err => {
-        callback = null;
-        reject(err);
-      });
+          resolve(connectionRequestStatus);
+        }
+      })
+      .catch(reject);
   });
 }
 
@@ -394,6 +384,22 @@ function evaluateExpression(exp, device) {
   return exps.get(device);
 }
 
+function logIn(username, password) {
+  return m.request({
+    method: "POST",
+    url: "/login",
+    background: true,
+    data: { username, password }
+  });
+}
+
+function logOut() {
+  return m.request({
+    method: "POST",
+    url: "/logout"
+  });
+}
+
 export {
   count,
   fetch,
@@ -403,5 +409,7 @@ export {
   postTasks,
   updateTags,
   deleteResource,
-  evaluateExpression
+  evaluateExpression,
+  logIn,
+  logOut
 };

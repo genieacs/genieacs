@@ -37,16 +37,32 @@ function stageSpv(task) {
 }
 
 function commit(tasks, callback) {
+  let devices = {};
   for (let t of tasks) {
-    t.status = "pending";
-    queue.add(t);
+    devices[t.device] = devices[t.device] || [];
+    devices[t.device].push(t);
+    queueTask(t);
   }
 
-  return store.postTasks(tasks, (deviceId, connectionRequestStatus, tasks2) => {
-    for (let t of tasks2)
-      if (t.status === "pending") t.status = "stale";
-      else if (t.status === "done") queue.delete(t);
-    if (callback) callback(deviceId, connectionRequestStatus, tasks2);
+  return new Promise(resolve => {
+    let counter = 1;
+    for (let [deviceId, tasks2] of Object.entries(devices))
+      store
+        .postTasks(deviceId, tasks)
+        .then(connectionRequestStatus => {
+          for (let t of tasks2)
+            if (t.status === "pending") t.status = "stale";
+            else if (t.status === "done") queue.delete(t);
+          callback(deviceId, null, connectionRequestStatus, tasks2);
+          if (--counter === 0) resolve();
+        })
+        .catch(err => {
+          for (let t of tasks2) t.status = "stale";
+          callback(deviceId, err, null, tasks2);
+          if (--counter === 0) resolve();
+        });
+
+    if (--counter === 0) resolve();
   });
 }
 

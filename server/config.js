@@ -10,6 +10,13 @@ const cache = {};
 function parse(name, value) {
   if (/^ui\.overview\.charts\.[^.]+\.slices\.[^.]+\.filter$/.test(name))
     return new Filter(value);
+  else if (/^permissions\.[^.]+\.[^.]+\.devices\.filter$/.test(name))
+    return new Filter(value);
+  else if (/^auth\.[^.]+\.users\.[^.]+\.roles$/.test(name))
+    return value
+      .split(",")
+      .map(x => x.trim())
+      .sort();
 
   return value;
 }

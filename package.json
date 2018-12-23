@@ -4,16 +4,18 @@
   "description": "",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "lint": "eslint --fix common/*.js server/*.js client/*.js client/components/*.js;prettier --write common/*.js server/*.js client/*.js client/components/*.js client/css/*.css",
+    "lint": "eslint --fix common/*.js common/validators/*.js server/*.js client/*.js client/components/*.js;prettier --write common/*.js common/validators/*.js server/*.js client/*.js client/components/*.js client/css/*.css",
     "build": "npm run lint;webpack;postcss -c postcss.config.js client/css/app.css -o public/app.css",
     "start": "node server/server"
   },
   "author": "Zaid Abdulla <zaid@genieacs.com>",
   "dependencies": {
+    "jsonwebtoken": "^8.2.1",
     "koa": "^2.5.0",
     "koa-body": "^2.5.0",
     "koa-bodyparser": "^4.2.0",
     "koa-compress": "^2.0.0",
+    "koa-jwt": "^3.3.1",
     "koa-router": "^7.4.0",
     "koa-static": "^4.0.2",
     "mithril": "^1.1.6",

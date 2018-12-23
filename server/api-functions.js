@@ -80,7 +80,7 @@ function filterToQuery(filter, negate = false, res = {}) {
 function count(resource, filter, limit) {
   return new Promise((resolve, reject) => {
     let qs = {};
-    if (filter) {
+    if (filter && filter.ast) {
       filter = filter.evaluateExpressions();
       let ast = unpackTimestamps(filter.ast);
 
@@ -117,7 +117,7 @@ function query(resource, filter, limit, skip, projection, callback) {
     let ret;
     if (!callback) ret = [];
     let qs = {};
-    if (filter) {
+    if (filter && filter.ast) {
       filter = filter.evaluateExpressions();
       let ast = unpackTimestamps(filter.ast);
 

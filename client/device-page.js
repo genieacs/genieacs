@@ -8,11 +8,14 @@ import * as store from "./store";
 import * as components from "./components";
 
 function init(args) {
-  return new Promise(resolve => {
-    resolve({
-      deviceId: args.id,
-      deviceFilter: new Filter(["=", "DeviceID.ID", args.id])
-    });
+  if (!window.authorizer.hasAccess("devices", 2))
+    return Promise.reject(
+      new Error("You are not authorized to view this page")
+    );
+
+  return Promise.resolve({
+    deviceId: args.id,
+    deviceFilter: new Filter(["=", "DeviceID.ID", args.id])
   });
 }
 

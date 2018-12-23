@@ -4,12 +4,14 @@ import m from "mithril";
 
 import menu from "./menu";
 import drawerComponent from "./drawer-component";
+import userMenu from "./user-menu";
 
 const layout = {
   view: vnode => {
     return [
       m("#header", [
         m("img.logo", { src: "logo.svg" }),
+        m(userMenu),
         m(menu, { page: vnode.attrs.page }),
         m(drawerComponent)
       ]),

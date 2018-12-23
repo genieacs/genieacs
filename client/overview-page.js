@@ -24,9 +24,12 @@ function queryCharts(charts) {
 }
 
 const init = function() {
-  return new Promise(resolve => {
-    resolve({ charts: queryCharts(CHARTS) });
-  });
+  if (!window.authorizer.hasAccess("devices", 1))
+    return Promise.reject(
+      new Error("You are not authorized to view this page")
+    );
+
+  return Promise.resolve({ charts: queryCharts(CHARTS) });
 };
 
 const component = {

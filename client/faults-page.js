@@ -9,10 +9,13 @@ import * as store from "./store";
 import * as notifications from "./notifications";
 
 function init(args) {
-  return new Promise(resolve => {
-    let filter = new Filter(args.filter);
-    resolve({ filter: filter });
-  });
+  if (!window.authorizer.hasAccess("devices", 2))
+    return Promise.reject(
+      new Error("You are not authorized to view this page")
+    );
+
+  let filter = new Filter(args.filter);
+  return Promise.resolve({ filter: filter });
 }
 
 function renderTable(faultsResponse, total, selected, showMoreCallback) {

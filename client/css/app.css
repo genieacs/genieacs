@@ -229,10 +229,16 @@ i {
       }
     }
   }
+
   & > .logo {
     margin: 10px;
     display: inline;
     height: 56px;
+  }
+
+  & > .user-menu {
+    float: right;
+    margin: 5px;
   }
 }
 
@@ -306,6 +312,10 @@ h3 {
   font-size: 110%;
   margin-top: 1em;
   margin-bottom: 0.5em;
+}
+
+p.error {
+  color: #a00;
 }
 
 /* Remove button padding in FF */

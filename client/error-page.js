@@ -1,9 +1,11 @@
 "use strict";
 
+import m from "mithril";
+
 const component = {
   view: function(vnode) {
     document.title = "Error! - GenieACS";
-    return vnode.attrs.error;
+    return m("p.error", vnode.attrs.error);
   }
 };
 

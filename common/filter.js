@@ -17,9 +17,10 @@ function* permute(arr) {
 
 class Filter {
   constructor(str) {
-    if (Array.isArray(str)) this.ast = str;
+    if (!str) this.ast = null;
+    else if (Array.isArray(str)) this.ast = str;
     else if (str instanceof Filter) this.ast = str.ast;
-    else if (!str) this.ast = null;
+    else if (Array.isArray(str.ast) || str.ast === null) this.ast = str.ast;
     else this.ast = filterParser.parse(str);
   }
 
@@ -33,6 +34,7 @@ class Filter {
 
   or(fltr) {
     if (!fltr || !this.ast) return this;
+    else if (!fltr.ast) return fltr;
 
     let f = ["OR"];
 
@@ -46,7 +48,7 @@ class Filter {
   }
 
   and(fltr) {
-    if (!fltr) return this;
+    if (!fltr || !fltr.ast) return this;
     else if (!this.ast) return fltr;
 
     let f = ["AND"];
