@@ -8,8 +8,8 @@ import * as filterParser from "../../common/filter-parser";
 
 const component = {
   oninit: vnode => {
-    vnode.state.object = filterParser.parseParameter(vnode.attrs.object);
-    vnode.state.parameters = Object.values(vnode.attrs.parameters).map(
+    vnode.state.object = filterParser.parseParameter(vnode.attrs.parameter);
+    vnode.state.parameters = Object.values(vnode.attrs.childParameters).map(
       parameter => {
         let p = filterParser.parseParameter(parameter.parameter);
         return Object.assign({}, parameter, { parameter: p });
@@ -42,10 +42,14 @@ const component = {
         m(
           "td",
           m(
-            components.get("parameter"),
+            components.get(p.type || "parameter"),
             Object.assign({}, p, {
               device: device,
-              parameter: `${i}.${store.evaluateExpression(p.parameter, device)}`
+              parameter: `${i}.${store.evaluateExpression(
+                p.parameter,
+                device
+              )}`,
+              label: ""
             })
           )
         )

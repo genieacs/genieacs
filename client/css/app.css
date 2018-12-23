@@ -245,6 +245,10 @@ table.table {
   border-spacing: 0;
   text-align: left;
 
+  & table.table {
+    font-size: 90%;
+  }
+
   & th {
     color: var(--color4);
     font-weight: bold;
