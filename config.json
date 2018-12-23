@@ -59,6 +59,7 @@
   "ui.overview.charts.online.slices.others.color": "#f7fcb9",
   "ui.overview.charts.online.slices.others.filter": "Events.Inform < (NOW() - 5 * 60 * 1000) - (24 * 60 * 60 * 1000)",
   "ui.device.10.type": "tags",
+  "ui.device.25.type": "ping",
   "ui.device.30.type": "parameter-list",
   "ui.device.30.parameters.1.type": "container",
   "ui.device.30.parameters.1.label": "Last inform",

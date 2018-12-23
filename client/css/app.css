@@ -397,8 +397,10 @@ input {
 }
 
 table.parameter-list {
+  border-spacing: 0;
   text-align: left;
   & th {
+    padding: 0;
     padding-right: 1em;
   }
 }

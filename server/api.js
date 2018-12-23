@@ -137,4 +137,8 @@ router.post("/devices/:id/tags", async (ctx, next) => {
   ctx.body = "";
 });
 
+router.get("/ping/:host", async ctx => {
+  ctx.body = await apiFunctions.ping(ctx.params.host);
+});
+
 module.exports = router;

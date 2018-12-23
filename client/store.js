@@ -400,6 +400,12 @@ function logOut() {
   });
 }
 
+function ping(host) {
+  return m.request({
+    url: `/api/ping/${encodeURIComponent(host)}`
+  });
+}
+
 export {
   count,
   fetch,
@@ -411,5 +417,6 @@ export {
   deleteResource,
   evaluateExpression,
   logIn,
-  logOut
+  logOut,
+  ping
 };

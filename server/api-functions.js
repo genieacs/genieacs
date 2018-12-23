@@ -367,9 +367,65 @@ function updateTags(deviceId, tags) {
   );
 }
 
+function ping(host) {
+  return new Promise((resolve, reject) => {
+    const options = url.parse(
+      `${config.get("server.nbi")}ping/${encodeURIComponent(host)}`
+    );
+
+    let _http = options.protocol === "https:" ? https : http;
+    _http
+      .request(options, res => {
+        if (res.statusCode === 404) {
+          res.resume();
+          return resolve({});
+        }
+
+        if (res.statusCode !== 200) {
+          res.resume();
+          return reject(new Error(`Unexpected status code ${res.statusCode}`));
+        }
+
+        const chunks = [];
+        let bytes = 0;
+        res.on("data", chunk => {
+          chunks.push(chunk);
+          bytes += chunk.length;
+        });
+
+        res.on("end", () => {
+          let buf = new Buffer(bytes);
+          let o = 0;
+          for (let c of chunks) {
+            c.copy(buf, o, 0, c.length);
+            o += c.length;
+          }
+          let m = buf
+            .toString()
+            .match(
+              /(\d) packets transmitted, (\d) received, ([\d.%]+) packet loss[^]*([\d.]+)\/([\d.]+)\/([\d.]+)\/([\d.]+)/
+            );
+          if (!m) return reject(new Error("Could not parse ping response"));
+
+          resolve({
+            packetsTransmitted: +m[1],
+            packetsReceived: +m[2],
+            packetLoss: m[3],
+            min: +m[4],
+            avg: +m[5],
+            max: +m[6],
+            mdev: +m[7]
+          });
+        });
+      })
+      .end();
+  });
+}
+
 exports.query = query;
 exports.count = count;
 exports.postTasks = postTasks;
 exports.deleteResource = deleteResource;
 exports.updateTags = updateTags;
 exports.filterToMongoQuery = filterToMongoQuery;
+exports.ping = ping;
