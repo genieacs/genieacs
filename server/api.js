@@ -11,6 +11,16 @@ const router = new Router();
 const RESOURCE_DELETE = 1 << 0;
 const RESOURCE_DB = 1 << 1;
 
+const RESOURCE_IDS = {
+  devices: "DeviceID.ID",
+  presets: "_id",
+  provisions: "_id",
+  files: "_id",
+  virtual_parameters: "_id",
+  faults: "_id",
+  tasks: "_id"
+};
+
 const resources = {
   devices: 0 | RESOURCE_DELETE,
   presets: 0 | RESOURCE_DELETE,
@@ -68,7 +78,7 @@ for (let [resource, flags] of Object.entries(resources)) {
   });
 
   router.head(`/${resource}/:id`, async (ctx, next) => {
-    let filter = new Filter(`DeviceID.ID = "${ctx.params.id}"`);
+    let filter = new Filter(`${RESOURCE_IDS[resource]} = "${ctx.params.id}"`);
     if (!ctx.state.authorizer.hasAccess(resource, 2)) return next();
 
     let res;
@@ -80,7 +90,7 @@ for (let [resource, flags] of Object.entries(resources)) {
   });
 
   router.get(`/${resource}/:id`, async (ctx, next) => {
-    let filter = new Filter(`DeviceID.ID = "${ctx.params.id}"`);
+    let filter = new Filter(`${RESOURCE_IDS[resource]} = "${ctx.params.id}"`);
     if (!ctx.state.authorizer.hasAccess(resource, 2)) return next();
 
     let res;
@@ -94,7 +104,7 @@ for (let [resource, flags] of Object.entries(resources)) {
   if (flags & RESOURCE_DELETE && !(flags & RESOURCE_DB))
     router.delete(`/${resource}/:id`, async (ctx, next) => {
       const authorizer = ctx.state.authorizer;
-      let filter = new Filter(`DeviceID.ID = "${ctx.params.id}"`);
+      let filter = new Filter(`${RESOURCE_IDS[resource]} = "${ctx.params.id}"`);
       if (!authorizer.hasAccess(resource, 2)) return next();
       let res = await apiFunctions.query(resource, filter);
       if (!res.length) return next();
