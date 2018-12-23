@@ -54,7 +54,7 @@ const component = {
       [m("b", "Filter"), a].concat(
         vnode.state.filterList.map((fltr, idx) => {
           return m("input", {
-            type: "string",
+            type: "text",
             list: "filters",
             class: `${(vnode.state.filterInvalid >> idx) & 1 ? "error" : ""}`,
             value: fltr,

@@ -10,20 +10,22 @@
   },
   "author": "Zaid Abdulla <zaid@genieacs.com>",
   "dependencies": {
-    "koa": "^2.4.1",
+    "koa": "^2.5.0",
+    "koa-body": "^2.5.0",
     "koa-bodyparser": "^4.2.0",
-    "koa-router": "^7.3.0",
+    "koa-compress": "^2.0.0",
+    "koa-router": "^7.4.0",
     "koa-static": "^4.0.2",
-    "mithril": "^1.1.5",
-    "parsimmon": "^1.6.2"
+    "mithril": "^1.1.6",
+    "parsimmon": "^1.7.2"
   },
   "devDependencies": {
     "cssnano": "^3.10.0",
-    "eslint": "^4.12.1",
+    "eslint": "^4.19.1",
     "postcss-cli": "^4.1.1",
-    "postcss-cssnext": "^3.0.2",
-    "postcss-import": "^11.0.0",
-    "prettier": "^1.8.2",
-    "webpack": "^3.9.1"
+    "postcss-cssnext": "^3.1.0",
+    "postcss-import": "^11.1.0",
+    "prettier": "^1.11.1",
+    "webpack": "^3.11.0"
   }
 }

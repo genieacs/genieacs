@@ -45,12 +45,157 @@ i {
   font-style: italic;
 }
 
+@keyframes blink {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.3;
+  }
+}
+
 #header {
   background-color: #f2eddf;
   border-bottom: 1px solid var(--color1);
   overflow: visible;
   position: relative;
 
+  & > .drawer-wrapper {
+    position: fixed;
+    width: 720px;
+    margin-left: -360px;
+    top: 0;
+    left: 50%;
+    & > .drawer {
+      background-color: rgba(255, 255, 255, 0.8);
+      border-bottom-left-radius: 6px;
+      border-bottom-right-radius: 6px;
+      border-bottom: 1px solid var(--color1);
+      border-left: 1px solid var(--color1);
+      border-right: 1px solid var(--color1);
+      margin-top: -1px;
+      box-shadow: 0 0 10px #ccc;
+      overflow: hidden;
+      transition: height var(--fade), opacity var(--fade);
+
+      & > div {
+        padding: 0.3em;
+      }
+
+      & > .status {
+        & > span {
+          margin-right: 1em;
+        }
+        & > .pending {
+          color: #770;
+          &.active {
+            animation: 0.5s linear 0s infinite alternate blink;
+          }
+        }
+        & > .stale {
+          color: #777;
+        }
+        & > .faulty {
+          color: #700;
+        }
+        & > .active {
+          font-weight: bold;
+        }
+
+        & > .actions {
+          float: right;
+          & a {
+            float: right;
+            margin-left: 0.5em;
+          }
+          & > .commit {
+            font-weight: bold;
+          }
+        }
+      }
+
+      & > .staging {
+        & .parameter {
+          font-style: italic;
+          max-width: 500px;
+          text-overflow: ellipsis;
+          display: inline-block;
+          overflow: hidden;
+          vertical-align: text-bottom;
+        }
+
+        & input {
+          width: 100%;
+          padding: 0.3em;
+          margin-top: 0.3em;
+          margin-bottom: 0.3em;
+        }
+        & .actions {
+          text-align: right;
+          & a {
+            margin-left: 0.5em;
+          }
+        }
+      }
+
+      & > .queue {
+        & a.retry {
+          float: right;
+          margin-left: 0.5em;
+        }
+        & a.cancel {
+          float: right;
+          margin-left: 0.5em;
+        }
+        & > .pending {
+          color: #770;
+        }
+        & > .stale {
+          color: #777;
+        }
+        & > .faulty {
+          color: #700;
+        }
+        & .parameter {
+          font-style: italic;
+          max-width: 400px;
+          text-overflow: ellipsis;
+          display: inline-block;
+          overflow: hidden;
+          vertical-align: text-bottom;
+        }
+        & .value {
+          max-width: 200px;
+          text-overflow: ellipsis;
+          display: inline-block;
+          overflow: hidden;
+          vertical-align: text-bottom;
+          white-space: nowrap;
+        }
+      }
+    }
+    & > .notifications-wrapper {
+      & > .notification {
+        padding: 0.3em;
+        left: 0;
+        right: 0;
+        background-color: rgba(255, 255, 255, 0.8);
+        border: 1px solid var(--color1);
+        border-radius: 6px;
+        box-shadow: 0 0 10px #ccc;
+        transition: opacity var(--fade), top var(--fade);
+
+        &.error {
+          background-color: rgba(255, 200, 200, 0.8);
+          border: 1px solid rgb(255, 200, 200);
+        }
+        &.success {
+          background-color: rgba(200, 255, 200, 0.8);
+          border: 1px solid rgb(200, 255, 200);
+        }
+      }
+    }
+  }
   & > nav {
     display: inline-block;
     overflow: visible;
@@ -206,26 +351,29 @@ button {
   }
 }
 
+input {
+  display: block;
+  border: 1px solid var(--color1);
+  background-color: var(--color3);
+  border-radius: 4px;
+  transition: border-color var(--fade), background-color var(--fade);
+  &.error {
+    background-color: #efcbcf;
+    border-color: #e6b2b7;
+  }
+  &:focus,
+  &:hover {
+    border-color: var(--color4);
+  }
+}
+
 .filter {
   margin-bottom: 0.5em;
   & > input {
-    padding: 2px;
-    width: 30em;
     font-size: 90%;
-    display: block;
-    border: 1px solid var(--color1);
-    background-color: var(--color3);
+    width: 30em;
     margin: 2px;
-    border-radius: 4px;
-    transition: border-color var(--fade), background-color var(--fade);
-    &.error {
-      background-color: #efcbcf;
-      border-color: #e6b2b7;
-    }
-    &:focus,
-    &:hover {
-      border-color: var(--color4);
-    }
+    padding: 2px;
   }
 }
 
@@ -277,6 +425,12 @@ table.parameter-table {
       stroke: var(--color5);
       stroke-width: 0.08em;
     }
+  }
+}
+
+span.inform {
+  & > * {
+    margin-right: 0.5em;
   }
 }
 

@@ -114,12 +114,12 @@ function recursive(input, root, output, timestamp) {
       attrs["valueTimestamp"] = childrenTimestamp;
       attrs["object"] = false;
       attrs["objectTimestamp"] = childrenTimestamp;
-    } else if (tree["_object"]) {
+    } else if (tree["_object"] != null) {
       attrs["object"] = tree["_object"];
       attrs["objectTimestamp"] = childrenTimestamp;
     }
 
-    if (tree["_writable"]) {
+    if (tree["_writable"] != null) {
       attrs["writable"] = tree["_writable"];
       attrs["writableTimestamp"] = childrenTimestamp;
     }

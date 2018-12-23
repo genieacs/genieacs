@@ -3,6 +3,8 @@
 const Koa = require("koa");
 const Router = require("koa-router");
 const koaStatic = require("koa-static");
+const koaCompress = require("koa-compress");
+const koaBody = require("koa-body");
 
 const config = require("./config");
 const api = require("./api");
@@ -10,6 +12,7 @@ const api = require("./api");
 const koa = new Koa();
 const router = new Router();
 
+koa.use(koaBody());
 router.use("/api", api.routes(), api.allowedMethods());
 
 router.get("/", async ctx => {
@@ -30,6 +33,11 @@ router.get("/", async ctx => {
   `;
 });
 
+koa.use(
+  koaCompress({
+    flush: require("zlib").Z_SYNC_FLUSH
+  })
+);
 koa.use(router.routes());
 koa.use(koaStatic("./public"));
 

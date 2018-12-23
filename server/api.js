@@ -12,7 +12,8 @@ const resources = {
   presets: true,
   provisions: true,
   files: true,
-  virtual_parameters: true
+  virtual_parameters: true,
+  tasks: false
 };
 
 for (let [resource, update] of Object.entries(resources)) {
@@ -59,5 +60,12 @@ for (let [resource, update] of Object.entries(resources)) {
     // TODO add PUT, PATCH, DELETE routes
   }
 }
+
+router.post("/devices/:id/tasks", async ctx => {
+  let res = await apiFunctions.postTasks(ctx.params.id, ctx.request.body);
+  // TODO 404 if no such device
+  ctx.set("Connection-Request", res.connectionRequest);
+  ctx.body = res.tasks;
+});
 
 module.exports = router;

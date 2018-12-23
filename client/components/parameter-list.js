@@ -16,7 +16,10 @@ const component = {
         m("th", p.label),
         m(
           "td",
-          m(components.get("parameter"), Object.assign({ device: device }, p))
+          m(
+            components.get(p.type || "parameter"),
+            Object.assign({ device: device }, p)
+          )
         )
       )
     );

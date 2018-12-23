@@ -304,4 +304,44 @@ function getTimestamp() {
   return fulfillTimestamp;
 }
 
-export { count, fetch, fulfill, unpackFilter, getTimestamp };
+function postTasks(tasks, callback) {
+  return new Promise((resolve, reject) => {
+    let devices = {};
+    for (let t of tasks) {
+      t.status = "pending";
+      devices[t.device] = devices[t.device] || [];
+      devices[t.device].push(t);
+    }
+
+    let promises = [];
+    for (let [deviceId, tasks2] of Object.entries(devices))
+      promises.push(
+        m.request({
+          method: "POST",
+          url: `/api/devices/${encodeURIComponent(deviceId)}/tasks`,
+          data: tasks2,
+          extract: xhr => {
+            const connectionRequestStatus = xhr.getResponseHeader(
+              "Connection-Request"
+            );
+            let st = JSON.parse(xhr.response);
+            for (let [i, t] of st.entries()) {
+              tasks2[i]._id = t._id;
+              tasks2[i].status = t.status;
+              tasks2[i].fault = t.fault;
+            }
+            if (callback) callback(deviceId, connectionRequestStatus, tasks2);
+          }
+        })
+      );
+
+    Promise.all(promises)
+      .then(() => resolve(tasks))
+      .catch(err => {
+        callback = null;
+        reject(err);
+      });
+  });
+}
+
+export { count, fetch, fulfill, unpackFilter, getTimestamp, postTasks };

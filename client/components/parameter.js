@@ -1,7 +1,7 @@
 "use strict";
 
 import m from "mithril";
-import * as components from "../components";
+import * as taskQueue from "../task-queue";
 
 const component = {
   view: vnode => {
@@ -11,19 +11,30 @@ const component = {
     if (param.value[1] === "xsd:dateTime")
       value = new Date(value).toISOString();
 
-    let meta;
-    if (vnode.attrs.meta) {
-      const metaAttrs = Object.assign(
-        { device: vnode.attrs.device, parameter: vnode.attrs.parameter },
-        vnode.attrs.meta
+    let edit;
+    if (param.writable)
+      edit = m(
+        "a.edit",
+        {
+          onclick: () => {
+            taskQueue.stageSpv({
+              name: "setParameterValues",
+              device: vnode.attrs.device["DeviceID.ID"].value[0],
+              parameterValues: [
+                [vnode.attrs.parameter, param.value[0], param.value[1]]
+              ]
+            });
+          }
+        },
+        "✎"
       );
-      meta = m("span", [
-        " (",
-        m(components.get(metaAttrs.type), metaAttrs),
-        ")"
-      ]);
-    }
-    return [m("span", { title: param.valueTimestamp }, value), meta];
+
+    return m(
+      "span.parameter-value",
+      { title: param.valueTimestamp },
+      value,
+      edit
+    );
   }
 };
 

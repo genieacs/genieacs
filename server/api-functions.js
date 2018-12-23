@@ -8,6 +8,7 @@ const querystring = require("querystring");
 const config = require("./config");
 const device = require("./device");
 const filterParser = require("../common/filter-parser");
+const Filter = require("../common/filter");
 
 const commaAscii = ",".charCodeAt(0);
 const newLineAscii = "\n".charCodeAt(0);
@@ -205,5 +206,130 @@ function query(resource, filter, limit, skip, projection, callback) {
   });
 }
 
+function deleteResource(resource, id) {
+  return new Promise((resolve, reject) => {
+    let options = url.parse(
+      `${config.get("server.nbi")}${resource}/${encodeURIComponent(id)}`
+    );
+
+    options.method = "DELETE";
+
+    let _http = options.protocol === "https:" ? https : http;
+
+    _http
+      .request(options, res => {
+        res.resume();
+        if (res.statusCode === 200) resolve(true);
+        else if (res.statusCode === 404) resolve(false);
+        else reject(new Error(`Unexpected status code ${res.statusCode}`));
+      })
+      .end();
+  });
+}
+
+function postTask(task, connectionRequest, callback) {
+  let options = url.parse(
+    `${config.get("server.nbi")}devices/${task.device}/tasks${
+      connectionRequest ? "?connection_request" : ""
+    }`
+  );
+  options.method = "POST";
+  let _http = options.protocol === "https:" ? https : http;
+
+  _http
+    .request(options, res => {
+      if (res.statusCode !== 200 && res.statusCode !== 202) {
+        callback(new Error(`Unexpected status code ${res.statusCode}`));
+        res.resume();
+        return;
+      }
+      const chunks = [];
+      let bytes = 0;
+      res.on("data", chunk => {
+        chunks.push(chunk);
+        bytes += chunk.length;
+      });
+
+      res.on("end", () => {
+        let buf = new Buffer(bytes);
+        let o = 0;
+        for (let c of chunks) {
+          c.copy(buf, o, 0, c.length);
+          o += c.length;
+        }
+        try {
+          let t = JSON.parse(buf);
+          let connectionRequestStatus;
+          if (connectionRequest) {
+            connectionRequestStatus = "OK";
+            if (
+              res.statusCode === 202 &&
+              res.statusMessage !== "Task queued but not processed" &&
+              res.statusMessage !== "Task faulte"
+            )
+              connectionRequestStatus = res.statusMessage;
+          }
+          callback(null, t, connectionRequestStatus);
+        } catch (err) {
+          callback(err);
+        }
+      });
+    })
+    .end(JSON.stringify(task));
+}
+
+function postTasks(deviceId, tasks) {
+  return new Promise((resolve, reject) => {
+    let connectionRequestStatus;
+    let promises = [];
+    for (let [idx, task] of tasks.entries()) {
+      task.device = deviceId;
+      promises.push(
+        new Promise((res, rej) => {
+          let conReq = idx === tasks.length - 1;
+          delete task._id;
+          task.expiry = 5;
+          postTask(task, conReq, (err, t, crs) => {
+            if (err) return rej(err);
+            if (conReq) connectionRequestStatus = crs;
+            res({ _id: t._id, status: "pending" });
+          });
+        })
+      );
+    }
+
+    Promise.all(promises)
+      .then(statuses => {
+        if (connectionRequestStatus !== "OK")
+          return resolve({
+            connectionRequest: connectionRequestStatus,
+            tasks: statuses
+          });
+        Promise.all(
+          statuses.map(s => query("tasks", new Filter(["=", "_id", s._id])))
+        )
+          .then(res => {
+            for (let [i, r] of res.entries()) {
+              if (!r[0]) {
+                statuses[i].status = "done";
+              } else if (r[0].fault) {
+                statuses[i].status = "fault";
+                statuses[i].fault = r[0].fault;
+              }
+              deleteResource("tasks", statuses[i]._id);
+            }
+
+            resolve({
+              connectionRequest: connectionRequestStatus,
+              tasks: statuses
+            });
+          })
+          .catch(reject);
+      })
+      .catch(reject);
+  });
+}
+
 exports.query = query;
 exports.count = count;
+exports.postTasks = postTasks;

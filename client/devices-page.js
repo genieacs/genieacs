@@ -19,7 +19,6 @@ function init(args) {
 function renderTable(devices, parameters, total, showMoreCallback) {
   let labels = [];
   for (let param of parameters) labels.push(m("th", param.label));
-  labels.push(m("th"));
 
   let rows = [];
   for (let device of devices)
@@ -29,7 +28,7 @@ function renderTable(devices, parameters, total, showMoreCallback) {
         parameters
           .map(p => {
             const attrs = Object.assign({ device: device }, p);
-            const comp = m(components.get("parameter"), attrs);
+            const comp = m(components.get(attrs.type || "parameter"), attrs);
             return m("td", comp);
           })
           .concat(
@@ -49,14 +48,16 @@ function renderTable(devices, parameters, total, showMoreCallback) {
       )
     );
 
-  let footerElements = [`${devices.length}/${total}`];
+  let footerElements = [];
+  if (total != null) footerElements.push(`${devices.length}/${total}`);
+  else footerElements.push(`${devices.length}`);
 
   if (devices.length < total)
-    footerElements.push(m("a", { onclick: showMoreCallback }, "Show more"));
+    footerElements.push(m("a", { onclick: showMoreCallback }, "More"));
 
   let tfoot = m(
     "tfoot",
-    m("tr", m("td", { colspan: labels.length + 1 }, footerElements))
+    m("tr", m("td", { colspan: labels.length }, footerElements))
   );
 
   return m("table.table", [

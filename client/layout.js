@@ -3,13 +3,15 @@
 import m from "mithril";
 
 import menu from "./menu";
+import drawerComponent from "./drawer-component";
 
 const layout = {
   view: vnode => {
     return [
       m("#header", [
         m("img.logo", { src: "logo.svg" }),
-        m(menu, { page: vnode.attrs.page })
+        m(menu, { page: vnode.attrs.page }),
+        m(drawerComponent)
       ]),
       m("#content", { class: `page-${vnode.attrs.page}` }, [vnode.children])
     ];
