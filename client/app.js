@@ -8,6 +8,7 @@ import * as overviewPage from "./overview-page";
 import * as devicesPage from "./devices-page";
 import * as devicePage from "./device-page";
 import * as errorPage from "./error-page";
+import * as faultsPage from "./faults-page";
 
 let state;
 
@@ -65,5 +66,6 @@ function pagify(pageName, page) {
 m.route(document.body, "/overview", {
   "/overview": pagify("overview", overviewPage),
   "/devices": pagify("devices", devicesPage),
-  "/devices/:id": pagify("devices", devicePage)
+  "/devices/:id": pagify("devices", devicePage),
+  "/faults": pagify("faults", faultsPage)
 });

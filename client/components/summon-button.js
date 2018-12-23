@@ -8,9 +8,11 @@ import * as notifications from "../notifications";
 const component = {
   view: vnode => {
     return m(
-      "a.summon",
+      "button.primary",
       {
-        onclick: () => {
+        title: "Initiate session and refresh basic parameters",
+        onclick: e => {
+          e.target.disabled = true;
           const params = Object.values(vnode.attrs.parameters);
           const task = {
             name: "getParameterValues",
@@ -37,7 +39,8 @@ const component = {
               else notifications.push("success", `${deviceId}: Summoned`);
             })
             .then(() => {
-              store.fulfill(Date.now(), Date.now());
+              e.target.disabled = false;
+              store.fulfill(0, Date.now());
             });
         }
       },

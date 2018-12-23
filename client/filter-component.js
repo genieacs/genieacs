@@ -2,16 +2,14 @@
 
 import m from "mithril";
 
-import * as config from "./config";
 import * as filterParser from "../common/filter-parser";
 
 const component = {
   view: vnode => {
+    const predefined = vnode.attrs.predefined || [];
     let a = m(
       "datalist#filters",
-      Object.values(config.get("ui.filters")).map(f =>
-        m("option", { value: `${f.parameter} = ` })
-      )
+      predefined.map(f => m("option", { value: `${f.parameter} = ` }))
     );
 
     if (vnode.attrs.filter !== vnode.state.filter) {

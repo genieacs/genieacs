@@ -14,8 +14,9 @@ const component = {
     let edit;
     if (param.writable)
       edit = m(
-        "a.edit",
+        "button",
         {
+          title: "Edit parameter value",
           onclick: () => {
             taskQueue.stageSpv({
               name: "setParameterValues",

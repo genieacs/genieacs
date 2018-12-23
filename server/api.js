@@ -13,6 +13,7 @@ const resources = {
   provisions: true,
   files: true,
   virtual_parameters: true,
+  faults: true,
   tasks: false
 };
 
@@ -21,6 +22,12 @@ for (let [resource, update] of Object.entries(resources)) {
     let filter, limit;
     if (ctx.request.query.filter) filter = new Filter(ctx.request.query.filter);
     if (ctx.request.query.limit) limit = +ctx.request.query.limit;
+
+    // Exclude temporary tasks and faults
+    if (resource === "tasks" || resource === "faults") {
+      let f = new Filter(["NOT", ["<", "expiry", Date.now() + 60000]]);
+      filter = f.and(filter);
+    }
 
     let count = await apiFunctions.count(resource, filter, limit);
     ctx.set("X-Total-Count", count);
@@ -32,6 +39,12 @@ for (let [resource, update] of Object.entries(resources)) {
     if (ctx.request.query.filter) filter = new Filter(ctx.request.query.filter);
     if (ctx.request.query.limit) limit = +ctx.request.query.limit;
     if (ctx.request.query.skip) skip = +ctx.request.query.skip;
+
+    // Exclude temporary tasks and faults
+    if (resource === "tasks" || resource === "faults") {
+      let f = new Filter(["NOT", ["<", "expiry", Date.now() + 60000]]);
+      filter = f.and(filter);
+    }
 
     ctx.body = await apiFunctions.query(
       resource,
@@ -56,9 +69,14 @@ for (let [resource, update] of Object.entries(resources)) {
     ctx.body = res[0];
   });
 
-  if (update) {
-    // TODO add PUT, PATCH, DELETE routes
-  }
+  // TODO add PUT, PATCH routes
+  if (update)
+    router.delete(`/${resource}/:id`, async ctx => {
+      let found = await apiFunctions.deleteResource(resource, ctx.params.id);
+      if (found) ctx.status = 200;
+      else ctx.status = 404;
+      ctx.body = "";
+    });
 }
 
 router.post("/devices/:id/tasks", async ctx => {

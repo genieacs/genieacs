@@ -44,9 +44,17 @@ function renderStaging(staging) {
         vnode.dom.parentNode.parentNode.scrollTop = 0;
       }
     });
-    const queue = m("a", { onclick: queueFunc }, "Queue");
 
-    const cancel = m("a", { onclick: cancelFunc }, "Cancel");
+    const queue = m(
+      "button.primary",
+      { title: "Queue task", onclick: queueFunc },
+      "Queue"
+    );
+    const cancel = m(
+      "button",
+      { title: "Cancel edit", onclick: cancelFunc },
+      "Cancel"
+    );
 
     elements.push(
       m(
@@ -71,22 +79,14 @@ function renderQueue(queue) {
   for (let [k, v] of Object.entries(devices)) {
     details.push(m("strong", k));
     for (let t of v) {
-      let actions = [
-        m(
-          "a.cancel",
-          {
-            onclick: () => {
-              taskQueue.deleteTask(t);
-            }
-          },
-          "✕"
-        )
-      ];
+      let actions = [];
+
       if (t.status === "fault" || t.status === "stale")
         actions.push(
           m(
-            "a.retry",
+            "button",
             {
+              title: "Retry this task",
               onclick: () => {
                 taskQueue.queueTask(t);
               }
@@ -95,43 +95,73 @@ function renderQueue(queue) {
           )
         );
 
+      actions.push(
+        m(
+          "button",
+          {
+            title: "Remove this task",
+            onclick: () => {
+              taskQueue.deleteTask(t);
+            }
+          },
+          "✕"
+        )
+      );
+
       if (t.name === "setParameterValues")
         details.push(
           m(
             `div.${t.status}`,
-            actions,
-            "Set ",
-            mparam(t.parameterValues[0][0]),
-            " to '",
-            mval(t.parameterValues[0][1]),
-            "'"
+            m(
+              "span",
+              "Set ",
+              mparam(t.parameterValues[0][0]),
+              " to '",
+              mval(t.parameterValues[0][1]),
+              "'"
+            ),
+            m(".actions", actions)
           )
         );
       else if (t.name === "refreshObject")
         details.push(
-          m(`div.${t.status}`, actions, "Refresh ", mparam(t.parameterName))
+          m(
+            `div.${t.status}`,
+            m("span", "Refresh ", mparam(t.parameterName)),
+            m(".actions", actions)
+          )
         );
       else if (t.name === "reboot")
-        details.push(m(`div.${t.status}`, actions, "Reboot"));
+        details.push(m(`div.${t.status}`, "Reboot", m(".actions", actions)));
       else if (t.name === "factoryReset")
-        details.push(m(`div.${t.status}`, actions, "Factory reset"));
+        details.push(
+          m(`div.${t.status}`, "Factory reset", m(".actions", actions))
+        );
       else if (t.name === "addObject")
         details.push(
-          m(`div.${t.status}`, actions, "Add ", mparam(t.objectName))
+          m(
+            `div.${t.status}`,
+            m("span", "Add ", mparam(t.objectName)),
+            m(".actions", actions)
+          )
         );
       else if (t.name === "deleteObject")
         details.push(
-          m(`div.${t.status}`, actions, "Delete ", mparam(t.objectName))
+          m(
+            `div.${t.status}`,
+            m("span", "Delete ", mparam(t.objectName)),
+            m(".actions", actions)
+          )
         );
       else if (t.name === "getParameterValues")
         details.push(
           m(
             `div.${t.status}`,
-            actions,
-            `Refresh ${t.parameterNames.length} parameters`
+            `Refresh ${t.parameterNames.length} parameters`,
+            m(".actions", actions)
           )
         );
-      else details.push(m(`div.${t.status}`, actions, t.name));
+      else details.push(m(`div.${t.status}`, t.name, m(".actions", actions)));
     }
   }
 
@@ -198,71 +228,71 @@ const component = {
     }
 
     if (stagingElements.length + queueElements.length) {
-      const statusCount = { queued: 0, pending: 0, faulty: 0, stale: 0 };
+      const statusCount = { queued: 0, pending: 0, fault: 0, stale: 0 };
       for (let t of queue) statusCount[t.status] += 1;
 
-      let actions;
-      if (queueElements.length)
-        if (statusCount.queued) {
-          actions = m(
-            ".actions",
-            m("a.clear", { onclick: taskQueue.clear }, "Clear"),
-            m(
-              "a.commit",
-              {
-                onclick: () => {
-                  let tasks = Array.from(taskQueue.getQueue()).filter(
-                    t => t.status === "queued"
-                  );
-                  taskQueue
-                    .commit(
-                      tasks,
-                      (deviceId, connectionRequestStatus, tasks2) => {
-                        if (connectionRequestStatus !== "OK")
-                          notifications.push(
-                            "error",
-                            `${deviceId}: ${connectionRequestStatus}`
-                          );
-                        else
-                          for (let t of tasks2)
-                            if (t.status === "stale") {
-                              notifications.push(
-                                "error",
-                                `${deviceId}: No contact from device`
-                              );
-                              return;
-                            } else if (t.status === "fault") {
-                              notifications.push(
-                                "error",
-                                `${deviceId}: Task(s) faulted`
-                              );
-                              return;
-                            }
+      let actions = m(
+        ".actions",
+        m(
+          "button.primary",
+          {
+            title: "Commit queued tasks",
+            disabled: !statusCount.queued,
+            onclick: () => {
+              let tasks = Array.from(taskQueue.getQueue()).filter(
+                t => t.status === "queued"
+              );
+              taskQueue
+                .commit(tasks, (deviceId, connectionRequestStatus, tasks2) => {
+                  if (connectionRequestStatus !== "OK") {
+                    notifications.push(
+                      "error",
+                      `${deviceId}: ${connectionRequestStatus}`
+                    );
+                    return;
+                  }
 
-                        notifications.push(
-                          "success",
-                          `${deviceId}: Task(s) committed`
-                        );
-                      }
-                    )
-                    .then(() => {
-                      store.fulfill(Date.now(), Date.now());
-                    })
-                    .catch(err => {
-                      notifications.push("error", err.message);
-                      throw err;
-                    });
-                }
-              },
-              "Commit"
-            )
-          );
-        } else {
-          actions = m(
-            ".actions",
-            m("a.clear", { onclick: taskQueue.clear }, "Clear")
-          );
-        }
+                  for (let t of tasks2)
+                    if (t.status === "stale") {
+                      notifications.push(
+                        "error",
+                        `${deviceId}: No contact from device`
+                      );
+                      return;
+                    } else if (t.status === "fault") {
+                      notifications.push(
+                        "error",
+                        `${deviceId}: Task(s) faulted`
+                      );
+                      return;
+                    }
+
+                  notifications.push(
+                    "success",
+                    `${deviceId}: Task(s) committed`
+                  );
+                })
+                .then(() => {
+                  store.fulfill(0, Date.now());
+                })
+                .catch(err => {
+                  notifications.push("error", err.message);
+                  throw err;
+                });
+            }
+          },
+          "Commit"
+        ),
+        m(
+          "button",
+          {
+            title: "Clear tasks",
+            onclick: taskQueue.clear,
+            disabled: !queueElements.length
+          },
+          "Clear"
+        )
+      );
 
       statusElement = m(
         ".status",
@@ -277,9 +307,9 @@ const component = {
           `Pending: ${statusCount.pending}`
         ),
         m(
-          "span.faulty",
-          { class: statusCount.faulty ? "active" : "" },
-          `Faulty: ${statusCount.faulty}`
+          "span.fault",
+          { class: statusCount.fault ? "active" : "" },
+          `Fault: ${statusCount.fault}`
         ),
         m(
           "span.stale",

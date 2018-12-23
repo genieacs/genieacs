@@ -43,8 +43,9 @@ const component = {
           m(
             "td",
             m(
-              "a.delete",
+              "button",
               {
+                title: "Delete this instance",
                 onclick: () => {
                   taskQueue.queueTask({
                     name: "deleteObject",
@@ -53,12 +54,18 @@ const component = {
                   });
                 }
               },
-              "−"
+              "✕"
             )
           )
         );
       rows.push(m("tr", row));
     }
+
+    if (!rows.length)
+      rows.push(
+        m("tr.empty", m("td", { colspan: headers.length }, "No instances"))
+      );
+
     if (device[object].writable === true)
       rows.push(
         m(
@@ -67,8 +74,9 @@ const component = {
           m(
             "td",
             m(
-              "a.add",
+              "button",
               {
+                title: "Create a new instance",
                 onclick: () => {
                   taskQueue.queueTask({
                     name: "addObject",
@@ -77,12 +85,12 @@ const component = {
                   });
                 }
               },
-              "+"
+              "🞢"
             )
           )
         )
       );
-    return m("table.parameter-table", thead, m("tbody", rows));
+    return m("table.table", thead, m("tbody", rows));
   }
 };
 

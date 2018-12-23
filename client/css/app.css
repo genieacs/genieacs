@@ -11,6 +11,8 @@
   --color5: #002f2f;
 
   --fade: 0.2s;
+
+  --disabled: #666;
 }
 
 body,
@@ -83,6 +85,7 @@ i {
       }
 
       & > .status {
+        display: flex;
         & > span {
           margin-right: 1em;
         }
@@ -95,7 +98,7 @@ i {
         & > .stale {
           color: #777;
         }
-        & > .faulty {
+        & > .fault {
           color: #700;
         }
         & > .active {
@@ -103,14 +106,8 @@ i {
         }
 
         & > .actions {
-          float: right;
-          & a {
-            float: right;
-            margin-left: 0.5em;
-          }
-          & > .commit {
-            font-weight: bold;
-          }
+          flex-grow: 1;
+          text-align: right;
         }
       }
 
@@ -132,28 +129,17 @@ i {
         }
         & .actions {
           text-align: right;
-          & a {
-            margin-left: 0.5em;
-          }
         }
       }
 
       & > .queue {
-        & a.retry {
-          float: right;
-          margin-left: 0.5em;
-        }
-        & a.cancel {
-          float: right;
-          margin-left: 0.5em;
-        }
         & > .pending {
           color: #770;
         }
         & > .stale {
           color: #777;
         }
-        & > .faulty {
+        & > .fault {
           color: #700;
         }
         & .parameter {
@@ -171,6 +157,13 @@ i {
           overflow: hidden;
           vertical-align: text-bottom;
           white-space: nowrap;
+        }
+        & > div {
+          display: flex;
+          & > .actions {
+            flex-grow: 1;
+            text-align: right;
+          }
         }
       }
     }
@@ -263,23 +256,28 @@ table.table {
   & td {
     margin: 0;
     padding: 0.2em 0.5em;
-    border-bottom: 1px dotted var(--color1);
-    & .action a {
-      visibility: hidden;
-    }
-  }
-
-  & tbody tr:hover td {
-    & .action {
-      visibility: visible;
-    }
-
-    transition: background-color var(--fade);
-    background-color: var(--color3);
   }
 
   & tfoot td > a {
     margin-left: 1em;
+  }
+
+  &.highlight > tbody > tr {
+    & > td {
+      border-bottom: 1px dotted var(--color1);
+    }
+    transition: background-color var(--fade);
+    &:hover {
+      background-color: var(--color3);
+    }
+  }
+
+  & tbody > tr.empty {
+    text-align: center;
+    color: var(--disabled);
+    &:hover {
+      background-color: initial;
+    }
   }
 }
 
@@ -314,40 +312,28 @@ input::-moz-focus-inner {
 
 input[type="button"],
 button {
-  display: inline-block;
-  min-width: 6em;
-  position: relative;
-  top: 0px;
-  vertical-align: baseline;
-  margin: 0 0.1em;
-  outline: none;
-  cursor: pointer;
-  text-align: center;
-  text-decoration: none;
-  padding: 0.1em 0.6em;
-  border-top-left-radius: 1em;
-  border-bottom-right-radius: 1em;
-  border-top-right-radius: 0.2em;
-  border-bottom-left-radius: 0.2em;
-
+  background: transparent;
+  border: 0;
   color: var(--color4);
+  border-radius: 4px;
   transition: background-color var(--fade), color var(--fade);
-
-  &:link,
-  &:visited {
-    color: var(--color4);
-    background-color: var(--color1);
+  &.primary {
+    border: 1px solid var(--color1);
+    background-color: var(--color3);
   }
-
-  &:hover,
-  &:active {
-    color: var(--color1);
+  &.critical {
+    border: 1px solid var(--color1);
+    background-color: var(--color3);
+    font-weight: bold;
+    color: #900;
+  }
+  &:hover:enabled {
     background-color: var(--color4);
+    color: var(--color3);
   }
-
   &:disabled {
-    background-color: var(--color1);
-    color: var(--color2);
+    color: var(--disabled);
+    cursor: not-allowed;
   }
 }
 
@@ -396,23 +382,6 @@ table.parameter-list {
   text-align: left;
   & th {
     padding-right: 1em;
-  }
-}
-
-table.parameter-table {
-  border-spacing: 0;
-  text-align: left;
-
-  & th {
-    color: var(--color4);
-    border-bottom: 2px solid var(--color4);
-    margin: 0;
-    padding: 0.2em 0.5em;
-  }
-
-  & td {
-    margin: 0;
-    padding: 0.2em 0.5em;
   }
 }
 

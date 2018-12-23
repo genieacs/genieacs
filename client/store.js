@@ -20,7 +20,7 @@ const queries = {
 };
 
 const resources = {};
-for (let r of ["devices"])
+for (let r of ["devices", "faults"])
   resources[r] = {
     objects: new Map(),
     count: new Map(),
@@ -127,12 +127,15 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
   const allPromises = [];
 
   for (let [resourceType, resource] of Object.entries(resources))
-    for (let queryResponse of resource.count.values()) {
+    for (let [queryResponseKey, queryResponse] of resource.count) {
+      if (!(queries.accessed.get(queryResponse) >= accessTimestamp)) {
+        resource.count.delete(queryResponseKey);
+        continue;
+      }
+
       if (queries.fulfilling.has(queryResponse)) continue;
-      if (
-        queries.accessed.get(queryResponse) >= accessTimestamp &&
-        !(fulfillTimestamp <= queries.fulfilled.get(queryResponse))
-      ) {
+
+      if (!(fulfillTimestamp <= queries.fulfilled.get(queryResponse))) {
         queries.fulfilling.add(queryResponse);
         allPromises.push(
           new Promise((resolve, reject) => {
@@ -165,13 +168,15 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
   let toFetchAll = {};
 
   for (let [resourceType, resource] of Object.entries(resources))
-    for (let queryResponse of resource.fetch.values()) {
+    for (let [queryResponseKey, queryResponse] of resource.fetch) {
+      if (!(queries.accessed.get(queryResponse) >= accessTimestamp)) {
+        resource.fetch.delete(queryResponseKey);
+        continue;
+      }
+
       if (queries.fulfilling.has(queryResponse)) continue;
 
-      if (
-        queries.accessed.get(queryResponse) >= accessTimestamp &&
-        !(fulfillTimestamp <= queries.fulfilled.get(queryResponse))
-      ) {
+      if (!(fulfillTimestamp <= queries.fulfilled.get(queryResponse))) {
         queries.fulfilling.add(queryResponse);
         toFetchAll[resourceType] = toFetchAll[resourceType] || [];
         toFetchAll[resourceType].push(queryResponse);
@@ -244,6 +249,9 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
           if (!combinedFilter) return resolve(updated);
 
           updated = true;
+          let deleted = new Set();
+          if (!resources[resourceType].combinedFilter)
+            deleted = new Set(resources[resourceType].objects.keys());
           let combinedFilterDiff = combinedFilter;
           if (resources[resourceType].combinedFilter)
             combinedFilterDiff = combinedFilterDiff.and(
@@ -265,13 +273,20 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
                     })
                 })
                 .then(res => {
-                  for (let r of res)
-                    if (resourceType === "devices")
-                      resources.devices.objects.set(
-                        r["DeviceID.ID"].value[0],
-                        r
-                      );
-                    else resources[resourceType].objects.set(r["_id"], r);
+                  for (let r of res) {
+                    const id =
+                      resourceType === "devices"
+                        ? r["DeviceID.ID"].value[0]
+                        : r["_id"];
+                    resources[resourceType].objects.set(id, r);
+                    deleted.delete(id);
+                  }
+
+                  for (let d of deleted) {
+                    const obj = resources[resourceType].objects.get(d);
+                    if (combinedFilterDiff.test(obj))
+                      resources[resourceType].objects.delete(d);
+                  }
 
                   for (let queryResponse of toFetch) {
                     let filter = queries.filter.get(queryResponse);
@@ -344,4 +359,19 @@ function postTasks(tasks, callback) {
   });
 }
 
-export { count, fetch, fulfill, unpackFilter, getTimestamp, postTasks };
+function deleteResource(resourceType, id) {
+  return m.request({
+    method: "DELETE",
+    url: `/api/${resourceType}/${encodeURIComponent(id)}`
+  });
+}
+
+export {
+  count,
+  fetch,
+  fulfill,
+  unpackFilter,
+  getTimestamp,
+  postTasks,
+  deleteResource
+};

@@ -265,7 +265,7 @@ function postTask(task, connectionRequest, callback) {
             if (
               res.statusCode === 202 &&
               res.statusMessage !== "Task queued but not processed" &&
-              res.statusMessage !== "Task faulte"
+              res.statusMessage !== "Task faulted"
             )
               connectionRequestStatus = res.statusMessage;
           }
@@ -305,18 +305,28 @@ function postTasks(deviceId, tasks) {
             connectionRequest: connectionRequestStatus,
             tasks: statuses
           });
-        Promise.all(
-          statuses.map(s => query("tasks", new Filter(["=", "_id", s._id])))
-        )
+
+        let promises2 = [];
+        for (let s of statuses) {
+          promises2.push(query("tasks", new Filter(["=", "_id", s._id])));
+          promises2.push(
+            query(
+              "faults",
+              new Filter(["=", "_id", `${deviceId}:task_${s._id}`])
+            )
+          );
+        }
+
+        Promise.all(promises2)
           .then(res => {
-            for (let [i, r] of res.entries()) {
-              if (!r[0]) {
-                statuses[i].status = "done";
-              } else if (r[0].fault) {
-                statuses[i].status = "fault";
-                statuses[i].fault = r[0].fault;
+            for (let [i, r] of statuses.entries()) {
+              if (res[i * 2].length === 0) {
+                r.status = "done";
+              } else if (res[i * 2 + 1].length === 1) {
+                r.status = "fault";
+                r.fault = res[i * 2 + 1][0];
               }
-              deleteResource("tasks", statuses[i]._id);
+              deleteResource("tasks", r._id);
             }
 
             resolve({
@@ -333,3 +343,4 @@ function postTasks(deviceId, tasks) {
 exports.query = query;
 exports.count = count;
 exports.postTasks = postTasks;
+exports.deleteResource = deleteResource;

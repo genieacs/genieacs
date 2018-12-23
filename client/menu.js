@@ -18,6 +18,11 @@ const menu = {
           "li",
           { class: active["devices"] },
           m("a", { href: "#!/devices" }, "Devices")
+        ),
+        m(
+          "li",
+          { class: active["faults"] },
+          m("a", { href: "#!/faults" }, "Faults")
         )
       ])
     );
