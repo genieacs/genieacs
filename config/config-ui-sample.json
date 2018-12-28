@@ -1,0 +1,322 @@
+{
+  "server": {
+    "workers": 4,
+    "interface": "0.0.0.0",
+    "port": 3000,
+    "nbi": "http://127.0.0.1:7557/",
+    "mongodbConnectionUrl": "mongodb://127.0.0.1:27017",
+    "jwtSecret": "jwtSecret"
+  },
+  "auth": {
+    "simple": {
+      "users": {
+        "admin": {
+          "password": "admin",
+          "roles": "admin"
+        },
+        "view": {
+          "password": "view",
+          "roles": "view"
+        }
+      }
+    }
+  },
+  "permissions": {
+    "admin": [
+      {
+        "devices": {
+          "access": 3,
+          "validate": {
+            "pass": true
+          }
+        },
+        "faults": {
+          "access": 3,
+          "validate": {
+            "pass": true
+          }
+        },
+        "presets": {
+          "access": 3,
+          "validate": {
+            "pass": true
+          }
+        },
+        "provisions" : {
+          "access": 3,
+          "validate": {
+            "pass": true
+          }
+        },
+        "virtualParameters" : {
+          "access": 3,
+          "validate": {
+            "pass": true
+          }
+        },
+        "files": {
+          "access": 3,
+          "validate": {
+            "pass": true
+          }
+        }
+      }
+    ],
+    "view": [
+      {
+        "devices": {
+          "access": 2
+        },
+        "faults": {
+          "access": 2
+        },
+        "presets": {
+          "access": 2
+        },
+        "provisions": {
+          "access": 2
+        },
+        "virtualParameters": {
+          "access": 2
+        },
+        "files": {
+          "access": 2
+        }
+      }
+    ]
+  },
+  "ui": {
+    "pageSize": 10,
+    "filters": [
+      {
+        "label": "Serial number",
+        "parameter": "DeviceID.SerialNumber",
+        "type": "string"
+      },
+      {
+        "label": "Product class",
+        "parameter": "DeviceID.ProductClass",
+        "type": "string"
+      },
+      {
+        "label": "Tag",
+        "parameter": "tag",
+        "type": "string"
+      }
+    ],
+    "index": [
+      {
+        "label": "Serial number",
+        "parameter": "DeviceID.SerialNumber",
+        "type": "device-link",
+        "components": [
+          {
+            "type": "parameter"
+          }
+        ]
+      },
+      {
+        "label": "Product class",
+        "parameter": "DeviceID.ProductClass"
+      },
+      {
+        "label": "Software version",
+        "parameter": "InternetGatewayDevice.DeviceInfo.SoftwareVersion"
+      },
+      {
+        "label": "IP",
+        "parameter": "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.ExternalIPAddress"
+      },
+      {
+        "label": "SSID",
+        "parameter": "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID"
+      },
+      {
+        "label": "Last inform",
+        "parameter": "DATE_STRING(Events.Inform)",
+        "type": "container",
+        "element": "span.inform",
+        "components": [
+          {
+            "type": "parameter"
+          },
+          {
+            "type": "overview-dot",
+            "chart": "online"
+          }
+        ]
+      },
+      {
+        "label": "Tags",
+        "parameter": "Tags",
+        "type": "tags",
+        "writable": false,
+        "unsortable": true
+      }
+    ],
+    "overview": {
+      "groups": {
+        "online": {
+          "label": "",
+          "charts": [
+            "online"
+          ]
+        }
+      },
+      "charts": {
+        "online": {
+          "label": "Online status",
+          "slices": {
+            "onlineNow": {
+              "label": "Online now",
+              "color": "#31a354",
+              "filter": "Events.Inform > NOW() - 5 * 60 * 1000"
+            },
+            "past24": {
+              "label": "Past 24 hours",
+              "color": "#addd8e",
+              "filter": "Events.Inform > (NOW() - 5 * 60 * 1000) - (24 * 60 * 60 * 1000) AND Events.Inform < (NOW() - 5 * 60 * 1000)"
+            },
+            "others": {
+              "label": "Others",
+              "color": "#f7fcb9",
+              "filter": "Events.Inform < (NOW() - 5 * 60 * 1000) - (24 * 60 * 60 * 1000)"
+            }
+          }
+        }
+      }
+    },
+    "device": [
+      {
+        "type": "tags"
+      },
+      {
+        "type": "ping"
+      },
+      {
+        "type": "parameter-list",
+        "parameters": [
+          {
+            "type": "container",
+            "label": "Last inform",
+            "element": "span.inform",
+            "parameter": "DATE_STRING(Events.Inform)",
+            "components": [
+              {
+                "type": "parameter"
+              },
+              {
+                "type": "overview-dot",
+                "chart": "online"
+              },
+              {
+                "type": "summon-button",
+                "parameters": [
+                  "InternetGatewayDevice.DeviceInfo.HardwareVersion",
+                  "InternetGatewayDevice.DeviceInfo.SoftwareVersion",
+                  "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.MACAddress",
+                  "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.ExternalIPAddress",
+                  "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID",
+                  "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.KeyPassphrase",
+                  "InternetGatewayDevice.LANDevice.1.Hosts.Host"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "Serial number",
+            "parameter": "InternetGatewayDevice.DeviceInfo.SerialNumber"
+          },
+          {
+            "label": "Product class",
+            "parameter": "InternetGatewayDevice.DeviceInfo.ProductClass"
+          },
+          {
+            "label": "OUI",
+            "parameter": "InternetGatewayDevice.DeviceInfo.ManufacturerOUI"
+          },
+          {
+            "label": "Manufacturer",
+            "parameter": "InternetGatewayDevice.DeviceInfo.Manufacturer"
+          },
+          {
+            "label": "Hardware version",
+            "parameter": "InternetGatewayDevice.DeviceInfo.HardwareVersion"
+          },
+          {
+            "label": "Software version",
+            "parameter": "InternetGatewayDevice.DeviceInfo.SoftwareVersion"
+          },
+          {
+            "label": "MAC",
+            "parameter": "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.MACAddress"
+          },
+          {
+            "label": "IP",
+            "parameter": "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.ExternalIPAddress"
+          },
+          {
+            "label": "WLAN SSID",
+            "parameter": "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID"
+          },
+          {
+            "label": "WLAN passphrase",
+            "parameter": "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.KeyPassphrase"
+          }
+        ]
+      },
+      {
+        "type": "parameter-table",
+        "label": "WLAN hosts",
+        "parameter": "InternetGatewayDevice.LANDevice.1.Hosts.Host",
+        "childParameters": [
+          {
+            "label": "Host name",
+            "parameter": "HostName"
+          },
+          {
+            "label": "IP address",
+            "parameter": "IPAddress"
+          },
+          {
+            "label": "MAC address",
+            "parameter": "MACAddress"
+          }
+        ]
+      },
+      {
+        "type": "container",
+        "element": "div",
+        "components": [
+          {
+            "type": "container",
+            "element": "h3",
+            "components": ["Faults"]
+          },
+          {"type": "device-faults"}
+        ]
+      },
+      {
+        "type": "container",
+        "element": "div.container-full-width",
+        "components": [
+          {
+            "type": "container",
+            "element": "h3",
+            "components": ["All parameters"]
+          },
+          {"type": "all-parameters"}
+        ]
+      },
+      {
+        "type": "device-actions"
+      }
+    ]
+  },
+  "logger": {
+    "logFile": "",
+    "accessLogFile": "",
+    "logFormat": "simple",
+    "accessLogFormat": "simple"
+  }
+}

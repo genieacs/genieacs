@@ -19,26 +19,49 @@
     "bin": "bin"
   },
   "dependencies": {
+    "codemirror": "^5.40.0",
+    "jsonwebtoken": "^8.3.0",
+    "koa-bodyparser": "^4.2.1",
+    "koa-compress": "^3.0.0",
+    "koa-jwt": "^3.3.2",
+    "koa-router": "^7.4.0",
+    "koa-static": "^5.0.0",
+    "koa": "^2.5.2",
     "later": "^1.2.0",
     "libxmljs": "^0.19.5",
     "mongodb": "^3.1.10",
-    "seedrandom": "^2.4.4"
+    "parsimmon": "^1.12.0",
+    "seedrandom": "^2.4.4",
+    "yaml": "^1.0.0"
   },
   "optionalDependencies": {
     "redis": "^2.6.5"
   },
   "devDependencies": {
+    "babel-eslint": "^8.2.6",
+    "clean-webpack-plugin": "^0.1.19",
+    "copy-webpack-plugin": "^4.5.2",
+    "cssnano": "^4.0.5",
     "eslint": "^5.10.0",
-    "prettier": "^1.15.3"
+    "mithril": "^1.1.6",
+    "postcss-cli": "^6.0.0",
+    "postcss-cssnext": "^3.1.0",
+    "postcss-import": "^11.1.0",
+    "prettier": "^1.15.3",
+    "webpack": "^4.16.3",
+    "webpack-cli": "^3.1.0",
+    "webpack-node-externals": "^1.7.2"
   },
   "engines": {
     "node": ">=8.14.0"
   },
   "scripts": {
     "compile": "echo 'Compile step no longer required, skipping.'",
-    "configure": "if [ ! -f ./config/config.json ]; then cp ./config/config-sample.json ./config/config.json; fi",
+    "configure": "if [ ! -f ./config/config.json ]; then cp ./config/config-sample.json ./config/config.json; cp ./config/config-ui-sample.json ./config/config-ui.json; fi",
     "install": "npm run configure",
     "test": "node test",
-    "lint": "eslint --fix lib/*.js; prettier --write lib/*.js"
+    "lint": "eslint --fix lib ui; prettier --write \"lib/**/*.js\" \"ui/**/*.js\"",
+    "build-ui": "npm run lint;webpack;postcss -c postcss.config.js ui/css/app.css -o dist/public/app.css",
+    "start-ui": "cd dist && node cluster"
   }
 }

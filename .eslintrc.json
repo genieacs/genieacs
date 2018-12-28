@@ -1,13 +1,11 @@
 {
   "env": {
-    "es6": true,
-    "node": true
+    "es6": true
   },
-  "extends": "eslint:recommended",
   "parserOptions": {
-    "sourceType": "script",
     "ecmaVersion": 8
   },
+  "extends": "eslint:recommended",
   "rules": {
     "no-shadow": ["error", { "allow": ["err"] }],
     "handle-callback-err": "error",
