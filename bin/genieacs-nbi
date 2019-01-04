@@ -1,9 +1,115 @@
 #!/usr/bin/env node
-var path = require('path');
-var fs = require('fs');
+"use strict";
+const path = require("path");
+const fs = require("fs");
 
-var dir = path.resolve(path.dirname(fs.realpathSync(__filename)), '..');
-process.chdir(dir);
+process.chdir(path.resolve(path.dirname(fs.realpathSync(__filename)), ".."));
 
-var cluster = require(path.resolve(dir, 'lib/cluster'));
-cluster.start('nbi');
+const config = require("../lib/config");
+const logger = require("../lib/logger");
+const cluster = require("../lib/cluster");
+const server = require("../lib/server");
+const nbi = require("../lib/nbi");
+const db = require("../lib/db");
+const extensions = require("../lib/extensions");
+const cache = require("../lib/cache");
+
+const VERSION = require("../package.json").version;
+
+logger.init("nbi", VERSION);
+
+const SERVICE_ADDRESS = config.get("NBI_INTERFACE");
+const SERVICE_PORT = config.get("NBI_PORT");
+
+function exitWorkerGracefully() {
+  db.disconnect();
+  cache.disconnect();
+  extensions.killAll();
+  cluster.worker.disconnect();
+}
+
+function exitWorkerUngracefully() {
+  extensions.killAll(() => {
+    process.exit(1);
+  });
+}
+
+if (!cluster.worker) {
+  const WORKER_COUNT = config.get("NBI_WORKER_PROCESSES");
+
+  logger.info({
+    message: `genieacs-nbi starting`,
+    pid: process.pid,
+    version: VERSION
+  });
+
+  cluster.start(WORKER_COUNT, SERVICE_PORT, SERVICE_ADDRESS);
+
+  process.on("SIGINT", () => {
+    logger.info({
+      message: "Received signal SIGINT, exiting",
+      pid: process.pid
+    });
+
+    cluster.stop();
+  });
+
+  process.on("SIGTERM", () => {
+    logger.info({
+      message: "Received signal SIGTERM, exiting",
+      pid: process.pid
+    });
+
+    cluster.stop();
+  });
+} else {
+  let ssl;
+  if (config.get("NBI_SSL")) {
+    ssl = {
+      key: path.resolve(config.get("CONFIG_DIR"), "nbi.key"),
+      cert: path.resolve(config.get("CONFIG_DIR"), "nbi.crt"),
+      ca: path.resolve(config.get("CONFIG_DIR"), "nbi.ca-bundle")
+    };
+  }
+
+  process.on("uncaughtException", err => {
+    if (err.code === "ERR_IPC_DISCONNECTED") return;
+    logger.error({
+      message: "Uncaught exception",
+      exception: err,
+      pid: process.pid
+    });
+    server
+      .stop()
+      .then(exitWorkerGracefully)
+      .catch(exitWorkerUngracefully);
+  });
+
+  process.on("SIGINT", () => {
+    server
+      .stop()
+      .then(exitWorkerGracefully)
+      .catch(exitWorkerUngracefully);
+  });
+
+  process.on("SIGTERM", () => {
+    server
+      .stop()
+      .then(exitWorkerGracefully)
+      .catch(exitWorkerUngracefully);
+  });
+
+  db.connect(err => {
+    if (err) throw err;
+    cache.connect(err => {
+      if (err) throw err;
+      server.start(
+        SERVICE_PORT,
+        SERVICE_ADDRESS,
+        ssl,
+        nbi.listener,
+        nbi.onConnection
+      );
+    });
+  });
+}

@@ -1,6 +1,7 @@
 {
   "env": {
-    "browser": true
+    "browser": true,
+    "node": false
   },
   "parser": "babel-eslint",
   "parserOptions": {
