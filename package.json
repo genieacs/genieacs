@@ -53,7 +53,7 @@
   },
   "scripts": {
     "compile": "echo 'Compile step no longer required, skipping.'",
-    "configure": "if [ ! -f ./config/config.json ]; then cp ./config/config-sample.json ./config/config.json; cp ./config/config-ui-sample.json ./config/config-ui.json; fi",
+    "configure": "if [ ! -f ./config/config.json ]; then cp ./config/config-sample.json ./config/config.json; fi",
     "install": "npm run configure",
     "test": "node test",
     "lint": "eslint --fix lib ui build bin/*; prettier --write \"lib/**/*.js\" \"ui/**/*.js\" \"build/**/*.js\" bin/*",

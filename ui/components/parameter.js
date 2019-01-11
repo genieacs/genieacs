@@ -8,12 +8,10 @@ import memoize from "../../lib/common/memoize";
 import timeAgo from "../timeago";
 import longTextComponent from "../long-text-component";
 
-const memoizedParse = memoize(expression.parse);
-
 const evaluateParam = memoize((exp, obj, now) => {
   let timestamp = now;
   const params = new Set();
-  const value = expression.evaluate(memoizedParse(exp), obj, now, e => {
+  const value = expression.evaluate(exp, obj, now, e => {
     if (Array.isArray(e)) {
       if (e[0] === "PARAM") {
         params.add(e[1]);

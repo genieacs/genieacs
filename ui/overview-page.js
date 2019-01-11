@@ -4,10 +4,6 @@ import m from "mithril";
 import config from "./config";
 import * as store from "./store";
 import pieChartComponent from "./pie-chart-component";
-import * as expression from "../lib/common/expression";
-import memoize from "../lib/common/memoize";
-
-const memoizedParse = memoize(expression.parse);
 
 const GROUPS = config.ui.overview.groups;
 const CHARTS = {};
@@ -22,7 +18,7 @@ function queryCharts(charts) {
     charts[chartName] = chart = Object.assign({}, chart);
     chart.slices = Object.assign({}, chart.slices);
     for (let [sliceName, slice] of Object.entries(chart.slices)) {
-      const filter = memoizedParse(slice.filter);
+      const filter = slice.filter;
       chart.slices[sliceName] = slice = Object.assign({}, slice);
       slice.count = store.count("devices", filter);
     }

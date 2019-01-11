@@ -11,6 +11,7 @@ const cluster = require("../lib/cluster");
 const server = require("../lib/server");
 const ui = require("../lib/ui");
 const db = require("../lib/ui/db");
+const db2 = require("../lib/db");
 const cache = require("../lib/cache");
 
 const VERSION = require("../package.json").version;
@@ -22,6 +23,7 @@ const SERVICE_PORT = config.get("UI_PORT");
 
 function exitWorkerGracefully() {
   db.disconnect();
+  db2.disconnect();
   cache.disconnect();
   cluster.worker.disconnect();
 }
@@ -105,8 +107,17 @@ if (!cluster.worker) {
     ui.listener(req, res);
   };
 
-  cache.connect(err => {
+  db2.connect(err => {
     if (err) throw err;
-    server.start(SERVICE_PORT, SERVICE_ADDRESS, ssl, listener, ui.onConnection);
+    cache.connect(err => {
+      if (err) throw err;
+      server.start(
+        SERVICE_PORT,
+        SERVICE_ADDRESS,
+        ssl,
+        listener,
+        ui.onConnection
+      );
+    });
   });
 }

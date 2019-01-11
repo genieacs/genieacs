@@ -17,8 +17,8 @@ const PAGE_SIZE = config.ui.pageSize || 10;
 
 const memoizedParse = memoize(expression.parse);
 const memoizedJsonParse = memoize(JSON.parse);
-const memoizedGetSortable = memoize(str => {
-  const expressionParams = expression.extractParams(expression.parse(str));
+const memoizedGetSortable = memoize(p => {
+  const expressionParams = expression.extractParams(p);
   if (expressionParams.length === 1) {
     const param = expression.evaluate(expressionParams[0]);
     if (typeof param === "string") return param;
@@ -28,7 +28,8 @@ const memoizedGetSortable = memoize(str => {
 
 const getDownloadUrl = memoize((filter, indexParameters) => {
   const columns = {};
-  for (const p of indexParameters) columns[p.label] = p.parameter;
+  for (const p of indexParameters)
+    columns[p.label] = expression.stringify(p.parameter);
   return `/api/devices.csv?${m.buildQueryString({
     filter: filter,
     columns: JSON.stringify(columns)

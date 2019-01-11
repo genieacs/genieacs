@@ -1,7 +1,6 @@
 "use strict";
 
 import config from "./config";
-import * as expression from "../lib/common/expression";
 
 const resources = {
   devices: {},
@@ -37,7 +36,7 @@ const resources = {
 
 for (const v of Object.values(config.ui.filters)) {
   resources.devices[v.label] = {
-    parameter: expression.parse(v.parameter),
+    parameter: v.parameter,
     type: (v.type || "").split(",").map(s => s.trim())
   };
 }

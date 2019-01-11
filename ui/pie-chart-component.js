@@ -1,6 +1,10 @@
 "use strict";
 
 import m from "mithril";
+import * as expression from "../lib/common/expression";
+import memoize from "../lib/common/memoize";
+
+const memoizedStringify = memoize(expression.stringify);
 
 const drawChart = function(chartData) {
   const slices = chartData.slices;
@@ -28,7 +32,7 @@ const drawChart = function(chartData) {
           "a",
           {
             href: `/#!/devices/?${m.buildQueryString({
-              filter: slice.filter
+              filter: memoizedStringify(slice.filter)
             })}`
           },
           slice.count.value || 0
@@ -68,7 +72,7 @@ const drawChart = function(chartData) {
           "a",
           {
             "xlink:href": `/#!/devices/?${m.buildQueryString({
-              filter: slice.filter
+              filter: memoizedStringify(slice.filter)
             })}`
           },
           [

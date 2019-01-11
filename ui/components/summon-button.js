@@ -4,10 +4,6 @@ import m from "mithril";
 import * as taskQueue from "../task-queue";
 import * as store from "../store";
 import * as notifications from "../notifications";
-import * as expression from "../../lib/common/expression";
-import memoize from "../../lib/common/memoize";
-
-const memoizedParse = memoize(expression.parse);
 
 const component = {
   view: vnode => {
@@ -20,8 +16,7 @@ const component = {
         onclick: e => {
           e.target.disabled = true;
           const params = Object.values(vnode.attrs.parameters)
-            .map(p => {
-              const exp = memoizedParse(p);
+            .map(exp => {
               if (!Array.isArray(exp) || !exp[0] === "PARAM") return null;
               return store.evaluateExpression(exp[1], device);
             })

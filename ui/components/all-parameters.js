@@ -4,6 +4,10 @@ import m from "mithril";
 import * as components from "../components";
 import * as taskQueue from "../task-queue";
 import longTextComponent from "../long-text-component";
+import * as expression from "../../lib/common/expression";
+import memoize from "../../lib/common/memoize";
+
+const memoizedParse = memoize(expression.parse);
 
 function escapeRegExp(str) {
   return str.replace(/[-[\]/{}()*+?.\\^$|]/g, "\\$&");
@@ -47,7 +51,7 @@ const component = {
           val.push(
             m(
               components.get("parameter"),
-              Object.assign({ device: device, parameter: k })
+              Object.assign({ device: device, parameter: memoizedParse(k) })
             )
           );
         } else if (p.object && p.writable) {

@@ -3,16 +3,12 @@
 import m from "mithril";
 import * as components from "../components";
 import * as store from "../store";
-import * as expression from "../../lib/common/expression";
-import memoize from "../../lib/common/memoize";
-
-const memoizedParse = memoize(expression.parse);
 
 const component = {
   view: vnode => {
     if (vnode.attrs.filter) {
-      const filter = memoizedParse(vnode.attrs.filter);
-      if (!store.evaluateExpression(filter, vnode.attrs.device)) return null;
+      if (!store.evaluateExpression(vnode.attrs.filter, vnode.attrs.device))
+        return null;
     }
 
     const children = Object.values(vnode.attrs.components).map(c => {
