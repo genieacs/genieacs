@@ -47,6 +47,16 @@ const menu = {
       );
     }
 
+    if (window.authorizer.hasAccess("config", 1)) {
+      tabs.push(
+        m(
+          "li",
+          { class: active["config"] },
+          m("a", { href: "#!/admin/config" }, "Config")
+        )
+      );
+    }
+
     return m("nav#side-menu", m("ul", tabs));
   }
 };

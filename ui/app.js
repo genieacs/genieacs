@@ -14,12 +14,19 @@ import * as presetsPage from "./presets-page";
 import * as provisionsPage from "./provisions-page";
 import * as virtualParametersPage from "./virtual-parameters-page";
 import * as filesPage from "./files-page";
+import * as configPage from "./config-page";
 import Authorizer from "../lib//common/authorizer";
 import * as notifications from "./notifications";
 
 window.authorizer = new Authorizer(window.permissionSets);
 
-const adminPages = ["presets", "provisions", "virtualParameters", "files"];
+const adminPages = [
+  "presets",
+  "provisions",
+  "virtualParameters",
+  "files",
+  "config"
+];
 
 let state;
 
@@ -107,5 +114,6 @@ m.route(document.body, "/overview", {
     "virtualParameters",
     virtualParametersPage
   ),
-  "/admin/files": pagify("files", filesPage)
+  "/admin/files": pagify("files", filesPage),
+  "/admin/config": pagify("config", configPage)
 });

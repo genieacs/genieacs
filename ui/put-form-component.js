@@ -134,7 +134,7 @@ const component = {
           "button.primary",
           {
             type: "button",
-            title: `Delete ${singular[resource]}`,
+            title: `Delete ${singular[resource] || resource}`,
             onclick: e => {
               e.redraw = false;
               e.target.disabled = true;
@@ -151,7 +151,10 @@ const component = {
     form.push(m(".actions-bar", buttons));
 
     const children = [
-      m("h1", `${current.isNew ? "New" : "Editing"} ${singular[resource]}`),
+      m(
+        "h1",
+        `${current.isNew ? "New" : "Editing"} ${singular[resource] || resource}`
+      ),
       m(
         "form",
         {

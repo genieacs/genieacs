@@ -263,6 +263,7 @@ i {
 
 #side-menu {
   width: 200px;
+  min-width: 200px;
   & > ul {
     padding: 0;
     list-style: none;
@@ -291,7 +292,6 @@ i {
 
 #content {
   flex-grow: 1;
-  overflow: auto;
   margin: 10px;
   min-height: 250px;
 }

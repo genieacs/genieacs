@@ -8,7 +8,13 @@ import userMenu from "./user-menu";
 import adminMenu from "./admin-menu";
 import * as overlay from "./overlay";
 
-const adminPages = ["presets", "provisions", "virtualParameters", "files"];
+const adminPages = [
+  "presets",
+  "provisions",
+  "virtualParameters",
+  "files",
+  "config"
+];
 
 const layout = {
   view: vnode => {
