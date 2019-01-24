@@ -32,9 +32,6 @@
     "parsimmon": "^1.12.0",
     "seedrandom": "^2.4.4"
   },
-  "optionalDependencies": {
-    "redis": "^2.6.5"
-  },
   "devDependencies": {
     "ava": "^1.1.0",
     "babel-eslint": "^8.2.6",
