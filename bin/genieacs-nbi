@@ -1,20 +1,19 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S node -r esm
 "use strict";
-const path = require("path");
-const fs = require("fs");
+import path from "path";
+import fs from "fs";
 
 process.chdir(path.resolve(path.dirname(fs.realpathSync(__filename)), ".."));
 
-const config = require("../lib/config");
-const logger = require("../lib/logger");
-const cluster = require("../lib/cluster");
-const server = require("../lib/server");
-const nbi = require("../lib/nbi");
-const db = require("../lib/db");
-const extensions = require("../lib/extensions");
-const cache = require("../lib/cache");
-
-const VERSION = require("../package.json").version;
+import * as config from "../lib/config";
+import * as logger from "../lib/logger";
+import * as cluster from "../lib/cluster";
+import * as server from "../lib/server";
+import { listener } from "../lib/nbi";
+import * as db from "../lib/db";
+import * as extensions from "../lib/extensions";
+import * as cache from "../lib/cache";
+import { version as VERSION } from "../package.json";
 
 logger.init("nbi", VERSION);
 
@@ -103,13 +102,7 @@ if (!cluster.worker) {
     if (err) throw err;
     cache.connect(err => {
       if (err) throw err;
-      server.start(
-        SERVICE_PORT,
-        SERVICE_ADDRESS,
-        ssl,
-        nbi.listener,
-        nbi.onConnection
-      );
+      server.start(SERVICE_PORT, SERVICE_ADDRESS, ssl, listener);
     });
   });
 }

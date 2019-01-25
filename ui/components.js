@@ -13,20 +13,23 @@ import tags from "./components/tags";
 import ping from "./components/ping";
 import deviceLink from "./components/device-link";
 
-function get(name) {
-  if (name === "parameter") return parameter;
-  else if (name === "parameter-list") return parameterList;
-  else if (name === "parameter-table") return parameterTable;
-  else if (name === "overview-dot") return overviewDot;
-  else if (name === "container") return container;
-  else if (name === "summon-button") return summonButton;
-  else if (name === "device-faults") return deviceFaults;
-  else if (name === "all-parameters") return allParameters;
-  else if (name === "device-actions") return deviceActions;
-  else if (name === "tags") return tags;
-  else if (name === "ping") return ping;
-  else if (name === "device-link") return deviceLink;
-  else throw new Error(`No such component '${name}'`);
-}
+const comps = {
+  parameter,
+  "parameter-list": parameterList,
+  "parameter-table": parameterTable,
+  "overview-dot": overviewDot,
+  container,
+  "summon-button": summonButton,
+  "device-faults": deviceFaults,
+  "all-parameters": allParameters,
+  "device-actions": deviceActions,
+  tags,
+  ping,
+  "device-link": deviceLink
+};
 
-export { get };
+export function get(name) {
+  const c = comps[name];
+  if (!c) throw new Error(`No such component '${name}'`);
+  return c;
+}

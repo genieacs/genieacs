@@ -5,17 +5,16 @@ import m from "mithril";
 import config from "./config";
 import filterComponent from "./filter-component";
 import * as store from "./store";
-import * as expression from "../lib/common/expression";
 import * as notifications from "./notifications";
 import memoize from "../lib/common/memoize";
 import putFormComponent from "./put-form-component";
 import * as overlay from "./overlay";
 import * as smartQuery from "./smart-query";
-import * as expressionParser from "../lib/common/expression-parser";
+import { map, parse } from "../lib/common/expression-parser";
 
 const PAGE_SIZE = config.ui.pageSize || 10;
 
-const memoizedParse = memoize(expression.parse);
+const memoizedParse = memoize(parse);
 const memoizedJsonParse = memoize(JSON.parse);
 
 const attributes = [
@@ -45,7 +44,7 @@ const formData = {
 };
 
 const unpackSmartQuery = memoize(query => {
-  return expressionParser.map(query, e => {
+  return map(query, e => {
     if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "Q")
       return smartQuery.unpack("files", e[2], e[3]);
     return e;

@@ -8,19 +8,20 @@ import * as store from "./store";
 import * as components from "./components";
 import * as taskQueue from "./task-queue";
 import * as notifications from "./notifications";
-import * as expression from "../lib/common/expression";
+import { evaluate, extractParams } from "../lib/common/expression";
+import { parse, stringify } from "../lib/common/expression-parser";
 import memoize from "../lib/common/memoize";
 import * as smartQuery from "./smart-query";
 import * as expressionParser from "../lib/common/expression-parser";
 
 const PAGE_SIZE = config.ui.pageSize || 10;
 
-const memoizedParse = memoize(expression.parse);
+const memoizedParse = memoize(parse);
 const memoizedJsonParse = memoize(JSON.parse);
 const memoizedGetSortable = memoize(p => {
-  const expressionParams = expression.extractParams(p);
+  const expressionParams = extractParams(p);
   if (expressionParams.length === 1) {
-    const param = expression.evaluate(expressionParams[0]);
+    const param = evaluate(expressionParams[0]);
     if (typeof param === "string") return param;
   }
   return null;
@@ -28,8 +29,7 @@ const memoizedGetSortable = memoize(p => {
 
 const getDownloadUrl = memoize((filter, indexParameters) => {
   const columns = {};
-  for (const p of indexParameters)
-    columns[p.label] = expression.stringify(p.parameter);
+  for (const p of indexParameters) columns[p.label] = stringify(p.parameter);
   return `/api/devices.csv?${m.buildQueryString({
     filter: filter,
     columns: JSON.stringify(columns)

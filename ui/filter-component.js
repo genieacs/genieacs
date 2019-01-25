@@ -1,7 +1,7 @@
 "use strict";
 
 import m from "mithril";
-import * as expression from "../lib/common/expression";
+import { parse, stringify } from "../lib/common/expression-parser";
 import memoize from "../lib/common/memoize";
 import Autocomplete from "./autocomplete-compnent";
 import * as smartQuery from "./smart-query";
@@ -21,19 +21,19 @@ function parseFilter(f) {
     const v = f.slice(k.length + 1).trim();
     return ["FUNC", "Q", k.trim(), v];
   }
-  return expression.parse(f);
+  return parse(f);
 }
 
 function stringifyFilter(f) {
   if (Array.isArray(f) && f[0] === "FUNC" && f[1] === "Q")
     return `${f[2]}: ${f[3]}`;
-  return expression.stringify(f);
+  return stringify(f);
 }
 
 const splitFilter = memoize(filter => {
   if (!filter) return [""];
   const list = [];
-  const f = expression.parse(filter);
+  const f = parse(filter);
   if (Array.isArray(f) && f[0] === "AND")
     for (const ff of f.slice(1)) list.push(stringifyFilter(ff));
   else list.push(stringifyFilter(f));
@@ -70,7 +70,7 @@ const component = {
         } else {
           if (filter.length > 1) filter = ["AND"].concat(filter);
           else filter = filter[0];
-          vnode.attrs.onChange(expression.stringify(filter));
+          vnode.attrs.onChange(stringify(filter));
         }
       }
     }

@@ -1,7 +1,7 @@
 "use strict";
 
-const ava = require("ava");
-const common = require("../lib/common.js");
+import ava from "ava";
+import * as common from "../lib/common.js";
 
 ava("typeOf", t => {
   const cases = [

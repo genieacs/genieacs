@@ -1,8 +1,11 @@
 const path = require("path");
 const fs = require("fs");
-const util = require("util");
+const { promisify } = require("util");
+const { rollup } = require("rollup");
+const rollupReplace = require("rollup-plugin-replace");
+const rollupJson = require("rollup-plugin-json");
+const { terser } = require("rollup-plugin-terser");
 const webpack = require("webpack");
-const nodeExternals = require("webpack-node-externals");
 const postcss = require("postcss");
 const postcssImport = require("postcss-import");
 const postcssCssNext = require("postcss-cssnext");
@@ -18,6 +21,37 @@ const BUILD_METADATA = new Date()
 const INPUT_DIR = path.resolve(__dirname, "..");
 const OUTPUT_DIR = path.resolve(__dirname, "../dist");
 
+const externals = [
+  "path",
+  "fs",
+  "cluster",
+  "os",
+  "http",
+  "https",
+  "zlib",
+  "crypto",
+  "mongodb",
+  "libxmljs",
+  "vm",
+  "later",
+  "parsimmon",
+  "seedrandom",
+  "querystring",
+  "child_process",
+  "dgram",
+  "url",
+  "koa",
+  "koa-router",
+  "koa-compress",
+  "koa-bodyparser",
+  "koa-jwt",
+  "koa-static",
+  "jsonwebtoken",
+  "stream",
+  "mithril",
+  "parsimmon"
+];
+
 function rmDirSync(dirPath) {
   if (!fs.existsSync(dirPath)) return;
   const files = fs.readdirSync(dirPath);
@@ -30,22 +64,6 @@ function rmDirSync(dirPath) {
   fs.rmdirSync(dirPath);
 }
 
-function cpDirSync(src, dst) {
-  fs.mkdirSync(dst);
-  const files = fs.readdirSync(src);
-  for (const file of files) {
-    const current = fs.lstatSync(path.join(src, file));
-    if (current.isDirectory()) {
-      cpDirSync(path.join(src, file), path.join(dst, file));
-    } else if (current.isSymbolicLink()) {
-      const symlink = fs.readlinkSync(path.join(src, file));
-      fs.symlinkSync(symlink, path.join(dst, file));
-    } else {
-      fs.copyFileSync(path.join(src, file), path.join(dst, file));
-    }
-  }
-}
-
 async function init() {
   // Delete any old output directory
   rmDirSync(OUTPUT_DIR);
@@ -56,6 +74,7 @@ async function init() {
   fs.mkdirSync(OUTPUT_DIR + "/config");
   fs.mkdirSync(OUTPUT_DIR + "/debug");
   fs.mkdirSync(OUTPUT_DIR + "/public");
+  fs.mkdirSync(OUTPUT_DIR + "/tools");
 
   // Create package.json
   const packageJson = require("../package.json");
@@ -90,11 +109,6 @@ async function copyStatic() {
       path.resolve(OUTPUT_DIR, file)
     );
   }
-
-  cpDirSync(
-    path.resolve(INPUT_DIR, "tools"),
-    path.resolve(OUTPUT_DIR, "tools")
-  );
 }
 
 async function generateCss() {
@@ -109,82 +123,137 @@ async function generateCss() {
   fs.writeFileSync(cssOutPath, cssOut.css);
 }
 
-async function generateJs() {
-  const backendConf = {
-    mode: MODE,
-    target: "node",
-    node: false,
-    entry: {
-      "genieacs-cwmp": path.resolve(INPUT_DIR, "bin/genieacs-cwmp"),
-      "genieacs-nbi": path.resolve(INPUT_DIR, "bin/genieacs-nbi"),
-      "genieacs-fs": path.resolve(INPUT_DIR, "bin/genieacs-fs"),
-      "genieacs-ui": path.resolve(INPUT_DIR, "bin/genieacs-ui")
-    },
-    resolve: {
-      alias: {
-        [path.resolve(INPUT_DIR, "package.json")]: path.resolve(
-          OUTPUT_DIR,
-          "package.json"
-        )
-      }
-    },
-    externals: [nodeExternals()],
-    output: {
-      path: path.resolve(OUTPUT_DIR, "bin")
-    },
-    module: {
-      rules: [
-        {
-          include: path.resolve(INPUT_DIR, "bin"),
-          use: path.join(__dirname, "./shebang-loader")
-        }
+async function generateToolsJs() {
+  for (const bin of ["configure-ui", "dump-data-model"]) {
+    const inputFile = path.resolve(INPUT_DIR, `tools/${bin}`);
+    const outputFile = path.resolve(OUTPUT_DIR, `tools/${bin}`);
+    const bundle = await rollup({
+      input: inputFile,
+      external: externals,
+      acorn: {
+        allowHashBang: true
+      },
+      plugins: [
+        rollupReplace({
+          delimiters: ["", ""],
+          "#!/usr/bin/env -S node -r esm": ""
+        }),
+        MODE === "production" ? terser() : null
       ]
-    },
-    plugins: [
-      new webpack.BannerPlugin({ banner: "#!/usr/bin/env node", raw: true })
-    ]
-  };
+    });
 
-  const frontendConf = {
-    mode: MODE,
-    entry: path.resolve(INPUT_DIR, "ui/app.js"),
-    output: {
-      path: path.resolve(OUTPUT_DIR, "public"),
-      filename: "app.js"
-    },
-    resolve: {
-      alias: {
-        [path.resolve(INPUT_DIR, "package.json")]: path.resolve(
-          OUTPUT_DIR,
-          "package.json"
-        )
-      }
-    }
-  };
+    await bundle.write({
+      format: "cjs",
+      preferConst: true,
+      banner: "#!/usr/bin/env node",
+      file: outputFile
+    });
 
-  const stats = await util.promisify(webpack)([backendConf, frontendConf]);
+    // Mark as executable
+    const mode = fs.statSync(outputFile).mode;
+    fs.chmodSync(outputFile, mode | 73);
+  }
+}
 
-  // Remove js ext and mark as executable
-  for (const file of [
+async function generateBackendJs() {
+  for (const bin of [
     "genieacs-cwmp",
     "genieacs-nbi",
     "genieacs-fs",
     "genieacs-ui"
   ]) {
-    fs.renameSync(
-      path.resolve(OUTPUT_DIR, `bin/${file}.js`),
-      path.resolve(OUTPUT_DIR, `bin/${file}`)
-    );
-    const mode = fs.statSync(path.resolve(OUTPUT_DIR, `bin/${file}`)).mode;
-    fs.chmodSync(path.resolve(OUTPUT_DIR, `bin/${file}`), mode | 73);
-  }
+    const inputFile = path.resolve(INPUT_DIR, `bin/${bin}`);
+    const outputFile = path.resolve(OUTPUT_DIR, `bin/${bin}`);
+    const bundle = await rollup({
+      input: inputFile,
+      external: externals,
+      acorn: {
+        allowHashBang: true
+      },
+      treeshake: {
+        propertyReadSideEffects: false,
+        pureExternalModules: true
+      },
+      plugins: [
+        rollupReplace({
+          delimiters: ["", ""],
+          "#!/usr/bin/env -S node -r esm": ""
+        }),
+        rollupJson({ preferConst: true }),
+        {
+          resolveId: (importee, importer) => {
+            if (importee.endsWith("/package.json")) {
+              const p = path.resolve(path.dirname(importer), importee);
+              if (p === path.resolve(INPUT_DIR, "package.json"))
+                return path.resolve(OUTPUT_DIR, "package.json");
+            }
+            return null;
+          }
+        },
+        MODE === "production" ? terser() : null
+      ]
+    });
 
+    await bundle.write({
+      format: "cjs",
+      preferConst: true,
+      banner: "#!/usr/bin/env node",
+      file: outputFile
+    });
+
+    // Mark as executable
+    const mode = fs.statSync(outputFile).mode;
+    fs.chmodSync(outputFile, mode | 73);
+  }
+}
+
+async function generateFrontendJs() {
+  const inputFile = path.resolve(INPUT_DIR, "ui/app.js");
+  const outputFile = path.resolve(OUTPUT_DIR, "public/app.js");
+
+  const bundle = await rollup({
+    input: inputFile,
+    external: externals,
+    plugins: [rollupJson({ preferConst: true })],
+    inlineDynamicImports: true,
+    treeshake: {
+      propertyReadSideEffects: false,
+      pureExternalModules: true
+    },
+    onwarn: (warning, warn) => {
+      // Ignore circular dependency warnings
+      if (warning.code !== "CIRCULAR_DEPENDENCY") warn(warning);
+    }
+  });
+
+  await bundle.write({
+    preferConst: true,
+    format: "esm",
+    file: outputFile
+  });
+
+  const webpackConf = {
+    mode: MODE,
+    entry: outputFile,
+    output: {
+      path: path.resolve(OUTPUT_DIR, "public"),
+      filename: "app.js"
+    }
+  };
+
+  const stats = await promisify(webpack)(webpackConf);
   process.stdout.write(stats.toString({ colors: true }) + "\n");
 }
 
 init()
   .then(() => {
-    Promise.all([copyStatic(), generateCss(), generateJs()])
+    Promise.all([
+      copyStatic(),
+      generateCss(),
+      generateToolsJs(),
+      generateBackendJs(),
+      generateFrontendJs()
+    ])
       .then(() => {})
       .catch(err => {
         process.stderr.write(err.stack + "\n");

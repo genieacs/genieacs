@@ -4,10 +4,10 @@ import m from "mithril";
 import * as components from "../components";
 import * as taskQueue from "../task-queue";
 import longTextComponent from "../long-text-component";
-import * as expression from "../../lib/common/expression";
+import { parse } from "../../lib/common/expression-parser";
 import memoize from "../../lib/common/memoize";
 
-const memoizedParse = memoize(expression.parse);
+const memoizedParse = memoize(parse);
 
 function escapeRegExp(str) {
   return str.replace(/[-[\]/{}()*+?.\\^$|]/g, "\\$&");

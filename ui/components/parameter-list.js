@@ -1,20 +1,20 @@
 "use strict";
 
 import m from "mithril";
-import * as components from "../components";
+import { get } from "../components";
 import memoize from "../../lib/common/memoize";
 
 const getChildAttrs = memoize((attrs, device) =>
   Object.assign({}, attrs, { device: device })
 );
 
-const component = {
+export default {
   view: vnode => {
     const device = vnode.attrs.device;
 
     const rows = Object.values(vnode.attrs.parameters).map(parameter => {
       const p = m(
-        components.get(parameter.type || "parameter"),
+        get(parameter.type || "parameter"),
         getChildAttrs(parameter, device)
       );
 
@@ -33,5 +33,3 @@ const component = {
     return m("table.parameter-list", rows);
   }
 };
-
-export default component;

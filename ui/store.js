@@ -1,12 +1,12 @@
 "use strict";
 
 import m from "mithril";
-import * as expressionParser from "../lib/common/expression-parser";
-import * as expression from "../lib/common/expression";
+import { map, stringify } from "../lib/common/expression-parser";
+import { or, and, not, evaluate, subset } from "../lib/common/expression";
 import memoize from "../lib/common/memoize";
 
-const memoizedStringify = memoize(expression.stringify);
-const memoizedEvaluate = memoize(expression.evaluate);
+const memoizedStringify = memoize(stringify);
+const memoizedEvaluate = memoize(evaluate);
 
 let fulfillTimestamp = 0;
 
@@ -74,43 +74,37 @@ function limitFilter(filter, sort, bookmark) {
   const arr = Object.entries(sort)
     .sort(sortSort)
     .reverse();
-  return expression.and(
+  return and(
     filter,
     arr.reduce((cur, kv) => {
       const [param, asc] = kv;
       if (asc <= 0) {
         if (bookmark[param] == null) {
-          return expression.or(
+          return or(
             ["IS NOT NULL", ["PARAM", param]],
-            expression.and(["IS NULL", ["PARAM", param]], cur)
+            and(["IS NULL", ["PARAM", param]], cur)
           );
         }
 
         let f = null;
 
         if (typeof bookmark[param] !== "string")
-          f = expression.or(f, [">=", ["PARAM", param], ""]);
+          f = or(f, [">=", ["PARAM", param], ""]);
 
-        f = expression.or(f, [">", ["PARAM", param], bookmark[param]]);
-        return expression.or(
-          f,
-          expression.and(["=", ["PARAM", param], bookmark[param]], cur)
-        );
+        f = or(f, [">", ["PARAM", param], bookmark[param]]);
+        return or(f, and(["=", ["PARAM", param], bookmark[param]], cur));
       } else {
         let f = ["IS NULL", ["PARAM", param]];
-        if (bookmark[param] == null) return expression.and(f, cur);
+        if (bookmark[param] == null) return and(f, cur);
 
         if (typeof bookmark[param] !== "number") {
-          f = expression.or(f, [">=", ["PARAM", param], 0]);
-          f = expression.or(f, ["<", ["PARAM", param], 0]);
+          f = or(f, [">=", ["PARAM", param], 0]);
+          f = or(f, ["<", ["PARAM", param], 0]);
         }
 
-        f = expression.or(f, ["<", ["PARAM", param], bookmark[param]]);
+        f = or(f, ["<", ["PARAM", param], bookmark[param]]);
 
-        return expression.or(
-          f,
-          expression.and(["=", ["PARAM", param], bookmark[param]], cur)
-        );
+        return or(f, and(["=", ["PARAM", param], bookmark[param]], cur));
       }
     }, true)
   );
@@ -157,7 +151,7 @@ function compareFunction(sort) {
 function findMatches(resourceType, filter, sort, limit) {
   // Handle "tag =" and "tag <>" special cases
   if (resourceType === "devices") {
-    filter = expressionParser.map(filter, e => {
+    filter = map(filter, e => {
       if (
         Array.isArray(e) &&
         Array.isArray(e[1]) &&
@@ -173,7 +167,7 @@ function findMatches(resourceType, filter, sort, limit) {
 
   let value = [];
   for (const obj of resources[resourceType].objects.values())
-    if (expression.evaluate(filter, obj, fulfillTimestamp)) value.push(obj);
+    if (evaluate(filter, obj, fulfillTimestamp)) value.push(obj);
 
   value = value.sort(compareFunction(sort));
   if (limit) value = value.slice(0, limit);
@@ -191,7 +185,7 @@ function inferQuery(resourceType, queryResponse) {
     if (bookmark) filter = limitFilter(filter, sort, bookmark);
     if (
       resources[resourceType].combinedFilter &&
-      expression.subset(filter, resources[resourceType].combinedFilter)
+      subset(filter, resources[resourceType].combinedFilter)
     )
       queries.fulfilled.set(queryResponse, fulfillTimestamp);
   }
@@ -356,7 +350,7 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
 
             if (
               resources[resourceType].combinedFilter &&
-              expression.subset(filter, resources[resourceType].combinedFilter)
+              subset(filter, resources[resourceType].combinedFilter)
             ) {
               queries.value.set(
                 queryResponse,
@@ -367,7 +361,7 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
               return false;
             }
 
-            combinedFilter = expression.or(combinedFilter, filter);
+            combinedFilter = or(combinedFilter, filter);
             return true;
           });
 
@@ -379,12 +373,12 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
             deleted = new Set(resources[resourceType].objects.keys());
           let combinedFilterDiff = combinedFilter;
           if (resources[resourceType].combinedFilter) {
-            combinedFilterDiff = expression.and(
+            combinedFilterDiff = and(
               combinedFilterDiff,
-              expression.not(resources[resourceType].combinedFilter)
+              not(resources[resourceType].combinedFilter)
             );
           }
-          resources[resourceType].combinedFilter = expression.or(
+          resources[resourceType].combinedFilter = or(
             combinedFilter,
             resources[resourceType].combinedFilter
           );
@@ -411,13 +405,7 @@ function fulfill(accessTimestamp, _fulfillTimestamp) {
 
                   for (const d of deleted) {
                     const obj = resources[resourceType].objects.get(d);
-                    if (
-                      expression.evaluate(
-                        combinedFilterDiff,
-                        obj,
-                        fulfillTimestamp
-                      )
-                    )
+                    if (evaluate(combinedFilterDiff, obj, fulfillTimestamp))
                       resources[resourceType].objects.delete(d);
                   }
 

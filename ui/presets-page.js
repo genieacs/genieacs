@@ -6,16 +6,15 @@ import config from "./config";
 import filterComponent from "./filter-component";
 import * as overlay from "./overlay";
 import * as store from "./store";
-import * as expression from "../lib/common/expression";
 import * as notifications from "./notifications";
 import putFormComponent from "./put-form-component";
 import memoize from "../lib/common/memoize";
 import * as smartQuery from "./smart-query";
-import * as expressionParser from "../lib/common/expression-parser";
+import { map, parse } from "../lib/common/expression-parser";
 
 const PAGE_SIZE = config.ui.pageSize || 10;
 
-const memoizedParse = memoize(expression.parse);
+const memoizedParse = memoize(parse);
 const memoizedJsonParse = memoize(JSON.parse);
 
 const attributes = [
@@ -30,7 +29,7 @@ const attributes = [
 ];
 
 const unpackSmartQuery = memoize(query => {
-  return expressionParser.map(query, e => {
+  return map(query, e => {
     if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "Q")
       return smartQuery.unpack("presets", e[2], e[3]);
     return e;

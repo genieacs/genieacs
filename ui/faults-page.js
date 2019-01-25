@@ -5,16 +5,15 @@ import config from "./config";
 import filterComponent from "./filter-component";
 import * as store from "./store";
 import * as notifications from "./notifications";
-import * as expression from "../lib/common/expression";
 import memoize from "../lib/common/memoize";
 import * as smartQuery from "./smart-query";
-import * as expressionParser from "../lib/common/expression-parser";
+import { map, parse } from "../lib/common/expression-parser";
 import { loadYaml, yaml } from "./dynamic-loader";
 import longTextComponent from "./long-text-component";
 
 const PAGE_SIZE = config.ui.pageSize || 10;
 
-const memoizedParse = memoize(expression.parse);
+const memoizedParse = memoize(parse);
 const memoizedJsonParse = memoize(JSON.parse);
 
 const attributes = [
@@ -41,7 +40,7 @@ const getDownloadUrl = memoize(filter => {
 });
 
 const unpackSmartQuery = memoize(query => {
-  return expressionParser.map(query, e => {
+  return map(query, e => {
     if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "Q")
       return smartQuery.unpack("faults", e[2], e[3]);
     return e;

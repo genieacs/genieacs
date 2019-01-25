@@ -1,8 +1,8 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S node -r esm
 "use strict";
 
-const mongodb = require("mongodb");
-const config = require("../lib/config");
+import { MongoClient } from "mongodb";
+import { get } from "../lib/config";
 
 const configData = {
   "auth.simple.users.admin.password": "'admin'",
@@ -158,8 +158,8 @@ const configData = {
 };
 
 async function run() {
-  const client = await mongodb.MongoClient.connect(
-    config.get("MONGODB_CONNECTION_URL"),
+  const client = await MongoClient.connect(
+    get("MONGODB_CONNECTION_URL"),
     { useNewUrlParser: true }
   );
   const collection = client.db().collection("config");

@@ -1,10 +1,10 @@
 "use strict";
 
 import m from "mithril";
-import * as expression from "../lib/common/expression";
+import { stringify } from "../lib/common/expression-parser";
 import memoize from "../lib/common/memoize";
 
-const memoizedStringify = memoize(expression.stringify);
+const memoizedStringify = memoize(stringify);
 
 const drawChart = function(chartData) {
   const slices = chartData.slices;
