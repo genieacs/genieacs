@@ -1,10 +1,11 @@
 "use strict";
 
 import m from "mithril";
-import { parse, stringify } from "../lib/common/expression-parser";
+import { parse, stringify, map } from "../lib/common/expression-parser";
 import memoize from "../lib/common/memoize";
 import Autocomplete from "./autocomplete-compnent";
 import * as smartQuery from "./smart-query";
+import { filterToMongoQuery } from "../lib/ui/mongodb-functions";
 
 const getAutocomplete = memoize(resource => {
   const labels = smartQuery.getLabels(resource);
@@ -15,13 +16,26 @@ const getAutocomplete = memoize(resource => {
   return autocomplete;
 });
 
-function parseFilter(f) {
+function parseFilter(resource, f) {
+  let exp;
   if (/^[\s0-9a-zA-Z]+:/.test(f)) {
     const k = f.split(":", 1)[0];
     const v = f.slice(k.length + 1).trim();
-    return ["FUNC", "Q", k.trim(), v];
+    exp = ["FUNC", "Q", k.trim(), v];
+  } else {
+    exp = parse(f);
   }
-  return parse(f);
+
+  // Throw exception if invalid Mongo query
+  filterToMongoQuery(
+    map(exp, e => {
+      if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "Q")
+        return smartQuery.unpack(resource, e[2], e[3]);
+      return e;
+    })
+  );
+
+  return exp;
 }
 
 function stringifyFilter(f) {
@@ -55,7 +69,7 @@ const component = {
       vnode.state.filterList = vnode.state.filterList.filter(f => f);
       let filter = vnode.state.filterList.map((f, idx) => {
         try {
-          return parseFilter(f);
+          return parseFilter(vnode.attrs.resource, f);
         } catch (err) {
           vnode.state.filterInvalid |= 1 << idx;
         }
