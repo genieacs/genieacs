@@ -158,6 +158,7 @@ async function generateToolsJs() {
 async function generateBackendJs() {
   for (const bin of [
     "genieacs-cwmp",
+    "genieacs-ext",
     "genieacs-nbi",
     "genieacs-fs",
     "genieacs-ui"
