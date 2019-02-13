@@ -17,6 +17,7 @@ import * as filesPage from "./files-page";
 import * as configPage from "./config-page";
 import Authorizer from "../lib//common/authorizer";
 import * as notifications from "./notifications";
+import { contextifyComponent } from "./components";
 
 window.authorizer = new Authorizer(window.permissionSets);
 
@@ -49,7 +50,7 @@ function pagify(pageName, page) {
       lastRenderTimestamp = Date.now();
       let p;
       if (state && state.error) p = m(errorPage.component, state);
-      else p = m(page.component, state);
+      else p = m(contextifyComponent(page.component), state);
       fulfill();
       return m(layout, { page: pageName }, p);
     }

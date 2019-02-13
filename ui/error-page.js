@@ -1,12 +1,12 @@
 "use strict";
 
-import m from "mithril";
+import { m } from "./components";
 
-const component = {
-  view: function(vnode) {
-    document.title = "Error! - GenieACS";
-    return m("p.error", vnode.attrs.error);
-  }
-};
-
-export { component };
+export function component() {
+  return {
+    view: function(vnode) {
+      document.title = "Error! - GenieACS";
+      return m("p.error", vnode.attrs.error);
+    }
+  };
+}

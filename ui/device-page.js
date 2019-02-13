@@ -1,12 +1,10 @@
 "use strict";
 
-import m from "mithril";
-
+import { m } from "./components";
 import config from "./config";
 import * as store from "./store";
-import * as components from "./components";
 
-function init(args) {
+export function init(args) {
   if (!window.authorizer.hasAccess("devices", 2)) {
     return Promise.reject(
       new Error("You are not authorized to view this page")
@@ -19,27 +17,20 @@ function init(args) {
   });
 }
 
-const component = {
-  view: vnode => {
-    document.title = `${vnode.attrs.deviceId} - Devices - GenieACS`;
+export function component() {
+  return {
+    view: vnode => {
+      document.title = `${vnode.attrs.deviceId} - Devices - GenieACS`;
 
-    const dev = store.fetch("devices", vnode.attrs.deviceFilter).value;
-    if (!dev.length) return "Loading";
-    const conf = config.ui.device;
-    const cmps = [];
+      const dev = store.fetch("devices", vnode.attrs.deviceFilter).value;
+      if (!dev.length) return "Loading";
+      const conf = config.ui.device;
+      const cmps = [];
 
-    for (const c of Object.values(conf)) {
-      cmps.push(
-        m(components.get(c["type"]), Object.assign({ device: dev[0] }, c))
-      );
+      for (const c of Object.values(conf))
+        cmps.push(m.context({ device: dev[0] }, c["type"], c));
+
+      return [m("h1", vnode.attrs.deviceId), cmps];
     }
-
-    return [
-      m("h1", vnode.attrs.deviceId),
-      m("span", dev[0]["InternetGatewayDevice.DeviceInfo.SerialNumber"]),
-      cmps
-    ];
-  }
-};
-
-export { init, component };
+  };
+}

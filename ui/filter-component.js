@@ -56,60 +56,63 @@ const splitFilter = memoize(filter => {
   return list;
 });
 
-const component = {
-  view: vnode => {
-    if (!vnode.state.filterList || vnode.attrs.filter !== vnode.state.filter) {
-      vnode.state.filterInvalid = 0;
-      vnode.state.filter = vnode.attrs.filter;
-      vnode.state.filterList = splitFilter(vnode.attrs.filter);
-    }
+export default function component() {
+  return {
+    view: vnode => {
+      if (
+        !vnode.state.filterList ||
+        vnode.attrs.filter !== vnode.state.filter
+      ) {
+        vnode.state.filterInvalid = 0;
+        vnode.state.filter = vnode.attrs.filter;
+        vnode.state.filterList = splitFilter(vnode.attrs.filter);
+      }
 
-    function onChange() {
-      vnode.state.filterInvalid = 0;
-      vnode.state.filterList = vnode.state.filterList.filter(f => f);
-      let filter = vnode.state.filterList.map((f, idx) => {
-        try {
-          return parseFilter(vnode.attrs.resource, f);
-        } catch (err) {
-          vnode.state.filterInvalid |= 1 << idx;
-        }
-        return null;
-      });
-      vnode.state.filterList.push("");
+      function onChange() {
+        vnode.state.filterInvalid = 0;
+        vnode.state.filterList = vnode.state.filterList.filter(f => f);
+        let filter = vnode.state.filterList.map((f, idx) => {
+          try {
+            return parseFilter(vnode.attrs.resource, f);
+          } catch (err) {
+            vnode.state.filterInvalid |= 1 << idx;
+          }
+          return null;
+        });
+        vnode.state.filterList.push("");
 
-      if (!vnode.state.filterInvalid) {
-        delete vnode.state.filter;
-        if (filter.length === 0) {
-          vnode.attrs.onChange("");
-        } else {
-          if (filter.length > 1) filter = ["AND"].concat(filter);
-          else filter = filter[0];
-          vnode.attrs.onChange(stringify(filter));
+        if (!vnode.state.filterInvalid) {
+          delete vnode.state.filter;
+          if (filter.length === 0) {
+            vnode.attrs.onChange("");
+          } else {
+            if (filter.length > 1) filter = ["AND"].concat(filter);
+            else filter = filter[0];
+            vnode.attrs.onChange(stringify(filter));
+          }
         }
       }
+
+      return m(
+        "div.filter",
+        [m("b", "Filter")].concat(
+          vnode.state.filterList.map((fltr, idx) => {
+            return m("input", {
+              type: "text",
+              class: `${(vnode.state.filterInvalid >> idx) & 1 ? "error" : ""}`,
+              value: fltr,
+              onchange: e => {
+                vnode.state.filterList = vnode.state.filterList.slice();
+                vnode.state.filterList[idx] = e.target.value.trim();
+                onChange();
+              },
+              oncreate: vn => {
+                getAutocomplete(vnode.attrs.resource).attach(vn.dom);
+              }
+            });
+          })
+        )
+      );
     }
-
-    return m(
-      "div.filter",
-      [m("b", "Filter")].concat(
-        vnode.state.filterList.map((fltr, idx) => {
-          return m("input", {
-            type: "text",
-            class: `${(vnode.state.filterInvalid >> idx) & 1 ? "error" : ""}`,
-            value: fltr,
-            onchange: e => {
-              vnode.state.filterList = vnode.state.filterList.slice();
-              vnode.state.filterList[idx] = e.target.value.trim();
-              onChange();
-            },
-            oncreate: vn => {
-              getAutocomplete(vnode.attrs.resource).attach(vn.dom);
-            }
-          });
-        })
-      )
-    );
-  }
-};
-
-export default component;
+  };
+}

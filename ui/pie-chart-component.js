@@ -1,6 +1,6 @@
 "use strict";
 
-import m from "mithril";
+import { m } from "./components";
 import { stringify } from "../lib/common/expression-parser";
 import memoize from "../lib/common/memoize";
 
@@ -115,10 +115,10 @@ const drawChart = function(chartData) {
   ]);
 };
 
-const component = {
-  view: vnode => {
-    return drawChart(vnode.attrs.chart);
-  }
-};
-
-export default component;
+export default function component() {
+  return {
+    view: vnode => {
+      return drawChart(vnode.attrs.chart);
+    }
+  };
+}

@@ -312,187 +312,188 @@ function renderNotifications(notifs) {
   return notificationElements;
 }
 
-const component = {
-  view: vnode => {
-    const queue = taskQueue.getQueue();
-    const staging = taskQueue.getStaging();
-    const notifs = notifications.getNotifications();
+export default function component() {
+  return {
+    view: vnode => {
+      const queue = taskQueue.getQueue();
+      const staging = taskQueue.getStaging();
+      const notifs = notifications.getNotifications();
 
-    let drawerElement, statusElement;
-    const notificationElements = renderNotifications(notifs);
-    const stagingElements = renderStaging(staging);
-    const queueElements = renderQueue(queue);
+      let drawerElement, statusElement;
+      const notificationElements = renderNotifications(notifs);
+      const stagingElements = renderStaging(staging);
+      const queueElements = renderQueue(queue);
 
-    function repositionNotifications() {
-      let top = 10;
-      for (const c of notificationElements) {
-        c.dom.style.top = top;
-        top += c.dom.offsetHeight + 10;
+      function repositionNotifications() {
+        let top = 10;
+        for (const c of notificationElements) {
+          c.dom.style.top = top;
+          top += c.dom.offsetHeight + 10;
+        }
       }
-    }
 
-    function resizeDrawer() {
-      let height = statusElement.dom.offsetTop + statusElement.dom.offsetHeight;
-      if (stagingElements.length) {
-        for (const s of stagingElements)
-          height = Math.max(height, s.dom.offsetTop + s.dom.offsetHeight);
-      } else if (vnode.state.mouseIn) {
-        for (const c of drawerElement.children)
-          height = Math.max(height, c.dom.offsetTop + c.dom.offsetHeight);
+      function resizeDrawer() {
+        let height =
+          statusElement.dom.offsetTop + statusElement.dom.offsetHeight;
+        if (stagingElements.length) {
+          for (const s of stagingElements)
+            height = Math.max(height, s.dom.offsetTop + s.dom.offsetHeight);
+        } else if (vnode.state.mouseIn) {
+          for (const c of drawerElement.children)
+            height = Math.max(height, c.dom.offsetTop + c.dom.offsetHeight);
+        }
+        drawerElement.dom.style.height = height;
       }
-      drawerElement.dom.style.height = height;
-    }
 
-    if (stagingElements.length + queueElements.length) {
-      const statusCount = { queued: 0, pending: 0, fault: 0, stale: 0 };
-      for (const t of queue) statusCount[t.status] += 1;
+      if (stagingElements.length + queueElements.length) {
+        const statusCount = { queued: 0, pending: 0, fault: 0, stale: 0 };
+        for (const t of queue) statusCount[t.status] += 1;
 
-      const actions = m(
-        ".actions",
-        m(
-          "button.primary",
-          {
-            title: "Commit queued tasks",
-            disabled: !statusCount.queued,
-            onclick: () => {
-              const tasks = Array.from(taskQueue.getQueue()).filter(
-                t => t.status === "queued"
-              );
-              taskQueue
-                .commit(
-                  tasks,
-                  (deviceId, err, connectionRequestStatus, tasks2) => {
-                    if (err) {
-                      notifications.push(
-                        "error",
-                        `${deviceId}: ${err.message}`
-                      );
-                      return;
-                    }
-
-                    if (connectionRequestStatus !== "OK") {
-                      notifications.push(
-                        "error",
-                        `${deviceId}: ${connectionRequestStatus}`
-                      );
-                      return;
-                    }
-
-                    for (const t of tasks2) {
-                      if (t.status === "stale") {
+        const actions = m(
+          ".actions",
+          m(
+            "button.primary",
+            {
+              title: "Commit queued tasks",
+              disabled: !statusCount.queued,
+              onclick: () => {
+                const tasks = Array.from(taskQueue.getQueue()).filter(
+                  t => t.status === "queued"
+                );
+                taskQueue
+                  .commit(
+                    tasks,
+                    (deviceId, err, connectionRequestStatus, tasks2) => {
+                      if (err) {
                         notifications.push(
                           "error",
-                          `${deviceId}: No contact from device`
-                        );
-                        return;
-                      } else if (t.status === "fault") {
-                        notifications.push(
-                          "error",
-                          `${deviceId}: Task(s) faulted`
+                          `${deviceId}: ${err.message}`
                         );
                         return;
                       }
-                    }
 
-                    notifications.push(
-                      "success",
-                      `${deviceId}: Task(s) committed`
-                    );
-                  }
-                )
-                .then(() => {
-                  store.fulfill(0, Date.now());
-                });
+                      if (connectionRequestStatus !== "OK") {
+                        notifications.push(
+                          "error",
+                          `${deviceId}: ${connectionRequestStatus}`
+                        );
+                        return;
+                      }
+
+                      for (const t of tasks2) {
+                        if (t.status === "stale") {
+                          notifications.push(
+                            "error",
+                            `${deviceId}: No contact from device`
+                          );
+                          return;
+                        } else if (t.status === "fault") {
+                          notifications.push(
+                            "error",
+                            `${deviceId}: Task(s) faulted`
+                          );
+                          return;
+                        }
+                      }
+
+                      notifications.push(
+                        "success",
+                        `${deviceId}: Task(s) committed`
+                      );
+                    }
+                  )
+                  .then(() => {
+                    store.fulfill(0, Date.now());
+                  });
+              }
+            },
+            "Commit"
+          ),
+          m(
+            "button",
+            {
+              title: "Clear tasks",
+              onclick: taskQueue.clear,
+              disabled: !queueElements.length
+            },
+            "Clear"
+          )
+        );
+
+        statusElement = m(
+          ".status",
+          m(
+            "span.queued",
+            { class: statusCount.queued ? "active" : "" },
+            `Queued: ${statusCount.queued}`
+          ),
+          m(
+            "span.pending",
+            { class: statusCount.pending ? "active" : "" },
+            `Pending: ${statusCount.pending}`
+          ),
+          m(
+            "span.fault",
+            { class: statusCount.fault ? "active" : "" },
+            `Fault: ${statusCount.fault}`
+          ),
+          m(
+            "span.stale",
+            { class: statusCount.stale ? "active" : "" },
+            `Stale: ${statusCount.stale}`
+          ),
+          actions
+        );
+
+        drawerElement = m(
+          ".drawer",
+          {
+            key: "drawer",
+            style: "opacity: 0;height: 0;",
+            oncreate: vnode2 => {
+              vnode.state.mouseIn = false;
+              vnode2.dom.style.opacity = 1;
+              resizeDrawer();
+            },
+            onmouseover: e => {
+              vnode.state.mouseIn = true;
+              resizeDrawer();
+              e.redraw = false;
+            },
+            onmouseleave: e => {
+              vnode.state.mouseIn = false;
+              resizeDrawer();
+              e.redraw = false;
+            },
+            onupdate: resizeDrawer,
+            onbeforeremove: vnode2 => {
+              vnode2.dom.onmouseover = vnode2.dom.onmouseleave = null;
+              vnode2.dom.style.opacity = 0;
+              vnode2.dom.style.height = 0;
+              return new Promise(resolve => {
+                setTimeout(resolve, 500);
+              });
             }
           },
-          "Commit"
-        ),
+          statusElement,
+          stagingElements.length ? stagingElements : m(".queue", queueElements)
+        );
+      }
+
+      return m(
+        "div.drawer-wrapper",
+        drawerElement,
         m(
-          "button",
+          "div.notifications-wrapper",
           {
-            title: "Clear tasks",
-            onclick: taskQueue.clear,
-            disabled: !queueElements.length
+            key: "notifications",
+            style: "position: relative;",
+            onupdate: repositionNotifications,
+            oncreate: repositionNotifications
           },
-          "Clear"
+          notificationElements
         )
       );
-
-      statusElement = m(
-        ".status",
-        m(
-          "span.queued",
-          { class: statusCount.queued ? "active" : "" },
-          `Queued: ${statusCount.queued}`
-        ),
-        m(
-          "span.pending",
-          { class: statusCount.pending ? "active" : "" },
-          `Pending: ${statusCount.pending}`
-        ),
-        m(
-          "span.fault",
-          { class: statusCount.fault ? "active" : "" },
-          `Fault: ${statusCount.fault}`
-        ),
-        m(
-          "span.stale",
-          { class: statusCount.stale ? "active" : "" },
-          `Stale: ${statusCount.stale}`
-        ),
-        actions
-      );
-
-      drawerElement = m(
-        ".drawer",
-        {
-          key: "drawer",
-          style: "opacity: 0;height: 0;",
-          oncreate: vnode2 => {
-            vnode.state.mouseIn = false;
-            vnode2.dom.style.opacity = 1;
-            resizeDrawer();
-          },
-          onmouseover: e => {
-            vnode.state.mouseIn = true;
-            resizeDrawer();
-            e.redraw = false;
-          },
-          onmouseleave: e => {
-            vnode.state.mouseIn = false;
-            resizeDrawer();
-            e.redraw = false;
-          },
-          onupdate: resizeDrawer,
-          onbeforeremove: vnode2 => {
-            vnode2.dom.onmouseover = vnode2.dom.onmouseleave = null;
-            vnode2.dom.style.opacity = 0;
-            vnode2.dom.style.height = 0;
-            return new Promise(resolve => {
-              setTimeout(resolve, 500);
-            });
-          }
-        },
-        statusElement,
-        stagingElements.length ? stagingElements : m(".queue", queueElements)
-      );
     }
-
-    return m(
-      "div.drawer-wrapper",
-      drawerElement,
-      m(
-        "div.notifications-wrapper",
-        {
-          key: "notifications",
-          style: "position: relative;",
-          onupdate: repositionNotifications,
-          oncreate: repositionNotifications
-        },
-        notificationElements
-      )
-    );
-  }
-};
-
-export default component;
+  };
+}

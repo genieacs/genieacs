@@ -1,6 +1,6 @@
 "use strict";
 
-import m from "mithril";
+import { m } from "./components";
 import config from "./config";
 import * as store from "./store";
 import pieChartComponent from "./pie-chart-component";
@@ -26,7 +26,7 @@ function queryCharts(charts) {
   return charts;
 }
 
-const init = function() {
+export function init() {
   if (!window.authorizer.hasAccess("devices", 1)) {
     return Promise.reject(
       new Error("You are not authorized to view this page")
@@ -34,31 +34,31 @@ const init = function() {
   }
 
   return Promise.resolve({ charts: queryCharts(CHARTS) });
-};
+}
 
-const component = {
-  view: vnode => {
-    document.title = "Overview - GenieACS";
-    const children = [];
-    for (const group of Object.values(GROUPS)) {
-      if (group.label) children.push(m("h1", group.label));
+export function component() {
+  return {
+    view: vnode => {
+      document.title = "Overview - GenieACS";
+      const children = [];
+      for (const group of Object.values(GROUPS)) {
+        if (group.label) children.push(m("h1", group.label));
 
-      const groupChildren = [];
-      for (const chartName of Object.values(group.charts)) {
-        const chart = vnode.attrs.charts[chartName];
-        const chartChildren = [];
-        if (chart.label) chartChildren.push(m("h2", chart.label));
+        const groupChildren = [];
+        for (const chartName of Object.values(group.charts)) {
+          const chart = vnode.attrs.charts[chartName];
+          const chartChildren = [];
+          if (chart.label) chartChildren.push(m("h2", chart.label));
 
-        chartChildren.push(m(pieChartComponent, { chart: chart }));
+          chartChildren.push(m(pieChartComponent, { chart: chart }));
 
-        groupChildren.push(m(".overview-chart", chartChildren));
+          groupChildren.push(m(".overview-chart", chartChildren));
+        }
+
+        children.push(m(".overview-chart-group", groupChildren));
       }
 
-      children.push(m(".overview-chart-group", groupChildren));
+      return children;
     }
-
-    return children;
-  }
-};
-
-export { init, component };
+  };
+}

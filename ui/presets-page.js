@@ -1,7 +1,6 @@
 "use strict";
 
-import m from "mithril";
-
+import { m } from "./components";
 import config from "./config";
 import filterComponent from "./filter-component";
 import * as overlay from "./overlay";
@@ -108,7 +107,7 @@ const getDownloadUrl = memoize(filter => {
   })}`;
 });
 
-function init(args) {
+export function init(args) {
   if (!window.authorizer.hasAccess("presets", 2)) {
     return Promise.reject(
       new Error("You are not authorized to view this page")
@@ -383,87 +382,90 @@ function renderTable(
   ];
 }
 
-const component = {
-  view: vnode => {
-    document.title = "Presets - GenieACS";
+export function component() {
+  return {
+    view: vnode => {
+      document.title = "Presets - GenieACS";
 
-    function showMore() {
-      vnode.state.showCount = (vnode.state.showCount || PAGE_SIZE) + PAGE_SIZE;
-      m.redraw();
-    }
-
-    function onFilterChanged(filter) {
-      const ops = { filter };
-      if (vnode.attrs.sort) ops.sort = vnode.attrs.sort;
-      m.route.set(m.route.get(), ops);
-    }
-
-    function onSortChange(sort) {
-      const ops = { sort };
-      if (vnode.attrs.filter) ops.filter = vnode.attrs.filter;
-      m.route.set(m.route.get(), ops);
-    }
-
-    const sort = vnode.attrs.sort ? memoizedJsonParse(vnode.attrs.sort) : {};
-    let filter = vnode.attrs.filter ? memoizedParse(vnode.attrs.filter) : true;
-    filter = unpackSmartQuery(filter);
-
-    const presets = store.fetch("presets", filter, {
-      limit: vnode.state.showCount || PAGE_SIZE,
-      sort: sort
-    });
-    const count = store.count("presets", filter);
-
-    const provisions = store.fetch("provisions", true);
-    if (provisions.fulfilled) {
-      const provisionAttr = attributes.find(attr => {
-        return attr.id === "provision";
-      });
-
-      const provisionIds = new Set([
-        "refresh",
-        "value",
-        "tag",
-        "reboot",
-        "reset",
-        "download",
-        "instances"
-      ]);
-
-      for (const p of provisions.value) provisionIds.add(p["_id"]);
-
-      provisionAttr.options = Array.from(provisionIds);
-    }
-
-    const selected = new Set();
-    if (vnode.state.selected) {
-      for (const preset of presets.value) {
-        if (vnode.state.selected.has(preset["_id"]))
-          selected.add(preset["_id"]);
+      function showMore() {
+        vnode.state.showCount =
+          (vnode.state.showCount || PAGE_SIZE) + PAGE_SIZE;
+        m.redraw();
       }
+
+      function onFilterChanged(filter) {
+        const ops = { filter };
+        if (vnode.attrs.sort) ops.sort = vnode.attrs.sort;
+        m.route.set(m.route.get(), ops);
+      }
+
+      function onSortChange(sort) {
+        const ops = { sort };
+        if (vnode.attrs.filter) ops.filter = vnode.attrs.filter;
+        m.route.set(m.route.get(), ops);
+      }
+
+      const sort = vnode.attrs.sort ? memoizedJsonParse(vnode.attrs.sort) : {};
+      let filter = vnode.attrs.filter
+        ? memoizedParse(vnode.attrs.filter)
+        : true;
+      filter = unpackSmartQuery(filter);
+
+      const presets = store.fetch("presets", filter, {
+        limit: vnode.state.showCount || PAGE_SIZE,
+        sort: sort
+      });
+      const count = store.count("presets", filter);
+
+      const provisions = store.fetch("provisions", true);
+      if (provisions.fulfilled) {
+        const provisionAttr = attributes.find(attr => {
+          return attr.id === "provision";
+        });
+
+        const provisionIds = new Set([
+          "refresh",
+          "value",
+          "tag",
+          "reboot",
+          "reset",
+          "download",
+          "instances"
+        ]);
+
+        for (const p of provisions.value) provisionIds.add(p["_id"]);
+
+        provisionAttr.options = Array.from(provisionIds);
+      }
+
+      const selected = new Set();
+      if (vnode.state.selected) {
+        for (const preset of presets.value) {
+          if (vnode.state.selected.has(preset["_id"]))
+            selected.add(preset["_id"]);
+        }
+      }
+      vnode.state.selected = selected;
+
+      const downloadUrl = getDownloadUrl(vnode.attrs.filter);
+
+      return [
+        m("h1", "Listing presets"),
+        m(filterComponent, {
+          resource: "presets",
+          filter: vnode.attrs.filter,
+          onChange: onFilterChanged
+        }),
+        renderTable(
+          presets,
+          count.value,
+          selected,
+          showMore,
+          downloadUrl,
+          sort,
+          onSortChange
+        )
+      ];
     }
-    vnode.state.selected = selected;
-
-    const downloadUrl = getDownloadUrl(vnode.attrs.filter);
-
-    return [
-      m("h1", "Listing presets"),
-      m(filterComponent, {
-        resource: "presets",
-        filter: vnode.attrs.filter,
-        onChange: onFilterChanged
-      }),
-      renderTable(
-        presets,
-        count.value,
-        selected,
-        showMore,
-        downloadUrl,
-        sort,
-        onSortChange
-      )
-    ];
-  }
-};
-
-export { init, component };
+  };
+}

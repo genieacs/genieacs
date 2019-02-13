@@ -1,11 +1,9 @@
 "use strict";
 
-import m from "mithril";
-
+import { m } from "./components";
 import config from "./config";
 import filterComponent from "./filter-component";
 import * as store from "./store";
-import * as components from "./components";
 import * as taskQueue from "./task-queue";
 import * as notifications from "./notifications";
 import { evaluate, extractParams } from "../lib/common/expression";
@@ -36,10 +34,6 @@ const getDownloadUrl = memoize((filter, indexParameters) => {
   })}`;
 });
 
-const getChildAttrs = memoize((attrs, device) =>
-  Object.assign({}, attrs, { device: device })
-);
-
 const unpackSmartQuery = memoize(query => {
   return expressionParser.map(query, e => {
     if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "Q")
@@ -48,7 +42,7 @@ const unpackSmartQuery = memoize(query => {
   });
 });
 
-function init(args) {
+export function init(args) {
   return new Promise((resolve, reject) => {
     if (!window.authorizer.hasAccess("devices", 2))
       return void reject(new Error("You are not authorized to view this page"));
@@ -138,8 +132,11 @@ function renderTable(
         },
         m("td", checkbox),
         parameters.map(p => {
-          const attrs = getChildAttrs(p, device);
-          const comp = m(components.get(attrs.type || "parameter"), attrs);
+          const comp = m.context(
+            { device: device, parameter: p.parameter },
+            p.type || "parameter",
+            p
+          );
           return m("td", comp);
         }),
         m(
@@ -339,71 +336,74 @@ function renderActions(selected) {
   return m(".actions-bar", buttons);
 }
 
-const component = {
-  view: vnode => {
-    document.title = "Devices - GenieACS";
+export function component() {
+  return {
+    view: vnode => {
+      document.title = "Devices - GenieACS";
 
-    function showMore() {
-      vnode.state.showCount = (vnode.state.showCount || PAGE_SIZE) + PAGE_SIZE;
-      m.redraw();
-    }
-
-    function onFilterChanged(filter) {
-      const ops = { filter };
-      if (vnode.attrs.sort) ops.sort = vnode.attrs.sort;
-      m.route.set("/devices", ops);
-    }
-
-    function onSortChange(sort) {
-      const ops = { sort };
-      if (vnode.attrs.filter) ops.filter = vnode.attrs.filter;
-      m.route.set("/devices", ops);
-    }
-
-    const sort = vnode.attrs.sort ? memoizedJsonParse(vnode.attrs.sort) : {};
-    let filter = vnode.attrs.filter ? memoizedParse(vnode.attrs.filter) : true;
-    filter = unpackSmartQuery(filter);
-
-    const devs = store.fetch("devices", filter, {
-      limit: vnode.state.showCount || PAGE_SIZE,
-      sort: sort
-    });
-    const count = store.count("devices", filter);
-
-    const selected = new Set();
-    if (vnode.state.selected) {
-      for (const d of devs.value) {
-        if (vnode.state.selected.has(d["DeviceID.ID"].value[0]))
-          selected.add(d["DeviceID.ID"].value[0]);
+      function showMore() {
+        vnode.state.showCount =
+          (vnode.state.showCount || PAGE_SIZE) + PAGE_SIZE;
+        m.redraw();
       }
+
+      function onFilterChanged(filter) {
+        const ops = { filter };
+        if (vnode.attrs.sort) ops.sort = vnode.attrs.sort;
+        m.route.set("/devices", ops);
+      }
+
+      function onSortChange(sort) {
+        const ops = { sort };
+        if (vnode.attrs.filter) ops.filter = vnode.attrs.filter;
+        m.route.set("/devices", ops);
+      }
+
+      const sort = vnode.attrs.sort ? memoizedJsonParse(vnode.attrs.sort) : {};
+      let filter = vnode.attrs.filter
+        ? memoizedParse(vnode.attrs.filter)
+        : true;
+      filter = unpackSmartQuery(filter);
+
+      const devs = store.fetch("devices", filter, {
+        limit: vnode.state.showCount || PAGE_SIZE,
+        sort: sort
+      });
+      const count = store.count("devices", filter);
+
+      const selected = new Set();
+      if (vnode.state.selected) {
+        for (const d of devs.value) {
+          if (vnode.state.selected.has(d["DeviceID.ID"].value[0]))
+            selected.add(d["DeviceID.ID"].value[0]);
+        }
+      }
+      vnode.state.selected = selected;
+
+      const downloadUrl = getDownloadUrl(
+        vnode.attrs.filter,
+        vnode.attrs.indexParameters
+      );
+
+      return [
+        m("h1", "Listing devices"),
+        m(filterComponent, {
+          resource: "devices",
+          filter: vnode.attrs.filter,
+          onChange: onFilterChanged
+        }),
+        renderTable(
+          devs,
+          vnode.attrs.indexParameters,
+          count.value,
+          selected,
+          showMore,
+          downloadUrl,
+          sort,
+          onSortChange
+        ),
+        renderActions(selected)
+      ];
     }
-    vnode.state.selected = selected;
-
-    const downloadUrl = getDownloadUrl(
-      vnode.attrs.filter,
-      vnode.attrs.indexParameters
-    );
-
-    return [
-      m("h1", "Listing devices"),
-      m(filterComponent, {
-        resource: "devices",
-        filter: vnode.attrs.filter,
-        onChange: onFilterChanged
-      }),
-      renderTable(
-        devs,
-        vnode.attrs.indexParameters,
-        count.value,
-        selected,
-        showMore,
-        downloadUrl,
-        sort,
-        onSortChange
-      ),
-      renderActions(selected)
-    ];
-  }
-};
-
-export { init, component };
+  };
+}

@@ -1,12 +1,10 @@
 "use strict";
 
-import m from "mithril";
-
+import { m } from "./components";
 import * as store from "./store";
 import * as notifications from "./notifications";
 import putFormComponent from "./put-form-component";
 import * as overlay from "./overlay";
-import longTextComponent from "./long-text-component";
 import * as expressionParser from "../lib/common/expression-parser";
 import { loadCodeMirror } from "./dynamic-loader";
 
@@ -84,7 +82,7 @@ function escapeRegExp(str) {
   return str.replace(/[-[\]/{}()*+?.\\^$|]/g, "\\$&");
 }
 
-function init() {
+export function init() {
   if (!window.authorizer.hasAccess("config", 2)) {
     return Promise.reject(
       new Error("You are not authorized to view this page")
@@ -177,14 +175,10 @@ function renderTable(confsResponse, searchString) {
       m(
         "tr",
         attrs,
-        m("td.left", m(longTextComponent, { text: conf._id })),
+        m("td.left", m("long-text", { text: conf._id })),
         m(
           "td.right",
-          m("span", [
-            m(longTextComponent, { text: `${conf.value}` }),
-            edit,
-            del
-          ])
+          m("span", [m("long-text", { text: `${conf.value}` }), edit, del])
         )
       )
     );
@@ -196,80 +190,80 @@ function renderTable(confsResponse, searchString) {
   return m("table", m("tbody", rows));
 }
 
-const component = {
-  view: vnode => {
-    document.title = "Config - GenieACS";
+export function component() {
+  return {
+    view: vnode => {
+      document.title = "Config - GenieACS";
 
-    const search = m("input", {
-      type: "text",
-      placeholder: "Search config",
-      oninput: e => {
-        vnode.state.searchString = e.target.value;
-        e.redraw = false;
-        clearTimeout(vnode.state.timeout);
-        vnode.state.timeout = setTimeout(m.redraw, 250);
+      const search = m("input", {
+        type: "text",
+        placeholder: "Search config",
+        oninput: e => {
+          vnode.state.searchString = e.target.value;
+          e.redraw = false;
+          clearTimeout(vnode.state.timeout);
+          vnode.state.timeout = setTimeout(m.redraw, 250);
+        }
+      });
+
+      let newConfig;
+      if (window.authorizer.hasAccess("config", 3)) {
+        newConfig = m(
+          "button.primary",
+          {
+            title: "Create new config",
+            onclick: () => {
+              const cb = () => {
+                return m(
+                  putFormComponent,
+                  Object.assign(
+                    {
+                      actionHandler: (action, object) => {
+                        return new Promise(resolve => {
+                          putActionHandler(action, object, true)
+                            .then(errors => {
+                              errors = errors ? Object.values(errors) : [];
+                              if (errors.length) {
+                                for (const err of errors)
+                                  notifications.push("error", err);
+                              } else {
+                                overlay.close(cb);
+                              }
+                              resolve();
+                            })
+                            .catch(err => {
+                              notifications.push("error", err.message);
+                              resolve();
+                            });
+                        });
+                      }
+                    },
+                    formData
+                  )
+                );
+              };
+              overlay.open(cb);
+            }
+          },
+          "New"
+        );
       }
-    });
 
-    let newConfig;
-    if (window.authorizer.hasAccess("config", 3)) {
-      newConfig = m(
-        "button.primary",
-        {
-          title: "Create new config",
-          onclick: () => {
-            const cb = () => {
-              return m(
-                putFormComponent,
-                Object.assign(
-                  {
-                    actionHandler: (action, object) => {
-                      return new Promise(resolve => {
-                        putActionHandler(action, object, true)
-                          .then(errors => {
-                            errors = errors ? Object.values(errors) : [];
-                            if (errors.length) {
-                              for (const err of errors)
-                                notifications.push("error", err);
-                            } else {
-                              overlay.close(cb);
-                            }
-                            resolve();
-                          })
-                          .catch(err => {
-                            notifications.push("error", err.message);
-                            resolve();
-                          });
-                      });
-                    }
-                  },
-                  formData
-                )
-              );
-            };
-            overlay.open(cb);
-          }
-        },
-        "New"
-      );
-    }
+      const confs = store.fetch("config", true);
 
-    const confs = store.fetch("config", true);
-
-    return [
-      m("h1", "Listing config"),
-      m(
-        ".all-parameters",
-        search,
+      return [
+        m("h1", "Listing config"),
         m(
-          ".parameter-list",
-          { style: "height: 400px" },
-          renderTable(confs, vnode.state.searchString)
-        ),
-        m(".actions-bar", newConfig)
-      )
-    ];
-  }
-};
-
-export { init, component };
+          ".all-parameters",
+          search,
+          m(
+            ".parameter-list",
+            { style: "height: 400px" },
+            renderTable(confs, vnode.state.searchString)
+          ),
+          m(".actions-bar", newConfig)
+        )
+      ];
+    }
+  };
+}

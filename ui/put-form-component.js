@@ -1,6 +1,6 @@
 "use strict";
 
-import m from "mithril";
+import { m } from "./components";
 import { codeMirror } from "./dynamic-loader";
 
 const singular = {
@@ -93,91 +93,92 @@ function createField(current, attr, focus) {
   });
 }
 
-const component = {
-  view: vnode => {
-    const actionHandler = vnode.attrs.actionHandler;
-    const attributes = vnode.attrs.attributes;
-    const resource = vnode.attrs.resource;
-    const base = vnode.attrs.base || {};
-    if (!vnode.state.current) {
-      vnode.state.current = {
-        isNew: !base["_id"],
-        object: Object.assign({}, base)
-      };
-    }
+export default function component() {
+  return {
+    view: vnode => {
+      const actionHandler = vnode.attrs.actionHandler;
+      const attributes = vnode.attrs.attributes;
+      const resource = vnode.attrs.resource;
+      const base = vnode.attrs.base || {};
+      if (!vnode.state.current) {
+        vnode.state.current = {
+          isNew: !base["_id"],
+          object: Object.assign({}, base)
+        };
+      }
 
-    const current = vnode.state.current;
+      const current = vnode.state.current;
 
-    const form = [];
-    let focused = false;
-    for (const attr of attributes) {
-      let focus = false;
-      if (!focused && (current.isNew || attr.id !== "_id"))
-        focus = focused = true;
+      const form = [];
+      let focused = false;
+      for (const attr of attributes) {
+        let focus = false;
+        if (!focused && (current.isNew || attr.id !== "_id"))
+          focus = focused = true;
 
-      form.push(
+        form.push(
+          m(
+            "p",
+            m("label", { for: attr.id }, attr.label || attr.id),
+            m("br"),
+            createField(current, attr, focus)
+          )
+        );
+      }
+
+      const submit = m("button.primary", { type: "submit" }, "Save");
+      const buttons = [submit];
+
+      if (!current.isNew) {
+        buttons.push(
+          m(
+            "button.primary",
+            {
+              type: "button",
+              title: `Delete ${singular[resource] || resource}`,
+              onclick: e => {
+                e.redraw = false;
+                e.target.disabled = true;
+                actionHandler("delete", current.object).then(() => {
+                  e.target.disabled = false;
+                });
+              }
+            },
+            "Delete"
+          )
+        );
+      }
+
+      form.push(m(".actions-bar", buttons));
+
+      const children = [
         m(
-          "p",
-          m("label", { for: attr.id }, attr.label || attr.id),
-          m("br"),
-          createField(current, attr, focus)
-        )
-      );
-    }
-
-    const submit = m("button.primary", { type: "submit" }, "Save");
-    const buttons = [submit];
-
-    if (!current.isNew) {
-      buttons.push(
+          "h1",
+          `${current.isNew ? "New" : "Editing"} ${singular[resource] ||
+            resource}`
+        ),
         m(
-          "button.primary",
+          "form",
           {
-            type: "button",
-            title: `Delete ${singular[resource] || resource}`,
-            onclick: e => {
+            onsubmit: e => {
               e.redraw = false;
-              e.target.disabled = true;
-              actionHandler("delete", current.object).then(() => {
-                e.target.disabled = false;
+              // const onsubmit = e.target.onsubmit;
+              e.preventDefault();
+              // e.target.onsubmit = null;
+              submit.dom.disabled = true;
+              // submit.dom.textContent = "Loading ...";
+              actionHandler("save", current.object).then(() => {
+                // submit.dom.textContent = "Save";
+                // e.target.onsubmit = onsubmit;
+                submit.dom.disabled = false;
               });
             }
           },
-          "Delete"
+          form
         )
-      );
+      ];
+
+      return m("div.put-form", children);
     }
-
-    form.push(m(".actions-bar", buttons));
-
-    const children = [
-      m(
-        "h1",
-        `${current.isNew ? "New" : "Editing"} ${singular[resource] || resource}`
-      ),
-      m(
-        "form",
-        {
-          onsubmit: e => {
-            e.redraw = false;
-            // const onsubmit = e.target.onsubmit;
-            e.preventDefault();
-            // e.target.onsubmit = null;
-            submit.dom.disabled = true;
-            // submit.dom.textContent = "Loading ...";
-            actionHandler("save", current.object).then(() => {
-              // submit.dom.textContent = "Save";
-              // e.target.onsubmit = onsubmit;
-              submit.dom.disabled = false;
-            });
-          }
-        },
-        form
-      )
-    ];
-
-    return m("div.put-form", children);
-  }
-};
-
-export default component;
+  };
+}

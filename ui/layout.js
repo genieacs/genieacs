@@ -1,7 +1,6 @@
 "use strict";
 
 import m from "mithril";
-
 import menu from "./menu";
 import drawerComponent from "./drawer-component";
 import userMenu from "./user-menu";
@@ -16,29 +15,29 @@ const adminPages = [
   "config"
 ];
 
-const layout = {
-  view: vnode => {
-    let sideMenu, group;
-    if (adminPages.includes(vnode.attrs.page)) {
-      group = "admin";
-      sideMenu = m(adminMenu, { page: vnode.attrs.page });
+export default function layout() {
+  return {
+    view: vnode => {
+      let sideMenu, group;
+      if (adminPages.includes(vnode.attrs.page)) {
+        group = "admin";
+        sideMenu = m(adminMenu, { page: vnode.attrs.page });
+      }
+
+      return [
+        m("#header", [
+          m("img.logo", { src: "logo.svg" }),
+          m(userMenu),
+          m(menu, { page: group || vnode.attrs.page }),
+          m(drawerComponent)
+        ]),
+        m(
+          "#content-wrapper",
+          sideMenu,
+          m("#content", { class: `page-${vnode.attrs.page}` }, [vnode.children])
+        ),
+        overlay.render()
+      ];
     }
-
-    return [
-      m("#header", [
-        m("img.logo", { src: "logo.svg" }),
-        m(userMenu),
-        m(menu, { page: group || vnode.attrs.page }),
-        m(drawerComponent)
-      ]),
-      m(
-        "#content-wrapper",
-        sideMenu,
-        m("#content", { class: `page-${vnode.attrs.page}` }, [vnode.children])
-      ),
-      overlay.render()
-    ];
-  }
-};
-
-export default layout;
+  };
+}

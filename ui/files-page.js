@@ -1,7 +1,6 @@
 "use strict";
 
-import m from "mithril";
-
+import { m } from "./components";
 import config from "./config";
 import filterComponent from "./filter-component";
 import * as store from "./store";
@@ -110,7 +109,7 @@ const getDownloadUrl = memoize(filter => {
   })}`;
 });
 
-function init(args) {
+export function init(args) {
   if (!window.authorizer.hasAccess("files", 2)) {
     return Promise.reject(
       new Error("You are not authorized to view this page")
@@ -319,65 +318,68 @@ function renderTable(
   ];
 }
 
-const component = {
-  view: vnode => {
-    document.title = "Files - GenieACS";
+export function component() {
+  return {
+    view: vnode => {
+      document.title = "Files - GenieACS";
 
-    function showMore() {
-      vnode.state.showCount = (vnode.state.showCount || PAGE_SIZE) + PAGE_SIZE;
-      m.redraw();
+      function showMore() {
+        vnode.state.showCount =
+          (vnode.state.showCount || PAGE_SIZE) + PAGE_SIZE;
+        m.redraw();
+      }
+
+      function onFilterChanged(filter) {
+        const ops = { filter };
+        if (vnode.attrs.sort) ops.sort = vnode.attrs.sort;
+        m.route.set(m.route.get(), ops);
+      }
+
+      function onSortChange(sort) {
+        const ops = { sort };
+        if (vnode.attrs.filter) ops.filter = vnode.attrs.filter;
+        m.route.set(m.route.get(), ops);
+      }
+
+      const sort = vnode.attrs.sort ? memoizedJsonParse(vnode.attrs.sort) : {};
+      let filter = vnode.attrs.filter
+        ? memoizedParse(vnode.attrs.filter)
+        : true;
+      filter = unpackSmartQuery(filter);
+
+      const files = store.fetch("files", filter, {
+        limit: vnode.state.showCount || PAGE_SIZE,
+        sort: sort
+      });
+
+      const count = store.count("files", filter);
+
+      const selected = new Set();
+      if (vnode.state.selected) {
+        for (const file of files.value)
+          if (vnode.state.selected.has(file["_id"])) selected.add(file["_id"]);
+      }
+      vnode.state.selected = selected;
+
+      const downloadUrl = getDownloadUrl(vnode.attrs.filter);
+
+      return [
+        m("h1", "Listing files"),
+        m(filterComponent, {
+          resource: "files",
+          filter: vnode.attrs.filter,
+          onChange: onFilterChanged
+        }),
+        renderTable(
+          files,
+          count.value,
+          selected,
+          showMore,
+          downloadUrl,
+          sort,
+          onSortChange
+        )
+      ];
     }
-
-    function onFilterChanged(filter) {
-      const ops = { filter };
-      if (vnode.attrs.sort) ops.sort = vnode.attrs.sort;
-      m.route.set(m.route.get(), ops);
-    }
-
-    function onSortChange(sort) {
-      const ops = { sort };
-      if (vnode.attrs.filter) ops.filter = vnode.attrs.filter;
-      m.route.set(m.route.get(), ops);
-    }
-
-    const sort = vnode.attrs.sort ? memoizedJsonParse(vnode.attrs.sort) : {};
-    let filter = vnode.attrs.filter ? memoizedParse(vnode.attrs.filter) : true;
-    filter = unpackSmartQuery(filter);
-
-    const files = store.fetch("files", filter, {
-      limit: vnode.state.showCount || PAGE_SIZE,
-      sort: sort
-    });
-
-    const count = store.count("files", filter);
-
-    const selected = new Set();
-    if (vnode.state.selected) {
-      for (const file of files.value)
-        if (vnode.state.selected.has(file["_id"])) selected.add(file["_id"]);
-    }
-    vnode.state.selected = selected;
-
-    const downloadUrl = getDownloadUrl(vnode.attrs.filter);
-
-    return [
-      m("h1", "Listing files"),
-      m(filterComponent, {
-        resource: "files",
-        filter: vnode.attrs.filter,
-        onChange: onFilterChanged
-      }),
-      renderTable(
-        files,
-        count.value,
-        selected,
-        showMore,
-        downloadUrl,
-        sort,
-        onSortChange
-      )
-    ];
-  }
-};
-
-export { init, component };
+  };
+}

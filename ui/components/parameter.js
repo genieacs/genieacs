@@ -1,12 +1,11 @@
 "use strict";
 
-import m from "mithril";
+import { m } from "../components";
 import * as taskQueue from "../task-queue";
 import * as store from "../store";
 import * as expression from "../../lib/common/expression";
 import memoize from "../../lib/common/memoize";
 import timeAgo from "../timeago";
-import longTextComponent from "../long-text-component";
 
 const evaluateParam = memoize((exp, obj, now) => {
   let timestamp = now;
@@ -32,62 +31,62 @@ const evaluateParam = memoize((exp, obj, now) => {
   return { value, timestamp, parameter };
 });
 
-const component = {
-  view: vnode => {
-    const device = vnode.attrs.device;
+export default function component() {
+  return {
+    view: vnode => {
+      const device = vnode.attrs.device;
 
-    const { value, timestamp, parameter } = evaluateParam(
-      vnode.attrs.parameter,
-      vnode.attrs.device,
-      store.getTimestamp()
-    );
+      const { value, timestamp, parameter } = evaluateParam(
+        vnode.attrs.parameter,
+        vnode.attrs.device,
+        store.getTimestamp()
+      );
 
-    if (value == null) return null;
+      if (value == null) return null;
 
-    let edit;
-    if (device[parameter] && device[parameter].writable) {
-      edit = m(
-        "button",
-        {
-          title: "Edit parameter value",
-          onclick: () => {
-            taskQueue.stageSpv({
-              name: "setParameterValues",
-              device: device["DeviceID.ID"].value[0],
-              parameterValues: [
-                [
-                  parameter,
-                  device[parameter].value[0],
-                  device[parameter].value[1]
+      let edit;
+      if (device[parameter] && device[parameter].writable) {
+        edit = m(
+          "button",
+          {
+            title: "Edit parameter value",
+            onclick: () => {
+              taskQueue.stageSpv({
+                name: "setParameterValues",
+                device: device["DeviceID.ID"].value[0],
+                parameterValues: [
+                  [
+                    parameter,
+                    device[parameter].value[0],
+                    device[parameter].value[1]
+                  ]
                 ]
-              ]
-            });
+              });
+            }
+          },
+          "✎"
+        );
+      }
+
+      const el = m("long-text", { text: `${value}` });
+
+      return m(
+        "span",
+        {
+          class: "parameter-value",
+          onmouseover: e => {
+            e.redraw = false;
+            // Don't update any child element
+            if (e.target === el.dom) {
+              const now = Date.now();
+              const localeString = new Date(timestamp).toLocaleString();
+              e.target.title = `${localeString} (${timeAgo(now - timestamp)})`;
+            }
           }
         },
-        "✎"
+        el,
+        edit
       );
     }
-
-    const el = m(longTextComponent, { text: `${value}` });
-
-    return m(
-      "span",
-      {
-        class: "parameter-value",
-        onmouseover: e => {
-          e.redraw = false;
-          // Don't update any child element
-          if (e.target === el.dom) {
-            const now = Date.now();
-            const localeString = new Date(timestamp).toLocaleString();
-            e.target.title = `${localeString} (${timeAgo(now - timestamp)})`;
-          }
-        }
-      },
-      el,
-      edit
-    );
-  }
-};
-
-export default component;
+  };
+}

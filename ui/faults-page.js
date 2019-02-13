@@ -1,6 +1,6 @@
 "use strict";
 
-import m from "mithril";
+import { m } from "./components";
 import config from "./config";
 import filterComponent from "./filter-component";
 import * as store from "./store";
@@ -9,7 +9,6 @@ import memoize from "../lib/common/memoize";
 import * as smartQuery from "./smart-query";
 import { map, parse } from "../lib/common/expression-parser";
 import { loadYaml, yaml } from "./dynamic-loader";
-import longTextComponent from "./long-text-component";
 
 const PAGE_SIZE = config.ui.pageSize || 10;
 
@@ -47,7 +46,7 @@ const unpackSmartQuery = memoize(query => {
   });
 });
 
-function init(args) {
+export function init(args) {
   if (!window.authorizer.hasAccess("faults", 2)) {
     return Promise.reject(
       new Error("You are not authorized to view this page")
@@ -136,17 +135,13 @@ function renderTable(
 
     const tds = [m("td", checkbox)];
     for (const attr of attributes) {
-      if (attr.id === "device") {
+      if (attr.id === "device")
         tds.push(m("td", m("a", { href: deviceHref }, f[attr.id])));
-      } else if (attr.id === "timestamp") {
+      else if (attr.id === "timestamp")
         tds.push(m("td", new Date(f[attr.id]).toLocaleString()));
-      } else if (attr.id === "detail") {
-        tds.push(
-          m("td", m(longTextComponent, { text: yaml.stringify(f[attr.id]) }))
-        );
-      } else {
-        tds.push(m("td", f[attr.id]));
-      }
+      else if (attr.id === "detail")
+        tds.push(m("td", m("long-text", { text: yaml.stringify(f[attr.id]) })));
+      else tds.push(m("td", f[attr.id]));
     }
 
     rows.push(
@@ -234,64 +229,67 @@ function renderTable(
   ];
 }
 
-const component = {
-  view: vnode => {
-    document.title = "Faults - GenieACS";
+export function component() {
+  return {
+    view: vnode => {
+      document.title = "Faults - GenieACS";
 
-    function showMore() {
-      vnode.state.showCount = (vnode.state.showCount || PAGE_SIZE) + PAGE_SIZE;
-      m.redraw();
+      function showMore() {
+        vnode.state.showCount =
+          (vnode.state.showCount || PAGE_SIZE) + PAGE_SIZE;
+        m.redraw();
+      }
+
+      function onFilterChanged(filter) {
+        const ops = { filter };
+        if (vnode.attrs.sort) ops.sort = vnode.attrs.sort;
+        m.route.set("/faults", ops);
+      }
+
+      function onSortChange(sort) {
+        const ops = { sort };
+        if (vnode.attrs.filter) ops.filter = vnode.attrs.filter;
+        m.route.set("/faults", ops);
+      }
+
+      const sort = vnode.attrs.sort ? memoizedJsonParse(vnode.attrs.sort) : {};
+      let filter = vnode.attrs.filter
+        ? memoizedParse(vnode.attrs.filter)
+        : true;
+      filter = unpackSmartQuery(filter);
+
+      const faults = store.fetch("faults", filter, {
+        limit: vnode.state.showCount || PAGE_SIZE,
+        sort: sort
+      });
+      const count = store.count("faults", filter);
+
+      const selected = new Set();
+      if (vnode.state.selected) {
+        for (const f of faults.value)
+          if (vnode.state.selected.has(f["_id"])) selected.add(f["_id"]);
+      }
+      vnode.state.selected = selected;
+
+      const downloadUrl = getDownloadUrl(vnode.attrs.filter);
+
+      return [
+        m("h1", "Listing faults"),
+        m(filterComponent, {
+          resource: "faults",
+          filter: vnode.attrs.filter,
+          onChange: onFilterChanged
+        }),
+        renderTable(
+          faults,
+          count.value,
+          selected,
+          showMore,
+          downloadUrl,
+          sort,
+          onSortChange
+        )
+      ];
     }
-
-    function onFilterChanged(filter) {
-      const ops = { filter };
-      if (vnode.attrs.sort) ops.sort = vnode.attrs.sort;
-      m.route.set("/faults", ops);
-    }
-
-    function onSortChange(sort) {
-      const ops = { sort };
-      if (vnode.attrs.filter) ops.filter = vnode.attrs.filter;
-      m.route.set("/faults", ops);
-    }
-
-    const sort = vnode.attrs.sort ? memoizedJsonParse(vnode.attrs.sort) : {};
-    let filter = vnode.attrs.filter ? memoizedParse(vnode.attrs.filter) : true;
-    filter = unpackSmartQuery(filter);
-
-    const faults = store.fetch("faults", filter, {
-      limit: vnode.state.showCount || PAGE_SIZE,
-      sort: sort
-    });
-    const count = store.count("faults", filter);
-
-    const selected = new Set();
-    if (vnode.state.selected) {
-      for (const f of faults.value)
-        if (vnode.state.selected.has(f["_id"])) selected.add(f["_id"]);
-    }
-    vnode.state.selected = selected;
-
-    const downloadUrl = getDownloadUrl(vnode.attrs.filter);
-
-    return [
-      m("h1", "Listing faults"),
-      m(filterComponent, {
-        resource: "faults",
-        filter: vnode.attrs.filter,
-        onChange: onFilterChanged
-      }),
-      renderTable(
-        faults,
-        count.value,
-        selected,
-        showMore,
-        downloadUrl,
-        sort,
-        onSortChange
-      )
-    ];
-  }
-};
-
-export { init, component };
+  };
+}
