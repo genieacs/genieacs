@@ -65,6 +65,14 @@ export function deleteResource(resource, id): Promise<void> {
       case "config":
         promise = db.deleteConfig(id);
         break;
+
+      case "permissions":
+        promise = db.deletePermission(id);
+        break;
+
+      case "users":
+        promise = db.deleteUser(id);
+        break;
     }
 
     promise
@@ -183,6 +191,8 @@ export function putResource(resource, id, data): Promise<void> {
     else if (resource === "virtualParameters")
       promise = db.putVirtualParameter(id, data);
     else if (resource === "config") promise = db.putConfig(id, data);
+    else if (resource === "permissions") promise = db.putPermission(id, data);
+    else if (resource === "users") promise = db.putUser(id, data);
 
     promise
       .then(() => {

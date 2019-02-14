@@ -9,7 +9,6 @@ import koaJwt from "koa-jwt";
 import * as config from "./config";
 import api from "./ui/api";
 import Authorizer from "./common/authorizer";
-import { parse } from "./common/expression-parser";
 import * as logger from "./logger";
 import * as localCache from "./local-cache";
 import { PermissionSet } from "./types";
@@ -27,41 +26,18 @@ const JWT_SECRET = "" + config.get("UI_JWT_SECRET");
 const JWT_COOKIE = "genieacs-ui-jwt";
 
 function getPermissionSets(ctx): PermissionSet[] {
-  const allPermissions = localCache.getPermissionsConfig(
-    ctx.state.configSnapshot
+  const allPermissions = localCache.getPermissions(ctx.state.configSnapshot);
+  const permissionSets = ctx.state.user.roles.map(role =>
+    Object.values(allPermissions[role] || {})
   );
-  const permissionSets = ctx.state.user.roles.map(role => {
-    return Object.values(allPermissions[role] || {}).map(p => {
-      p = Object.assign({}, p);
-      for (let [k, v] of Object.entries(p)) {
-        p[k] = v = Object.assign({}, v);
-        if (
-          [
-            "devices",
-            "faults",
-            "presets",
-            "provisions",
-            "virtualParameters",
-            "files"
-          ].includes(k)
-        ) {
-          if (v.filter == null || v.filter === "") v.filter = true;
-          else v.filter = parse(v.filter);
-        }
-      }
-      return p;
-    });
-  });
   return permissionSets;
 }
 
 function authSimple(ctx, username, password): Promise<string[]> {
-  const authConfig = localCache.getAuthConfig(ctx.state.configSnapshot);
-  const user = authConfig["simple"].users[username];
-  if (user && user.password === password) {
-    const roles = user.roles.split(",").map(s => s.trim());
-    return Promise.resolve(roles);
-  }
+  const users = localCache.getUsers(ctx.state.configSnapshot);
+  const user = users[username];
+  if (user && user.password === password) return Promise.resolve(user.roles);
+
   return Promise.resolve(null);
 }
 

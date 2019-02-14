@@ -2,7 +2,7 @@ import pass from "./validators/pass";
 import test from "./validators/test";
 import { PermissionSet } from "../types";
 
-const validators = { pass, test };
+export const validators = { pass, test };
 
 export default class Authorizer {
   private permissionSets: PermissionSet[];

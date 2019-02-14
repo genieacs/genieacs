@@ -12,6 +12,8 @@ import * as provisionsPage from "./provisions-page";
 import * as virtualParametersPage from "./virtual-parameters-page";
 import * as filesPage from "./files-page";
 import * as configPage from "./config-page";
+import * as permissionsPage from "./permissions-page";
+import * as usersPage from "./users-page";
 import Authorizer from "../lib//common/authorizer";
 import * as notifications from "./notifications";
 import { contextifyComponent } from "./components";
@@ -32,7 +34,9 @@ const adminPages = [
   "provisions",
   "virtualParameters",
   "files",
-  "config"
+  "config",
+  "users",
+  "permissions"
 ];
 
 let state;
@@ -125,5 +129,7 @@ m.route(document.body, "/overview", {
     virtualParametersPage
   ),
   "/admin/files": pagify("files", filesPage),
-  "/admin/config": pagify("config", configPage)
+  "/admin/config": pagify("config", configPage),
+  "/admin/users": pagify("users", usersPage),
+  "/admin/permissions": pagify("permissions", permissionsPage)
 });

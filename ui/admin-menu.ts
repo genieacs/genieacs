@@ -57,6 +57,26 @@ const component: ClosureComponent = (): Component => {
         );
       }
 
+      if (window.authorizer.hasAccess("permissions", 1)) {
+        tabs.push(
+          m(
+            "li",
+            { class: active["permissions"] },
+            m("a", { href: "#!/admin/permissions" }, "Permissions")
+          )
+        );
+      }
+
+      if (window.authorizer.hasAccess("users", 1)) {
+        tabs.push(
+          m(
+            "li",
+            { class: active["users"] },
+            m("a", { href: "#!/admin/users" }, "Users")
+          )
+        );
+      }
+
       return m("nav#side-menu", m("ul", tabs));
     }
   };

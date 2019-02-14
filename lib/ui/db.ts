@@ -107,6 +107,9 @@ export function query(
             : options.projection
         );
       }
+
+      if (resource === "users") cursor.project({ password: 0 });
+
       if (options.skip) cursor.skip(options.skip);
       if (options.limit) cursor.limit(options.limit);
 
@@ -280,6 +283,38 @@ export function putConfig(id, object): Promise<void> {
 
 export function deleteConfig(id): Promise<void> {
   return deleteResource("config", id);
+}
+
+export function putPermission(id, object): Promise<void> {
+  return putResource("permissions", id, object);
+}
+
+export function deletePermission(id): Promise<void> {
+  return deleteResource("permissions", id);
+}
+
+export function putUser(id, object): Promise<void> {
+  return new Promise((resolve, reject) => {
+    getClient()
+      .then(client => {
+        const collection = client.db().collection("users");
+        // update instead of replace to keep the password if not set by user
+        collection.updateOne(
+          { _id: id },
+          { $set: object },
+          { upsert: true },
+          err => {
+            if (err) return void reject(err);
+            resolve();
+          }
+        );
+      })
+      .catch(reject);
+  });
+}
+
+export function deleteUser(id): Promise<void> {
+  return deleteResource("users", id);
 }
 
 export function putFile(filename, metadata, contentStream): Promise<void> {

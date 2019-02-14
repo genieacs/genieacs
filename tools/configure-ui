@@ -2,32 +2,38 @@
 import { MongoClient } from "mongodb";
 import { get } from "../lib/config";
 
+const permissionsData = [
+  { role: "admin", resource: "devices", access: 3, validate: ["pass"] },
+  { role: "admin", resource: "faults", access: 3, validate: ["pass"] },
+  { role: "admin", resource: "files", access: 3, validate: ["pass"] },
+  { role: "admin", resource: "presets", access: 3, validate: ["pass"] },
+  { role: "admin", resource: "provisions", access: 3, validate: ["pass"] },
+  { role: "admin", resource: "config", access: 3, validate: ["pass"] },
+  { role: "admin", resource: "permissions", access: 3, validate: ["pass"] },
+  { role: "admin", resource: "users", access: 3, validate: ["pass"] },
+  {
+    role: "admin",
+    resource: "virtualParameters",
+    access: 3,
+    validate: ["pass"]
+  },
+  { role: "view", resource: "devices", access: 2, validate: [] },
+  { role: "view", resource: "faults", access: 2, validate: [] },
+  { role: "view", resource: "files", access: 2, validate: [] },
+  { role: "view", resource: "presets", access: 2, validate: [] },
+  { role: "view", resource: "provisions", access: 2, validate: [] },
+  { role: "view", resource: "config", access: 2, validate: [] },
+  { role: "view", resource: "users", access: 2, validate: [] },
+  { role: "view", resource: "permissions", access: 2, validate: [] },
+  { role: "view", resource: "virtualParameters", access: 2, validate: [] }
+];
+
+const usersData = [
+  { username: "admin", password: "admin", roles: ["admin"] },
+  { username: "view", password: "view", roles: ["view"] }
+];
+
 const configData = {
-  "auth.simple.users.admin.password": "'admin'",
-  "auth.simple.users.admin.roles": "'admin'",
-  "auth.simple.users.view.password": "'view'",
-  "auth.simple.users.view.roles": "'view'",
-  "permissions.admin.0.devices.access": "3",
-  "permissions.admin.0.devices.validate.pass": "true",
-  "permissions.admin.0.faults.access": "3",
-  "permissions.admin.0.faults.validate.pass": "true",
-  "permissions.admin.0.files.access": "3",
-  "permissions.admin.0.files.validate.pass": "true",
-  "permissions.admin.0.presets.access": "3",
-  "permissions.admin.0.presets.validate.pass": "true",
-  "permissions.admin.0.provisions.access": "3",
-  "permissions.admin.0.provisions.validate.pass": "true",
-  "permissions.admin.0.config.access": "3",
-  "permissions.admin.0.config.validate.pass": "true",
-  "permissions.admin.0.virtualParameters.access": "3",
-  "permissions.admin.0.virtualParameters.validate.pass": "true",
-  "permissions.view.0.devices.access": "2",
-  "permissions.view.0.faults.access": "2",
-  "permissions.view.0.files.access": "2",
-  "permissions.view.0.presets.access": "2",
-  "permissions.view.0.config.access": "2",
-  "permissions.view.0.provisions.access": "2",
-  "permissions.view.0.virtualParameters.access": "2",
   "ui.device.0.type": "'tags'",
   "ui.device.1.type": "'ping'",
   "ui.device.2.parameters.0.components.0.type": "'parameter'",
@@ -162,13 +168,54 @@ async function run(): Promise<void> {
   const client = await MongoClient.connect(get("MONGODB_CONNECTION_URL"), {
     useNewUrlParser: true
   });
-  const collection = client.db().collection("config");
-  await collection.deleteMany({});
+
+  const deletes = [];
+  for (const col of ["permissions", "users", "config"]) {
+    deletes.push(
+      client
+        .db()
+        .collection(col)
+        .deleteMany({})
+    );
+  }
+
+  await Promise.all(deletes);
+
+  const inserts = [];
   const objs = Object.entries(configData).map(c => ({
     _id: c[0],
     value: c[1]
   }));
-  await collection.insertMany(objs);
+  inserts.push(
+    client
+      .db()
+      .collection("config")
+      .insertMany(objs)
+  );
+  const perms = permissionsData.map(p => {
+    p.validate = (p.validate || []).join(",");
+    return Object.assign({ _id: `${p.role}:${p.resource}:${p.access}` }, p);
+  });
+  inserts.push(
+    client
+      .db()
+      .collection("permissions")
+      .insertMany(perms)
+  );
+  const users = usersData.map(p => {
+    p.roles = (p.roles || []).join(",");
+    p._id = p.username;
+    delete p.username;
+    return p;
+  });
+  inserts.push(
+    client
+      .db()
+      .collection("users")
+      .insertMany(users)
+  );
+
+  await Promise.all(inserts);
   client.close();
 }
 

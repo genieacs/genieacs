@@ -38,7 +38,9 @@ for (const r of [
   "provisions",
   "virtualParameters",
   "files",
-  "config"
+  "config",
+  "users",
+  "permissions"
 ]) {
   resources[r] = {
     objects: new Map(),

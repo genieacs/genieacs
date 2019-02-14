@@ -10,7 +10,9 @@ const adminPages = [
   "provisions",
   "virtualParameters",
   "files",
-  "config"
+  "config",
+  "users",
+  "permissions"
 ];
 
 const component: ClosureComponent = (): Component => {

@@ -26,6 +26,8 @@ const RESOURCE_IDS = {
   files: "_id",
   virtualParameters: "_id",
   config: "_id",
+  permissions: "_id",
+  users: "_id",
   faults: "_id",
   tasks: "_id"
 };
@@ -37,6 +39,8 @@ const resources = {
   files: 0 | RESOURCE_DELETE,
   virtualParameters: 0 | RESOURCE_DELETE | RESOURCE_PUT,
   config: 0 | RESOURCE_DELETE | RESOURCE_PUT,
+  permissions: 0 | RESOURCE_DELETE | RESOURCE_PUT,
+  users: 0 | RESOURCE_DELETE | RESOURCE_PUT,
   faults: 0 | RESOURCE_DELETE,
   tasks: 0
 };

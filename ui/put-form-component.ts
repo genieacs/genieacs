@@ -34,6 +34,30 @@ function createField(current, attr, focus): Children {
       },
       options
     );
+  } else if (attr.type === "multi") {
+    const currentSelected = new Set(current.object[attr.id]);
+    const options = attr.options.map(op => {
+      const id = `${attr.id}-${op}`;
+      const opts = {
+        type: "checkbox",
+        id: id,
+        value: op,
+        oncreate: _vnode => {
+          if (focus && !options.length) _vnode.dom.focus();
+          if (currentSelected.has(op)) _vnode.dom.checked = true;
+        },
+        onchange: e => {
+          if (e.target.checked) currentSelected.add(op);
+          else currentSelected.delete(op);
+          current.object[attr.id] = Array.from(currentSelected);
+          e.redraw = false;
+        }
+      };
+
+      return m("tr", [m("td", m("input", opts)), m("td", op)]);
+    });
+
+    return m("table", options);
   } else if (attr.type === "code") {
     return m("textarea", {
       name: attr.id,
@@ -80,7 +104,7 @@ function createField(current, attr, focus): Children {
   }
 
   return m("input", {
-    type: "text",
+    type: attr.type === "password" ? "password" : "text",
     name: attr.id,
     disabled: attr.id === "_id" && !current.isNew,
     value: current.object[attr.id],

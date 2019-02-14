@@ -26,7 +26,20 @@ import * as query from "./query";
 import * as logger from "./logger";
 import * as scheduling from "./scheduling";
 import * as expression from "./common/expression";
-import { Preset } from "./types";
+import { parse } from "./common/expression-parser";
+import { Preset, Expression } from "./types";
+
+interface Permissions {
+  [role: string]: {
+    [access: number]: {
+      [resource: string]: {
+        access: number;
+        filter: Expression;
+        validate: { [validator: string]: boolean };
+      };
+    };
+  };
+}
 
 const REFRESH = 3000;
 const EVICT_TIMEOUT = 60000;
@@ -303,6 +316,48 @@ function refresh(callback): void {
 
       promises.push(
         new Promise((resolve, reject) => {
+          db.getPermissions((err, perms) => {
+            if (err) return void reject(err);
+            const permissions: Permissions = {};
+            for (const p of perms) {
+              if (!permissions[p.role]) permissions[p.role] = {};
+              if (!permissions[p.role][p.access])
+                permissions[p.role][p.access] = {};
+
+              const validate = {};
+              permissions[p.role][p.access][p.resource] = {
+                access: p.access,
+                filter: parse(p.filter || "true"),
+                validate: validate
+              };
+
+              for (const v of (p.validate || "").split(","))
+                validate[v.trim()] = true;
+            }
+
+            resolve(permissions);
+          });
+        })
+      );
+
+      promises.push(
+        new Promise((resolve, reject) => {
+          db.getUsers((err, _users) => {
+            if (err) return void reject(err);
+            const users = {};
+            for (const user of _users) {
+              users[user._id] = {
+                password: user.password,
+                roles: user.roles.split(",").map(s => s.trim())
+              };
+            }
+            resolve(users);
+          });
+        })
+      );
+
+      promises.push(
+        new Promise((resolve, reject) => {
           db.getConfig((err, conf) => {
             if (err) return void reject(err);
 
@@ -311,11 +366,7 @@ function refresh(callback): void {
             const _config = {};
 
             for (const c of conf) {
-              if (
-                c.id.startsWith("auth.") ||
-                c.id.startsWith("permissions.") ||
-                c.id.startsWith("ui.")
-              ) {
+              if (c.id.startsWith("ui.")) {
                 const keys = c.id.split(".");
                 let ref = _config;
                 while (keys.length > 1) {
@@ -343,7 +394,9 @@ function refresh(callback): void {
             provisions: res[1],
             virtualParameters: res[2],
             files: res[3],
-            config: res[4]
+            permissions: res[4],
+            users: res[5],
+            config: res[6]
           };
 
           if (currentSnapshot) {
@@ -465,18 +518,18 @@ export function getConfig(
   return expression.evaluate(snapshot.config[key], context, now || Date.now());
 }
 
-export function getAuthConfig(snapshotKey): {} {
+export function getUsers(snapshotKey): {} {
   const snapshot = snapshots.get(snapshotKey);
   if (!snapshot) throw new Error("Cache snapshot does not exist");
 
-  return snapshot.config.auth;
+  return snapshot.users;
 }
 
-export function getPermissionsConfig(snapshotKey): {} {
+export function getPermissions(snapshotKey): {} {
   const snapshot = snapshots.get(snapshotKey);
   if (!snapshot) throw new Error("Cache snapshot does not exist");
 
-  return snapshot.config.permissions;
+  return snapshot.permissions;
 }
 
 export function getUiConfig(snapshotKey): {} {

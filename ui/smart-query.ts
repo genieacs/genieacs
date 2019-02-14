@@ -30,7 +30,13 @@ const resources = {
       type: "string"
     },
     Version: { parameter: ["PARAM", "metadata.version"], type: "string" }
-  }
+  },
+  permissions: {
+    Role: { parameter: ["PARAM", "role"], type: "string" },
+    Resource: { parameter: ["PARAM", "resource"], type: "string" },
+    Access: { parameter: ["PARAM", "access"], type: "number" }
+  },
+  users: { Username: { parameter: ["PARAM", "_id"], type: "string" } }
 };
 
 for (const v of Object.values(config.ui.filters as {

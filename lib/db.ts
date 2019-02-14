@@ -33,6 +33,8 @@ export let tasksCollection,
   faultsCollection,
   filesCollection,
   operationsCollection,
+  permissionsCollection,
+  usersCollection,
   configCollection;
 
 export let client;
@@ -57,6 +59,8 @@ export function connect(callback): void {
       virtualParametersCollection = db.collection("virtualParameters");
       faultsCollection = db.collection("faults");
       operationsCollection = db.collection("operations");
+      permissionsCollection = db.collection("permissions");
+      usersCollection = db.collection("users");
       configCollection = db.collection("config");
 
       callback();
@@ -930,4 +934,28 @@ export function getConfig(callback): void {
       }))
     );
   });
+}
+
+export function getPermissions(
+  callback: (
+    err?: Error,
+    permissions?: {
+      role: string;
+      resource: string;
+      access: number;
+      filter: string;
+      validate: string;
+    }[]
+  ) => void
+): void {
+  permissionsCollection.find().toArray(callback);
+}
+
+export function getUsers(
+  callback: (
+    err?: Error,
+    users?: { _id: string; password: string; roles: string }[]
+  ) => void
+): void {
+  usersCollection.find().toArray(callback);
 }
