@@ -2,9 +2,5 @@
   "env": {
     "browser": true,
     "node": false
-  },
-  "parser": "babel-eslint",
-  "parserOptions": {
-    "allowImportExportEverywhere": true
   }
 }

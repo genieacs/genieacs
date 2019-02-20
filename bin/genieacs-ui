@@ -1,5 +1,4 @@
-#!/usr/bin/env -S node -r esm
-"use strict";
+#!/usr/bin/env -S node -r esm -r ts-node/register/transpile-only
 import * as path from "path";
 import * as fs from "fs";
 
@@ -20,14 +19,14 @@ logger.init("ui", VERSION);
 const SERVICE_ADDRESS = config.get("UI_INTERFACE");
 const SERVICE_PORT = config.get("UI_PORT");
 
-function exitWorkerGracefully() {
+function exitWorkerGracefully(): void {
   db.disconnect();
   db2.disconnect();
   cache.disconnect();
   cluster.worker.disconnect();
 }
 
-function exitWorkerUngracefully() {
+function exitWorkerUngracefully(): void {
   process.exit(1);
 }
 
@@ -63,16 +62,16 @@ if (!cluster.worker) {
   let ssl;
   if (config.get("UI_SSL")) {
     ssl = {
-      key: path.resolve(config.get("CONFIG_DIR"), "ui.key"),
-      cert: path.resolve(config.get("CONFIG_DIR"), "ui.crt"),
-      ca: path.resolve(config.get("CONFIG_DIR"), "ui.ca-bundle")
+      key: path.resolve("" + config.get("CONFIG_DIR"), "ui.key"),
+      cert: path.resolve("" + config.get("CONFIG_DIR"), "ui.crt"),
+      ca: path.resolve("" + config.get("CONFIG_DIR"), "ui.ca-bundle")
     };
   }
 
   let stopping = false;
 
   process.on("uncaughtException", err => {
-    if (err.code === "ERR_IPC_DISCONNECTED") return;
+    if ((err as NodeJS.ErrnoException).code === "ERR_IPC_DISCONNECTED") return;
     logger.error({
       message: "Uncaught exception",
       exception: err,
@@ -101,7 +100,7 @@ if (!cluster.worker) {
       .catch(exitWorkerUngracefully);
   });
 
-  const _listener = (req, res) => {
+  const _listener = (req, res): void => {
     if (stopping) res.setHeader("Connection", "close");
     listener(req, res);
   };

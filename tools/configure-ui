@@ -1,6 +1,4 @@
-#!/usr/bin/env -S node -r esm
-"use strict";
-
+#!/usr/bin/env -S node -r esm -r ts-node/register/transpile-only
 import { MongoClient } from "mongodb";
 import { get } from "../lib/config";
 
@@ -160,11 +158,10 @@ const configData = {
   "ui.pageSize": "10"
 };
 
-async function run() {
-  const client = await MongoClient.connect(
-    get("MONGODB_CONNECTION_URL"),
-    { useNewUrlParser: true }
-  );
+async function run(): Promise<void> {
+  const client = await MongoClient.connect(get("MONGODB_CONNECTION_URL"), {
+    useNewUrlParser: true
+  });
   const collection = client.db().collection("config");
   await collection.deleteMany({});
   const objs = Object.entries(configData).map(c => ({

@@ -1,7 +1,6 @@
-#!/usr/bin/env -S node -r esm
-"use strict";
-import path from "path";
-import fs from "fs";
+#!/usr/bin/env -S node -r esm -r ts-node/register/transpile-only
+import * as path from "path";
+import * as fs from "fs";
 
 process.chdir(path.resolve(path.dirname(fs.realpathSync(__filename)), ".."));
 
@@ -19,13 +18,13 @@ logger.init("fs", VERSION);
 const SERVICE_ADDRESS = config.get("FS_INTERFACE");
 const SERVICE_PORT = config.get("FS_PORT");
 
-function exitWorkerGracefully() {
+function exitWorkerGracefully(): void {
   db.disconnect();
   cache.disconnect();
   cluster.worker.disconnect();
 }
 
-function exitWorkerUngracefully() {
+function exitWorkerUngracefully(): void {
   process.exit(1);
 }
 
@@ -61,14 +60,14 @@ if (!cluster.worker) {
   let ssl;
   if (config.get("FS_SSL")) {
     ssl = {
-      key: path.resolve(config.get("CONFIG_DIR"), "fs.key"),
-      cert: path.resolve(config.get("CONFIG_DIR"), "fs.crt"),
-      ca: path.resolve(config.get("CONFIG_DIR"), "fs.ca-bundle")
+      key: path.resolve("" + config.get("CONFIG_DIR"), "fs.key"),
+      cert: path.resolve("" + config.get("CONFIG_DIR"), "fs.crt"),
+      ca: path.resolve("" + config.get("CONFIG_DIR"), "fs.ca-bundle")
     };
   }
 
   process.on("uncaughtException", err => {
-    if (err.code === "ERR_IPC_DISCONNECTED") return;
+    if ((err as NodeJS.ErrnoException).code === "ERR_IPC_DISCONNECTED") return;
     logger.error({
       message: "Uncaught exception",
       exception: err,

@@ -17,4 +17,10 @@ config/ext
 debug/*
 !debug/.gitkeep
 
+dist
 .eslintrc.json
+.eslintignore
+ava.config.js
+tsconfig.json
+bin/.*
+tools/.*

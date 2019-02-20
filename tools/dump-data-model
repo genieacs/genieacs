@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node -r esm
+#!/usr/bin/env -S node -r esm -r ts-node/register/transpile-only
 /**
  * Copyright 2013-2017  Zaid Abdulla
  *
@@ -17,10 +17,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
-"use strict";
 
-import fs from "fs";
-import path from "path";
+import * as fs from "fs";
+import * as path from "path";
 import { connect, devicesCollection } from "../lib/db";
 
 const outputFilename = path.resolve(`data_model_${process.argv[2]}.json`);
@@ -28,7 +27,7 @@ process.chdir(path.resolve(path.dirname(fs.realpathSync(__filename)), ".."));
 
 const dataModel = {};
 
-function recursive(object, p) {
+function recursive(object, p): void {
   if (!p) p = "";
 
   for (const key in object) {

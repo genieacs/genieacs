@@ -1,7 +1,6 @@
-#!/usr/bin/env -S node -r esm
-"use strict";
-import path from "path";
-import fs from "fs";
+#!/usr/bin/env -S node -r esm -r ts-node/register/transpile-only
+import * as path from "path";
+import * as fs from "fs";
 
 process.chdir(path.resolve(path.dirname(fs.realpathSync(__filename)), ".."));
 
@@ -20,14 +19,14 @@ logger.init("nbi", VERSION);
 const SERVICE_ADDRESS = config.get("NBI_INTERFACE");
 const SERVICE_PORT = config.get("NBI_PORT");
 
-function exitWorkerGracefully() {
+function exitWorkerGracefully(): void {
   db.disconnect();
   cache.disconnect();
   extensions.killAll();
   cluster.worker.disconnect();
 }
 
-function exitWorkerUngracefully() {
+function exitWorkerUngracefully(): void {
   extensions.killAll(() => {
     process.exit(1);
   });
@@ -65,14 +64,14 @@ if (!cluster.worker) {
   let ssl;
   if (config.get("NBI_SSL")) {
     ssl = {
-      key: path.resolve(config.get("CONFIG_DIR"), "nbi.key"),
-      cert: path.resolve(config.get("CONFIG_DIR"), "nbi.crt"),
-      ca: path.resolve(config.get("CONFIG_DIR"), "nbi.ca-bundle")
+      key: path.resolve("" + config.get("CONFIG_DIR"), "nbi.key"),
+      cert: path.resolve("" + config.get("CONFIG_DIR"), "nbi.crt"),
+      ca: path.resolve("" + config.get("CONFIG_DIR"), "nbi.ca-bundle")
     };
   }
 
   process.on("uncaughtException", err => {
-    if (err.code === "ERR_IPC_DISCONNECTED") return;
+    if ((err as NodeJS.ErrnoException).code === "ERR_IPC_DISCONNECTED") return;
     logger.error({
       message: "Uncaught exception",
       exception: err,
