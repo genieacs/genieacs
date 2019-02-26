@@ -17,18 +17,19 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import Path from "./common/path";
 import * as config from "./config";
-import * as common from "./common";
 import * as device from "./device";
 import * as scheduling from "./scheduling";
 
 const MAX_DEPTH = +config.get("MAX_DEPTH");
 
 export function refresh(sessionContext, provision, declarations): boolean {
-  const path = common.parsePath(provision[1]).slice();
-  const l = path.length;
-  path.length = MAX_DEPTH;
-  path.fill("*", l);
+  const segments = Path.parse(provision[1]).segments.slice();
+  const l = segments.length;
+  segments.length = MAX_DEPTH;
+  segments.fill("*", l);
+  const path = Path.parse(segments.join("."));
   const every = 1000 * (provision[2] || 1);
   const offset = scheduling.variance(sessionContext.deviceId, every);
   const t = scheduling.interval(sessionContext.timestamp, every, offset);
@@ -48,9 +49,8 @@ export function refresh(sessionContext, provision, declarations): boolean {
 }
 
 export function value(sessionContext, provision, declarations): boolean {
-  const path = common.parsePath(provision[1]);
   declarations.push({
-    path: path,
+    path: Path.parse(provision[1]),
     pathGet: 1,
     pathSet: null,
     attrGet: { value: 1 },
@@ -62,10 +62,8 @@ export function value(sessionContext, provision, declarations): boolean {
 }
 
 export function tag(sessionContext, provision, declarations): boolean {
-  const path = ["Tags", provision[1]];
-
   declarations.push({
-    path: path,
+    path: Path.parse(`Tags.${provision[1]}`),
     pathGet: 1,
     pathSet: null,
     attrGet: { value: 1 },
@@ -78,7 +76,7 @@ export function tag(sessionContext, provision, declarations): boolean {
 
 export function reboot(sessionContext, provision, declarations): boolean {
   declarations.push({
-    path: ["Reboot"],
+    path: Path.parse("Reboot"),
     pathGet: 1,
     pathSet: null,
     attrGet: { value: 1 },
@@ -91,7 +89,7 @@ export function reboot(sessionContext, provision, declarations): boolean {
 
 export function reset(sessionContext, provision, declarations): boolean {
   declarations.push({
-    path: ["FactoryReset"],
+    path: Path.parse("FactoryReset"),
     pathGet: 1,
     pathSet: null,
     attrGet: { value: 1 },
@@ -104,16 +102,13 @@ export function reset(sessionContext, provision, declarations): boolean {
 
 export function download(sessionContext, provision, declarations): boolean {
   const alias = [
-    ["FileType"],
-    provision[1] || "",
-    ["FileName"],
-    provision[2] || "",
-    ["TargetFileName"],
-    provision[3] || ""
-  ];
+    `FileType:${JSON.stringify(provision[1] || "")}`,
+    `FileName:${JSON.stringify(provision[2] || "")}`,
+    `TargetFileName:${JSON.stringify(provision[3] || "")}`
+  ].join(",");
 
   declarations.push({
-    path: ["Downloads", alias],
+    path: Path.parse(`Downloads.[${alias}]`),
     pathGet: 1,
     pathSet: 1,
     attrGet: null,
@@ -122,7 +117,7 @@ export function download(sessionContext, provision, declarations): boolean {
   });
 
   declarations.push({
-    path: ["Downloads", alias, "Download"],
+    path: Path.parse(`Downloads.[${alias}].Download`),
     pathGet: 1,
     pathSet: null,
     attrGet: { value: 1 },
@@ -144,7 +139,7 @@ export function instances(
 
   if (Number.isNaN(count)) return true;
 
-  const path = common.parsePath(provision[1]);
+  const path = Path.parse(provision[1]);
 
   if (provision[2][0] === "+" || provision[2][0] === "-") {
     declarations.push({

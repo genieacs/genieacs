@@ -17,7 +17,8 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ParamPath, DeviceData, Declaration, Clear } from "./types";
+import Path from "./common/path";
+import { DeviceData, Declaration, Clear } from "./types";
 
 const CHANGE_FLAGS = {
   object: 2,
@@ -34,7 +35,7 @@ function parseBool(v): boolean {
 }
 
 export function sanitizeParameterValue(
-  parameterValue
+  parameterValue: [string | number | boolean, string]
 ): [string | number | boolean, string?] {
   if (parameterValue[0] != null) {
     switch (parameterValue[1]) {
@@ -55,7 +56,7 @@ export function sanitizeParameterValue(
       case "xsd:int":
       case "xsd:unsignedInt":
         if (typeof parameterValue[0] !== "number") {
-          const i = parseInt(parameterValue[0]);
+          const i = parseInt(parameterValue[0] as string);
           if (isNaN(i)) parameterValue[0] = "" + parameterValue[0];
           else parameterValue[0] = i;
         }
@@ -65,7 +66,7 @@ export function sanitizeParameterValue(
           // Don't use parseInt because it reads date string as a number
           let i = +parameterValue[0];
           if (isNaN(i)) {
-            i = Date.parse(parameterValue[0]);
+            i = Date.parse(parameterValue[0] as string);
             if (isNaN(i)) parameterValue[0] = "" + parameterValue[0];
             else parameterValue[0] = i;
           } else {
@@ -88,87 +89,75 @@ export function sanitizeParameterValue(
   return parameterValue;
 }
 
-export function getAliasDeclarations(path, timestamp): Declaration[] {
-  const decs = [] as Declaration[];
-
-  function recursive(p, prefix): void {
-    const pattern = prefix.concat(p);
-
-    for (let i = prefix.length; i < pattern.length; ++i) {
-      if (Array.isArray(pattern[i])) {
-        const pat = pattern[i];
-        pattern[i] = "*";
-        for (let j = 0; j < pat.length; j += 2)
-          recursive(pat[j], pattern.slice(0, i + 1));
-      }
-    }
-
-    decs.push({
-      path: pattern,
+export function getAliasDeclarations(
+  path: Path,
+  timestamp: number,
+  attrGet = null
+): Declaration[] {
+  const stripped = path.stripAlias();
+  let decs: Declaration[] = [
+    {
+      path: stripped,
       pathGet: timestamp,
       pathSet: null,
-      attrGet: prefix.length ? { value: timestamp } : null,
+      attrGet: attrGet,
       attrSet: null,
       defer: true
-    });
-  }
+    }
+  ];
 
-  recursive(path, []);
+  if (path.alias) {
+    for (const [i, alias] of path.segments.entries()) {
+      if (Array.isArray(alias)) {
+        const parent = stripped.slice(0, i + 1);
+        for (const [p] of alias as [Path, string][]) {
+          decs = decs.concat(
+            getAliasDeclarations(parent.concat(p), timestamp, {
+              value: timestamp
+            })
+          );
+        }
+      }
+    }
+  }
 
   return decs;
 }
 
 export function unpack(
-  deviceData,
-  path: ParamPath,
+  deviceData: DeviceData,
+  path: Path,
   revision?: number
-): ParamPath[] {
-  let allMatches = [] as ParamPath[];
+): Path[] {
+  let allMatches = [] as Path[];
   if (!path.alias) {
     for (const p of deviceData.paths.find(path, false, true))
       if (deviceData.attributes.has(p, revision)) allMatches.push(p);
   } else {
-    const wildcardPath = path.slice() as ParamPath;
-    wildcardPath.wildcard = path.wildcard;
-    for (let i = 0; i < wildcardPath.length; ++i) {
-      if (Array.isArray(wildcardPath[i])) {
-        wildcardPath[i] = "*";
-        wildcardPath.wildcard |= 1 << i;
-      }
-    }
+    const wildcardPath = path.stripAlias();
 
     for (const p of deviceData.paths.find(wildcardPath, false, true))
       if (deviceData.attributes.has(p, revision)) allMatches.push(p);
 
     for (let i = path.length - 1; i >= 0; --i) {
-      if (Array.isArray(path[i])) {
-        for (let j = 0; j < path[i].length; j += 2) {
-          const p = wildcardPath
-            .slice(0, i + 1)
-            .concat(path[i][j]) as ParamPath;
-          p.alias =
-            ((wildcardPath.alias & ((1 << (i + 1)) - 1)) + path[i][j].alias) <<
-            (i + 1);
-          p.wildcard =
-            ((wildcardPath.wildcard & ((1 << (i + 1)) - 1)) +
-              path[i][j].wildcard) <<
-            (i + 1);
+      if (path.alias & (i << i)) {
+        for (const [param, val] of path.segments[i] as [Path, string][]) {
+          const p = wildcardPath.slice(0, i + 1).concat(param);
           const unpacked = unpack(deviceData, p, revision);
-          const filtered = [] as ParamPath[];
+          const filtered: Path[] = [];
           for (const up of unpacked) {
             const attributes = deviceData.attributes.get(up, revision);
             if (
               attributes &&
               attributes.value &&
               attributes.value[1] &&
-              sanitizeParameterValue([
-                path[i][j + 1],
-                attributes.value[1][1]
-              ])[0] === attributes.value[1][0]
+              sanitizeParameterValue([val, attributes.value[1][1]])[0] ===
+                attributes.value[1][0]
             ) {
               for (let m = 0; m < allMatches.length; ++m) {
                 let k;
-                for (k = i; k >= 0; --k) if (allMatches[m][k] !== up[k]) break;
+                for (k = i; k >= 0; --k)
+                  if (allMatches[m].segments[k] !== up.segments[k]) break;
 
                 if (k < 0) {
                   filtered.push(allMatches[m]);
@@ -185,8 +174,8 @@ export function unpack(
 
   allMatches.sort((p1, p2) => {
     for (let i = 0; i < p1.length; ++i) {
-      const a = p1[i];
-      const b = p2[i];
+      const a = p1.segments[i] as string;
+      const b = p2.segments[i] as string;
       if (a !== b) {
         // Use numeric sorting for numbers
         const ia = parseInt(a);
@@ -285,7 +274,7 @@ function compareEquality(a, b): boolean {
 
 export function set(
   deviceData: DeviceData,
-  path: ParamPath,
+  path: Path,
   timestamp,
   attributes,
   toClear?: Clear[]
@@ -345,7 +334,7 @@ export function set(
       if (path.length > 1) {
         toClear = set(
           deviceData,
-          path.slice(0, path.length - 1) as ParamPath,
+          path.slice(0, path.length - 1),
           timestamp,
           { object: [timestamp, 1] },
           toClear
@@ -389,7 +378,7 @@ export function set(
 
 export function track(
   deviceData: DeviceData,
-  path: ParamPath,
+  path: Path,
   marker: string,
   attributes?
 ): void {
@@ -408,7 +397,7 @@ export function track(
   cur[marker] |= f;
 }
 
-export function clearTrackers(deviceData, tracker): void {
+export function clearTrackers(deviceData: DeviceData, tracker): void {
   if (Array.isArray(tracker)) {
     for (const v of deviceData.trackers.values())
       for (const t of tracker) delete v[t];

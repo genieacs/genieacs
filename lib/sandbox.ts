@@ -19,12 +19,12 @@
 
 import * as vm from "vm";
 import seedrandom from "seedrandom";
-import * as common from "./common";
 import * as device from "./device";
 import * as extensions from "./extensions";
 import * as logger from "./logger";
 import * as scheduling from "./scheduling";
-import { ParamPath, Fault } from "./types";
+import Path from "./common/path";
+import { Fault, SessionContext } from "./types";
 
 // Used for throwing to exit user script and commit
 const COMMIT = Symbol();
@@ -112,7 +112,7 @@ random.seed = function(s) {
 };
 
 class ParameterWrapper {
-  public constructor(path, attributes, unpacked?, unpackedRevision?) {
+  public constructor(path: Path, attributes, unpacked?, unpackedRevision?) {
     for (const attrName of attributes) {
       Object.defineProperty(this, attrName, {
         get: function() {
@@ -156,7 +156,7 @@ class ParameterWrapper {
 
         if (!unpacked.length) return UNDEFINED;
 
-        return unpacked[0].join(".");
+        return unpacked[0].toString();
       }
     });
 
@@ -198,7 +198,7 @@ class ParameterWrapper {
 }
 
 function declare(
-  path: ParamPath,
+  path: string,
   timestamps: { [attr: string]: number },
   values: { [attr: string]: any }
 ): ParameterWrapper {
@@ -207,7 +207,7 @@ function declare(
 
   if (!values) values = {};
 
-  const parsedPath = common.parsePath(path);
+  const parsedPath = Path.parse(path);
 
   const declaration = {
     path: parsedPath,
@@ -249,11 +249,11 @@ function declare(
   return new ParameterWrapper(parsedPath, attrs);
 }
 
-function clear(path, timestamp, attributes): void {
+function clear(path: string, timestamp: number, attributes?): void {
   state.uncommitted = true;
 
   if (state.revision === state.maxRevision)
-    state.clear.push([common.parsePath(path), timestamp, attributes]);
+    state.clear.push([Path.parse(path), timestamp, attributes]);
 }
 
 function commit(): void {
@@ -282,19 +282,19 @@ function ext(): any {
   throw EXT;
 }
 
-function log(msg, meta): void {
+function log(msg: string, meta: {}): void {
   if (state.revision === state.maxRevision && state.extCounter >= 0) {
     const details = Object.assign({}, meta, {
       sessionContext: state.sessionContext,
       message: `Script: ${msg}`
     });
 
-    delete details.hostname;
-    delete details.pid;
-    delete details.name;
-    delete details.version;
-    delete details.deviceId;
-    delete details.remoteAddress;
+    delete details["hostname"];
+    delete details["pid"];
+    delete details["name"];
+    delete details["version"];
+    delete details["deviceId"];
+    delete details["remoteAddress"];
 
     logger.accessInfo(details);
   }
@@ -312,7 +312,7 @@ context.random = random;
 vm.runInContext("Math.random = random;", context);
 delete context.random;
 
-function errorToFault(err): Fault {
+function errorToFault(err: Error): Fault {
   if (!err) return null;
 
   if (!err.name) return { code: "script", message: `${err}` };
@@ -327,24 +327,28 @@ function errorToFault(err): Fault {
   };
 
   if (err.stack) {
-    fault.detail.stack = err.stack;
+    fault.detail["stack"] = err.stack;
     // Trim the stack trace at the self-executing anonymous wrapper function
-    const stackTrimIndex = fault.detail.stack.match(
+    const stackTrimIndex = fault.detail["stack"].match(
       /\s+at\s[^\s]+\s+at\s[^\s]+\s\(vm\.js.+\)/
     );
-    if (stackTrimIndex)
-      fault.detail.stack = fault.detail.stack.slice(0, stackTrimIndex.index);
+    if (stackTrimIndex) {
+      fault.detail["stack"] = fault.detail["stack"].slice(
+        0,
+        stackTrimIndex.index
+      );
+    }
   }
 
   return fault;
 }
 
 export function run(
-  script,
+  script: vm.Script,
   globals,
-  sessionContext,
-  startRevision,
-  maxRevision,
+  sessionContext: SessionContext,
+  startRevision: number,
+  maxRevision: number,
   callback,
   extCounter = 0
 ): void {

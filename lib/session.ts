@@ -18,27 +18,32 @@
  */
 
 import * as config from "./config";
-import * as common from "./common";
 import * as db from "./db";
 import * as device from "./device";
 import * as sandbox from "./sandbox";
 import * as localCache from "./local-cache";
 import * as defaultProvisions from "./default-provisions";
 import { estimateGpnCount } from "./gpn-heuristic";
-import PathSet from "./path-set";
+import Path from "./common/path";
+import PathSet from "./common/path-set";
 import VersionedMap from "./versioned-map";
 import InstanceSet from "./instance-set";
 import {
   Attributes,
   SessionContext,
-  ParamPath,
   DeviceData,
   VirtualParameterDeclaration,
   GetAcsRequest,
   SetAcsRequest,
   AttributeTimestamps,
   AttributeValues,
-  Fault
+  Fault,
+  Declaration,
+  Clear,
+  CpeResponse,
+  CpeFault,
+  CpeSetResponse,
+  CpeGetResponse
 } from "./types";
 
 function initDeviceData(): DeviceData {
@@ -95,7 +100,10 @@ function loadParameters(sessionContext: SessionContext, callback): void {
         // Device not available in database, mark as new
         sessionContext.new = true;
         loaded = [
-          [[], (1 << +config.get("MAX_DEPTH", sessionContext.deviceId)) - 1]
+          [
+            Path.parse(""),
+            (1 << +config.get("MAX_DEPTH", sessionContext.deviceId)) - 1
+          ]
         ];
         parameters = [];
       }
@@ -130,9 +138,9 @@ function generateRpcId(sessionContext: SessionContext): string {
 
 export function inform(sessionContext: SessionContext, rpcReq, callback): void {
   const timestamp = sessionContext.timestamp + sessionContext.iteration + 1;
-  const params: [ParamPath, number, Attributes][] = [
+  const params: [Path, number, Attributes][] = [
     [
-      ["DeviceID", "Manufacturer"] as ParamPath,
+      Path.parse("DeviceID.Manufacturer"),
       timestamp,
       {
         object: [timestamp, 0],
@@ -142,7 +150,7 @@ export function inform(sessionContext: SessionContext, rpcReq, callback): void {
     ],
 
     [
-      ["DeviceID", "OUI"] as ParamPath,
+      Path.parse("DeviceID.OUI"),
       timestamp,
       {
         object: [timestamp, 0],
@@ -152,7 +160,7 @@ export function inform(sessionContext: SessionContext, rpcReq, callback): void {
     ],
 
     [
-      ["DeviceID", "ProductClass"] as ParamPath,
+      Path.parse("DeviceID.ProductClass"),
       timestamp,
       {
         object: [timestamp, 0],
@@ -162,7 +170,7 @@ export function inform(sessionContext: SessionContext, rpcReq, callback): void {
     ],
 
     [
-      ["DeviceID", "SerialNumber"] as ParamPath,
+      Path.parse("DeviceID.SerialNumber"),
       timestamp,
       {
         object: [timestamp, 0],
@@ -173,7 +181,7 @@ export function inform(sessionContext: SessionContext, rpcReq, callback): void {
   ];
 
   for (const p of rpcReq.parameterList) {
-    const path = common.parsePath(p[0]);
+    const path = Path.parse(p[0]);
     params.push([
       path,
       timestamp,
@@ -185,7 +193,7 @@ export function inform(sessionContext: SessionContext, rpcReq, callback): void {
   }
 
   params.push([
-    ["Events", "Inform"] as ParamPath,
+    Path.parse("Events.Inform"),
     timestamp,
     {
       object: [timestamp, 0],
@@ -196,7 +204,7 @@ export function inform(sessionContext: SessionContext, rpcReq, callback): void {
 
   for (const e of rpcReq.event) {
     params.push([
-      ["Events", e.replace(/\s+/g, "_")] as ParamPath,
+      Path.parse(`Events.${e.replace(/\s+/g, "_")}`),
       timestamp,
       {
         object: [timestamp, 0],
@@ -207,7 +215,7 @@ export function inform(sessionContext: SessionContext, rpcReq, callback): void {
   }
 
   // Preload DeviceID params
-  loadPath(sessionContext, ["DeviceID", "*"] as ParamPath);
+  loadPath(sessionContext, Path.parse("DeviceID.*"));
 
   for (const p of params) loadPath(sessionContext, p[0]);
 
@@ -216,7 +224,7 @@ export function inform(sessionContext: SessionContext, rpcReq, callback): void {
 
     if (sessionContext.new) {
       params.push([
-        ["DeviceID", "ID"] as ParamPath,
+        Path.parse("DeviceID.ID"),
         timestamp,
         {
           object: [timestamp, 0],
@@ -225,7 +233,7 @@ export function inform(sessionContext: SessionContext, rpcReq, callback): void {
         }
       ]);
       params.push([
-        ["Events", "Registered"] as ParamPath,
+        Path.parse("Events.Registered"),
         timestamp,
         {
           object: [timestamp, 0],
@@ -241,7 +249,7 @@ export function inform(sessionContext: SessionContext, rpcReq, callback): void {
     let toClear = null;
     for (const p of params) {
       // Don't need to clear wildcards for Events
-      if (p[0][0] === "Events") {
+      if (p[0].segments[0] === "Events") {
         device.set(sessionContext.deviceData, p[0], p[1], p[2]);
       } else {
         toClear = device.set(
@@ -298,7 +306,7 @@ export function transferComplete(
     );
   }
 
-  loadPath(sessionContext, ["Downloads", instance, "*"] as ParamPath);
+  loadPath(sessionContext, Path.parse(`Downloads.${instance}.*`));
 
   loadParameters(sessionContext, err => {
     if (err) return void callback(err);
@@ -308,11 +316,9 @@ export function transferComplete(
 
     let p;
 
-    p = sessionContext.deviceData.paths.add([
-      "Downloads",
-      instance,
-      "LastDownload"
-    ] as ParamPath);
+    p = sessionContext.deviceData.paths.add(
+      Path.parse(`Downloads.${instance}.LastDownload`)
+    );
     toClear = device.set(
       sessionContext.deviceData,
       p,
@@ -321,11 +327,9 @@ export function transferComplete(
       toClear
     );
 
-    p = sessionContext.deviceData.paths.add([
-      "Downloads",
-      instance,
-      "LastFileType"
-    ] as ParamPath);
+    p = sessionContext.deviceData.paths.add(
+      Path.parse(`Downloads.${instance}.LastFileType`)
+    );
     toClear = device.set(
       sessionContext.deviceData,
       p,
@@ -334,11 +338,9 @@ export function transferComplete(
       toClear
     );
 
-    p = sessionContext.deviceData.paths.add([
-      "Downloads",
-      instance,
-      "LastFileName"
-    ] as ParamPath);
+    p = sessionContext.deviceData.paths.add(
+      Path.parse(`Downloads.${instance}.LastFileName`)
+    );
     toClear = device.set(
       sessionContext.deviceData,
       p,
@@ -347,11 +349,9 @@ export function transferComplete(
       toClear
     );
 
-    p = sessionContext.deviceData.paths.add([
-      "Downloads",
-      instance,
-      "LastTargetFileName"
-    ] as ParamPath);
+    p = sessionContext.deviceData.paths.add(
+      Path.parse(`Downloads.${instance}.LastTargetFileName`)
+    );
     toClear = device.set(
       sessionContext.deviceData,
       p,
@@ -360,11 +360,9 @@ export function transferComplete(
       toClear
     );
 
-    p = sessionContext.deviceData.paths.add([
-      "Downloads",
-      instance,
-      "StartTime"
-    ] as ParamPath);
+    p = sessionContext.deviceData.paths.add(
+      Path.parse(`Downloads.${instance}.StartTime`)
+    );
     toClear = device.set(
       sessionContext.deviceData,
       p,
@@ -373,11 +371,9 @@ export function transferComplete(
       toClear
     );
 
-    p = sessionContext.deviceData.paths.add([
-      "Downloads",
-      instance,
-      "CompleteTime"
-    ] as ParamPath);
+    p = sessionContext.deviceData.paths.add(
+      Path.parse(`Downloads.${instance}.CompleteTime`)
+    );
     toClear = device.set(
       sessionContext.deviceData,
       p,
@@ -397,7 +393,7 @@ function revertDownloadParameters(
   instance,
   callback
 ): void {
-  loadPath(sessionContext, ["Downloads", instance, "*"] as ParamPath);
+  loadPath(sessionContext, Path.parse(`Downloads.${instance}.*`));
 
   loadParameters(sessionContext, err => {
     if (err) return void callback(err);
@@ -406,19 +402,15 @@ function revertDownloadParameters(
 
     let p;
 
-    p = sessionContext.deviceData.paths.add([
-      "Downloads",
-      instance,
-      "LastDownload"
-    ] as ParamPath);
+    p = sessionContext.deviceData.paths.add(
+      Path.parse(`Downloads.${instance}.LastDownload`)
+    );
 
     const lastDownload = sessionContext.deviceData.attributes.get(p);
 
-    p = sessionContext.deviceData.paths.add([
-      "Downloads",
-      instance,
-      "Download"
-    ] as ParamPath);
+    p = sessionContext.deviceData.paths.add(
+      Path.parse(`Downloads.${instance}.Download`)
+    );
 
     const toClear = device.set(sessionContext.deviceData, p, timestamp, {
       value: [
@@ -577,11 +569,17 @@ export function clearProvisions(sessionContext: SessionContext): void {
 }
 
 function runProvisions(
-  sessionContext,
-  provisions,
-  startRevision,
-  endRevision,
-  callback
+  sessionContext: SessionContext,
+  provisions: any[][],
+  startRevision: number,
+  endRevision: number,
+  callback: (
+    err: Error,
+    fault?: Fault,
+    ret?: any,
+    decs?: Declaration[],
+    toClear?: Clear[]
+  ) => void
 ): void {
   let done = true;
   let allDeclarations = [];
@@ -642,11 +640,17 @@ function runProvisions(
 }
 
 function runVirtualParameters(
-  sessionContext,
-  provisions,
-  startRevision,
-  endRevision,
-  callback
+  sessionContext: SessionContext,
+  provisions: any[][],
+  startRevision: number,
+  endRevision: number,
+  callback: (
+    err: Error,
+    fault?: Fault,
+    ret?: any,
+    decs?: Declaration[],
+    toClear?: Clear[]
+  ) => void
 ): void {
   let done = true;
   const virtualParameterUpdates = [];
@@ -795,7 +799,7 @@ function runVirtualParameters(
 
 function runDeclarations(
   sessionContext: SessionContext,
-  declarations
+  declarations: Declaration[]
 ): VirtualParameterDeclaration[] {
   if (!sessionContext.syncState) {
     sessionContext.syncState = {
@@ -806,7 +810,7 @@ function runDeclarations(
         value: new Set()
       },
       spv: new Map(),
-      gpn: new Set<ParamPath>(),
+      gpn: new Set<Path>(),
       gpnPatterns: new Map(),
       tags: new Map(),
       virtualParameterDeclarations: [],
@@ -815,25 +819,21 @@ function runDeclarations(
       downloadsToDelete: new Set(),
       downloadsToCreate: new InstanceSet(),
       downloadsValues: new Map(),
-      downloadsDownload: new Map()
+      downloadsDownload: new Map(),
+      reboot: 0,
+      factoryReset: 0
     };
   }
 
-  const allDeclareTimestamps = new Map();
-  const allDeclareAttributeTimestamps = new Map<
-    ParamPath,
-    AttributeTimestamps
-  >();
-  const allDeclareAttributeValues = new Map<ParamPath, AttributeValues>();
+  const allDeclareTimestamps = new Map<Path, number>();
+  const allDeclareAttributeTimestamps = new Map<Path, AttributeTimestamps>();
+  const allDeclareAttributeValues = new Map<Path, AttributeValues>();
 
   const allVirtualParameters = localCache.getVirtualParameters(
     sessionContext.cacheSnapshot
   );
 
-  function mergeAttributeTimestamps(
-    p: ParamPath,
-    attrs: AttributeTimestamps
-  ): void {
+  function mergeAttributeTimestamps(p: Path, attrs: AttributeTimestamps): void {
     let cur = allDeclareAttributeTimestamps.get(p);
     if (!cur) {
       allDeclareAttributeTimestamps.set(p, attrs);
@@ -846,7 +846,7 @@ function runDeclarations(
   }
 
   function mergeAttributeValues(
-    p: ParamPath,
+    p: Path,
     attrs: AttributeValues,
     defer: boolean
   ): void {
@@ -860,30 +860,29 @@ function runDeclarations(
   }
 
   for (const declaration of declarations) {
-    let path = common.addPathMeta(declaration.path);
-    let unpacked;
+    let path = declaration.path;
+    let unpacked: Path[];
 
-    if ((path.alias | path.wildcard) & 1 || path[0] === "VirtualParameters") {
-      sessionContext.deviceData.paths.add(["VirtualParameters"] as ParamPath);
+    if (
+      (path.alias | path.wildcard) & 1 ||
+      path.segments[0] === "VirtualParameters"
+    ) {
+      sessionContext.deviceData.paths.add(Path.parse("VirtualParameters"));
       if ((path.alias | path.wildcard) & 2) {
-        sessionContext.deviceData.paths.add([
-          "VirtualParameters",
-          "*"
-        ] as ParamPath);
+        sessionContext.deviceData.paths.add(Path.parse("VirtualParameters.*"));
         for (const k of Object.keys(allVirtualParameters)) {
-          sessionContext.deviceData.paths.add([
-            "VirtualParameters",
-            k
-          ] as ParamPath);
+          sessionContext.deviceData.paths.add(
+            Path.parse(`VirtualParameters.${k}`)
+          );
         }
       }
     }
 
-    if ((path.alias | path.wildcard) & 1 || path[0] === "Reboot")
-      sessionContext.deviceData.paths.add(["Reboot"] as ParamPath);
+    if ((path.alias | path.wildcard) & 1 || path.segments[0] === "Reboot")
+      sessionContext.deviceData.paths.add(Path.parse("Reboot"));
 
-    if ((path.alias | path.wildcard) & 1 || path[0] === "FactoryReset")
-      sessionContext.deviceData.paths.add(["FactoryReset"] as ParamPath);
+    if ((path.alias | path.wildcard) & 1 || path.segments[0] === "FactoryReset")
+      sessionContext.deviceData.paths.add(Path.parse("FactoryReset"));
 
     if (path.alias) {
       const aliasDecs = device.getAliasDeclarations(
@@ -951,16 +950,14 @@ function runDeclarations(
         minInstances = maxInstances = declaration.pathSet;
       }
 
-      let parent = common.addPathMeta(path.slice(0, -1));
+      let parent = path.slice(0, -1);
 
       let keys;
-      if (Array.isArray(path[path.length - 1])) {
+      if (Array.isArray(path.segments[path.length - 1])) {
         keys = {};
-        for (let i = 0; i < path[path.length - 1].length; i += 2) {
-          keys[path[path.length - 1][i].join(".")] =
-            path[path.length - 1][i + 1];
-        }
-      } else if (path[path.length - 1] === "*") {
+        for (const [p, v] of path.segments[path.length - 1])
+          keys[p.toString()] = v;
+      } else if (path.segments[path.length - 1] === "*") {
         keys = {};
       }
 
@@ -986,14 +983,13 @@ function runDeclarations(
           sessionContext.deviceData,
           parent
         );
-        for (let par of parentsUnpacked) {
-          par = sessionContext.deviceData.paths.add(par);
+        for (const par of parentsUnpacked) {
           processInstances(
             sessionContext,
             par,
             device.unpack(
               sessionContext.deviceData,
-              common.addPathMeta(par.concat([path[par.length]]))
+              par.concat(path.slice(-1))
             ),
             keys,
             minInstances,
@@ -1015,7 +1011,7 @@ function runDeclarations(
 
 export function rpcRequest(
   sessionContext: SessionContext,
-  _declarations,
+  _declarations: Declaration[],
   callback
 ): void {
   if (sessionContext.rpcRequest != null) {
@@ -1217,11 +1213,11 @@ export function rpcRequest(
 
           return false;
         } else if (declaration[0].length === 2) {
-          if (declaration[0][1] === "*") {
+          if (declaration[0].segments[1] === "*") {
             for (const k of Object.keys(allVirtualParameters)) {
               toClear = device.set(
                 sessionContext.deviceData,
-                ["VirtualParameters", k] as ParamPath,
+                Path.parse(`VirtualParameters.${k}`),
                 timestamp,
                 {
                   object: [timestamp, 0]
@@ -1237,7 +1233,9 @@ export function rpcRequest(
               toClear
             );
             return false;
-          } else if (allVirtualParameters[declaration[0][1]]) {
+          } else if (
+            allVirtualParameters[declaration[0].segments[1] as string]
+          ) {
             // Avoid setting on every inform as "exist" timestamp
             // is not saved in DB
             if (!sessionContext.deviceData.attributes.has(declaration[0])) {
@@ -1331,12 +1329,15 @@ export function rpcRequest(
         if (index == null) {
           index = 0;
           for (const p of sessionContext.deviceData.paths.find(
-            ["Downloads", "*"] as ParamPath,
+            Path.parse("Downloads.*"),
             false,
             true
           )) {
-            if (+p[1] > index && sessionContext.deviceData.attributes.has(p))
-              index = +p[1];
+            if (
+              +p.segments[1] > index &&
+              sessionContext.deviceData.attributes.has(p)
+            )
+              index = +p.segments[1];
           }
         }
 
@@ -1344,7 +1345,7 @@ export function rpcRequest(
 
         toClear = device.set(
           sessionContext.deviceData,
-          ["Downloads"] as ParamPath,
+          Path.parse("Downloads"),
           timestamp,
           { object: [timestamp, 1], writable: [timestamp, 1] },
           toClear
@@ -1352,7 +1353,7 @@ export function rpcRequest(
 
         toClear = device.set(
           sessionContext.deviceData,
-          ["Downloads", "" + index] as ParamPath,
+          Path.parse(`Downloads.${index}`),
           timestamp,
           { object: [timestamp, 1], writable: [timestamp, 1] },
           toClear
@@ -1386,7 +1387,7 @@ export function rpcRequest(
         for (const [k, v] of Object.entries(params)) {
           toClear = device.set(
             sessionContext.deviceData,
-            ["Downloads", `${index}`, k] as ParamPath,
+            Path.parse(`Downloads.${index}.${k}`),
             timestamp,
             {
               object: [timestamp, 0],
@@ -1399,7 +1400,7 @@ export function rpcRequest(
 
         toClear = device.set(
           sessionContext.deviceData,
-          ["Downloads", `${index}`, "*"] as ParamPath,
+          Path.parse(`Downloads.${index}.*`),
           timestamp,
           null,
           toClear
@@ -1417,7 +1418,7 @@ export function rpcRequest(
           toClear
         );
         for (const p of sessionContext.syncState.downloadsValues.keys()) {
-          if (p[1] === instance[1])
+          if (p.segments[1] === instance.segments[1])
             sessionContext.syncState.downloadsValues.delete(p);
         }
       }
@@ -1504,7 +1505,7 @@ export function rpcRequest(
 
     toClear = device.set(
       sessionContext.deviceData,
-      ["VirtualParameters", vparams[i][0]] as ParamPath,
+      Path.parse(`VirtualParameters.${vparams[i][0]}`),
       timestamp,
       vpu,
       toClear
@@ -1541,10 +1542,7 @@ function generateGetRpcRequest(sessionContext: SessionContext): GetAcsRequest {
     }
 
     if (!found) {
-      const p = sessionContext.deviceData.paths.add(path.slice(
-        0,
-        -1
-      ) as ParamPath);
+      const p = sessionContext.deviceData.paths.add(path.slice(0, -1));
       syncState.gpn.add(p);
       const f = 1 << p.length;
       syncState.gpnPatterns.set(p, f | syncState.gpnPatterns.get(p));
@@ -1572,10 +1570,7 @@ function generateGetRpcRequest(sessionContext: SessionContext): GetAcsRequest {
     }
 
     if (!found) {
-      const p = sessionContext.deviceData.paths.add(path.slice(
-        0,
-        -1
-      ) as ParamPath);
+      const p = sessionContext.deviceData.paths.add(path.slice(0, -1));
       syncState.gpn.add(p);
       const f = 1 << p.length;
       syncState.gpnPatterns.set(p, f | syncState.gpnPatterns.get(p));
@@ -1584,10 +1579,7 @@ function generateGetRpcRequest(sessionContext: SessionContext): GetAcsRequest {
   syncState.refreshAttributes.object.clear();
 
   for (const path of syncState.refreshAttributes.writable) {
-    const p = sessionContext.deviceData.paths.add(path.slice(
-      0,
-      -1
-    ) as ParamPath);
+    const p = sessionContext.deviceData.paths.add(path.slice(0, -1));
     syncState.gpn.add(p);
     const f = 1 << p.length;
     syncState.gpnPatterns.set(p, f | syncState.gpnPatterns.get(p));
@@ -1647,7 +1639,7 @@ function generateGetRpcRequest(sessionContext: SessionContext): GetAcsRequest {
 
       return {
         name: "GetParameterNames",
-        parameterPath: path.concat("").join("."),
+        parameterPath: path.length ? path.toString() + "." : "",
         nextLevel: nextLevel
       };
     }
@@ -1660,13 +1652,13 @@ function generateGetRpcRequest(sessionContext: SessionContext): GetAcsRequest {
       sessionContext.configContext
     );
 
-    const parameterNames = [];
+    const parameterNames: string[] = [];
     for (const path of syncState.refreshAttributes.value) {
       syncState.refreshAttributes.value.delete(path);
       // Need to check in case param is deleted or changed to object
       const attrs = sessionContext.deviceData.attributes.get(path);
       if (attrs && attrs.object && attrs.object[1] === 0) {
-        parameterNames.push(path);
+        parameterNames.push(path.toString());
         if (parameterNames.length >= GPV_BATCH_SIZE) break;
       }
     }
@@ -1674,14 +1666,14 @@ function generateGetRpcRequest(sessionContext: SessionContext): GetAcsRequest {
     if (parameterNames.length) {
       return {
         name: "GetParameterValues",
-        parameterNames: parameterNames.map(p => p.join("."))
+        parameterNames: parameterNames
       };
     }
   }
   return null;
 }
 
-function generateSetRpcRequest(sessionContext): SetAcsRequest {
+function generateSetRpcRequest(sessionContext: SessionContext): SetAcsRequest {
   const syncState = sessionContext.syncState;
   if (!syncState) return null;
 
@@ -1693,7 +1685,7 @@ function generateSetRpcRequest(sessionContext): SetAcsRequest {
     if (instance && sessionContext.deviceData.attributes.has(instance)) {
       return {
         name: "DeleteObject",
-        objectName: instance.concat("").join(".")
+        objectName: instance.toString() + "."
       };
     }
   }
@@ -1706,7 +1698,7 @@ function generateSetRpcRequest(sessionContext): SetAcsRequest {
         instances.delete(instance);
         return {
           name: "AddObject",
-          objectName: param.concat("").join("."),
+          objectName: param.toString() + ".",
           instanceValues: instance,
           next: "getInstanceKeys"
         };
@@ -1733,17 +1725,13 @@ function generateSetRpcRequest(sessionContext): SetAcsRequest {
     sessionContext.configContext
   );
 
-  const parameterValues = [] as [
-    ParamPath,
-    string | number | boolean,
-    string
-  ][];
+  const parameterValues: [Path, string | number | boolean, string][] = [];
   for (const [k, v] of syncState.spv) {
     syncState.spv.delete(k);
     const attrs = sessionContext.deviceData.attributes.get(k);
     const curVal = attrs.value ? attrs.value[1] : null;
     if (curVal && attrs.writable && attrs.writable[1]) {
-      const val = v.slice();
+      const val = v.slice() as [string | number | boolean, string];
       if (!val[1]) val[1] = curVal[1];
       device.sanitizeParameterValue(val);
 
@@ -1767,7 +1755,7 @@ function generateSetRpcRequest(sessionContext): SetAcsRequest {
       name: "SetParameterValues",
       parameterList: parameterValues.map(
         p =>
-          [p[0].join("."), p[1], p[2]] as [
+          [p[0].toString(), p[1], p[2]] as [
             string,
             string | number | boolean,
             string
@@ -1783,32 +1771,34 @@ function generateSetRpcRequest(sessionContext): SetAcsRequest {
     const attrs = deviceData.attributes.get(p);
     if (!(attrs && attrs.value && t <= attrs.value[1][0])) {
       const fileTypeAttrs = deviceData.attributes.get(
-        deviceData.paths.get(p.slice(0, -1).concat("FileType"))
+        deviceData.paths.get(p.slice(0, -1).concat(Path.parse("FileType")))
       );
       const fileNameAttrs = deviceData.attributes.get(
-        deviceData.paths.get(p.slice(0, -1).concat("FileName"))
+        deviceData.paths.get(p.slice(0, -1).concat(Path.parse("FileName")))
       );
       const targetFileNameAttrs = deviceData.attributes.get(
-        deviceData.paths.get(p.slice(0, -1).concat("TargetFileName"))
+        deviceData.paths.get(
+          p.slice(0, -1).concat(Path.parse("TargetFileName"))
+        )
       );
 
       return {
         name: "Download",
         commandKey: generateRpcId(sessionContext),
-        instance: p[1],
+        instance: p.segments[1] as string,
         fileType: fileTypeAttrs
           ? fileTypeAttrs.value
-            ? fileTypeAttrs.value[1][0]
+            ? (fileTypeAttrs.value[1][0] as string)
             : null
           : null,
         fileName: fileNameAttrs
           ? fileNameAttrs.value
-            ? fileNameAttrs.value[1][0]
+            ? (fileNameAttrs.value[1][0] as string)
             : null
           : null,
         targetFileName: targetFileNameAttrs
           ? targetFileNameAttrs.value
-            ? targetFileNameAttrs.value[1][0]
+            ? (targetFileNameAttrs.value[1][0] as string)
             : null
           : null
       };
@@ -1817,7 +1807,7 @@ function generateSetRpcRequest(sessionContext): SetAcsRequest {
 
   // Reboot
   if (syncState.reboot) {
-    const p = sessionContext.deviceData.paths.get(["Reboot"]);
+    const p = sessionContext.deviceData.paths.get(Path.parse("Reboot"));
     const attrs = p ? sessionContext.deviceData.attributes.get(p) : null;
     if (!(attrs && attrs.value && attrs.value[1][0] >= syncState.reboot)) {
       delete syncState.reboot;
@@ -1827,7 +1817,7 @@ function generateSetRpcRequest(sessionContext): SetAcsRequest {
 
   // Factory reset
   if (syncState.factoryReset) {
-    const p = sessionContext.deviceData.paths.get(["FactoryReset"]);
+    const p = sessionContext.deviceData.paths.get(Path.parse("FactoryReset"));
     const attrs = p ? sessionContext.deviceData.attributes.get(p) : null;
     if (
       !(attrs && attrs.value && attrs.value[1][0] >= syncState.factoryReset)
@@ -1841,10 +1831,10 @@ function generateSetRpcRequest(sessionContext): SetAcsRequest {
 }
 
 function generateGetVirtualParameterProvisions(
-  sessionContext,
-  virtualParameterDeclarations
+  sessionContext: SessionContext,
+  virtualParameterDeclarations: VirtualParameterDeclaration[]
 ): [
-  ParamPath,
+  string,
   AttributeTimestamps,
   AttributeValues,
   AttributeTimestamps,
@@ -1873,7 +1863,7 @@ function generateGetVirtualParameterProvisions(
         if (Object.keys(dec).length) {
           if (!provisions) provisions = [];
           provisions.push([
-            declaration[0][1],
+            declaration[0].segments[1],
             dec,
             {},
             currentTimestamps,
@@ -1887,10 +1877,10 @@ function generateGetVirtualParameterProvisions(
 }
 
 function generateSetVirtualParameterProvisions(
-  sessionContext,
-  virtualParameterDeclarations
+  sessionContext: SessionContext,
+  virtualParameterDeclarations: VirtualParameterDeclaration[]
 ): [
-  ParamPath,
+  string,
   AttributeTimestamps,
   AttributeValues,
   AttributeTimestamps,
@@ -1908,7 +1898,10 @@ function generateSetVirtualParameterProvisions(
           attrs.value &&
           attrs.value[1] != null
         ) {
-          const val = declaration[2].value.slice();
+          const val = declaration[2].value.slice() as [
+            string | number | boolean,
+            string
+          ];
           if (val[1] == null) val[1] = attrs.value[1][1];
 
           device.sanitizeParameterValue(val);
@@ -1923,7 +1916,7 @@ function generateSetVirtualParameterProvisions(
             }
 
             provisions.push([
-              declaration[0][1],
+              declaration[0].segments[1],
               {},
               { value: val },
               currentTimestamps,
@@ -1939,16 +1932,16 @@ function generateSetVirtualParameterProvisions(
 }
 
 function processDeclarations(
-  sessionContext,
+  sessionContext: SessionContext,
   allDeclareTimestamps,
-  allDeclareAttributeTimestamps: Map<ParamPath, AttributeTimestamps>,
-  allDeclareAttributeValues: Map<ParamPath, AttributeValues>
+  allDeclareAttributeTimestamps: Map<Path, AttributeTimestamps>,
+  allDeclareAttributeValues: Map<Path, AttributeValues>
 ): VirtualParameterDeclaration[] {
   const deviceData = sessionContext.deviceData;
   const syncState = sessionContext.syncState;
 
-  const root = sessionContext.deviceData.paths.add([]);
-  const paths = deviceData.paths.find([], false, true, 99);
+  const root = sessionContext.deviceData.paths.add(Path.parse(""));
+  const paths = deviceData.paths.find(root, false, true, 99);
   paths.sort(
     (a, b): number =>
       a.wildcard === b.wildcard ? a.length - b.length : a.wildcard - b.wildcard
@@ -1957,13 +1950,13 @@ function processDeclarations(
   const virtualParameterDeclarations = [] as VirtualParameterDeclaration[];
 
   function func(
-    leafParam: ParamPath,
+    leafParam: Path,
     leafIsObject: number,
     leafTimestamp: number,
-    _paths: ParamPath[]
+    _paths: Path[]
   ): void {
     const currentPath = _paths[0];
-    const children = new Map();
+    const children = new Map<string, Path[]>();
     let declareTimestamp = 0;
     let declareAttributeTimestamps;
     let declareAttributeValues;
@@ -1975,12 +1968,12 @@ function processDeclarations(
 
     for (const path of _paths) {
       if (path.length > currentPath.length) {
-        const fragment = path[currentPath.length];
+        const fragment = path.segments[currentPath.length] as string;
         let child = children.get(fragment);
         if (!child) {
           if (path.length > currentPath.length + 1) {
             // This is to ensure we don't descend more than one step at a time
-            const p = common.addPathMeta(path.slice(0, currentPath.length + 1));
+            const p = path.slice(0, currentPath.length + 1);
             child = [p];
           } else {
             child = [];
@@ -2036,7 +2029,11 @@ function processDeclarations(
       leafTimestamp = Math.max(leafTimestamp, currentTimestamp);
     }
 
-    switch (currentPath[0] !== "*" ? currentPath[0] : leafParam[0]) {
+    switch (
+      currentPath.segments[0] !== "*"
+        ? currentPath.segments[0]
+        : leafParam.segments[0]
+    ) {
       case "Reboot":
         if (currentPath.length === 1) {
           if (declareAttributeValues && declareAttributeValues.value)
@@ -2056,13 +2053,10 @@ function processDeclarations(
           declareAttributeValues &&
           declareAttributeValues.value
         ) {
-          syncState.tags.set(
-            currentPath,
-            device.sanitizeParameterValue([
-              declareAttributeValues.value[0],
-              "xsd:boolean"
-            ])[0]
-          );
+          syncState.tags.set(currentPath, device.sanitizeParameterValue([
+            declareAttributeValues.value[0],
+            "xsd:boolean"
+          ])[0] as boolean);
         }
 
         break;
@@ -2077,7 +2071,7 @@ function processDeclarations(
           declareAttributeValues &&
           declareAttributeValues.value
         ) {
-          if (currentPath[2] === "Download") {
+          if (currentPath.segments[2] === "Download") {
             syncState.downloadsDownload.set(
               currentPath,
               declareAttributeValues.value[0]
@@ -2150,7 +2144,7 @@ function processDeclarations(
             syncState.refreshAttributes.object.add(leafParam);
             if (leafIsObject == null) {
               const f =
-                ((1 << syncState.gpnPatterns.length) - 1) ^
+                ((1 << syncState.gpnPatterns.size) - 1) ^
                 ((1 << leafParam.length) - 1);
               syncState.gpnPatterns.set(
                 currentPath,
@@ -2221,7 +2215,7 @@ function processDeclarations(
 
 function loadPath(
   sessionContext: SessionContext,
-  path: ParamPath,
+  path: Path,
   depth?: number
 ): boolean {
   depth = depth || (1 << path.length) - 1;
@@ -2231,15 +2225,15 @@ function loadPath(
 
   // Trim trailing wildcards
   let trimWildcard = path.length;
-  while (trimWildcard && path[trimWildcard - 1] === "*") --trimWildcard;
+  while (trimWildcard && path.segments[trimWildcard - 1] === "*")
+    --trimWildcard;
 
-  if (trimWildcard < path.length)
-    path = path.slice(0, trimWildcard) as ParamPath;
+  if (trimWildcard < path.length) path = path.slice(0, trimWildcard);
 
   for (let i = 0; i <= path.length; ++i) {
     const d = i === path.length ? 99 : i;
     for (const sup of sessionContext.deviceData.paths.find(
-      path.slice(0, i) as ParamPath,
+      path.slice(0, i),
       true,
       false,
       d
@@ -2260,16 +2254,17 @@ function loadPath(
 }
 
 function processInstances(
-  sessionContext,
-  parent,
-  parameters,
-  keys,
-  minInstances,
-  maxInstances,
-  defer
+  sessionContext: SessionContext,
+  parent: Path,
+  parameters: Path[],
+  keys: {},
+  minInstances: number,
+  maxInstances: number,
+  defer: boolean
 ): void {
+  parent = sessionContext.deviceData.paths.add(parent);
   let instancesToCreate, instancesToDelete;
-  if (parent[0] === "Downloads") {
+  if (parent.segments[0] === "Downloads") {
     if (parent.length !== 1) return;
     instancesToDelete = sessionContext.syncState.downloadsToDelete;
     instancesToCreate = sessionContext.syncState.downloadsToCreate;
@@ -2319,7 +2314,11 @@ function processInstances(
   }
 }
 
-function clear(sessionContext, toClear, callback): void {
+function clear(
+  sessionContext: SessionContext,
+  toClear: Clear[],
+  callback
+): void {
   if (!toClear || !toClear.length) return void callback();
 
   const MAX_DEPTH = +config.get("MAX_DEPTH", sessionContext.deviceId);
@@ -2352,13 +2351,19 @@ function clear(sessionContext, toClear, callback): void {
   });
 }
 
-export function rpcResponse(sessionContext, id, rpcRes, callback): void {
+export function rpcResponse(
+  sessionContext: SessionContext,
+  id: string,
+  _rpcRes: CpeResponse,
+  callback
+): void {
   if (id !== generateRpcId(sessionContext))
     return void callback(new Error("Request ID not recognized"));
 
   ++sessionContext.rpcCount;
 
-  const rpcReq = sessionContext.rpcRequest;
+  const rpcRes = _rpcRes as CpeGetResponse & CpeSetResponse;
+  const rpcReq = sessionContext.rpcRequest as GetAcsRequest & SetAcsRequest;
 
   if (!rpcReq.next) {
     sessionContext.rpcRequest = null;
@@ -2374,32 +2379,34 @@ export function rpcResponse(sessionContext, id, rpcRes, callback): void {
     if (!parameterNames.length) {
       sessionContext.rpcRequest = null;
     } else {
-      sessionContext.rpcRequest = {
+      const r: GetAcsRequest = {
         name: "GetParameterValues",
         parameterNames: parameterNames,
         next: "setInstanceKeys",
         instanceValues: instanceValues
       };
+      sessionContext.rpcRequest = r;
     }
   } else if (rpcReq.next === "setInstanceKeys") {
-    const parameterList = [];
+    const parameterList: [string, string | number | boolean, string][] = [];
     for (const p of rpcRes.parameterList) {
       if (p[1] !== rpcReq.instanceValues[p[0]]) {
-        parameterList.push(
-          [p[0]].concat(
-            device.sanitizeParameterValue([rpcReq.instanceValues[p[0]], p[2]])
-          )
-        );
+        const v = device.sanitizeParameterValue([
+          rpcReq.instanceValues[p[0]],
+          p[2]
+        ]);
+        parameterList.push([p[0], v[0], v[1]]);
       }
     }
 
     if (!parameterList.length) {
       sessionContext.rpcRequest = null;
     } else {
-      sessionContext.rpcRequest = {
+      const r: SetAcsRequest = {
         name: "SetParameterValues",
         parameterList: parameterList
       };
+      sessionContext.rpcRequest = r;
     }
   }
 
@@ -2410,7 +2417,11 @@ export function rpcResponse(sessionContext, id, rpcRes, callback): void {
   sessionContext.deviceData.timestamps.revision = revision;
   sessionContext.deviceData.attributes.revision = revision;
 
-  let toClear, root, missing, params;
+  let toClear,
+    root: Path,
+    missing,
+    params: [Path, number, Attributes?][],
+    wildcardPath: Path;
 
   switch (rpcRes.name) {
     case "GetParameterValuesResponse":
@@ -2423,7 +2434,7 @@ export function rpcResponse(sessionContext, id, rpcRes, callback): void {
       for (const p of rpcRes.parameterList) {
         toClear = device.set(
           sessionContext.deviceData,
-          common.parsePath(p[0]),
+          Path.parse(p[0]),
           timestamp,
           { object: [timestamp, 0], value: [timestamp, p.slice(1)] },
           toClear
@@ -2439,10 +2450,11 @@ export function rpcResponse(sessionContext, id, rpcRes, callback): void {
       }
 
       if (rpcReq.parameterPath.endsWith("."))
-        root = common.parsePath(rpcReq.parameterPath.slice(0, -1));
-      else root = common.parsePath(rpcReq.parameterPath);
+        root = Path.parse(rpcReq.parameterPath.slice(0, -1));
+      else root = Path.parse(rpcReq.parameterPath);
 
-      params = [[root.concat("*"), timestamp]];
+      wildcardPath = Path.parse("*");
+      params = [[root.concat(wildcardPath), timestamp]];
 
       // Some clients don't report all ancestors explicitly
       missing = {};
@@ -2454,8 +2466,9 @@ export function rpcResponse(sessionContext, id, rpcRes, callback): void {
 
         if (p[0].endsWith(".")) {
           missing[p[0].slice(0, -1)] |= 1;
-          const path = common.parsePath(p[0].slice(0, -1));
-          if (!rpcReq.nextLevel) params.push([path.concat("*"), timestamp]);
+          const path = Path.parse(p[0].slice(0, -1));
+          if (!rpcReq.nextLevel)
+            params.push([path.concat(wildcardPath), timestamp]);
 
           params.push([
             path,
@@ -2465,7 +2478,7 @@ export function rpcResponse(sessionContext, id, rpcRes, callback): void {
         } else {
           missing[p[0]] |= 1;
           params.push([
-            common.parsePath(p[0]),
+            Path.parse(p[0]),
             timestamp,
             { object: [timestamp, 0], writable: [timestamp, p[1] ? 1 : 0] }
           ]);
@@ -2475,13 +2488,13 @@ export function rpcResponse(sessionContext, id, rpcRes, callback): void {
       for (const [k, v] of Object.entries(missing)) {
         if (v === 0) {
           // TODO consider showing a warning
-          const path = common.parsePath(k);
+          const path = Path.parse(k);
           params.push([
             path,
             timestamp,
             { object: [timestamp, 1], writable: [timestamp, 0] }
           ]);
-          params.push([path.concat("*"), timestamp]);
+          params.push([path.concat(wildcardPath), timestamp]);
         }
       }
 
@@ -2492,8 +2505,8 @@ export function rpcResponse(sessionContext, id, rpcRes, callback): void {
       params.sort((a, b) => {
         let al = a[0].length;
         let bl = b[0].length;
-        if (b[0][bl - 1] === "*") bl *= -1;
-        if (a[0][al - 1] === "*") al *= -1;
+        if (b[0].segments[bl - 1] === "*") bl *= -1;
+        if (a[0].segments[al - 1] === "*") al *= -1;
         return bl - al;
       });
 
@@ -2517,7 +2530,7 @@ export function rpcResponse(sessionContext, id, rpcRes, callback): void {
             "VirtualParameters",
             "Downloads"
           ]) {
-            const p = sessionContext.deviceData.paths.get([n]);
+            const p = sessionContext.deviceData.paths.get(Path.parse(n));
             if (p && sessionContext.deviceData.attributes.has(p))
               sessionContext.deviceData.timestamps.set(p, timestamp);
           }
@@ -2546,7 +2559,7 @@ export function rpcResponse(sessionContext, id, rpcRes, callback): void {
       for (const p of rpcReq.parameterList) {
         toClear = device.set(
           sessionContext.deviceData,
-          common.parsePath(p[0]),
+          Path.parse(p[0]),
           timestamp + 1,
           {
             object: [timestamp + 1, 0],
@@ -2561,7 +2574,7 @@ export function rpcResponse(sessionContext, id, rpcRes, callback): void {
     case "AddObjectResponse":
       toClear = device.set(
         sessionContext.deviceData,
-        common.parsePath(rpcReq.objectName + rpcRes.instanceNumber),
+        Path.parse(rpcReq.objectName + rpcRes.instanceNumber),
         timestamp + 1,
         { object: [timestamp + 1, 1] },
         toClear
@@ -2570,7 +2583,7 @@ export function rpcResponse(sessionContext, id, rpcRes, callback): void {
     case "DeleteObjectResponse":
       toClear = device.set(
         sessionContext.deviceData,
-        common.parsePath(rpcReq.objectName.slice(0, -1)),
+        Path.parse(rpcReq.objectName.slice(0, -1)),
         timestamp + 1,
         null,
         toClear
@@ -2579,7 +2592,7 @@ export function rpcResponse(sessionContext, id, rpcRes, callback): void {
     case "RebootResponse":
       toClear = device.set(
         sessionContext.deviceData,
-        common.parsePath("Reboot"),
+        Path.parse("Reboot"),
         timestamp + 1,
         { value: [timestamp + 1, [sessionContext.timestamp, "xsd:dateTime"]] },
         toClear
@@ -2588,7 +2601,7 @@ export function rpcResponse(sessionContext, id, rpcRes, callback): void {
     case "FactoryResetResponse":
       toClear = device.set(
         sessionContext.deviceData,
-        common.parsePath("FactoryReset"),
+        Path.parse("FactoryReset"),
         timestamp + 1,
         { value: [timestamp + 1, [sessionContext.timestamp, "xsd:dateTime"]] },
         toClear
@@ -2597,7 +2610,7 @@ export function rpcResponse(sessionContext, id, rpcRes, callback): void {
     case "DownloadResponse":
       toClear = device.set(
         sessionContext.deviceData,
-        ["Downloads", rpcReq.instance, "Download"] as ParamPath,
+        Path.parse(`Download.${rpcReq.instance}.Download`),
         timestamp + 1,
         { value: [timestamp + 1, [sessionContext.timestamp, "xsd:dateTime"]] },
         toClear
@@ -2606,7 +2619,7 @@ export function rpcResponse(sessionContext, id, rpcRes, callback): void {
       if (rpcRes.status === 0) {
         toClear = device.set(
           sessionContext.deviceData,
-          ["Downloads", rpcReq.instance, "LastDownload"] as ParamPath,
+          Path.parse(`Downloads.${rpcReq.instance}.LastDownload`),
           timestamp + 1,
           {
             value: [timestamp + 1, [sessionContext.timestamp, "xsd:dateTime"]]
@@ -2616,7 +2629,7 @@ export function rpcResponse(sessionContext, id, rpcRes, callback): void {
 
         toClear = device.set(
           sessionContext.deviceData,
-          ["Downloads", rpcReq.instance, "LastFileType"] as ParamPath,
+          Path.parse(`Downloads.${rpcReq.instance}.LastFileType`),
           timestamp + 1,
           { value: [timestamp + 1, [rpcReq.fileType, "xsd:string"]] },
           toClear
@@ -2624,7 +2637,7 @@ export function rpcResponse(sessionContext, id, rpcRes, callback): void {
 
         toClear = device.set(
           sessionContext.deviceData,
-          ["Downloads", rpcReq.instance, "LastFileName"] as ParamPath,
+          Path.parse(`Downloads.${rpcReq.instance}.LastFileName`),
           timestamp + 1,
           { value: [timestamp + 1, [rpcReq.fileType, "xsd:string"]] },
           toClear
@@ -2632,7 +2645,7 @@ export function rpcResponse(sessionContext, id, rpcRes, callback): void {
 
         toClear = device.set(
           sessionContext.deviceData,
-          ["Downloads", rpcReq.instance, "LastTargetFileName"] as ParamPath,
+          Path.parse(`Downloads.${rpcReq.instance}.LastTargetFileName`),
           timestamp + 1,
           { value: [timestamp + 1, [rpcReq.fileType, "xsd:string"]] },
           toClear
@@ -2640,7 +2653,7 @@ export function rpcResponse(sessionContext, id, rpcRes, callback): void {
 
         toClear = device.set(
           sessionContext.deviceData,
-          ["Downloads", rpcReq.instance, "StartTime"] as ParamPath,
+          Path.parse(`Downloads.${rpcReq.instance}.StartTime`),
           timestamp + 1,
           { value: [timestamp + 1, [+rpcRes.startTime, "xsd:dateTime"]] },
           toClear
@@ -2648,7 +2661,7 @@ export function rpcResponse(sessionContext, id, rpcRes, callback): void {
 
         toClear = device.set(
           sessionContext.deviceData,
-          ["Downloads", rpcReq.instance, "CompleteTime"] as ParamPath,
+          Path.parse(`Downloads.${rpcReq.instance}.CompleteTime`),
           timestamp + 1,
           { value: [timestamp + 1, [+rpcRes.completeTime, "xsd:dateTime"]] },
           toClear
@@ -2686,49 +2699,46 @@ export function rpcResponse(sessionContext, id, rpcRes, callback): void {
 }
 
 export function rpcFault(
-  sessionContext,
-  id,
-  faultResponse,
+  sessionContext: SessionContext,
+  id: string,
+  faultResponse: CpeFault,
   callback: (err: Error, fault?: Fault) => void
 ): void {
-  const rpcReq = sessionContext.rpcRequest;
+  const rpcReq = sessionContext.rpcRequest as GetAcsRequest & SetAcsRequest;
   delete sessionContext.syncState;
   delete sessionContext.rpcRequest;
 
   // Recover from invalid parameter name faults
   if (faultResponse.detail.faultCode === "9005") {
     const timestamp = sessionContext.timestamp + sessionContext.iteration;
-    let toClear;
+    let toClear: Clear[];
     if (rpcReq.name === "GetParameterNames") {
       if (rpcReq.parameterPath) {
         toClear = [
-          [rpcReq.parameterPath.replace(/\.$/, "").split("."), timestamp]
+          [Path.parse(rpcReq.parameterPath.replace(/\.$/, "")), timestamp]
         ];
       }
     } else if (rpcReq.name === "GetParameterValues") {
-      toClear = rpcReq.parameterNames.map(p => [
-        p.replace(/\.$/, "").split("."),
-        timestamp
-      ]);
+      toClear = rpcReq.parameterNames.map(
+        p => [Path.parse(p.replace(/\.$/, "")), timestamp] as Clear
+      );
     } else if (rpcReq.name === "SetParameterValues") {
-      toClear = rpcReq.parameterList.map(p => [
-        p[0].replace(/\.$/, "").split("."),
-        timestamp
-      ]);
+      toClear = rpcReq.parameterList.map(
+        p => [Path.parse(p[0].replace(/\.$/, "")), timestamp] as Clear
+      );
     } else if (rpcReq.name === "AddObject") {
-      toClear = [[rpcReq.objectName.replace(/\.$/, "").split("."), timestamp]];
+      toClear = [[Path.parse(rpcReq.objectName.replace(/\.$/, "")), timestamp]];
     } else if (rpcReq.name === "DeleteObject") {
-      toClear = [[rpcReq.objectName.replace(/\.$/, "").split("."), timestamp]];
+      toClear = [[Path.parse(rpcReq.objectName.replace(/\.$/, "")), timestamp]];
     }
 
     if (toClear) return void clear(sessionContext, toClear, callback);
   }
 
-  const fault = {
+  const fault: Fault = {
     code: `cwmp.${faultResponse.detail.faultCode}`,
     message: faultResponse.detail.faultString,
-    detail: faultResponse.detail,
-    timestamp: sessionContext.timestamp
+    detail: faultResponse.detail
   };
 
   callback(null, fault);
@@ -2738,11 +2748,11 @@ export function deserialize(sessionContextString, callback): void {
   const sessionContext = JSON.parse(sessionContextString);
 
   for (const decs of sessionContext.declarations)
-    for (const d of decs) common.addPathMeta(d.path);
+    for (const d of decs) d.path = Path.parse(d.path);
 
   const deviceData = initDeviceData();
   for (const r of sessionContext.deviceData) {
-    const path = deviceData.paths.add(r[0]);
+    const path = deviceData.paths.add(Path.parse(r[0]));
 
     if (r[1]) deviceData.loaded.set(path, r[1]);
 
@@ -2761,31 +2771,34 @@ export function deserialize(sessionContextString, callback): void {
   });
 }
 
-export function serialize(sessionContext, callback): void {
+export function serialize(sessionContext: SessionContext, callback): void {
   const deviceData = [];
 
   for (const path of sessionContext.deviceData.paths.find(
-    [],
+    Path.parse(""),
     false,
     false,
     99
   )) {
-    const e = [path];
-    e[1] = sessionContext.deviceData.loaded.get(path) || 0;
-    e[2] = sessionContext.deviceData.trackers.get(path) || null;
-    e[3] = sessionContext.deviceData.timestamps.getRevisions(path) || null;
-    e[4] = sessionContext.deviceData.attributes.getRevisions(path) || null;
+    const e = [
+      path.toString(),
+      sessionContext.deviceData.loaded.get(path) || 0,
+      sessionContext.deviceData.trackers.get(path) || null,
+      sessionContext.deviceData.timestamps.getRevisions(path) || null,
+      sessionContext.deviceData.attributes.getRevisions(path) || null
+    ];
     deviceData.push(e);
   }
 
-  sessionContext = Object.assign({}, sessionContext);
-  sessionContext.deviceData = deviceData;
-  delete sessionContext.syncState;
-  delete sessionContext.toLoad;
-  delete sessionContext.httpRequest;
-  delete sessionContext.httpResponse;
+  const jsonSessionContext = Object.assign({}, sessionContext, {
+    deviceData: deviceData,
+    syncState: null,
+    toLoad: null,
+    httpRequest: null,
+    httpResponse: null
+  });
 
-  const sessionContextString = JSON.stringify(sessionContext);
+  const sessionContextString = JSON.stringify(jsonSessionContext);
 
   callback(null, sessionContextString);
 }

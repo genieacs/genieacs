@@ -172,6 +172,12 @@ export default class Path {
     const alias = this.alias | (path.alias << this.segments.length);
     return new Path(segments, wildcard, alias);
   }
+
+  public stripAlias(): Path {
+    if (!this.alias) return this;
+    const segments = this.segments.map(s => (Array.isArray(s) ? "*" : s));
+    return new Path(segments, this.wildcard | this.alias, 0);
+  }
 }
 
 const interval = setInterval(() => {

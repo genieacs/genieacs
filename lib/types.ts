@@ -1,27 +1,24 @@
-import PathSet from "./path-set";
+import Path from "./common/path";
+import PathSet from "./common/path-set";
 import VersionedMap from "./versioned-map";
 import InstanceSet from "./instance-set";
 import { IncomingMessage, ServerResponse } from "http";
-
-export interface ParamPath extends Array<any> {
-  wildcard: number;
-  alias: number;
-}
 
 export type Expression = string | number | boolean | null | any[];
 
 export interface Fault {
   code: string;
   message: string;
-  detail?: {
-    name: string;
-    message: string;
-    stack?: string;
-  };
+  detail?:
+    | FaultStruct
+    | {
+        name: string;
+        message: string;
+        stack?: string;
+      };
 }
 
 export interface SessionFault extends Fault {
-  channel: string;
   timestamp: number;
   provisions: string[][];
   retryNow?: boolean;
@@ -50,15 +47,15 @@ export interface AttributeValues {
 
 export interface DeviceData {
   paths: PathSet;
-  timestamps: VersionedMap<ParamPath, number>;
-  attributes: VersionedMap<ParamPath, Attributes>;
-  loaded: Map<ParamPath, number>;
-  trackers: Map<ParamPath, { [name: string]: number }>;
+  timestamps: VersionedMap<Path, number>;
+  attributes: VersionedMap<Path, Attributes>;
+  loaded: Map<Path, number>;
+  trackers: Map<Path, { [name: string]: number }>;
   changes: Set<string>;
 }
 
 export type VirtualParameterDeclaration = [
-  ParamPath,
+  Path,
   { path?: number; object?: number; writable?: number; value?: number }?,
   {
     path?: [number, number];
@@ -70,22 +67,24 @@ export type VirtualParameterDeclaration = [
 
 export interface SyncState {
   refreshAttributes: {
-    exist: Set<ParamPath>;
-    object: Set<ParamPath>;
-    writable: Set<ParamPath>;
-    value: Set<ParamPath>;
+    exist: Set<Path>;
+    object: Set<Path>;
+    writable: Set<Path>;
+    value: Set<Path>;
   };
-  spv: Map<ParamPath, [string | number | boolean, string]>;
-  gpn: Set<ParamPath>;
-  gpnPatterns: Map<ParamPath, number>;
-  tags: Map<ParamPath, [string | number | boolean, string]>;
+  spv: Map<Path, [string | number | boolean, string]>;
+  gpn: Set<Path>;
+  gpnPatterns: Map<Path, number>;
+  tags: Map<Path, boolean>;
   virtualParameterDeclarations: VirtualParameterDeclaration[][];
-  instancesToDelete: Map<ParamPath, Set<ParamPath>>;
-  instancesToCreate: Map<ParamPath, InstanceSet>;
-  downloadsToDelete: Set<ParamPath>;
+  instancesToDelete: Map<Path, Set<Path>>;
+  instancesToCreate: Map<Path, InstanceSet>;
+  downloadsToDelete: Set<Path>;
   downloadsToCreate: InstanceSet;
-  downloadsValues: Map<ParamPath, string | number>;
-  downloadsDownload: Map<ParamPath, number>;
+  downloadsValues: Map<Path, string | number>;
+  downloadsDownload: Map<Path, number>;
+  reboot: number;
+  factoryReset: number;
 }
 
 export interface SessionContext {
@@ -97,13 +96,19 @@ export interface SessionContext {
   timeout: number;
   provisions: any[];
   channels: { [channel: string]: number };
-  virtualParameters: any[];
+  virtualParameters: [
+    string,
+    AttributeTimestamps,
+    AttributeValues,
+    AttributeTimestamps,
+    AttributeValues
+  ][][];
   revisions: number[];
   rpcCount: number;
   iteration: number;
   cycle: number;
   extensionsCache: any;
-  declarations: any[];
+  declarations: Declaration[][];
   faults?: { [channel: string]: SessionFault };
   retries?: { [channel: string]: number };
   cacheSnapshot?: string;
@@ -112,7 +117,7 @@ export interface SessionContext {
   httpRequest?: IncomingMessage;
   faultsTouched?: { [channel: string]: boolean };
   presetCycles?: number;
-  toLoad?: Map<ParamPath, number>;
+  toLoad?: Map<Path, number>;
   new?: boolean;
   debug?: boolean;
   tasks?: Task[];
@@ -154,6 +159,7 @@ export interface Operation {
 
 export interface AcsRequest {
   name: string;
+  next?: string;
 }
 
 export interface GetAcsRequest extends AcsRequest {
@@ -162,6 +168,7 @@ export interface GetAcsRequest extends AcsRequest {
   parameterNames?: string[];
   parameterPath?: string;
   nextLevel?: boolean;
+  instanceValues?: { [name: string]: string };
 }
 
 export interface SetAcsRequest extends AcsRequest {
@@ -175,7 +182,6 @@ export interface SetAcsRequest extends AcsRequest {
   parameterList?: [string, string | number | boolean, string][];
   instanceValues?: { [param: string]: string | number | boolean };
   objectName?: string;
-  next?: string;
   DATETIME_MILLISECONDS?: boolean;
   BOOLEAN_LITERAL?: boolean;
   commandKey?: string;
@@ -266,7 +272,7 @@ export interface QueryOptions {
 }
 
 export interface Declaration {
-  path: ParamPath;
+  path: Path;
   pathGet: number;
   pathSet?: [number, number];
   attrGet?: { object?: number; writable?: number; value?: number };
@@ -279,7 +285,7 @@ export interface Declaration {
 }
 
 export type Clear = [
-  ParamPath,
+  Path,
   number,
   { object?: number; writable?: number; value?: number }?,
   number?

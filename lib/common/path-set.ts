@@ -17,11 +17,11 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ParamPath } from "./types";
+import Path from "./path";
 
 export default class PathSet {
-  private lengthIndex: Set<ParamPath>[];
-  private fragmentIndex: Map<string, Set<ParamPath>>[];
+  private lengthIndex: Set<Path>[];
+  private fragmentIndex: Map<string, Set<Path>>[];
 
   public constructor() {
     this.lengthIndex = [];
@@ -32,7 +32,8 @@ export default class PathSet {
     return this.lengthIndex.length;
   }
 
-  public add(path: ParamPath): ParamPath {
+  public add(path: Path): Path {
+    if (path.alias) throw new Error("PathSet does not support aliased paths");
     const p = this.get(path);
 
     if (p) return p;
@@ -45,43 +46,36 @@ export default class PathSet {
     const lengthIndex = this.lengthIndex[path.length];
     lengthIndex.add(path);
 
-    let wildcard = 0;
     for (let i = 0; i < path.length; ++i) {
-      const fragment = path[i];
-      if (fragment === "*") wildcard = wildcard | (1 << i);
-
+      const fragment = path.segments[i] as string;
       const fragmentIndex = this.fragmentIndex[i];
 
       let fragmentIndexSet = fragmentIndex.get(fragment);
       if (!fragmentIndexSet) {
-        fragmentIndexSet = new Set<ParamPath>();
+        fragmentIndexSet = new Set<Path>();
         fragmentIndex.set(fragment, fragmentIndexSet);
       }
 
       fragmentIndexSet.add(path);
     }
 
-    if (path.wildcard == null) {
-      path.alias = 0;
-      path.wildcard = wildcard;
-      Object.freeze(path);
-    }
     return path;
   }
 
-  public get(pattern: ParamPath): ParamPath {
-    const lengthIndex = this.lengthIndex[pattern.length];
+  public get(path: Path): Path {
+    if (path.alias) throw new Error("PathSet does not support aliased paths");
+    const lengthIndex = this.lengthIndex[path.length];
     if (!lengthIndex || !lengthIndex.size) return null;
 
-    if (lengthIndex.has(pattern)) return pattern;
+    if (lengthIndex.has(path)) return path;
 
     const sets = [lengthIndex];
 
-    for (let i = 0; i < pattern.length; ++i) {
+    for (let i = 0; i < path.length; ++i) {
       const fragmentIndex = this.fragmentIndex[i];
       if (!fragmentIndex || !fragmentIndex.size) return null;
 
-      const fragment = pattern[i];
+      const fragment = path.segments[i] as string;
 
       const fragmentIndexSet = fragmentIndex.get(fragment);
       if (!fragmentIndexSet) return null;
@@ -92,39 +86,40 @@ export default class PathSet {
     sets.sort((a, b) => a.size - b.size);
 
     const smallestSet = sets.shift();
-    for (let path of smallestSet) {
+    for (let p of smallestSet) {
       for (const s of sets) {
-        if (!s.has(path)) {
-          path = null;
+        if (!s.has(p)) {
+          p = null;
           break;
         }
       }
 
-      if (path) return path;
+      if (p) return p;
     }
 
     return null;
   }
 
   public find(
-    pattern: ParamPath,
+    path: Path,
     superset: boolean = false,
     subset: boolean = false,
-    depth: number = pattern.length
-  ): ParamPath[] {
+    depth: number = path.length
+  ): Path[] {
+    if (path.alias) throw new Error("PathSet does not support aliased paths");
     const res = [];
     const groups = [[]];
 
-    for (let i = pattern.length; i <= depth; ++i)
+    for (let i = path.length; i <= depth; ++i)
       if (this.lengthIndex[i]) groups[0].push(this.lengthIndex[i]);
 
     if (!groups[0].length) return res;
 
-    for (let i = 0; i < pattern.length; ++i) {
+    for (let i = 0; i < path.length; ++i) {
       const fragmentIndex = this.fragmentIndex[i];
       if (!fragmentIndex) return res;
 
-      const fragment = pattern[i];
+      const fragment = path.segments[i] as string;
 
       if (fragment === "*" && subset) continue;
 
@@ -149,22 +144,22 @@ export default class PathSet {
 
     const smallestGroup = groups.shift();
     for (const set of smallestGroup) {
-      for (let path of set) {
+      for (let p of set) {
         for (const group of groups) {
           let found = false;
           for (const s of group) {
-            if (s.has(path)) {
+            if (s.has(p)) {
               found = true;
               break;
             }
           }
 
           if (!found) {
-            path = null;
+            p = null;
             break;
           }
         }
-        if (path) res.push(path);
+        if (p) res.push(p);
       }
     }
     return res;

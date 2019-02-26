@@ -32,13 +32,14 @@ import * as localCache from "./local-cache";
 import * as db from "./db";
 import * as logger from "./logger";
 import * as scheduling from "./scheduling";
+import Path from "./common/path";
 import {
   SessionContext,
-  ParamPath,
   AcsRequest,
   SetAcsRequest,
   SessionFault,
-  Operation
+  Operation,
+  Fault
 } from "./types";
 
 const MAX_CYCLES = 4;
@@ -144,9 +145,19 @@ function writeResponse(
   }
 }
 
-function recordFault(sessionContext, fault, provisions, channels): void;
-function recordFault(sessionContext, fault): void;
-function recordFault(sessionContext, fault, provisions?, channels?): void {
+function recordFault(
+  sessionContext: SessionContext,
+  fault: Fault,
+  provisions,
+  channels
+): void;
+function recordFault(sessionContext: SessionContext, fault: Fault): void;
+function recordFault(
+  sessionContext: SessionContext,
+  fault: Fault,
+  provisions?,
+  channels?
+): void {
   if (!provisions) {
     provisions = sessionContext.provisions;
     channels = sessionContext.channels;
@@ -157,7 +168,10 @@ function recordFault(sessionContext, fault, provisions?, channels?): void {
     const provs = sessionContext.faults[channel]
       ? sessionContext.faults[channel].provisions
       : [];
-    faults[channel] = Object.assign({ provisions: provs }, fault);
+    faults[channel] = Object.assign(
+      { provisions: provs, timestamp: sessionContext.timestamp },
+      fault
+    ) as SessionFault;
     if (channel.startsWith("task_")) {
       const taskId = channel.slice(5);
       for (const t of sessionContext.tasks)
@@ -334,17 +348,13 @@ function applyPresets(sessionContext: SessionContext): void {
   deviceData.attributes.revision = 1;
 
   const deviceEvents = {};
-  for (const p of deviceData.paths.find(
-    ["Events", "*"] as ParamPath,
-    false,
-    true
-  )) {
+  for (const p of deviceData.paths.find(Path.parse("Events.*"), false, true)) {
     const attrs = deviceData.attributes.get(p);
     if (attrs && attrs.value && attrs.value[1][0] >= sessionContext.timestamp)
-      deviceEvents[p[1]] = true;
+      deviceEvents[p.segments[1] as string] = true;
   }
 
-  const parameters: { [name: string]: ParamPath } = {};
+  const parameters: { [name: string]: Path } = {};
   const filteredPresets = [];
 
   for (const preset of presets) {
@@ -377,7 +387,7 @@ function applyPresets(sessionContext: SessionContext): void {
     for (const k of Object.keys(preset.precondition)) {
       sessionContext.channels[preset.channel] = 0;
       const p = k.split(/([^a-zA-Z0-9\-_.].*)/, 1)[0];
-      parameters[p] = common.parsePath(p);
+      parameters[p] = Path.parse(p);
     }
   }
 
@@ -409,7 +419,7 @@ function applyPresets(sessionContext: SessionContext): void {
       const parameterValues = {};
       for (const [k, v] of Object.entries(parameters)) {
         const unpacked = device.unpack(deviceData, v);
-        if (!unpacked[0]) continue;
+        if (!unpacked.length) continue;
         const attrs = deviceData.attributes.get(unpacked[0]);
         if (attrs && attrs.value && attrs.value[1])
           parameterValues[k] = attrs.value[1][0];

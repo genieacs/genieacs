@@ -1,6 +1,5 @@
 import ava from "ava";
 import * as common from "../lib/common";
-import { ParamPath } from "../lib/types";
 
 ava("typeOf", t => {
   const cases = [
@@ -61,73 +60,6 @@ ava("generateDeviceId", t => {
   ];
   t.plan(cases.length);
   for (const c of cases) t.is(common.generateDeviceId(c[0]), c[1]);
-});
-
-ava("parsePath", t => {
-  const case1 = ["Seg1.Seg2.Seg3", ["Seg1", "Seg2", "Seg3"]] as ParamPath;
-  case1[1].alias = 0;
-  case1[1].wildcard = 0;
-
-  const case2 = ["Seg1.*.*.Seg4", ["Seg1", "*", "*", "Seg4"]] as ParamPath;
-  case2[1].alias = 0;
-  case2[1].wildcard = 6;
-
-  const case3 = [
-    "Seg1.Seg2.[Seg6:Seg9].Seg3",
-    ["Seg1", "Seg2", [["Seg6"], "Seg9"], "Seg3"]
-  ] as ParamPath;
-  case3[1].alias = 4;
-  case3[1].wildcard = 0;
-  case3[1][2][0].alias = 0;
-  case3[1][2][0].wildcard = 0;
-
-  const case4 = ["Seg1.[*:SegAny]", ["Seg1", [["*"], "SegAny"]]] as ParamPath;
-  case4[1].alias = 2;
-  case4[1].wildcard = 0;
-  case4[1][1][0].alias = 0;
-  case4[1][1][0].wildcard = 1;
-
-  const cases = [case1, case2, case3, case4];
-  for (const c of cases) t.deepEqual(common.parsePath(c[0]), c[1]);
-});
-
-ava("addPathMeta", t => {
-  const case1 = [
-    ["Seg1", "Seg2", "Seg3"],
-    ["Seg1", "Seg2", "Seg3"]
-  ] as ParamPath;
-  case1[1].alias = 0;
-  case1[1].wildcard = 0;
-
-  const case2 = [
-    ["Seg1", "*", "*", "Seg4"],
-    ["Seg1", "*", "*", "Seg4"]
-  ] as ParamPath;
-  case2[1].alias = 0;
-  case2[1].wildcard = 6;
-
-  const case3 = [
-    ["Seg1", "Seg2", [["Seg6"], "Seg9"], "Seg3"],
-    ["Seg1", "Seg2", [["Seg6"], "Seg9"], "Seg3"]
-  ] as ParamPath;
-  case3[1].alias = 4;
-  case3[1].wildcard = 0;
-  case3[1][2][0].alias = 0;
-  case3[1][2][0].wildcard = 0;
-
-  const case4 = [
-    ["Seg1", [["*"], "SegAny"]],
-    ["Seg1", [["*"], "SegAny"]]
-  ] as ParamPath;
-  case4[1].alias = 2;
-  case4[1].wildcard = 0;
-  case4[1][1][0].alias = 0;
-  case4[1][1][0].wildcard = 1;
-
-  const cases = [case1, case2, case3, case4];
-
-  t.plan(cases.length);
-  for (const c of cases) t.deepEqual(common.addPathMeta(c[0]), c[1]);
 });
 
 ava("escapeRegExp", t => {
