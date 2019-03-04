@@ -101,11 +101,15 @@ export function query(
         .collection(RESOURCE_COLLECTION[resource] || resource);
       const cursor = collection.find(q);
       if (options.projection) {
-        cursor.project(
-          resource === "devices"
-            ? mongodbFunctions.processDeviceProjection(options.projection)
-            : options.projection
-        );
+        let projection = options.projection;
+        if (resource === "devices") {
+          projection = mongodbFunctions.processDeviceProjection(
+            options.projection
+          );
+        }
+
+        if (resource === "presets") projection.configurations = 1;
+        cursor.project(projection);
       }
 
       if (resource === "users") cursor.project({ password: 0 });

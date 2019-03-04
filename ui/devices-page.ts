@@ -28,7 +28,7 @@ const getDownloadUrl = memoize((filter, indexParameters) => {
   const columns = {};
   for (const p of indexParameters) columns[p.label] = stringify(p.parameter);
   return `/api/devices.csv?${m.buildQueryString({
-    filter: filter,
+    filter: stringify(filter),
     columns: JSON.stringify(columns)
   })}`;
 });
@@ -382,7 +382,7 @@ export const component: ClosureComponent = (): Component => {
       vnode.state["selected"] = selected;
 
       const downloadUrl = getDownloadUrl(
-        vnode.attrs["filter"],
+        filter,
         vnode.attrs["indexParameters"]
       );
 

@@ -8,7 +8,7 @@ import * as notifications from "./notifications";
 import putFormComponent from "./put-form-component";
 import memoize from "../lib/common/memoize";
 import * as smartQuery from "./smart-query";
-import { map, parse } from "../lib/common/expression-parser";
+import { map, parse, stringify } from "../lib/common/expression-parser";
 
 const PAGE_SIZE = config.ui.pageSize || 10;
 
@@ -105,7 +105,7 @@ const getDownloadUrl = memoize(filter => {
   const cols = {};
   for (const attr of attributes) cols[attr.label] = attr.id;
   return `/api/presets.csv?${m.buildQueryString({
-    filter: filter,
+    filter: stringify(filter),
     columns: JSON.stringify(cols)
   })}`;
 });
@@ -456,7 +456,7 @@ export const component: ClosureComponent = (): Component => {
       }
       vnode.state["selected"] = selected;
 
-      const downloadUrl = getDownloadUrl(vnode.attrs["filter"]);
+      const downloadUrl = getDownloadUrl(filter);
 
       const attrs = {};
       attrs["resource"] = "presets";

@@ -6,7 +6,7 @@ import * as store from "./store";
 import * as notifications from "./notifications";
 import memoize from "../lib/common/memoize";
 import * as smartQuery from "./smart-query";
-import { map, parse } from "../lib/common/expression-parser";
+import { map, parse, stringify } from "../lib/common/expression-parser";
 import { loadYaml, yaml } from "./dynamic-loader";
 
 const PAGE_SIZE = config.ui.pageSize || 10;
@@ -32,7 +32,7 @@ const getDownloadUrl = memoize(filter => {
   }
 
   return `/api/faults.csv?${m.buildQueryString({
-    filter: filter,
+    filter: stringify(filter),
     columns: JSON.stringify(cols)
   })}`;
 });
@@ -272,7 +272,7 @@ export const component: ClosureComponent = (): Component => {
       }
       vnode.state["selected"] = selected;
 
-      const downloadUrl = getDownloadUrl(vnode.attrs["filter"]);
+      const downloadUrl = getDownloadUrl(filter);
 
       const attrs = {};
       attrs["resource"] = "faults";
