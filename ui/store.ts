@@ -520,6 +520,15 @@ export function putResource(resourceType, id, object): Promise<void> {
   });
 }
 
+export function queryConfig(pattern = "%"): Promise<any[]> {
+  const filter = stringify(["LIKE", ["PARAM", "_id"], pattern]);
+  return m.request({
+    method: "GET",
+    url: `api/config/?${m.buildQueryString({ filter: filter })}`,
+    background: true
+  });
+}
+
 export function resourceExists(resource, id): Promise<number> {
   const param = resource === "devices" ? "DeviceID.ID" : "_id";
   const filter = ["=", ["PARAM", param], id];

@@ -1,6 +1,6 @@
 import { VnodeDOM, ClosureComponent, Component, Children } from "mithril";
 import { m } from "./components";
-import { codeMirror } from "./dynamic-loader";
+import codeEditorComponent from "./code-editor-component";
 
 const singular = {
   presets: "preset",
@@ -59,34 +59,18 @@ function createField(current, attr, focus): Children {
 
     return m("table", options);
   } else if (attr.type === "code") {
-    return m("textarea", {
-      name: attr.id,
+    const attrs = {
+      id: attr.id,
       value: current.object[attr.id],
-      oncreate: _vnode => {
-        const editor = codeMirror.fromTextArea(_vnode.dom, {
-          mode: "javascript",
-          lineNumbers: true,
-          extraKeys: {
-            "Ctrl-Enter": () => {
-              ((_vnode.dom as HTMLTextAreaElement).form.querySelector(
-                "button[type=submit]"
-              ) as HTMLButtonElement).click();
-            },
-            "Cmd-Enter": () => {
-              ((_vnode.dom as HTMLTextAreaElement).form.querySelector(
-                "button[type=submit]"
-              ) as HTMLButtonElement).click();
-            }
-          }
-        });
-
-        editor.on("change", e => {
-          current.object[attr.id] = e.getValue();
-        });
-
-        if (focus) editor.focus();
+      mode: "javascript",
+      onSubmit: dom => {
+        dom.form.querySelector("button[type=submit]").click();
+      },
+      onChange: value => {
+        current.object[attr.id] = value;
       }
-    });
+    };
+    return m(codeEditorComponent, attrs);
   } else if (attr.type === "file") {
     return m("input", {
       type: "file",

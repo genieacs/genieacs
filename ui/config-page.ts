@@ -2,9 +2,10 @@ import { m } from "./components";
 import * as store from "./store";
 import * as notifications from "./notifications";
 import putFormComponent from "./put-form-component";
+import uiConfigComponent from "./ui-config-component";
 import * as overlay from "./overlay";
 import * as expressionParser from "../lib/common/expression-parser";
-import { loadCodeMirror } from "./dynamic-loader";
+import { loadCodeMirror, loadYaml } from "./dynamic-loader";
 import { ClosureComponent, Component, Children } from "mithril";
 
 const attributes = [
@@ -92,7 +93,7 @@ export function init(): Promise<{}> {
     );
   }
   return new Promise((resolve, reject) => {
-    loadCodeMirror()
+    Promise.all([loadCodeMirror(), loadYaml()])
       .then(() => {
         resolve({});
       })
@@ -209,7 +210,11 @@ export const component: ClosureComponent = (): Component => {
         }
       });
 
+      const confs = store.fetch("config", true);
+
       let newConfig;
+      const subs = [];
+
       if (window.authorizer.hasAccess("config", 3)) {
         newConfig = m(
           "button.primary",
@@ -250,11 +255,75 @@ export const component: ClosureComponent = (): Component => {
               overlay.open(cb);
             }
           },
-          "New"
+          "New config"
         );
-      }
 
-      const confs = store.fetch("config", true);
+        const subsData = [
+          { name: "overview", prefix: "ui.overview.groups.", data: [] },
+          { name: "charts", prefix: "ui.overview.charts.", data: [] },
+          { name: "filters", prefix: "ui.filters.", data: [] },
+          { name: "index page", prefix: "ui.index.", data: [] },
+          { name: "device page", prefix: "ui.device.", data: [] }
+        ];
+
+        if (confs.fulfilled) {
+          for (const conf of confs.value) {
+            for (const sub of subsData) {
+              if (conf["_id"].startsWith(sub["prefix"])) {
+                sub["data"].push(conf);
+                break;
+              }
+            }
+          }
+        }
+
+        for (const sub of subsData) {
+          const attrs = { prefix: sub.prefix, name: sub.name, data: sub.data };
+          subs.push(
+            m(
+              "button",
+              {
+                onclick: () => {
+                  const cb = (): Children => {
+                    return m(
+                      uiConfigComponent,
+                      Object.assign(
+                        {
+                          onUpdate: errs => {
+                            const errors = errs ? Object.values(errs) : [];
+                            if (errors.length) {
+                              for (const err of errors)
+                                notifications.push("error", err);
+                            } else {
+                              notifications.push(
+                                "success",
+                                `${sub.name.replace(
+                                  /^[a-z]/,
+                                  sub.name[0].toUpperCase()
+                                )} config updated`
+                              );
+                              overlay.close(cb);
+                            }
+                            store.fulfill(0, Date.now());
+                          },
+                          onError: err => {
+                            notifications.push("error", err.message);
+                            store.fulfill(0, Date.now());
+                            overlay.close(cb);
+                          }
+                        },
+                        attrs
+                      )
+                    );
+                  };
+                  overlay.open(cb);
+                }
+              },
+              `Edit ${sub.name}`
+            )
+          );
+        }
+      }
 
       return [
         m("h1", "Listing config"),
@@ -266,7 +335,7 @@ export const component: ClosureComponent = (): Component => {
             { style: "height: 400px" },
             renderTable(confs, vnode.state["searchString"])
           ),
-          m(".actions-bar", newConfig)
+          m(".actions-bar", [newConfig].concat(subs))
         )
       ];
     }

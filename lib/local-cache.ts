@@ -363,26 +363,42 @@ function refresh(callback): void {
 
             conf.sort((a, b) => (a.id > b.id ? 1 : a.id < b.id ? -1 : 0));
 
+            const ui = {
+              filters: {},
+              device: {},
+              index: {},
+              overview: { charts: {}, groups: {} }
+            };
             const _config = {};
 
             for (const c of conf) {
+              // Evaluate expressions to simplify them
+              const val = expression.evaluate(c.value);
+              _config[c.id] = val;
               if (c.id.startsWith("ui.")) {
                 const keys = c.id.split(".");
-                let ref = _config;
+                // remove the first key(ui)
+                keys.shift();
+                let ref = ui;
                 while (keys.length > 1) {
                   const k = keys.shift();
                   if (typeof ref[k] !== "object") ref[k] = {};
                   ref = ref[k];
                 }
-                // Evaluate expressions to simplify them
-                ref[keys[0]] = expression.evaluate(c.value);
-              } else {
-                // Evaluate expressions to simplify them
-                _config[c.id] = expression.evaluate(c.value);
+                ref[keys[0]] = val;
               }
             }
 
-            resolve(_config);
+            if (!Object.keys(ui["index"]).length) {
+              ui["index"] = {
+                "0": {
+                  label: "ID",
+                  parameter: ["PARAM", "DeviceID.ID"]
+                }
+              };
+            }
+
+            resolve([_config, ui]);
           });
         })
       );
@@ -396,7 +412,8 @@ function refresh(callback): void {
             files: res[3],
             permissions: res[4],
             users: res[5],
-            config: res[6]
+            config: res[6][0],
+            ui: res[6][1]
           };
 
           if (currentSnapshot) {
@@ -536,5 +553,5 @@ export function getUiConfig(snapshotKey): {} {
   const snapshot = snapshots.get(snapshotKey);
   if (!snapshot) throw new Error("Cache snapshot does not exist");
 
-  return snapshot.config.ui;
+  return snapshot.ui;
 }

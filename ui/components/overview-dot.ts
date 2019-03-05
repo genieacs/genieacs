@@ -10,6 +10,7 @@ const component: ClosureComponent = (): Component => {
     view: vnode => {
       const device = vnode.attrs["device"];
       const chart = CHARTS[vnode.attrs["chart"]];
+      if (!chart) return null;
       for (const slice of Object.values(chart.slices)) {
         const filter = slice["filter"];
         if (store.evaluateExpression(filter, device)) {

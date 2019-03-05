@@ -52,7 +52,8 @@ const externals = [
   "mithril",
   "parsimmon",
   "codemirror",
-  "codemirror/mode/javascript/javascript"
+  "codemirror/mode/javascript/javascript",
+  "codemirror/mode/yaml/yaml"
 ];
 
 function rmDirSync(dirPath): void {
