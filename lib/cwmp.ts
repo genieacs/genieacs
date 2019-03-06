@@ -25,7 +25,7 @@ import * as config from "./config";
 import * as common from "./common";
 import * as soap from "./soap";
 import * as session from "./session";
-import * as query from "./query";
+import { evaluate, extractParams } from "./common/expression";
 import * as device from "./device";
 import * as cache from "./cache";
 import * as localCache from "./local-cache";
@@ -279,7 +279,7 @@ function transferComplete(sessionContext, rpc): void {
   );
 }
 
-// Append providions and remove duplicates
+// Append provisions and remove duplicates
 function appendProvisions(original, toAppend): boolean {
   let modified = false;
   const stringified = new WeakMap();
@@ -384,11 +384,8 @@ function applyPresets(sessionContext: SessionContext): void {
     }
 
     filteredPresets.push(preset);
-    for (const k of Object.keys(preset.precondition)) {
-      sessionContext.channels[preset.channel] = 0;
-      const p = k.split(/([^a-zA-Z0-9\-_.].*)/, 1)[0];
-      parameters[p] = Path.parse(p);
-    }
+    for (const k of extractParams(preset.precondition))
+      parameters[k] = Path.parse(k);
   }
 
   const declarations = Object.values(parameters).map(v => ({
@@ -429,8 +426,9 @@ function applyPresets(sessionContext: SessionContext): void {
         session.addProvisions(sessionContext, whiteList, whiteListProvisions);
 
       const appendProvisionsToFaults = {};
+      const now = Date.now();
       for (const p of filteredPresets) {
-        if (query.testFilter(parameterValues, p.precondition)) {
+        if (evaluate(p.precondition, parameterValues, now)) {
           if (blackList[p.channel] === 2) {
             appendProvisionsToFaults[p.channel] = (
               appendProvisionsToFaults[p.channel] || []

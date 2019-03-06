@@ -3,7 +3,7 @@ import { parse, stringify, map } from "../lib/common/expression-parser";
 import memoize from "../lib/common/memoize";
 import Autocomplete from "./autocomplete-compnent";
 import * as smartQuery from "./smart-query";
-import { filterToMongoQuery } from "../lib/ui/mongodb-functions";
+import { filterToMongoQuery } from "../lib/mongodb-functions";
 import { Expression } from "../lib/types";
 
 const getAutocomplete = memoize(resource => {

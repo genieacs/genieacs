@@ -22,7 +22,7 @@ import * as crypto from "crypto";
 import * as config from "./config";
 import * as db from "./db";
 import * as cache from "./cache";
-import * as query from "./query";
+import { mongoQueryToFilter } from "./mongodb-functions";
 import * as logger from "./logger";
 import * as scheduling from "./scheduling";
 import * as expression from "./common/expression";
@@ -164,9 +164,15 @@ function refresh(callback): void {
                 }
 
                 const events = preset.events || {};
-                const precondition = query.convertMongoQueryToFilters(
-                  JSON.parse(preset.precondition)
-                );
+                let precondition;
+                try {
+                  precondition = parse(preset.precondition);
+                } catch (error) {
+                  precondition = mongoQueryToFilter(
+                    JSON.parse(preset.precondition)
+                  );
+                }
+
                 const _provisions = preset.provisions || [];
 
                 // Generate provisions from the old configuration format

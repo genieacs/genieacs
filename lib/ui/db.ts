@@ -1,8 +1,7 @@
 import { MongoClient, GridFSBucket } from "mongodb";
 import * as config from "../config";
-import * as mongodbFunctions from "./mongodb-functions";
+import * as mongodbFunctions from "../mongodb-functions";
 import * as expression from "../common/expression";
-import { preProcessPreset } from "./mongodb-functions";
 import { QueryOptions } from "../types";
 
 const CACHE_TTL = 300000;
@@ -257,7 +256,7 @@ function deleteResource(resource, id): Promise<void> {
 }
 
 export function putPreset(id, object): Promise<void> {
-  object = preProcessPreset(object);
+  object = mongodbFunctions.preProcessPreset(object);
   return putResource("presets", id, object);
 }
 

@@ -1,7 +1,7 @@
 import { ObjectID } from "mongodb";
-import { map, parse, stringify } from "../common/expression-parser";
-import { likePatternToRegExp, evaluate } from "../common/expression";
-import { Expression, Fault, Task } from "../types";
+import { map, parse, stringify } from "./common/expression-parser";
+import { likePatternToRegExp, evaluate } from "./common/expression";
+import { Expression, Fault, Task } from "./types";
 
 const isArray = Array.isArray;
 
@@ -436,33 +436,44 @@ export function flattenTask(task): Task {
   return t;
 }
 
-function mongoQueryToFilter(query): Expression {
-  const expressions = [];
-  function recursive(_query): void {
+export function mongoQueryToFilter(query): Expression {
+  function recursive(_query): Expression {
+    const expressions: Expression[] = [];
     for (const [k, v] of Object.entries(_query)) {
       if (k[0] === "$") {
-        if (k === "$and") for (const vv of Object.values(v)) recursive(vv);
-        else throw new Error(`Operator ${k} not supported`);
+        if (k === "$and") {
+          const and: Expression = ["AND"];
+          for (const vv of Object.values(v)) and.push(recursive(vv));
+          expressions.push(and);
+        } else if (k === "$or") {
+          const or: Expression = ["OR"];
+          for (const vv of Object.values(v)) or.push(recursive(vv));
+          expressions.push(or);
+        } else {
+          throw new Error(`Operator ${k} not supported`);
+        }
       } else if (k === "_tags") {
         if (typeof v === "object") {
           if (isArray(v)) throw new Error(`Invalid type`);
 
-          for (const [kk, vv] of Object.entries(v)) {
-            if (kk === "$ne")
-              expressions.push(["IS NULL", ["PARAM", `Tags.${vv}`]]);
-            else throw new Error(`Operator ${kk} not supported`);
-          }
+          if (v.hasOwnProperty("$ne"))
+            expressions.push(["IS NULL", ["PARAM", `Tags.${v["$ne"]}`]]);
+          else throw new Error(`Invalid tag query`);
         } else {
           expressions.push(["IS NOT NULL", ["PARAM", `Tags.${v}`]]);
         }
       } else if (k.startsWith("Tags.")) {
-        expressions.push([
-          v["$exists"] ? "IS NOT NULL" : "IS NULL",
-          ["PARAM", k]
-        ]);
+        let exists: boolean;
+        if (typeof v === "boolean") exists = v;
+        else if (v.hasOwnProperty("$ne")) exists = !v["$ne"];
+        else if (v.hasOwnProperty("$exists")) exists = !!v["$exists"];
+        else throw new Error(`Invalid tag query`);
+
+        expressions.push([exists ? "IS NOT NULL" : "IS NULL", ["PARAM", k]]);
       } else if (typeof v === "object") {
         if (isArray(v)) throw new Error(`Invalid type`);
 
+        const exps: Expression[] = [];
         for (const [kk, vv] of Object.entries(v)) {
           let op;
           switch (kk) {
@@ -487,27 +498,36 @@ function mongoQueryToFilter(query): Expression {
             default:
               throw new Error(`Operator ${kk} not supported`);
           }
-          expressions.push([op, ["PARAM", k], vv]);
+          exps.push([op, ["PARAM", k], vv]);
         }
+        if (exps.length === 1) return exps[0];
+        const and: Expression = ["AND"];
+        expressions.push(and.concat(exps));
       } else {
         expressions.push(["=", ["PARAM", k], v]);
       }
     }
+    if (expressions.length === 1) return expressions[0];
+    const and: Expression = ["AND"];
+    return and.concat(expressions);
   }
-  recursive(query);
 
-  if (expressions.length > 1) return ["AND"].concat(expressions);
+  // empty filter
+  if (!Object.keys(query).length) return true;
 
-  if (expressions.length === 1) return expressions[0];
-
-  return expressions;
+  return recursive(query);
 }
 
 export function flattenPreset(preset): {} {
   const p = Object.assign({}, preset);
   if (p.precondition) {
-    p.precondition = mongoQueryToFilter(JSON.parse(p.precondition));
-    p.precondition = p.precondition.length ? stringify(p.precondition) : "";
+    try {
+      // Try parse to check expression validity
+      parse(p.precondition);
+    } catch (error) {
+      p.precondition = mongoQueryToFilter(JSON.parse(p.precondition));
+      p.precondition = p.precondition.length ? stringify(p.precondition) : "";
+    }
   }
 
   if (p.events) {
@@ -546,10 +566,10 @@ export function flattenFile(file): {} {
 
 export function preProcessPreset(data): {} {
   const preset = Object.assign({}, data);
-  preset.precondition = preset.precondition
-    ? filterToMongoQuery(parse(preset.precondition))
-    : {};
-  preset.precondition = JSON.stringify(preset.precondition);
+
+  if (!preset.precondition) preset.precondition = "";
+  // Try parse to check expression validity
+  parse(preset.precondition);
 
   preset.weight = parseInt(preset.weight) || 0;
 
