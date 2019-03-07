@@ -157,7 +157,7 @@ export function filterToMongoQuery(exp: Expression): {} {
         let p = (res[param] = res[param] || {});
         if (negate) p = p["$not"] = p["$not"] || {};
         p["$ne"] = filter[2];
-        p["$exists"] = true;
+        if (param !== "_tags") p["$exists"] = true;
       } else if (op === ">") {
         const param = filter[1][1];
         let p = (res[param] = res[param] || {});
