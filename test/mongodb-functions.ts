@@ -15,8 +15,11 @@ ava("mongoQueryToFilter", t => {
     [{ "Tags.test": { $exists: false } }, "Tags.test IS NULL"],
     [{ "Tags.test": { $ne: true } }, "Tags.test IS NULL"],
     [{ "Tags.test": { $ne: false } }, "Tags.test IS NOT NULL"],
+    [{ "Tags.test": { $eq: true } }, "Tags.test IS NOT NULL"],
+    [{ "Tags.test": { $eq: false } }, "Tags.test IS NULL"],
     [{ _tags: "test" }, "Tags.test IS NOT NULL"],
     [{ _tags: { $ne: "test" } }, "Tags.test IS NULL"],
+    [{ _tags: { $eq: "test" } }, "Tags.test IS NOT NULL"],
     [
       { $and: [{ test: "test" }, { test: { $ne: "test" } }] },
       'test = "test" AND test <> "test"'
@@ -35,9 +38,9 @@ ava("mongoQueryToFilter", t => {
   const shouldFailTests = [
     [{ test: { $gee: "test" } }, "Operator $gee not supported"],
     [{ test: [] }, "Invalid type"],
-    [{ "Tags.test": { $eq: true } }, "Invalid tag query"],
+    [{ "Tags.test": { $gt: true } }, "Invalid tag query"],
     [{ _tags: [] }, "Invalid type"],
-    [{ _tags: { $eq: "test" } }, "Invalid tag query"],
+    [{ _tags: { $gt: "test" } }, "Invalid tag query"],
     [{ $nor: [] }, "Operator $nor not supported"]
   ];
 

@@ -458,6 +458,8 @@ export function mongoQueryToFilter(query): Expression {
 
           if (v.hasOwnProperty("$ne"))
             expressions.push(["IS NULL", ["PARAM", `Tags.${v["$ne"]}`]]);
+          else if (v.hasOwnProperty("$eq"))
+            expressions.push(["IS NOT NULL", ["PARAM", `Tags.${v["$eq"]}`]]);
           else throw new Error(`Invalid tag query`);
         } else {
           expressions.push(["IS NOT NULL", ["PARAM", `Tags.${v}`]]);
@@ -465,6 +467,7 @@ export function mongoQueryToFilter(query): Expression {
       } else if (k.startsWith("Tags.")) {
         let exists: boolean;
         if (typeof v === "boolean") exists = v;
+        else if (v.hasOwnProperty("$eq")) exists = !!v["$eq"];
         else if (v.hasOwnProperty("$ne")) exists = !v["$ne"];
         else if (v.hasOwnProperty("$exists")) exists = !!v["$exists"];
         else throw new Error(`Invalid tag query`);
