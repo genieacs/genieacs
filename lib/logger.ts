@@ -224,11 +224,20 @@ function formatJson(details, systemd): string {
 }
 
 function formatSimple(details, systemd): string {
+  const skip = {
+    user: true,
+    remoteAddress: true,
+    severity: true,
+    timestamp: true,
+    message: true,
+    deviceId: !!details.sessionContext
+  };
+
   flatten(details);
 
   let remote = "";
   if (details.remoteAddress) {
-    if (details.deviceId)
+    if (details.deviceId && skip["deviceId"])
       remote = `${details.remoteAddress} ${details.deviceId}: `;
     else if (details.user)
       remote = `${details.user}@${details.remoteAddress}: `;
@@ -236,14 +245,6 @@ function formatSimple(details, systemd): string {
   }
 
   const keys = Object.keys(details);
-  const skip = {
-    deviceId: 1,
-    user: 1,
-    remoteAddress: 1,
-    severity: 1,
-    timestamp: 1,
-    message: 1
-  };
 
   let meta = "";
 
