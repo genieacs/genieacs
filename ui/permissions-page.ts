@@ -103,7 +103,7 @@ function putActionHandler(action, _object): Promise<ValidationErrors> {
           store
             .putResource("permissions", id, object)
             .then(() => {
-              notifications.push("success", `Permission created"}`);
+              notifications.push("success", "Permission created");
               store.fulfill(0, Date.now());
               resolve();
             })
