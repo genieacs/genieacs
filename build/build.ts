@@ -103,7 +103,6 @@ async function copyStatic(): Promise<void> {
     "CHANGELOG.md",
     "npm-shrinkwrap.json",
     "config/config-sample.json",
-    "config/auth-sample.js",
     "config/ext-sample.js",
     "public/logo.svg",
     "public/favicon.png"

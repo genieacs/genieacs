@@ -530,7 +530,8 @@ export function getConfig(
     "cwmp.connectionRequestAllowBasicAuth":
       "CONNECTION_REQUEST_ALLOW_BASIC_AUTH",
     "cwmp.maxCommitIterations": "MAX_COMMIT_ITERATIONS",
-    "cwmp.deviceOnlineThreshold": "DEVICE_ONLINE_THRESHOLD"
+    "cwmp.deviceOnlineThreshold": "DEVICE_ONLINE_THRESHOLD",
+    "cwmp.udpConnectionRequestPort": "UDP_CONNECTION_REQUEST_PORT"
   };
 
   if (!(key in snapshot.config)) {
@@ -539,6 +540,13 @@ export function getConfig(
     else return null;
   }
   return expression.evaluate(snapshot.config[key], context, now || Date.now());
+}
+
+export function getConfigExpression(snapshotKey, key): Expression {
+  const snapshot = snapshots.get(snapshotKey);
+  if (!snapshot) throw new Error("Cache snapshot does not exist");
+
+  return snapshot.config[key];
 }
 
 export function getUsers(snapshotKey): {} {

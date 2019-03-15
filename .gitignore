@@ -2,7 +2,6 @@
 node_modules
 dist
 debug
-config/auth.js
 config/config.json
 config/config-ui.json
 config/cwmp.key

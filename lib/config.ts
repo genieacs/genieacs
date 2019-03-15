@@ -235,11 +235,3 @@ export function getDefault(optionName): string | number | boolean {
 
   return val;
 }
-
-export let auth;
-// Load authentication scripts
-try {
-  auth = require(resolve(allConfig.CONFIG_DIR as string, "auth.js"));
-} catch (error) {
-  // No auth.js exists
-}
