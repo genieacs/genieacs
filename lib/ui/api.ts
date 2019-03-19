@@ -7,6 +7,8 @@ import { parse } from "../common/expression-parser";
 import * as logger from "../logger";
 import { getConfig } from "../local-cache";
 import { QueryOptions, Expression } from "../types";
+import { generateSalt, hashPassword } from "../auth";
+import { del } from "../cache";
 
 const router = new Router();
 export default router;
@@ -496,4 +498,65 @@ router.get("/ping/:host", async ctx => {
     ctx.response.headers["Cache-Control"] = "no-cache";
     ctx.body = `${err.name}: ${err.message}`;
   }
+});
+
+router.put("/users/:id/password", async (ctx, next) => {
+  const username = ctx.params.id;
+  const log = {
+    message: "Change password",
+    context: ctx,
+    username: username
+  };
+
+  const authorizer = ctx.state.authorizer;
+
+  if (!ctx.state.user) {
+    // User not logged in
+    if (
+      !(await apiFunctions.authSimple(
+        ctx.state.configSnapshot,
+        username,
+        ctx.request.body.authPassword
+      ))
+    ) {
+      logUnauthorizedWarning(log);
+      ctx.status = 401;
+      ctx.body = "Authentication failed, check your username and password";
+      return;
+    }
+  } else if (!authorizer.hasAccess("users", 3)) {
+    logUnauthorizedWarning(log);
+    return void next();
+  }
+
+  const filter = ["=", ["PARAM", RESOURCE_IDS.users], username];
+  const res = await db.query("users", filter);
+  if (!res.length) return void next();
+
+  const newPassword = ctx.request.body.newPassword;
+  if (ctx.state.user) {
+    const validate = authorizer.getValidator("users", res[0]);
+    if (!validate("password", { password: newPassword })) {
+      logUnauthorizedWarning(log);
+      return void (ctx.status = 403);
+    }
+  }
+
+  const salt = await generateSalt(64);
+  const password = await hashPassword(newPassword, salt);
+  await db.putUser(username, { password, salt });
+
+  function delCache(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      del("presets_hash", err => {
+        if (err) return void reject(err);
+        resolve();
+      });
+    });
+  }
+
+  await delCache();
+
+  logger.accessInfo(log);
+  ctx.body = "";
 });

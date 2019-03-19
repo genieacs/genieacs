@@ -1,7 +1,9 @@
-import { ClosureComponent, Component } from "mithril";
+import { ClosureComponent, Component, Children } from "mithril";
 import { m } from "./components";
 import * as store from "./store";
 import * as notifications from "./notifications";
+import * as overlay from "./overlay";
+import changePasswordComponent from "./change-password-component";
 
 export function init(args): Promise<{}> {
   return Promise.resolve(args);
@@ -63,6 +65,24 @@ export const component: ClosureComponent = (): Component => {
               "Login"
             )
           )
+        ),
+        m(
+          "a",
+          {
+            onclick: () => {
+              const cb = (): Children => {
+                const attrs = {
+                  onPasswordChange: () => {
+                    overlay.close(cb);
+                    m.redraw();
+                  }
+                };
+                return m(changePasswordComponent, attrs);
+              };
+              overlay.open(cb);
+            }
+          },
+          "Change password"
         )
       ];
     }

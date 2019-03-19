@@ -954,7 +954,7 @@ export function getPermissions(
 export function getUsers(
   callback: (
     err?: Error,
-    users?: { _id: string; password: string; roles: string }[]
+    users?: { _id: string; password: string; salt: string; roles: string }[]
   ) => void
 ): void {
   usersCollection.find().toArray(callback);

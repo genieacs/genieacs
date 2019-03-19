@@ -12,6 +12,7 @@ import Authorizer from "./common/authorizer";
 import * as logger from "./logger";
 import * as localCache from "./local-cache";
 import { PermissionSet } from "./types";
+import { authSimple } from "./ui/api-functions";
 
 declare module "koa" {
   interface Request {
@@ -31,14 +32,6 @@ function getPermissionSets(ctx): PermissionSet[] {
     Object.values(allPermissions[role] || {})
   );
   return permissionSets;
-}
-
-function authSimple(ctx, username, password): Promise<string[]> {
-  const users = localCache.getUsers(ctx.state.configSnapshot);
-  const user = users[username];
-  if (user && user.password === password) return Promise.resolve(user.roles);
-
-  return Promise.resolve(null);
 }
 
 koa.on("error", async err => {
@@ -100,7 +93,7 @@ router.post("/login", async ctx => {
     logger.accessWarn(log);
   }
 
-  const roles = await authSimple(ctx, username, password);
+  const roles = await authSimple(ctx.state.configSnapshot, username, password);
 
   if (roles) return void success(roles, "simple");
 

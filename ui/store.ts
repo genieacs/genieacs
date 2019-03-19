@@ -549,6 +549,21 @@ export function evaluateExpression(exp, obj): Expression {
   return memoizedEvaluate(exp, obj, fulfillTimestamp);
 }
 
+export function changePassword(
+  username,
+  newPassword,
+  authPassword?
+): Promise<void> {
+  const data = { newPassword };
+  if (authPassword) data["authPassword"] = authPassword;
+  return m.request({
+    method: "PUT",
+    url: `/api/users/${username}/password`,
+    background: true,
+    data
+  });
+}
+
 export function logIn(username, password): Promise<void> {
   return m.request({
     method: "POST",

@@ -2,6 +2,8 @@ import { exec } from "child_process";
 import { ObjectID } from "mongodb";
 import * as db from "./db";
 import { del } from "../cache";
+import { getUsers } from "../local-cache";
+import { hashPassword } from "../auth";
 import {
   insertTasks,
   watchTask,
@@ -186,13 +188,21 @@ export function putResource(resource, id, data): Promise<void> {
   return new Promise((resolve, reject) => {
     let promise;
 
-    if (resource === "presets") promise = db.putPreset(id, data);
-    else if (resource === "provisions") promise = db.putProvision(id, data);
-    else if (resource === "virtualParameters")
+    if (resource === "presets") {
+      promise = db.putPreset(id, data);
+    } else if (resource === "provisions") {
+      promise = db.putProvision(id, data);
+    } else if (resource === "virtualParameters") {
       promise = db.putVirtualParameter(id, data);
-    else if (resource === "config") promise = db.putConfig(id, data);
-    else if (resource === "permissions") promise = db.putPermission(id, data);
-    else if (resource === "users") promise = db.putUser(id, data);
+    } else if (resource === "config") {
+      promise = db.putConfig(id, data);
+    } else if (resource === "permissions") {
+      promise = db.putPermission(id, data);
+    } else if (resource === "users") {
+      delete data.password;
+      delete data.salt;
+      promise = db.putUser(id, data);
+    }
 
     promise
       .then(() => {
@@ -200,6 +210,20 @@ export function putResource(resource, id, data): Promise<void> {
           if (err) return void reject(err);
           resolve();
         });
+      })
+      .catch(reject);
+  });
+}
+
+export function authSimple(snapshot, username, password): Promise<string[]> {
+  return new Promise((resolve, reject) => {
+    const users = getUsers(snapshot);
+    const user = users[username];
+    if (!user || !user.password) return void resolve(null);
+    hashPassword(password, user.salt)
+      .then(hash => {
+        if (hash === user.password) resolve(user.roles);
+        else resolve(null);
       })
       .catch(reject);
   });

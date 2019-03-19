@@ -82,12 +82,19 @@ export function query(
   filter = expression.evaluate(filter, null, Date.now());
 
   if (Array.isArray(filter)) {
-    if (resource === "devices")
+    if (resource === "devices") {
       filter = mongodbFunctions.processDeviceFilter(filter);
-    else if (resource === "tasks")
+    } else if (resource === "tasks") {
       filter = mongodbFunctions.processTasksFilter(filter);
-    else if (resource === "faults")
+    } else if (resource === "faults") {
       filter = mongodbFunctions.processFaultsFilter(filter);
+    } else if (resource === "users") {
+      // Protect against brute force, and dictionary attacks
+      const params = expression.extractParams(filter);
+      if (params.includes("password") || params.includes("salt"))
+        return Promise.reject(new Error("Invalid users filter"));
+    }
+
     q = mongodbFunctions.filterToMongoQuery(filter);
   } else if (filter != null && !filter) {
     return Promise.resolve([]);
@@ -111,7 +118,7 @@ export function query(
         cursor.project(projection);
       }
 
-      if (resource === "users") cursor.project({ password: 0 });
+      if (resource === "users") cursor.project({ password: 0, salt: 0 });
 
       if (options.skip) cursor.skip(options.skip);
       if (options.limit) cursor.limit(options.limit);

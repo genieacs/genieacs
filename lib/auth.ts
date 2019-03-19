@@ -17,7 +17,7 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createHash } from "crypto";
+import { createHash, randomBytes, pbkdf2 } from "crypto";
 
 export function parseAuthHeader(authHeader): {} {
   authHeader = authHeader.trim();
@@ -118,4 +118,22 @@ export function digest(
   if (authHeader.opaque) authString += `,opaque="${authHeader.opaque}"`;
 
   return authString;
+}
+
+export function generateSalt(length): Promise<string> {
+  return new Promise((resolve, reject) => {
+    randomBytes(length, (err, rand) => {
+      if (err) return void reject(err);
+      resolve(rand.toString("hex"));
+    });
+  });
+}
+
+export function hashPassword(pass, salt): Promise<string> {
+  return new Promise((resolve, reject) => {
+    pbkdf2(pass, salt, 10000, 128, "sha512", (err, hash) => {
+      if (err) return void reject(err);
+      resolve(hash.toString("hex"));
+    });
+  });
 }

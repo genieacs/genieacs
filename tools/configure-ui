@@ -1,6 +1,7 @@
 #!/usr/bin/env -S node -r esm -r ts-node/register/transpile-only
 import { MongoClient } from "mongodb";
 import { get } from "../lib/config";
+import { hashPassword, generateSalt } from "../lib/auth";
 
 const permissionsData = [
   { role: "admin", resource: "devices", access: 3, validate: ["pass"] },
@@ -202,12 +203,21 @@ async function run(): Promise<void> {
       .collection("permissions")
       .insertMany(perms)
   );
-  const users = usersData.map(p => {
-    p.roles = (p.roles || []).join(",");
-    p._id = p.username;
-    delete p.username;
-    return p;
-  });
+  const saltingProms = [];
+  for (const u of usersData) {
+    saltingProms.push(
+      new Promise(async resolve => {
+        u.salt = await generateSalt(64);
+        u.password = await hashPassword(u.password, u.salt);
+        u.roles = (u.roles || []).join(",");
+        u._id = u.username;
+        delete u.username;
+        resolve(u);
+      })
+    );
+  }
+
+  const users = await Promise.all(saltingProms);
   inserts.push(
     client
       .db()

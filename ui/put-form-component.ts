@@ -6,7 +6,8 @@ const singular = {
   presets: "preset",
   provisions: "provision",
   virtualParameters: "virtual parameter",
-  files: "file"
+  files: "file",
+  users: "user"
 };
 
 function createField(current, attr, focus): Children {

@@ -11,6 +11,7 @@ import * as overlay from "./overlay";
 import * as smartQuery from "./smart-query";
 import { map, parse, stringify } from "../lib/common/expression-parser";
 import filterComponent from "./filter-component";
+import changePasswordComponent from "./change-password-component";
 import { Children, ClosureComponent, Component } from "mithril";
 
 const PAGE_SIZE = config.ui.pageSize || 10;
@@ -20,7 +21,6 @@ const memoizedJsonParse = memoize(JSON.parse);
 
 const attributes = [
   { id: "_id", label: "Username" },
-  { id: "password", label: "Password", type: "password", unsortable: true },
   {
     id: "roles",
     label: "Roles",
@@ -47,18 +47,26 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
     const object = Object.assign({}, _object);
     if (action === "save") {
       const id = object["_id"];
+      const password = object["password"];
+      const confirm = object["confirm"];
       delete object["_id"];
+      delete object["password"];
+      delete object["confirm"];
 
       if (!id) return void resolve({ _id: "ID can not be empty" });
 
+      if (isNew) {
+        if (!password) {
+          return void resolve({ password: "Password can not be empty" });
+        } else if (password !== confirm) {
+          return void resolve({
+            confirm: "Confirm password doesn't match password"
+          });
+        }
+      }
+
       if (!Array.isArray(object.roles) || !object.roles.length)
         return void resolve({ roles: "Role(s) must be selected" });
-
-      if (typeof object.password !== "string" || !object.password.length) {
-        if (isNew)
-          return void resolve({ password: "Password can not be empty" });
-        else delete object.password;
-      }
 
       object.roles = object.roles.join(",");
 
@@ -78,12 +86,20 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
           store
             .putResource("users", id, object)
             .then(() => {
-              notifications.push(
-                "success",
-                `User ${exists ? "updated" : "created"}`
-              );
-              store.fulfill(0, Date.now());
-              resolve();
+              if (isNew) {
+                store
+                  .changePassword(id, password)
+                  .then(() => {
+                    notifications.push("success", "User created");
+                    store.fulfill(0, Date.now());
+                    resolve();
+                  })
+                  .catch(reject);
+              } else {
+                notifications.push("success", "User updated");
+                store.fulfill(0, Date.now());
+                resolve();
+              }
             })
             .catch(reject);
         })
@@ -106,15 +122,9 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
   });
 }
 
-const formData = {
-  resource: "users",
-  attributes: attributes
-};
-
 const getDownloadUrl = memoize(filter => {
   const cols = {};
-  for (const attr of attributes)
-    if (attr.id !== "password") cols[attr.label] = attr.id;
+  for (const attr of attributes) cols[attr.label] = attr.id;
 
   return `/api/users.csv?${m.buildQueryString({
     filter: stringify(filter),
@@ -158,8 +168,6 @@ function renderTable(
 
   const labels = [m("th", selectAll)];
   for (const attr of attributes) {
-    if (attr.id === "password") continue;
-
     const label = attr.label;
 
     if (attr.unsortable) {
@@ -187,6 +195,8 @@ function renderTable(
     labels.push(m("th", [label, sortable]));
   }
 
+  const canChangePasswords = window.authorizer.hasAccess("users", 3);
+
   const rows = [];
   for (const user of users) {
     const checkbox = m("input", {
@@ -203,8 +213,7 @@ function renderTable(
     });
 
     const tds = [m("td", checkbox)];
-    for (const attr of attributes)
-      if (attr.id !== "password") tds.push(m("td", user[attr.id]));
+    for (const attr of attributes) tds.push(m("td", user[attr.id]));
 
     tds.push(
       m(
@@ -214,39 +223,59 @@ function renderTable(
           {
             onclick: () => {
               const cb = (): Children => {
-                return m(
-                  putFormComponent,
-                  Object.assign(
-                    {
-                      base: {
-                        _id: user._id,
-                        roles: user.roles.split(",")
+                const children = [
+                  m(
+                    putFormComponent,
+                    Object.assign(
+                      {
+                        base: {
+                          _id: user._id,
+                          roles: user.roles.split(",")
+                        },
+                        actionHandler: (action, object) => {
+                          return new Promise(resolve => {
+                            putActionHandler(action, object, false)
+                              .then(errors => {
+                                const errorList = errors
+                                  ? Object.values(errors)
+                                  : [];
+                                if (errorList.length) {
+                                  for (const err of errorList)
+                                    notifications.push("error", err);
+                                } else {
+                                  overlay.close(cb);
+                                }
+                                resolve();
+                              })
+                              .catch(err => {
+                                notifications.push("error", err.message);
+                                resolve();
+                              });
+                          });
+                        }
                       },
-                      actionHandler: (action, object) => {
-                        return new Promise(resolve => {
-                          putActionHandler(action, object, false)
-                            .then(errors => {
-                              const errorList = errors
-                                ? Object.values(errors)
-                                : [];
-                              if (errorList.length) {
-                                for (const err of errorList)
-                                  notifications.push("error", err);
-                              } else {
-                                overlay.close(cb);
-                              }
-                              resolve();
-                            })
-                            .catch(err => {
-                              notifications.push("error", err.message);
-                              resolve();
-                            });
-                        });
+                      {
+                        resource: "users",
+                        attributes: attributes
                       }
-                    },
-                    formData
+                    )
                   )
-                );
+                ];
+
+                if (canChangePasswords) {
+                  children.push(m("hr"));
+                  const attrs = {
+                    noAuth: true,
+                    username: user._id,
+                    onPasswordChange: () => {
+                      overlay.close(cb);
+                      m.redraw();
+                    }
+                  };
+                  children.push(m(changePasswordComponent, attrs));
+                }
+
+                return children;
               };
               overlay.open(cb);
             }
@@ -331,6 +360,15 @@ function renderTable(
   ];
 
   if (window.authorizer.hasAccess("users", 3)) {
+    const formData = {
+      resource: "users",
+      attributes: [
+        attributes[0],
+        { id: "password", label: "Password", type: "password" },
+        { id: "confirm", label: "Confirm password", type: "password" },
+        attributes[1]
+      ]
+    };
     buttons.push(
       m(
         "button.primary",

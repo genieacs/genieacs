@@ -74,6 +74,27 @@ function computeHash(snapshot): string {
   h.update(JSON.stringify(keys));
   for (const k of keys) h.update(JSON.stringify(snapshot.config[k]));
 
+  keys = Object.keys(snapshot.files).sort();
+  h.update(JSON.stringify(keys));
+  for (const k of keys) h.update(JSON.stringify(snapshot.files[k]));
+
+  keys = Object.keys(snapshot.users).sort();
+  h.update(JSON.stringify(keys));
+  for (const k of keys) h.update(JSON.stringify(snapshot.users[k]));
+
+  const roles = Object.keys(snapshot.permissions).sort();
+  h.update(JSON.stringify(roles));
+  for (const r of roles) {
+    const levels = Object.keys(snapshot.permissions[r]).sort();
+    h.update(JSON.stringify(levels));
+    for (const l of levels) {
+      keys = Object.keys(snapshot.permissions[r][l]).sort();
+      h.update(JSON.stringify(keys));
+      for (const k of keys)
+        h.update(JSON.stringify(snapshot.permissions[r][l][k]));
+    }
+  }
+
   return h.digest("hex");
 }
 
@@ -354,6 +375,7 @@ function refresh(callback): void {
             for (const user of _users) {
               users[user._id] = {
                 password: user.password,
+                salt: user.salt,
                 roles: user.roles.split(",").map(s => s.trim())
               };
             }
