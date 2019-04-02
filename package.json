@@ -73,7 +73,7 @@
     "configure": "if [ ! -f ./config/config.json ]; then cp ./config/config-sample.json ./config/config.json; fi",
     "install": "npm run configure",
     "test": "ava --verbose --color",
-    "lint-ln": "find bin -type f -exec sh -c 'ln -fsr \"$1\" \"bin/.${1#bin/}.ts\"' _ {} \\;; find tools -type f -exec sh -c 'ln -fsr \"$1\" \"tools/.${1#tools/}.ts\"' _ {} \\;",
+    "lint-ln": "find bin -type f -exec sh -c 'ln -fs \"$(sh -c pwd)/$1\" \"bin/.${1#bin/}.ts\"' _ {} \\;; find tools -type f -exec sh -c 'ln -fs \"$(sh -c pwd)/$1\" \"tools/.${1#tools/}.ts\"' _ {} \\;",
     "lint-eslint": "eslint --fix \"bin/**/*.ts\" \"lib/**/*.ts\" \"ui/**/*.ts\" \"test/**/*.ts\" \"build/**/*.ts\" \"tools/**/*.ts\"",
     "lint-prettier": "prettier --parser typescript --write \"bin/**/*.ts\" \"lib/**/*.ts\" \"ui/**/*.ts\" \"test/**/*.ts\" \"build/**/*.ts\" \"tools/**/*.ts\"",
     "lint-tsc": "tsc --noEmit",
