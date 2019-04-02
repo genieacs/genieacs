@@ -1,8 +1,5 @@
-import pass from "./validators/pass";
-import test from "./validators/test";
-import { PermissionSet } from "../types";
-
-export const validators = { pass, test };
+import { PermissionSet, Expression } from "../types";
+import { evaluate } from "./expression";
 
 export default class Authorizer {
   private permissionSets: PermissionSet[];
@@ -46,20 +43,16 @@ export default class Authorizer {
     if (this.validatorCache.has(resource))
       return this.validatorCache.get(resource);
 
-    let funcs = {};
+    const validators: Expression[] = [];
 
     for (const permissionSet of this.permissionSets) {
       for (const perm of permissionSet) {
-        if (perm[resourceType]) {
-          if (perm[resourceType].access >= 3) {
-            if (perm[resourceType].validate) {
-              for (const [k, v] of Object.entries(perm[resourceType].validate))
-                funcs[k] = v;
-            }
-          } else {
-            funcs = {};
-          }
-        }
+        if (
+          perm[resourceType] &&
+          perm[resourceType].access >= 3 &&
+          perm[resourceType].validate
+        )
+          validators.push(perm[resourceType].validate);
       }
     }
 
@@ -68,23 +61,41 @@ export default class Authorizer {
       mutation: any,
       any: any
     ): boolean => {
-      let valid = false;
-      for (const [k, v] of Object.entries(funcs)) {
-        if (v) {
-          const res = validators[k](
-            resourceType,
-            resource,
-            mutationType,
-            mutation,
-            any
-          );
+      if (!validators.length) return false;
 
-          if (res > 0) valid = true;
-          else if (res < 0) return false;
+      const object = {
+        mutationType,
+        mutation,
+        resourceType,
+        object: resource,
+        options: any
+      };
+
+      const valueFunction = (paramName): any => {
+        const entry = paramName.split(".", 1)[0];
+        paramName = paramName.slice(entry.length + 1);
+        let value = null;
+        if (["mutation", "options"].includes(entry)) {
+          value = object[entry];
+          for (const seg of paramName.split(".")) {
+            // typeof null is "object"
+            if (value != null && typeof value !== "object") value = null;
+            else value = value[seg];
+            if (value == null) break;
+          }
+        } else if (object[entry]) {
+          value = object[entry][paramName];
         }
-      }
 
-      return valid;
+        return value;
+      };
+
+      const res = evaluate(
+        validators.length > 1 ? ["OR", validators] : validators[0],
+        valueFunction,
+        Date.now()
+      );
+      return !Array.isArray(res) && !!res;
     };
 
     this.validatorCache.set(resource, validator);

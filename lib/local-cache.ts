@@ -35,7 +35,7 @@ interface Permissions {
       [resource: string]: {
         access: number;
         filter: Expression;
-        validate: { [validator: string]: boolean };
+        validate?: Expression;
       };
     };
   };
@@ -351,15 +351,15 @@ function refresh(callback): void {
               if (!permissions[p.role][p.access])
                 permissions[p.role][p.access] = {};
 
-              const validate = {};
               permissions[p.role][p.access][p.resource] = {
                 access: p.access,
-                filter: parse(p.filter || "true"),
-                validate: validate
+                filter: parse(p.filter || "true")
               };
-
-              for (const v of (p.validate || "").split(","))
-                validate[v.trim()] = true;
+              if (p.validate) {
+                permissions[p.role][p.access][p.resource].validate = parse(
+                  p.validate
+                );
+              }
             }
 
             resolve(permissions);

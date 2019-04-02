@@ -303,9 +303,7 @@ export interface Preset {
 export type PermissionSet = {
   [resource: string]: {
     access: number;
-    validate?: {
-      [validator: string]: boolean;
-    };
+    validate?: Expression;
     filter: Expression;
   };
 }[];

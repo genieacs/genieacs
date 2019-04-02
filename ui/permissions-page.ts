@@ -9,7 +9,6 @@ import memoize from "../lib/common/memoize";
 import putFormComponent from "./put-form-component";
 import * as overlay from "./overlay";
 import * as smartQuery from "./smart-query";
-import { validators } from "../lib/common/authorizer";
 import { map, parse, stringify } from "../lib/common/expression-parser";
 import filterComponent from "./filter-component";
 import { Children, ClosureComponent, Component } from "mithril";
@@ -43,13 +42,7 @@ const attributes = [
     type: "combo",
     options: ["1: count", "2: read", "3: write"]
   },
-  {
-    id: "validate",
-    label: "Validators",
-    type: "multi",
-    options: Object.keys(validators),
-    unsortable: true
-  }
+  { id: "validate", label: "Validate", unsortable: true }
 ];
 
 const unpackSmartQuery = memoize(query => {
@@ -79,16 +72,25 @@ function putActionHandler(action, _object): Promise<ValidationErrors> {
       else if (object.access === "1: count") object.access = 1;
       else return void resolve({ access: "Invalid access level" });
 
-      object.filter = object.filter || "";
-      try {
-        memoizedParse(object.filter);
-      } catch (err) {
-        return void resolve({
-          filter: "Filter must be valid expression"
-        });
+      if (object.filter) {
+        try {
+          object.filter = stringify(memoizedParse(object.filter));
+        } catch (err) {
+          return void resolve({
+            filter: "Filter must be valid expression"
+          });
+        }
       }
 
-      object.validate = (object.validate || []).join(",");
+      if (object.validate) {
+        try {
+          object.validate = stringify(memoizedParse(object.validate));
+        } catch (err) {
+          return void resolve({
+            validate: "Validate must be valid expression"
+          });
+        }
+      }
 
       const id = `${object.role}:${object.resource}:${object.access}`;
 

@@ -3,30 +3,32 @@ import { MongoClient } from "mongodb";
 import { get } from "../lib/config";
 import { hashPassword, generateSalt } from "../lib/auth";
 
+const pass = "true";
+
 const permissionsData = [
-  { role: "admin", resource: "devices", access: 3, validate: ["pass"] },
-  { role: "admin", resource: "faults", access: 3, validate: ["pass"] },
-  { role: "admin", resource: "files", access: 3, validate: ["pass"] },
-  { role: "admin", resource: "presets", access: 3, validate: ["pass"] },
-  { role: "admin", resource: "provisions", access: 3, validate: ["pass"] },
-  { role: "admin", resource: "config", access: 3, validate: ["pass"] },
-  { role: "admin", resource: "permissions", access: 3, validate: ["pass"] },
-  { role: "admin", resource: "users", access: 3, validate: ["pass"] },
+  { role: "admin", resource: "devices", access: 3, validate: pass },
+  { role: "admin", resource: "faults", access: 3, validate: pass },
+  { role: "admin", resource: "files", access: 3, validate: pass },
+  { role: "admin", resource: "presets", access: 3, validate: pass },
+  { role: "admin", resource: "provisions", access: 3, validate: pass },
+  { role: "admin", resource: "config", access: 3, validate: pass },
+  { role: "admin", resource: "permissions", access: 3, validate: pass },
+  { role: "admin", resource: "users", access: 3, validate: pass },
   {
     role: "admin",
     resource: "virtualParameters",
     access: 3,
-    validate: ["pass"]
+    validate: pass
   },
-  { role: "view", resource: "devices", access: 2, validate: [] },
-  { role: "view", resource: "faults", access: 2, validate: [] },
-  { role: "view", resource: "files", access: 2, validate: [] },
-  { role: "view", resource: "presets", access: 2, validate: [] },
-  { role: "view", resource: "provisions", access: 2, validate: [] },
-  { role: "view", resource: "config", access: 2, validate: [] },
-  { role: "view", resource: "users", access: 2, validate: [] },
-  { role: "view", resource: "permissions", access: 2, validate: [] },
-  { role: "view", resource: "virtualParameters", access: 2, validate: [] }
+  { role: "view", resource: "devices", access: 2 },
+  { role: "view", resource: "faults", access: 2 },
+  { role: "view", resource: "files", access: 2 },
+  { role: "view", resource: "presets", access: 2 },
+  { role: "view", resource: "provisions", access: 2 },
+  { role: "view", resource: "config", access: 2 },
+  { role: "view", resource: "users", access: 2 },
+  { role: "view", resource: "permissions", access: 2 },
+  { role: "view", resource: "virtualParameters", access: 2 }
 ];
 
 const usersData = [
@@ -194,7 +196,6 @@ async function run(): Promise<void> {
       .insertMany(objs)
   );
   const perms = permissionsData.map(p => {
-    p.validate = (p.validate || []).join(",");
     return Object.assign({ _id: `${p.role}:${p.resource}:${p.access}` }, p);
   });
   inserts.push(
