@@ -88,7 +88,10 @@ export function evaluate(exp, obj?, now?: number, cb?: Function): Expression {
     } else if (e[0] === "PARAM") {
       if (e[1] == null) return null;
       if (obj && !isArray(e[1])) {
-        let v = obj[e[1]];
+        let v;
+        if (typeof obj === "function") v = obj(e[1]);
+        else v = obj[e[1]];
+
         if (v == null) return null;
         if (typeof v === "object") v = v.value ? v.value[0] : null;
         return v;
