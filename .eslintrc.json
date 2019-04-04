@@ -3,11 +3,12 @@
     "es6": true,
     "node": true
   },
-  "extends": "eslint:recommended",
+  "parser": "@typescript-eslint/parser",
   "parserOptions": {
-    "sourceType": "script",
-    "ecmaVersion": 8
+    "project": "./tsconfig.json"
   },
+  "plugins": ["@typescript-eslint"],
+  "extends": ["eslint:recommended", "plugin:@typescript-eslint/recommended", "prettier", "prettier/@typescript-eslint"],
   "rules": {
     "no-shadow": ["error", { "allow": ["err"] }],
     "handle-callback-err": "error",
@@ -16,6 +17,8 @@
     "consistent-return": ["error", {"treatUndefinedAsUnspecified": true}],
     "no-buffer-constructor": "error",
     "prefer-const": ["error", {"destructuring": "all"}],
-    "eqeqeq": ["error", "always", {"null": "ignore"}]
+    "eqeqeq": ["error", "always", {"null": "ignore"}],
+    "@typescript-eslint/no-explicit-any": 0,
+    "@typescript-eslint/no-use-before-define": ["error", { "functions": false }]
   }
 }

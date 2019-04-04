@@ -1,0 +1,115 @@
+#!/usr/bin/env -S node -r esm -r ts-node/register/transpile-only
+import * as path from "path";
+import * as fs from "fs";
+
+process.chdir(path.resolve(path.dirname(fs.realpathSync(__filename)), ".."));
+
+import * as config from "../lib/config";
+import * as logger from "../lib/logger";
+import * as cluster from "../lib/cluster";
+import * as server from "../lib/server";
+import { listener } from "../lib/ui";
+import * as db from "../lib/ui/db";
+import * as db2 from "../lib/db";
+import * as cache from "../lib/cache";
+import { version as VERSION } from "../package.json";
+
+logger.init("ui", VERSION);
+
+const SERVICE_ADDRESS = config.get("UI_INTERFACE");
+const SERVICE_PORT = config.get("UI_PORT");
+
+function exitWorkerGracefully(): void {
+  db.disconnect();
+  db2.disconnect();
+  cache.disconnect();
+  cluster.worker.disconnect();
+}
+
+function exitWorkerUngracefully(): void {
+  process.exit(1);
+}
+
+if (!cluster.worker) {
+  const WORKER_COUNT = config.get("UI_WORKER_PROCESSES");
+
+  logger.info({
+    message: `genieacs-ui starting`,
+    pid: process.pid,
+    version: VERSION
+  });
+
+  cluster.start(WORKER_COUNT, SERVICE_PORT, SERVICE_ADDRESS);
+
+  process.on("SIGINT", () => {
+    logger.info({
+      message: "Received signal SIGINT, exiting",
+      pid: process.pid
+    });
+
+    cluster.stop();
+  });
+
+  process.on("SIGTERM", () => {
+    logger.info({
+      message: "Received signal SIGTERM, exiting",
+      pid: process.pid
+    });
+
+    cluster.stop();
+  });
+} else {
+  let ssl;
+  if (config.get("UI_SSL")) {
+    ssl = {
+      key: path.resolve("" + config.get("CONFIG_DIR"), "ui.key"),
+      cert: path.resolve("" + config.get("CONFIG_DIR"), "ui.crt"),
+      ca: path.resolve("" + config.get("CONFIG_DIR"), "ui.ca-bundle")
+    };
+  }
+
+  let stopping = false;
+
+  process.on("uncaughtException", err => {
+    if ((err as NodeJS.ErrnoException).code === "ERR_IPC_DISCONNECTED") return;
+    logger.error({
+      message: "Uncaught exception",
+      exception: err,
+      pid: process.pid
+    });
+    stopping = true;
+    server
+      .stop()
+      .then(exitWorkerGracefully)
+      .catch(exitWorkerUngracefully);
+  });
+
+  process.on("SIGINT", () => {
+    stopping = true;
+    server
+      .stop()
+      .then(exitWorkerGracefully)
+      .catch(exitWorkerUngracefully);
+  });
+
+  process.on("SIGTERM", () => {
+    stopping = true;
+    server
+      .stop()
+      .then(exitWorkerGracefully)
+      .catch(exitWorkerUngracefully);
+  });
+
+  const _listener = (req, res): void => {
+    if (stopping) res.setHeader("Connection", "close");
+    listener(req, res);
+  };
+
+  db2.connect(err => {
+    if (err) throw err;
+    cache.connect(err => {
+      if (err) throw err;
+      server.start(SERVICE_PORT, SERVICE_ADDRESS, ssl, _listener);
+    });
+  });
+}

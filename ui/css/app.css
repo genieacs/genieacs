@@ -1,0 +1,685 @@
+@import "normalize.css";
+@import "codemirror/lib/codemirror.css";
+
+:root {
+  --base-font-size: 13px;
+  --base-line-height: 16px;
+
+  --color1: #ebe0bf;
+  --color2: #b9b098;
+  --color3: #f2ebd5;
+  --color4: #046380;
+  --color5: #002f2f;
+
+  --fade: 0.2s;
+
+  --disabled: #666;
+
+  --status-red: hsl(0, 80%, 80%);
+  --status-green: hsl(125, 80%, 80%);
+  --status-gray: hsl(58, 3%, 80%);
+}
+
+body,
+input,
+button,
+select,
+option,
+textarea {
+  font-family: sans-serif;
+  color: var(--color5);
+}
+
+a {
+  color: var(--color4);
+  cursor: pointer;
+  transition: background-color var(--fade), color var(--fade);
+  &:visited {
+    color: var(--color4);
+  }
+  &:hover {
+    color: white;
+    background-color: var(--color4);
+  }
+  /* text-decoration does not propagate to inline-block children */
+  & span {
+    text-decoration: inherit;
+  }
+}
+
+strong,
+b {
+  font-weight: bold;
+}
+
+i {
+  font-style: italic;
+}
+
+@keyframes pending-blink {
+  from {
+    background-color: color(var(--status-green) a(90%));
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+#header {
+  background-color: #f2eddf;
+  border-bottom: 1px solid var(--color1);
+  overflow: visible;
+  position: relative;
+
+  & > .drawer-wrapper {
+    position: fixed;
+    z-index: 10;
+    width: 720px;
+    margin-left: -360px;
+    top: 0;
+    left: 50%;
+    & > .drawer {
+      background-color: rgba(255, 255, 255, 0.9);
+      border-bottom-left-radius: 6px;
+      border-bottom-right-radius: 6px;
+      border-bottom: 1px solid var(--color1);
+      border-left: 1px solid var(--color1);
+      border-right: 1px solid var(--color1);
+      margin-top: -1px;
+      box-shadow: 0 0 10px #ccc;
+      overflow: hidden;
+      transition: height var(--fade), opacity var(--fade);
+
+      & > div {
+        padding: 0.3em;
+      }
+
+      & > .status {
+        display: flex;
+        & > span {
+          margin-right: 1em;
+          padding-left: 0.2em;
+          padding-right: 0.2em;
+          border-radius: 0.4em;
+        }
+        & > .pending.active {
+          &.active {
+            animation: 0.5s linear 0s infinite alternate pending-blink;
+          }
+        }
+        & > .stale.active {
+          background-color: color(var(--status-gray) a(90%));
+        }
+        & > .fault.active {
+          background-color: color(var(--status-red) a(90%));
+        }
+        & > .queued.active {
+          font-weight: bold;
+        }
+
+        & > .actions {
+          flex-grow: 1;
+          text-align: right;
+        }
+      }
+
+      & > .staging {
+        & .parameter {
+          font-style: italic;
+          max-width: 500px;
+          text-overflow: ellipsis;
+          display: inline-block;
+          overflow: hidden;
+          vertical-align: text-bottom;
+        }
+
+        & input {
+          width: 100%;
+          padding: 0.3em;
+          margin-top: 0.3em;
+          margin-bottom: 0.3em;
+        }
+        & .actions {
+          text-align: right;
+        }
+      }
+
+      & > .queue {
+        & > .pending {
+          animation: 0.5s linear 0s infinite alternate pending-blink;
+          border-radius: 0.4em;
+        }
+        & > .stale {
+          background-color: color(var(--status-gray) a(90%));
+          border-radius: 0.4em;
+        }
+        & > .fault {
+          background-color: color(var(--status-red) a(90%));
+          border-radius: 0.4em;
+        }
+        & .parameter {
+          font-style: italic;
+          max-width: 400px;
+          text-overflow: ellipsis;
+          display: inline-block;
+          overflow: hidden;
+          vertical-align: text-bottom;
+        }
+        & .value {
+          max-width: 200px;
+          text-overflow: ellipsis;
+          display: inline-block;
+          overflow: hidden;
+          vertical-align: text-bottom;
+          white-space: nowrap;
+        }
+        & > div {
+          display: flex;
+          & > .actions {
+            flex-grow: 1;
+            text-align: right;
+          }
+        }
+      }
+    }
+    & > .notifications-wrapper {
+      & > .notification {
+        padding: 0.3em;
+        left: 0;
+        right: 0;
+        background-color: rgba(255, 255, 255, 0.9);
+        border: 1px solid var(--color1);
+        border-radius: 6px;
+        box-shadow: 0 0 10px #ccc;
+        transition: opacity var(--fade), top var(--fade);
+
+        &.error {
+          background-color: color(var(--status-red) a(90%));
+          border: 1px solid var(--status-red);
+        }
+        &.success {
+          background-color: color(var(--status-green) a(90%));
+          border: 1px solid var(--status-green);
+        }
+      }
+    }
+  }
+  & > nav {
+    display: inline-block;
+    overflow: visible;
+    position: absolute;
+    bottom: -1px;
+
+    & > ul {
+      font-weight: bold;
+      display: inline-block;
+      margin: 0 10px;
+      padding: 0;
+
+      & > li {
+        margin: 0 2px;
+        background-color: var(--color1);
+        display: inline-block;
+        border-top-left-radius: 6px;
+        border-top-right-radius: 6px;
+        border-top: 1px solid var(--color1);
+        border-left: 1px solid var(--color1);
+        border-right: 1px solid var(--color1);
+        transition: background-color var(--fade);
+        &.active,
+        &:hover {
+          background-color: white;
+        }
+
+        & > a,
+        & > a:visited,
+        & > a:hover {
+          display: inline-block;
+          min-width: 140px;
+          color: var(--color4);
+          text-decoration: none;
+          background: none;
+          padding: 8px;
+        }
+      }
+    }
+  }
+
+  & > .logo {
+    margin: 10px;
+    display: inline;
+    height: 56px;
+  }
+
+  & > .user-menu {
+    float: right;
+    margin: 5px;
+  }
+}
+
+#content-wrapper {
+  display: flex;
+}
+
+#side-menu {
+  width: 200px;
+  min-width: 200px;
+  & > ul {
+    padding: 0;
+    list-style: none;
+
+    & > li {
+      & > a {
+        display: block;
+        text-decoration: none;
+        margin: 5px 0;
+        padding: 8px;
+        border-bottom-right-radius: 6px;
+        border-top-right-radius: 6px;
+        background-color: var(--color3);
+        &:hover {
+          background-color: var(--color4);
+          color: var(--color3);
+        }
+      }
+
+      &.active {
+        font-weight: bold;
+      }
+    }
+  }
+}
+
+#content {
+  flex-grow: 1;
+  margin: 10px;
+  min-height: 250px;
+}
+
+table.table {
+  border-spacing: 0;
+  text-align: left;
+  display: block;
+  overflow-x: auto;
+
+  & table.table {
+    font-size: 90%;
+  }
+
+  & th {
+    white-space: nowrap;
+    color: var(--color4);
+    font-weight: bold;
+    border-bottom: 2px solid var(--color4);
+    margin: 0;
+    padding: 0.2em 0.5em;
+  }
+
+  & td {
+    margin: 0;
+    padding: 0.2em 0.5em;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 400px;
+  }
+
+  & tfoot td > a {
+    margin-left: 1em;
+  }
+
+  &.highlight > tbody > tr {
+    & > td {
+      border-bottom: 1px dotted var(--color1);
+    }
+    transition: background-color var(--fade);
+    &:hover {
+      background-color: var(--color3);
+    }
+  }
+
+  & tbody > tr.empty {
+    text-align: center;
+    color: var(--disabled);
+    &:hover {
+      background-color: initial;
+    }
+  }
+}
+
+h1 {
+  color: var(--color4);
+  font-size: 130%;
+  font-weight: bold;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+}
+
+h2 {
+  color: var(--color5);
+  font-weight: bold;
+  font-size: 120%;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+}
+
+h3 {
+  color: var(--color5);
+  font-size: 110%;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+}
+
+p.error {
+  color: #a00;
+}
+
+/* Remove button padding in FF */
+input::-moz-focus-inner {
+  border: 0;
+  padding: 0;
+}
+
+input[type="button"],
+button {
+  background: transparent;
+  border: 0;
+  color: var(--color4);
+  border-radius: 4px;
+  transition: background-color var(--fade), color var(--fade);
+  &.primary {
+    border: 1px solid var(--color1);
+    background-color: var(--color3);
+  }
+  &.critical {
+    border: 1px solid var(--color1);
+    background-color: var(--color3);
+    color: #700;
+  }
+  &:hover:enabled {
+    background-color: var(--color4);
+    color: var(--color3);
+  }
+  &:disabled {
+    color: var(--disabled);
+    cursor: not-allowed;
+  }
+}
+
+.CodeMirror,
+textarea,
+select,
+input {
+  display: block;
+  border: 1px solid var(--color1);
+  background-color: var(--color3);
+  border-radius: 4px;
+  transition: border-color var(--fade), background-color var(--fade);
+  &.error {
+    background-color: #efcbcf;
+    border-color: #e6b2b7;
+  }
+  &:focus,
+  &:hover {
+    border-color: var(--color4);
+  }
+}
+
+.filter {
+  margin-bottom: 0.5em;
+  & > input {
+    font-size: 90%;
+    width: 30em;
+    margin: 2px;
+    padding: 2px;
+  }
+}
+
+.page-overview {
+  & > h1 {
+    text-align: center;
+  }
+}
+
+.overview-chart-group {
+  display: flex;
+  justify-content: center;
+
+  & h2 {
+    text-align: center;
+  }
+}
+
+table.parameter-list {
+  border-spacing: 0;
+  text-align: left;
+  & th {
+    padding: 0;
+    padding-right: 1em;
+  }
+}
+
+.overview-dot {
+  & > svg {
+    margin-bottom: -0.125em;
+    margin-left: 0.2em;
+    margin-right: 0.2em;
+    & > circle {
+      stroke: var(--color5);
+      stroke-width: 0.08em;
+    }
+  }
+}
+
+span.inform {
+  & > * {
+    margin-right: 0.5em;
+  }
+}
+
+.pie-chart {
+  margin: 20px;
+  text-align: center;
+
+  & > svg {
+    & > path {
+      stroke: var(--color1);
+      stroke-width: 1px;
+    }
+
+    & > a {
+      transition: opacity var(--fade);
+      opacity: 0;
+
+      & > text {
+        font-weight: bold;
+        opacity: 0.4;
+      }
+
+      & > path {
+        stroke: var(--color4);
+      }
+
+      &:hover {
+        opacity: 1;
+      }
+    }
+  }
+
+  & > .legend {
+    text-align: left;
+    margin: 15px;
+
+    & > .legend-line {
+      & > .color {
+        height: 12px;
+        width: 12px;
+        margin-right: 5px;
+        border: 1px solid var(--color1);
+        display: inline-block;
+      }
+    }
+  }
+}
+
+span.na {
+  color: var(--disabled);
+}
+
+.all-parameters {
+  & > input {
+    font-family: monospace;
+    margin-bottom: 2px;
+    padding: 4px;
+    width: 600px;
+  }
+
+  & > .parameter-list {
+    font-family: monospace;
+    overflow-y: scroll;
+    height: 200px;
+
+    & > table {
+      width: 100%;
+      table-layout: fixed;
+      border-spacing: 0;
+      & > tbody {
+        & > tr {
+          & > td {
+            overflow: hidden;
+            white-space: nowrap;
+            border-bottom: 1px dotted var(--color1);
+          }
+          transition: background-color var(--fade);
+          &:hover {
+            background-color: var(--color3);
+          }
+
+          & > td.left {
+            & > * {
+              max-width: 100%;
+            }
+          }
+          & > td.right {
+            text-align: right;
+            padding-right: 0.5em;
+          }
+        }
+      }
+    }
+  }
+}
+
+.container-right {
+  float: right;
+  clear: right;
+}
+
+.container-full-width {
+  clear: both;
+}
+
+.actions-bar {
+  margin-top: 10px;
+  & > button {
+    margin-right: 10px;
+  }
+}
+
+span.tag {
+  display: inline-block;
+  background-image: url('data:image/svg+xml;utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="190" height="16"><path d="M6.59 15.42l-6-6a2 2 0 0 1 0-2.83l6-6A2 2 0 0 1 8 0h180a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-1.41-.58zM4.35 6.59A2 2 0 1 0 7.17 9.4 2 2 0 0 0 4.35 6.6z" fill="#e8d5b2"></path></svg>');
+  background-size: cover;
+  background-repeat: no-repeat;
+  border-radius: 0.2em;
+  padding-left: 1em;
+  padding-right: 0.2em;
+}
+
+.tags {
+  & > .tag {
+    margin-right: 0.5em;
+  }
+}
+
+.overlay-wrapper {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.2);
+  z-index: 100;
+  transition: opacity var(--fade), top var(--fade);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  & > .overlay {
+    max-width: 90vw;
+    max-height: 90vh;
+    background-color: white;
+    border: 1px solid var(--color1);
+    border-radius: 10px;
+    padding: 10px;
+    box-shadow: 0 0 15px #aaa;
+    overflow: auto;
+  }
+}
+
+.overlay > .put-form {
+  min-width: 700px;
+}
+
+.autocomplete {
+  box-shadow: 0 0 10px #ccc;
+  background-color: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--color1);
+  border-radius: 4px;
+  max-height: 300px;
+  overflow-y: auto;
+  transition: opacity var(--fade);
+  & > .suggestion {
+    padding: 5px;
+
+    &.selected,
+    &:hover {
+      background-color: var(--color3);
+    }
+  }
+}
+
+span.long-text {
+  display: inline-block;
+  overflow-x: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 400px;
+  /*
+  "overflow: hidden" changes the baseline as explained here:
+  https://stackoverflow.com/questions/9273016/why-is-this-inline-block-element-pushed-downward
+  */
+  vertical-align: top;
+}
+
+span.long-text-overflowed {
+  cursor: pointer;
+  &:hover {
+    text-decoration: underline;
+    text-decoration-style: dotted;
+  }
+}
+
+textarea.long-text {
+  font-family: monospace;
+  min-width: 10vw;
+  min-height: 10vh;
+}
+
+span.parameter-value {
+  & > span:empty::before {
+    content: "blank";
+    color: #aaa;
+  }
+}

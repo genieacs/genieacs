@@ -1,7 +1,6 @@
 *~
 .npmignore
 
-config/auth.js
 config/config.json
 config/cwmp.key
 config/cwmp.crt
@@ -17,4 +16,10 @@ config/ext
 debug/*
 !debug/.gitkeep
 
+dist
 .eslintrc.json
+.eslintignore
+ava.config.js
+tsconfig.json
+bin/.*
+tools/.*

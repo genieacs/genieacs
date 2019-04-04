@@ -1,0 +1,232 @@
+#!/usr/bin/env -S node -r esm -r ts-node/register/transpile-only
+import { MongoClient } from "mongodb";
+import { get } from "../lib/config";
+import { hashPassword, generateSalt } from "../lib/auth";
+
+const permissionsData = [
+  { role: "admin", resource: "devices", access: 3, validate: ["pass"] },
+  { role: "admin", resource: "faults", access: 3, validate: ["pass"] },
+  { role: "admin", resource: "files", access: 3, validate: ["pass"] },
+  { role: "admin", resource: "presets", access: 3, validate: ["pass"] },
+  { role: "admin", resource: "provisions", access: 3, validate: ["pass"] },
+  { role: "admin", resource: "config", access: 3, validate: ["pass"] },
+  { role: "admin", resource: "permissions", access: 3, validate: ["pass"] },
+  { role: "admin", resource: "users", access: 3, validate: ["pass"] },
+  {
+    role: "admin",
+    resource: "virtualParameters",
+    access: 3,
+    validate: ["pass"]
+  },
+  { role: "view", resource: "devices", access: 2, validate: [] },
+  { role: "view", resource: "faults", access: 2, validate: [] },
+  { role: "view", resource: "files", access: 2, validate: [] },
+  { role: "view", resource: "presets", access: 2, validate: [] },
+  { role: "view", resource: "provisions", access: 2, validate: [] },
+  { role: "view", resource: "config", access: 2, validate: [] },
+  { role: "view", resource: "users", access: 2, validate: [] },
+  { role: "view", resource: "permissions", access: 2, validate: [] },
+  { role: "view", resource: "virtualParameters", access: 2, validate: [] }
+];
+
+const usersData = [
+  { username: "admin", password: "admin", roles: ["admin"] },
+  { username: "view", password: "view", roles: ["view"] }
+];
+
+const configData = {
+  "ui.device.0.type": "'tags'",
+  "ui.device.1.type": "'ping'",
+  "ui.device.2.parameters.0.components.0.type": "'parameter'",
+  "ui.device.2.parameters.0.components.1.chart": "'online'",
+  "ui.device.2.parameters.0.components.1.type": "'overview-dot'",
+  "ui.device.2.parameters.0.components.2.parameters.0":
+    "InternetGatewayDevice.DeviceInfo.HardwareVersion",
+  "ui.device.2.parameters.0.components.2.parameters.1":
+    "InternetGatewayDevice.DeviceInfo.SoftwareVersion",
+  "ui.device.2.parameters.0.components.2.parameters.2":
+    "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.MACAddress",
+  "ui.device.2.parameters.0.components.2.parameters.3":
+    "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.ExternalIPAddress",
+  "ui.device.2.parameters.0.components.2.parameters.4":
+    "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID",
+  "ui.device.2.parameters.0.components.2.parameters.5":
+    "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.KeyPassphrase",
+  "ui.device.2.parameters.0.components.2.parameters.6":
+    "InternetGatewayDevice.LANDevice.1.Hosts.Host",
+  "ui.device.2.parameters.0.components.2.type": "'summon-button'",
+  "ui.device.2.parameters.0.element": "'span.inform'",
+  "ui.device.2.parameters.0.label": "'Last inform'",
+  "ui.device.2.parameters.0.parameter": "DATE_STRING(Events.Inform)",
+  "ui.device.2.parameters.0.type": "'container'",
+  "ui.device.2.parameters.1.label": "'Serial number'",
+  "ui.device.2.parameters.1.parameter":
+    "InternetGatewayDevice.DeviceInfo.SerialNumber",
+  "ui.device.2.parameters.10.label": "'WLAN passphrase'",
+  "ui.device.2.parameters.10.parameter":
+    "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.KeyPassphrase",
+  "ui.device.2.parameters.2.label": "'Product class'",
+  "ui.device.2.parameters.2.parameter":
+    "InternetGatewayDevice.DeviceInfo.ProductClass",
+  "ui.device.2.parameters.3.label": "'OUI'",
+  "ui.device.2.parameters.3.parameter":
+    "InternetGatewayDevice.DeviceInfo.ManufacturerOUI",
+  "ui.device.2.parameters.4.label": "'Manufacturer'",
+  "ui.device.2.parameters.4.parameter":
+    "InternetGatewayDevice.DeviceInfo.Manufacturer",
+  "ui.device.2.parameters.5.label": "'Hardware version'",
+  "ui.device.2.parameters.5.parameter":
+    "InternetGatewayDevice.DeviceInfo.HardwareVersion",
+  "ui.device.2.parameters.6.label": "'Software version'",
+  "ui.device.2.parameters.6.parameter":
+    "InternetGatewayDevice.DeviceInfo.SoftwareVersion",
+  "ui.device.2.parameters.7.label": "'MAC'",
+  "ui.device.2.parameters.7.parameter":
+    "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.MACAddress",
+  "ui.device.2.parameters.8.label": "'IP'",
+  "ui.device.2.parameters.8.parameter":
+    "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.ExternalIPAddress",
+  "ui.device.2.parameters.9.label": "'WLAN SSID'",
+  "ui.device.2.parameters.9.parameter":
+    "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID",
+  "ui.device.2.type": "'parameter-list'",
+  "ui.device.3.childParameters.0.label": "'Host name'",
+  "ui.device.3.childParameters.0.parameter": "HostName",
+  "ui.device.3.childParameters.1.label": "'IP address'",
+  "ui.device.3.childParameters.1.parameter": "IPAddress",
+  "ui.device.3.childParameters.2.label": "'MAC address'",
+  "ui.device.3.childParameters.2.parameter": "MACAddress",
+  "ui.device.3.label": "'WLAN hosts'",
+  "ui.device.3.parameter": "InternetGatewayDevice.LANDevice.1.Hosts.Host",
+  "ui.device.3.type": "'parameter-table'",
+  "ui.device.4.components.0.components.0": "'Faults'",
+  "ui.device.4.components.0.element": "'h3'",
+  "ui.device.4.components.0.type": "'container'",
+  "ui.device.4.components.1.type": "'device-faults'",
+  "ui.device.4.element": "'div'",
+  "ui.device.4.type": "'container'",
+  "ui.device.5.components.0.components.0": "'All parameters'",
+  "ui.device.5.components.0.element": "'h3'",
+  "ui.device.5.components.0.type": "'container'",
+  "ui.device.5.components.1.type": "'all-parameters'",
+  "ui.device.5.element": "'div.container-full-width'",
+  "ui.device.5.type": "'container'",
+  "ui.device.6.type": "'device-actions'",
+  "ui.filters.0.label": "'Serial number'",
+  "ui.filters.0.parameter": "DeviceID.SerialNumber",
+  "ui.filters.0.type": "'string'",
+  "ui.filters.1.label": "'Product class'",
+  "ui.filters.1.parameter": "DeviceID.ProductClass",
+  "ui.filters.1.type": "'string'",
+  "ui.filters.2.label": "'Tag'",
+  "ui.filters.2.parameter": "tag",
+  "ui.filters.2.type": "'string'",
+  "ui.index.0.components.0.type": "'parameter'",
+  "ui.index.0.label": "'Serial number'",
+  "ui.index.0.parameter": "DeviceID.SerialNumber",
+  "ui.index.0.type": "'device-link'",
+  "ui.index.1.label": "'Product class'",
+  "ui.index.1.parameter": "DeviceID.ProductClass",
+  "ui.index.2.label": "'Software version'",
+  "ui.index.2.parameter": "InternetGatewayDevice.DeviceInfo.SoftwareVersion",
+  "ui.index.3.label": "'IP'",
+  "ui.index.3.parameter":
+    "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.ExternalIPAddress",
+  "ui.index.4.label": "'SSID'",
+  "ui.index.4.parameter":
+    "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID",
+  "ui.index.5.components.0.type": "'parameter'",
+  "ui.index.5.components.1.chart": "'online'",
+  "ui.index.5.components.1.type": "'overview-dot'",
+  "ui.index.5.element": "'span.inform'",
+  "ui.index.5.label": "'Last inform'",
+  "ui.index.5.parameter": "DATE_STRING(Events.Inform)",
+  "ui.index.5.type": "'container'",
+  "ui.index.6.label": "'Tags'",
+  "ui.index.6.parameter": "Tags",
+  "ui.index.6.type": "'tags'",
+  "ui.index.6.unsortable": "true",
+  "ui.index.6.writable": "false",
+  "ui.overview.charts.online.label": "'Online status'",
+  "ui.overview.charts.online.slices.1_onlineNow.color": "'#31a354'",
+  "ui.overview.charts.online.slices.1_onlineNow.filter":
+    "Events.Inform > NOW() - 5 * 60 * 1000",
+  "ui.overview.charts.online.slices.1_onlineNow.label": "'Online now'",
+  "ui.overview.charts.online.slices.2_past24.color": "'#addd8e'",
+  "ui.overview.charts.online.slices.2_past24.filter":
+    "Events.Inform > (NOW() - 5 * 60 * 1000) - (24 * 60 * 60 * 1000) AND Events.Inform < (NOW() - 5 * 60 * 1000)",
+  "ui.overview.charts.online.slices.2_past24.label": "'Past 24 hours'",
+  "ui.overview.charts.online.slices.3_others.color": "'#f7fcb9'",
+  "ui.overview.charts.online.slices.3_others.filter":
+    "Events.Inform < (NOW() - 5 * 60 * 1000) - (24 * 60 * 60 * 1000)",
+  "ui.overview.charts.online.slices.3_others.label": "'Others'",
+  "ui.overview.groups.online.charts.0": "'online'",
+  "ui.overview.groups.online.label": "''",
+  "ui.pageSize": "10"
+};
+
+async function run(): Promise<void> {
+  const client = await MongoClient.connect(get("MONGODB_CONNECTION_URL"), {
+    useNewUrlParser: true
+  });
+
+  const deletes = [];
+  for (const col of ["permissions", "users", "config"]) {
+    deletes.push(
+      client
+        .db()
+        .collection(col)
+        .deleteMany({})
+    );
+  }
+
+  await Promise.all(deletes);
+
+  const inserts = [];
+  const objs = Object.entries(configData).map(c => ({
+    _id: c[0],
+    value: c[1]
+  }));
+  inserts.push(
+    client
+      .db()
+      .collection("config")
+      .insertMany(objs)
+  );
+  const perms = permissionsData.map(p => {
+    p.validate = (p.validate || []).join(",");
+    return Object.assign({ _id: `${p.role}:${p.resource}:${p.access}` }, p);
+  });
+  inserts.push(
+    client
+      .db()
+      .collection("permissions")
+      .insertMany(perms)
+  );
+  const saltingProms = [];
+  for (const u of usersData) {
+    saltingProms.push(
+      new Promise(async resolve => {
+        u.salt = await generateSalt(64);
+        u.password = await hashPassword(u.password, u.salt);
+        u.roles = (u.roles || []).join(",");
+        u._id = u.username;
+        delete u.username;
+        resolve(u);
+      })
+    );
+  }
+
+  const users = await Promise.all(saltingProms);
+  inserts.push(
+    client
+      .db()
+      .collection("users")
+      .insertMany(users)
+  );
+
+  await Promise.all(inserts);
+  client.close();
+}
+
+run();

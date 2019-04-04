@@ -1,8 +1,9 @@
 *~
 node_modules
+dist
 debug
-config/auth.js
 config/config.json
+config/config-ui.json
 config/cwmp.key
 config/cwmp.crt
 config/cwmp.ca-bundle
@@ -13,3 +14,5 @@ config/fs.key
 config/fs.crt
 config/fs.ca-bundle
 config/ext
+bin/.*.ts
+tools/.*.ts

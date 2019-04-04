@@ -16,20 +16,54 @@
   "license": "AGPL-3.0",
   "preferGlobal": true,
   "directories": {
-    "bin": "bin"
+    "bin": "bin",
+    "tools": "tools"
   },
   "dependencies": {
+    "jsonwebtoken": "^8.4.0",
+    "koa": "^2.7.0",
+    "koa-bodyparser": "^4.2.1",
+    "koa-compress": "^3.0.0",
+    "koa-jwt": "^3.5.1",
+    "koa-router": "^7.4.0",
+    "koa-static": "^5.0.0",
     "later": "^1.2.0",
     "libxmljs": "^0.19.5",
-    "mongodb": "^3.1.10",
+    "mongodb": "^3.1.13",
+    "parsimmon": "^1.12.0",
     "seedrandom": "^2.4.4"
   },
-  "optionalDependencies": {
-    "redis": "^2.6.5"
-  },
   "devDependencies": {
-    "eslint": "^5.10.0",
-    "prettier": "^1.15.3"
+    "@types/jsonwebtoken": "^8.3.0",
+    "@types/koa": "^2.0.48",
+    "@types/koa-compress": "^2.0.8",
+    "@types/koa-router": "^7.0.39",
+    "@types/koa-static": "^4.0.1",
+    "@types/libxmljs": "^0.18.3",
+    "@types/mithril": "^1.1.16",
+    "@types/mongodb": "^3.1.19",
+    "@types/parsimmon": "^1.10.0",
+    "@types/seedrandom": "^2.4.27",
+    "@typescript-eslint/eslint-plugin": "^1.3.0",
+    "ava": "^1.2.1",
+    "codemirror": "^5.43.0",
+    "cssnano": "^4.1.10",
+    "eslint": "^5.14.1",
+    "eslint-config-prettier": "^4.0.0",
+    "esm": "^3.2.5",
+    "mithril": "^1.1.6",
+    "postcss-cssnext": "^3.1.0",
+    "postcss-import": "^12.0.1",
+    "prettier": "^1.16.4",
+    "rollup": "^1.2.1",
+    "rollup-plugin-json": "^3.1.0",
+    "rollup-plugin-replace": "^2.1.0",
+    "rollup-plugin-terser": "^4.0.4",
+    "rollup-plugin-typescript": "^1.0.0",
+    "ts-node": "^8.0.2",
+    "typescript": "^3.3.3",
+    "webpack": "^4.29.5",
+    "yaml": "^1.3.2"
   },
   "engines": {
     "node": ">=8.14.0"
@@ -38,7 +72,12 @@
     "compile": "echo 'Compile step no longer required, skipping.'",
     "configure": "if [ ! -f ./config/config.json ]; then cp ./config/config-sample.json ./config/config.json; fi",
     "install": "npm run configure",
-    "test": "node test",
-    "lint": "eslint --fix lib/*.js; prettier --write lib/*.js"
+    "test": "ava --verbose --color",
+    "lint-ln": "find bin -type f -exec sh -c 'ln -fsr \"$1\" \"bin/.${1#bin/}.ts\"' _ {} \\;; find tools -type f -exec sh -c 'ln -fsr \"$1\" \"tools/.${1#tools/}.ts\"' _ {} \\;",
+    "lint-eslint": "eslint --fix \"bin/**/*.ts\" \"lib/**/*.ts\" \"ui/**/*.ts\" \"test/**/*.ts\" \"build/**/*.ts\" \"tools/**/*.ts\"",
+    "lint-prettier": "prettier --parser typescript --write \"bin/**/*.ts\" \"lib/**/*.ts\" \"ui/**/*.ts\" \"test/**/*.ts\" \"build/**/*.ts\" \"tools/**/*.ts\"",
+    "lint-tsc": "tsc --noEmit",
+    "lint": "npm run lint-ln && npm run lint-eslint && npm run lint-prettier && npm run lint-tsc",
+    "build": "node -r esm -r ts-node/register/transpile-only build/build"
   }
 }

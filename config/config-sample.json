@@ -8,5 +8,8 @@
   "FS_INTERFACE" : "0.0.0.0",
   "FS_PORT" : 7567,
   "FS_HOSTNAME" : "acs.example.com",
+  "UI_INTERFACE" : "0.0.0.0",
+  "UI_PORT" : 3000,
+  "UI_JWT_SECRET": "",
   "DEBUG" : false
 }

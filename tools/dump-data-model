@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S node -r esm -r ts-node/register/transpile-only
 /**
  * Copyright 2013-2017  Zaid Abdulla
  *
@@ -17,75 +17,67 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
-"use strict";
 
-const fs = require("fs");
-const path = require("path");
+import * as fs from "fs";
+import * as path from "path";
+import { connect, devicesCollection } from "../lib/db";
 
 const outputFilename = path.resolve(`data_model_${process.argv[2]}.json`);
 process.chdir(path.resolve(path.dirname(fs.realpathSync(__filename)), ".."));
 
-const db = require("../lib/db");
-
 const dataModel = {};
 
+function recursive(object, p): void {
+  if (!p) p = "";
 
-function recursive(object, path) {
-  if (!path)
-    path = "";
+  for (const key in object) {
+    if (key[0] === "_" || !object[key]) continue;
 
-  for (let key in object) {
-    if (key[0] === "_" || !object[key])
-      continue;
-
-    let isObject = object[key]["_object"];
-    let isValue = "_value" in object[key];
+    const isObject = object[key]["_object"];
+    const isValue = "_value" in object[key];
 
     if ((isObject && isValue) || (!isObject && !isValue))
       throw new Error("Unexpected object");
 
     if (isValue) {
       let value = object[key]["_value"];
-      if (typeof value === "boolean")
-        value = +value;
+      if (typeof value === "boolean") value = +value;
 
-      let values = [object[key]["_writable"] || false, value.toString()];
-      if (object[key]["_type"])
-        values.push(object[key]["_type"]);
+      const values = [object[key]["_writable"] || false, value.toString()];
+      if (object[key]["_type"]) values.push(object[key]["_type"]);
 
-      dataModel[`${path}${key}`] = values;
+      dataModel[`${p}${key}`] = values;
     }
 
     if (isObject) {
-      let values = [object[key]["_writable"] || false];
-      dataModel[`${path}${key}.`] = values;
-      recursive(object[key], `${path}${key}.`);
+      const values = [object[key]["_writable"] || false];
+      dataModel[`${p}${key}.`] = values;
+      recursive(object[key], `${p}${key}.`);
     }
   }
 }
 
+connect(err => {
+  if (err) throw err;
 
-db.connect(function(err) {
-  if (err)
-    throw err;
+  return devicesCollection.findOne(
+    {
+      _id: process.argv[2]
+    },
+    {},
+    (err, device) => {
+      if (err) throw err;
 
-  return db.devicesCollection.findOne({
-    _id: process.argv[2]
-  }, {}, function(err, device) {
-    if (err)
-      throw err;
+      if (!device) throw new Error("Device not found");
 
-    if (!device)
-      throw new Error("Device not found");
+      recursive(device);
 
-    recursive(device);
+      fs.writeFile(outputFilename, JSON.stringify(dataModel, null, 2), () => {
+        if (err) throw err;
 
-    fs.writeFile(outputFilename, JSON.stringify(dataModel, null, 2), function() {
-      if (err)
-        throw err;
-
-      console.log(`${outputFilename} saved`);
-      process.exit(0);
-    });
-  });
+        process.stdout.write(`${outputFilename} saved\n`);
+        process.exit(0);
+      });
+    }
+  );
 });

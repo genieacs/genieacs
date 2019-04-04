@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "lib": [
+      "esnext", "dom"
+    ],
+    "module": "esnext",
+    "moduleResolution": "node",
+    "target": "esnext",
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "alwaysStrict": true,
+    "noImplicitReturns": true,
+    "strictFunctionTypes": true,
+    "allowJs": true
+  },
+  "include": [
+      "./bin/.*.ts",
+      "./lib/**/*",
+      "./ui/**/*",
+      "./test/**/*",
+      "./build/**/*",
+      "./toos/.*.ts"
+  ]
+}
