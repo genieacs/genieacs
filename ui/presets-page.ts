@@ -6,6 +6,7 @@ import * as overlay from "./overlay";
 import * as store from "./store";
 import * as notifications from "./notifications";
 import putFormComponent from "./put-form-component";
+import indexTableComponent from "./index-table-component";
 import memoize from "../lib/common/memoize";
 import * as smartQuery from "./smart-query";
 import { map, parse, stringify } from "../lib/common/expression-parser";
@@ -20,10 +21,10 @@ const attributes = [
   { id: "channel", label: "Channel" },
   { id: "weight", label: "Weight" },
   { id: "schedule", label: "Schedule" },
-  { id: "events", label: "Events", unsortable: true },
-  { id: "precondition", label: "Precondition", unsortable: true },
-  { id: "provision", label: "Provision", type: "combo", unsortable: true },
-  { id: "provisionArgs", label: "Arguments", unsortable: true }
+  { id: "events", label: "Events" },
+  { id: "precondition", label: "Precondition" },
+  { id: "provision", label: "Provision", type: "combo" },
+  { id: "provisionArgs", label: "Arguments" }
 ];
 
 const unpackSmartQuery = memoize(query => {
@@ -122,273 +123,6 @@ export function init(args): Promise<{}> {
   return Promise.resolve({ filter, sort });
 }
 
-function renderTable(
-  presetsResponse,
-  total,
-  selected,
-  showMoreCallback,
-  downloadUrl,
-  sort,
-  onSortChange
-): Children {
-  const presets = presetsResponse.value;
-  const selectAll = m("input", {
-    type: "checkbox",
-    checked: presets.length && selected.size === presets.length,
-    onchange: e => {
-      for (const preset of presets) {
-        if (e.target.checked) selected.add(preset["_id"]);
-        else selected.delete(preset["_id"]);
-      }
-    },
-    disabled: !total
-  });
-
-  const labels = [m("th", selectAll)];
-
-  for (const attr of attributes) {
-    const label = attr.label;
-
-    if (attr.unsortable) {
-      labels.push(m("th", label));
-      continue;
-    }
-
-    let direction = 1;
-
-    let symbol = "\u2981";
-    if (sort[attr.id] > 0) symbol = "\u2bc6";
-    else if (sort[attr.id] < 0) symbol = "\u2bc5";
-
-    const sortable = m(
-      "button",
-      {
-        onclick: () => {
-          if (sort[attr.id] > 0) direction *= -1;
-          return onSortChange(JSON.stringify({ [attr.id]: direction }));
-        }
-      },
-      symbol
-    );
-
-    labels.push(m("th", [label, sortable]));
-  }
-
-  const rows = [];
-  for (const preset of presets) {
-    const checkbox = m("input", {
-      type: "checkbox",
-      checked: selected.has(preset["_id"]),
-      onchange: e => {
-        if (e.target.checked) selected.add(preset["_id"]);
-        else selected.delete(preset["_id"]);
-      },
-      onclick: e => {
-        e.stopPropagation();
-        e.redraw = false;
-      }
-    });
-
-    let devicesUrl = "/#!/devices";
-    if (preset["precondition"].length) {
-      devicesUrl += `?${m.buildQueryString({
-        filter: preset["precondition"]
-      })}`;
-    }
-
-    const tds = [m("td", checkbox)];
-    for (const attr of attributes) {
-      if (attr.id === "precondition") {
-        tds.push(
-          m(
-            "td",
-            { title: preset[attr.id] },
-            m("a", { href: devicesUrl }, preset[attr.id])
-          )
-        );
-      } else {
-        tds.push(m("td", preset[attr.id]));
-      }
-    }
-
-    tds.push(
-      m(
-        "td.table-row-links",
-        m(
-          "a",
-          {
-            onclick: () => {
-              const cb = (): Children => {
-                return m(
-                  putFormComponent,
-                  Object.assign(
-                    {
-                      base: preset,
-                      actionHandler: (action, object) => {
-                        return new Promise(resolve => {
-                          putActionHandler(action, object, false)
-                            .then(errors => {
-                              const errorList = errors
-                                ? Object.values(errors)
-                                : [];
-                              if (errorList.length) {
-                                for (const err of errorList)
-                                  notifications.push("error", err);
-                              } else {
-                                overlay.close(cb);
-                              }
-                              resolve();
-                            })
-                            .catch(err => {
-                              notifications.push("error", err.message);
-                              resolve();
-                            });
-                        });
-                      }
-                    },
-                    formData
-                  )
-                );
-              };
-              overlay.open(cb);
-            }
-          },
-          "Show"
-        )
-      )
-    );
-
-    rows.push(
-      m(
-        "tr",
-        {
-          onclick: e => {
-            if (["INPUT", "BUTTON", "A"].includes(e.target.nodeName)) {
-              e.redraw = false;
-              return;
-            }
-
-            if (!selected.delete(preset["_id"])) selected.add(preset["_id"]);
-          }
-        },
-        tds
-      )
-    );
-  }
-
-  if (!rows.length)
-    rows.push(m("tr.empty", m("td", { colspan: labels.length }, "No presets")));
-
-  const footerElements = [];
-  if (total != null) footerElements.push(`${presets.length}/${total}`);
-  else footerElements.push(`${presets.length}`);
-
-  footerElements.push(
-    m(
-      "button",
-      {
-        title: "Show more presets",
-        onclick: showMoreCallback,
-        disabled: presets.length >= total || !presetsResponse.fulfilled
-      },
-      "More"
-    )
-  );
-
-  if (downloadUrl) {
-    footerElements.push(
-      m("a.download-csv", { href: downloadUrl, download: "" }, "Download")
-    );
-  }
-
-  const tfoot = m(
-    "tfoot",
-    m("tr", m("td", { colspan: labels.length }, footerElements))
-  );
-
-  const buttons = [
-    m(
-      "button.primary",
-      {
-        title: "Delete selected presets",
-        disabled: !selected.size,
-        onclick: e => {
-          e.redraw = false;
-          e.target.disabled = true;
-          Promise.all(
-            Array.from(selected).map(id => store.deleteResource("presets", id))
-          )
-            .then(res => {
-              notifications.push("success", `${res.length} presets deleted`);
-              store.fulfill(0, Date.now());
-            })
-            .catch(err => {
-              notifications.push("error", err.message);
-              store.fulfill(0, Date.now());
-            });
-        }
-      },
-      "Delete"
-    )
-  ];
-
-  if (window.authorizer.hasAccess("presets", 3)) {
-    buttons.push(
-      m(
-        "button.primary",
-        {
-          title: "Create new preset",
-          onclick: () => {
-            const cb = (): Children => {
-              return m(
-                putFormComponent,
-                Object.assign(
-                  {
-                    actionHandler: (action, object) => {
-                      return new Promise(resolve => {
-                        putActionHandler(action, object, true)
-                          .then(errors => {
-                            const errorList = errors
-                              ? Object.values(errors)
-                              : [];
-                            if (errorList.length) {
-                              for (const err of errorList)
-                                notifications.push("error", err);
-                            } else {
-                              overlay.close(cb);
-                            }
-                            resolve();
-                          })
-                          .catch(err => {
-                            notifications.push("error", err.message);
-                            resolve();
-                          });
-                      });
-                    }
-                  },
-                  formData
-                )
-              );
-            };
-            overlay.open(cb);
-          }
-        },
-        "New"
-      )
-    );
-  }
-
-  return [
-    m(
-      "table.table.highlight",
-      m("thead", m("tr", labels)),
-      m("tbody", rows),
-      tfoot
-    ),
-    m("div.actions-bar", buttons)
-  ];
-}
-
 export const component: ClosureComponent = (): Component => {
   return {
     view: vnode => {
@@ -406,15 +140,37 @@ export const component: ClosureComponent = (): Component => {
         m.route.set(m.route.get(), ops);
       }
 
-      function onSortChange(sort): void {
-        const ops = { sort };
+      const sort = vnode.attrs["sort"]
+        ? memoizedJsonParse(vnode.attrs["sort"])
+        : {};
+
+      const sortAttributes = {};
+      for (let i = 0; i < attributes.length; i++) {
+        const attr = attributes[i];
+        if (
+          !(
+            attr.id === "events" ||
+            attr.id === "precondition" ||
+            attr.id === "provision" ||
+            attr.id === "provisionArgs"
+          )
+        )
+          sortAttributes[i] = sort[attr.id] || 0;
+      }
+
+      function onSortChange(sortAttrs): void {
+        const _sort = Object.assign({}, sort);
+        for (const [index, direction] of Object.entries(sortAttrs)) {
+          // Changing the priority of columns
+          delete _sort[attributes[index].id];
+          _sort[attributes[index].id] = direction;
+        }
+
+        const ops = { sort: JSON.stringify(_sort) };
         if (vnode.attrs["filter"]) ops["filter"] = vnode.attrs["filter"];
         m.route.set(m.route.get(), ops);
       }
 
-      const sort = vnode.attrs["sort"]
-        ? memoizedJsonParse(vnode.attrs["sort"])
-        : {};
       let filter = vnode.attrs["filter"]
         ? memoizedParse(vnode.attrs["filter"])
         : true;
@@ -447,34 +203,169 @@ export const component: ClosureComponent = (): Component => {
         provisionAttr["options"] = Array.from(provisionIds);
       }
 
-      const selected = new Set();
-      if (vnode.state["selected"]) {
-        for (const preset of presets.value) {
-          if (vnode.state["selected"].has(preset["_id"]))
-            selected.add(preset["_id"]);
-        }
-      }
-      vnode.state["selected"] = selected;
-
       const downloadUrl = getDownloadUrl(filter);
 
+      const valueCallback = (attr, preset): {} => {
+        if (attr.id !== "precondition") return preset[attr.id];
+        let devicesUrl = "/#!/devices";
+        if (preset["precondition"].length) {
+          devicesUrl += `?${m.buildQueryString({
+            filter: preset["precondition"]
+          })}`;
+        }
+
+        return m(
+          "a",
+          { href: devicesUrl, title: preset["precondition"] },
+          preset["precondition"]
+        );
+      };
+
       const attrs = {};
-      attrs["resource"] = "presets";
-      attrs["filter"] = vnode.attrs["filter"];
-      attrs["onChange"] = onFilterChanged;
+      attrs["attributes"] = attributes;
+      attrs["data"] = presets.value;
+      attrs["total"] = count.value;
+      attrs["showMoreCallback"] = showMore;
+      attrs["sortAttributes"] = sortAttributes;
+      attrs["onSortChange"] = onSortChange;
+      attrs["downloadUrl"] = downloadUrl;
+      attrs["valueCallback"] = valueCallback;
+      attrs["recordActionsCallback"] = preset => {
+        return [
+          m(
+            "a",
+            {
+              onclick: () => {
+                const cb = (): Children => {
+                  return m(
+                    putFormComponent,
+                    Object.assign(
+                      {
+                        base: preset,
+                        actionHandler: (action, object) => {
+                          return new Promise(resolve => {
+                            putActionHandler(action, object, false)
+                              .then(errors => {
+                                const errorList = errors
+                                  ? Object.values(errors)
+                                  : [];
+                                if (errorList.length) {
+                                  for (const err of errorList)
+                                    notifications.push("error", err);
+                                } else {
+                                  overlay.close(cb);
+                                }
+                                resolve();
+                              })
+                              .catch(err => {
+                                notifications.push("error", err.message);
+                                resolve();
+                              });
+                          });
+                        }
+                      },
+                      formData
+                    )
+                  );
+                };
+                overlay.open(cb);
+              }
+            },
+            "Show"
+          )
+        ];
+      };
+
+      if (window.authorizer.hasAccess("presets", 3)) {
+        attrs["actionsCallback"] = (selected): Children => {
+          return [
+            m(
+              "button.primary",
+              {
+                title: "Create new preset",
+                onclick: () => {
+                  const cb = (): Children => {
+                    return m(
+                      putFormComponent,
+                      Object.assign(
+                        {
+                          actionHandler: (action, object) => {
+                            return new Promise(resolve => {
+                              putActionHandler(action, object, true)
+                                .then(errors => {
+                                  const errorList = errors
+                                    ? Object.values(errors)
+                                    : [];
+                                  if (errorList.length) {
+                                    for (const err of errorList)
+                                      notifications.push("error", err);
+                                  } else {
+                                    overlay.close(cb);
+                                  }
+                                  resolve();
+                                })
+                                .catch(err => {
+                                  notifications.push("error", err.message);
+                                  resolve();
+                                });
+                            });
+                          }
+                        },
+                        formData
+                      )
+                    );
+                  };
+                  overlay.open(cb);
+                }
+              },
+              "New"
+            ),
+            m(
+              "button.primary",
+              {
+                title: "Delete selected presets",
+                disabled: !selected.size,
+                onclick: e => {
+                  if (
+                    !confirm(`Deleting ${selected.size} presets. Are you sure?`)
+                  )
+                    return;
+
+                  e.redraw = false;
+                  e.target.disabled = true;
+                  Promise.all(
+                    Array.from(selected).map(id =>
+                      store.deleteResource("presets", id)
+                    )
+                  )
+                    .then(res => {
+                      notifications.push(
+                        "success",
+                        `${res.length} presets deleted`
+                      );
+                      store.fulfill(0, Date.now());
+                    })
+                    .catch(err => {
+                      notifications.push("error", err.message);
+                      store.fulfill(0, Date.now());
+                    });
+                }
+              },
+              "Delete"
+            )
+          ];
+        };
+      }
+
+      const filterAttrs = {};
+      filterAttrs["resource"] = "presets";
+      filterAttrs["filter"] = vnode.attrs["filter"];
+      filterAttrs["onChange"] = onFilterChanged;
 
       return [
         m("h1", "Listing presets"),
-        m(filterComponent, attrs),
-        renderTable(
-          presets,
-          count.value,
-          selected,
-          showMore,
-          downloadUrl,
-          sort,
-          onSortChange
-        )
+        m(filterComponent, filterAttrs),
+        m(indexTableComponent, attrs)
       ];
     }
   };

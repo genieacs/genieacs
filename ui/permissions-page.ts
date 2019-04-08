@@ -7,6 +7,7 @@ import * as store from "./store";
 import * as notifications from "./notifications";
 import memoize from "../lib/common/memoize";
 import putFormComponent from "./put-form-component";
+import indexTableComponent from "./index-table-component";
 import * as overlay from "./overlay";
 import * as smartQuery from "./smart-query";
 import { map, parse, stringify } from "../lib/common/expression-parser";
@@ -35,14 +36,14 @@ const attributes = [
       "virtualParameters"
     ]
   },
-  { id: "filter", label: "Filter", unsortable: true },
+  { id: "filter", label: "Filter" },
   {
     id: "access",
     label: "Access",
     type: "combo",
     options: ["1: count", "2: read", "3: write"]
   },
-  { id: "validate", label: "Validate", unsortable: true }
+  { id: "validate", label: "Validate" }
 ];
 
 const unpackSmartQuery = memoize(query => {
@@ -155,246 +156,6 @@ export function init(args): Promise<{}> {
   return Promise.resolve({ filter, sort });
 }
 
-function renderTable(
-  permissionsResponse,
-  total,
-  selected,
-  showMoreCallback,
-  downloadUrl,
-  sort,
-  onSortChange
-): Children {
-  const permissions = permissionsResponse.value;
-  const selectAll = m("input", {
-    type: "checkbox",
-    checked: permissions.length && selected.size === permissions.length,
-    onchange: e => {
-      for (const permission of permissions) {
-        if (e.target.checked) selected.add(permission["_id"]);
-        else selected.delete(permission["_id"]);
-      }
-    },
-    disabled: !total
-  });
-
-  const labels = [m("th", selectAll)];
-  for (const attr of attributes) {
-    const label = attr.label;
-
-    if (attr.unsortable) {
-      labels.push(m("th", label));
-      continue;
-    }
-
-    let direction = 1;
-
-    let symbol = "\u2981";
-    if (sort[attr.id] > 0) symbol = "\u2bc6";
-    else if (sort[attr.id] < 0) symbol = "\u2bc5";
-
-    const sortable = m(
-      "button",
-      {
-        onclick: () => {
-          if (sort[attr.id] > 0) direction *= -1;
-          return onSortChange(JSON.stringify({ [attr.id]: direction }));
-        }
-      },
-      symbol
-    );
-
-    labels.push(m("th", [label, sortable]));
-  }
-
-  const rows = [];
-  for (const permission of permissions) {
-    const checkbox = m("input", {
-      type: "checkbox",
-      checked: selected.has(permission["_id"]),
-      onchange: e => {
-        if (e.target.checked) selected.add(permission["_id"]);
-        else selected.delete(permission["_id"]);
-      },
-      onclick: e => {
-        e.stopPropagation();
-        e.redraw = false;
-      }
-    });
-
-    const tds = [m("td", checkbox)];
-    for (const attr of attributes) {
-      let val = permission[attr.id];
-      if (attr.id === "access") {
-        if (val === 1) val = "1: count";
-        else if (val === 2) val = "2: read";
-        else if (val === 3) val = "3: write";
-      }
-      tds.push(m("td", val));
-    }
-
-    tds.push(
-      m(
-        "td.table-row-links",
-        m(
-          "button",
-          {
-            title: "Delete permission",
-            onclick: () => {
-              if (
-                !confirm(`Deleting ${permission._id} permission. Are you sure?`)
-              )
-                return;
-
-              putActionHandler("delete", permission).catch(err => {
-                throw err;
-              });
-            }
-          },
-          "✕"
-        )
-      )
-    );
-
-    rows.push(
-      m(
-        "tr",
-        {
-          onclick: e => {
-            if (["INPUT", "BUTTON", "A"].includes(e.target.nodeName)) {
-              e.redraw = false;
-              return;
-            }
-
-            if (!selected.delete(permission["_id"]))
-              selected.add(permission["_id"]);
-          }
-        },
-        tds
-      )
-    );
-  }
-
-  if (!rows.length) {
-    rows.push(
-      m("tr.empty", m("td", { colspan: labels.length }, "No permissions"))
-    );
-  }
-
-  const footerElements = [];
-  if (total != null) footerElements.push(`${permissions.length}/${total}`);
-  else footerElements.push(`${permissions.length}`);
-
-  footerElements.push(
-    m(
-      "button",
-      {
-        title: "Show more permissions",
-        onclick: showMoreCallback,
-        disabled: permissions.length >= total || !permissionsResponse.fulfilled
-      },
-      "More"
-    )
-  );
-
-  if (downloadUrl) {
-    footerElements.push(
-      m("a.download-csv", { href: downloadUrl, download: "" }, "Download")
-    );
-  }
-
-  const tfoot = m(
-    "tfoot",
-    m("tr", m("td", { colspan: labels.length }, footerElements))
-  );
-
-  const buttons = [
-    m(
-      "button.primary",
-      {
-        title: "Delete selected permissions",
-        disabled: !selected.size,
-        onclick: e => {
-          e.redraw = false;
-          e.target.disabled = true;
-          Promise.all(
-            Array.from(selected).map(id =>
-              store.deleteResource("permissions", id)
-            )
-          )
-            .then(res => {
-              notifications.push(
-                "success",
-                `${res.length} permissions deleted`
-              );
-              store.fulfill(0, Date.now());
-            })
-            .catch(err => {
-              notifications.push("error", err.message);
-              store.fulfill(0, Date.now());
-            });
-        }
-      },
-      "Delete"
-    )
-  ];
-
-  if (window.authorizer.hasAccess("permissions", 3)) {
-    buttons.push(
-      m(
-        "button.primary",
-        {
-          title: "Create new permission",
-          onclick: () => {
-            const cb = (): Children => {
-              return m(
-                putFormComponent,
-                Object.assign(
-                  {
-                    actionHandler: (action, object) => {
-                      return new Promise(resolve => {
-                        putActionHandler(action, object)
-                          .then(errors => {
-                            const errorList = errors
-                              ? Object.values(errors)
-                              : [];
-                            if (errorList.length) {
-                              for (const err of errorList)
-                                notifications.push("error", err);
-                            } else {
-                              overlay.close(cb);
-                            }
-                            resolve();
-                          })
-                          .catch(err => {
-                            notifications.push("error", err.message);
-                            resolve();
-                          });
-                      });
-                    }
-                  },
-                  formData
-                )
-              );
-            };
-            overlay.open(cb);
-          }
-        },
-        "New"
-      )
-    );
-  }
-
-  return [
-    m(
-      "table.table.highlight",
-      m("thead", m("tr", labels)),
-      m("tbody", rows),
-      tfoot
-    ),
-    m("div.actions-bar", buttons)
-  ];
-}
-
 export const component: ClosureComponent = (): Component => {
   return {
     view: vnode => {
@@ -412,15 +173,30 @@ export const component: ClosureComponent = (): Component => {
         m.route.set(m.route.get(), ops);
       }
 
-      function onSortChange(sort): void {
-        const ops = { sort };
+      const sort = vnode.attrs["sort"]
+        ? memoizedJsonParse(vnode.attrs["sort"])
+        : {};
+
+      const sortAttributes = {};
+      for (let i = 0; i < attributes.length; i++) {
+        const attr = attributes[i];
+        if (!(attr.id === "filter" || attr.id === "validate"))
+          sortAttributes[i] = sort[attr.id] || 0;
+      }
+
+      function onSortChange(sortAttrs): void {
+        const _sort = Object.assign({}, sort);
+        for (const [index, direction] of Object.entries(sortAttrs)) {
+          // Changing the priority of columns
+          delete _sort[attributes[index].id];
+          _sort[attributes[index].id] = direction;
+        }
+
+        const ops = { sort: JSON.stringify(_sort) };
         if (vnode.attrs["filter"]) ops["filter"] = vnode.attrs["filter"];
         m.route.set(m.route.get(), ops);
       }
 
-      const sort = vnode.attrs["sort"]
-        ? memoizedJsonParse(vnode.attrs["sort"])
-        : {};
       let filter = vnode.attrs["filter"]
         ? memoizedParse(vnode.attrs["filter"])
         : true;
@@ -433,34 +209,146 @@ export const component: ClosureComponent = (): Component => {
 
       const count = store.count("permissions", filter);
 
-      const selected = new Set();
-      if (vnode.state["selected"]) {
-        for (const permission of permissions.value) {
-          if (vnode.state["selected"].has(permission["_id"]))
-            selected.add(permission["_id"]);
-        }
-      }
-      vnode.state["selected"] = selected;
-
       const downloadUrl = getDownloadUrl(filter);
 
+      const valueCallback = (attr, permission): Children => {
+        if (attr.id === "access") {
+          const val = permission["access"];
+          if (val === 1) return "1: count";
+          else if (val === 2) return "2: read";
+          else if (val === 3) return "3: write";
+          return val;
+        }
+
+        return permission[attr.id];
+      };
+
       const attrs = {};
-      attrs["resource"] = "permissions";
-      attrs["filter"] = vnode.attrs["filter"];
-      attrs["onChange"] = onFilterChanged;
+      attrs["attributes"] = attributes;
+      attrs["data"] = permissions.value;
+      attrs["total"] = count.value;
+      attrs["valueCallback"] = valueCallback;
+      attrs["showMoreCallback"] = showMore;
+      attrs["sortAttributes"] = sortAttributes;
+      attrs["onSortChange"] = onSortChange;
+      attrs["downloadUrl"] = downloadUrl;
+
+      if (window.authorizer.hasAccess("permissions", 3)) {
+        attrs["recordActionsCallback"] = permission => {
+          return [
+            m(
+              "button",
+              {
+                title: "Delete permission",
+                onclick: () => {
+                  if (
+                    !confirm(
+                      `Deleting ${permission._id} permission. Are you sure?`
+                    )
+                  )
+                    return;
+
+                  putActionHandler("delete", permission).catch(err => {
+                    notifications.push("error", err.message);
+                  });
+                }
+              },
+              "✕"
+            )
+          ];
+        };
+
+        attrs["actionsCallback"] = (selected): Children => {
+          return [
+            m(
+              "button.primary",
+              {
+                title: "Create new permission",
+                onclick: () => {
+                  const cb = (): Children => {
+                    return m(
+                      putFormComponent,
+                      Object.assign(
+                        {
+                          actionHandler: (action, object) => {
+                            return new Promise(resolve => {
+                              putActionHandler(action, object)
+                                .then(errors => {
+                                  const errorList = errors
+                                    ? Object.values(errors)
+                                    : [];
+                                  if (errorList.length) {
+                                    for (const err of errorList)
+                                      notifications.push("error", err);
+                                  } else {
+                                    overlay.close(cb);
+                                  }
+                                  resolve();
+                                })
+                                .catch(err => {
+                                  notifications.push("error", err.message);
+                                  resolve();
+                                });
+                            });
+                          }
+                        },
+                        formData
+                      )
+                    );
+                  };
+                  overlay.open(cb);
+                }
+              },
+              "New"
+            ),
+            m(
+              "button.primary",
+              {
+                title: "Delete selected permissions",
+                disabled: !selected.size,
+                onclick: e => {
+                  if (
+                    !confirm(
+                      `Deleting ${selected.size} permissions. Are you sure?`
+                    )
+                  )
+                    return;
+
+                  e.redraw = false;
+                  e.target.disabled = true;
+                  Promise.all(
+                    Array.from(selected).map(id =>
+                      store.deleteResource("permissions", id)
+                    )
+                  )
+                    .then(res => {
+                      notifications.push(
+                        "success",
+                        `${res.length} permissions deleted`
+                      );
+                      store.fulfill(0, Date.now());
+                    })
+                    .catch(err => {
+                      notifications.push("error", err.message);
+                      store.fulfill(0, Date.now());
+                    });
+                }
+              },
+              "Delete"
+            )
+          ];
+        };
+      }
+
+      const filterAttrs = {};
+      filterAttrs["resource"] = "permissions";
+      filterAttrs["filter"] = vnode.attrs["filter"];
+      filterAttrs["onChange"] = onFilterChanged;
 
       return [
         m("h1", "Listing permissions"),
-        m(filterComponent, attrs),
-        renderTable(
-          permissions,
-          count.value,
-          selected,
-          showMore,
-          downloadUrl,
-          sort,
-          onSortChange
-        )
+        m(filterComponent, filterAttrs),
+        m(indexTableComponent, attrs)
       ];
     }
   };

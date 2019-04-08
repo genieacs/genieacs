@@ -7,6 +7,7 @@ import * as store from "./store";
 import * as notifications from "./notifications";
 import memoize from "../lib/common/memoize";
 import putFormComponent from "./put-form-component";
+import indexTableComponent from "./index-table-component";
 import * as overlay from "./overlay";
 import * as smartQuery from "./smart-query";
 import { map, parse, stringify } from "../lib/common/expression-parser";
@@ -21,13 +22,7 @@ const memoizedJsonParse = memoize(JSON.parse);
 
 const attributes = [
   { id: "_id", label: "Username" },
-  {
-    id: "roles",
-    label: "Roles",
-    type: "multi",
-    options: [],
-    unsortable: true
-  }
+  { id: "roles", label: "Roles", type: "multi", options: [] }
 ];
 
 const unpackSmartQuery = memoize(query => {
@@ -144,287 +139,6 @@ export function init(args): Promise<{}> {
   return Promise.resolve({ filter, sort });
 }
 
-function renderTable(
-  usersResponse,
-  total,
-  selected,
-  showMoreCallback,
-  downloadUrl,
-  sort,
-  onSortChange
-): Children {
-  const users = usersResponse.value;
-  const selectAll = m("input", {
-    type: "checkbox",
-    checked: users.length && selected.size === users.length,
-    onchange: e => {
-      for (const user of users) {
-        if (e.target.checked) selected.add(user["_id"]);
-        else selected.delete(user["_id"]);
-      }
-    },
-    disabled: !total
-  });
-
-  const labels = [m("th", selectAll)];
-  for (const attr of attributes) {
-    const label = attr.label;
-
-    if (attr.unsortable) {
-      labels.push(m("th", label));
-      continue;
-    }
-
-    let direction = 1;
-
-    let symbol = "\u2981";
-    if (sort[attr.id] > 0) symbol = "\u2bc6";
-    else if (sort[attr.id] < 0) symbol = "\u2bc5";
-
-    const sortable = m(
-      "button",
-      {
-        onclick: () => {
-          if (sort[attr.id] > 0) direction *= -1;
-          return onSortChange(JSON.stringify({ [attr.id]: direction }));
-        }
-      },
-      symbol
-    );
-
-    labels.push(m("th", [label, sortable]));
-  }
-
-  const canChangePasswords = window.authorizer.hasAccess("users", 3);
-
-  const rows = [];
-  for (const user of users) {
-    const checkbox = m("input", {
-      type: "checkbox",
-      checked: selected.has(user["_id"]),
-      onchange: e => {
-        if (e.target.checked) selected.add(user["_id"]);
-        else selected.delete(user["_id"]);
-      },
-      onclick: e => {
-        e.stopPropagation();
-        e.redraw = false;
-      }
-    });
-
-    const tds = [m("td", checkbox)];
-    for (const attr of attributes) tds.push(m("td", user[attr.id]));
-
-    tds.push(
-      m(
-        "td.table-row-links",
-        m(
-          "a",
-          {
-            onclick: () => {
-              const cb = (): Children => {
-                const children = [
-                  m(
-                    putFormComponent,
-                    Object.assign(
-                      {
-                        base: {
-                          _id: user._id,
-                          roles: user.roles.split(",")
-                        },
-                        actionHandler: (action, object) => {
-                          return new Promise(resolve => {
-                            putActionHandler(action, object, false)
-                              .then(errors => {
-                                const errorList = errors
-                                  ? Object.values(errors)
-                                  : [];
-                                if (errorList.length) {
-                                  for (const err of errorList)
-                                    notifications.push("error", err);
-                                } else {
-                                  overlay.close(cb);
-                                }
-                                resolve();
-                              })
-                              .catch(err => {
-                                notifications.push("error", err.message);
-                                resolve();
-                              });
-                          });
-                        }
-                      },
-                      {
-                        resource: "users",
-                        attributes: attributes
-                      }
-                    )
-                  )
-                ];
-
-                if (canChangePasswords) {
-                  children.push(m("hr"));
-                  const attrs = {
-                    noAuth: true,
-                    username: user._id,
-                    onPasswordChange: () => {
-                      overlay.close(cb);
-                      m.redraw();
-                    }
-                  };
-                  children.push(m(changePasswordComponent, attrs));
-                }
-
-                return children;
-              };
-              overlay.open(cb);
-            }
-          },
-          "Show"
-        )
-      )
-    );
-
-    rows.push(
-      m(
-        "tr",
-        {
-          onclick: e => {
-            if (["INPUT", "BUTTON", "A"].includes(e.target.nodeName)) {
-              e.redraw = false;
-              return;
-            }
-
-            if (!selected.delete(user["_id"])) selected.add(user["_id"]);
-          }
-        },
-        tds
-      )
-    );
-  }
-
-  if (!rows.length)
-    rows.push(m("tr.empty", m("td", { colspan: labels.length }, "No users")));
-
-  const footerElements = [];
-  if (total != null) footerElements.push(`${users.length}/${total}`);
-  else footerElements.push(`${users.length}`);
-
-  footerElements.push(
-    m(
-      "button",
-      {
-        title: "Show more users",
-        onclick: showMoreCallback,
-        disabled: users.length >= total || !usersResponse.fulfilled
-      },
-      "More"
-    )
-  );
-
-  if (downloadUrl) {
-    footerElements.push(
-      m("a.download-csv", { href: downloadUrl, download: "" }, "Download")
-    );
-  }
-
-  const tfoot = m(
-    "tfoot",
-    m("tr", m("td", { colspan: labels.length }, footerElements))
-  );
-
-  const buttons = [
-    m(
-      "button.primary",
-      {
-        title: "Delete selected users",
-        disabled: !selected.size,
-        onclick: e => {
-          e.redraw = false;
-          e.target.disabled = true;
-          Promise.all(
-            Array.from(selected).map(id => store.deleteResource("users", id))
-          )
-            .then(res => {
-              notifications.push("success", `${res.length} users deleted`);
-              store.fulfill(0, Date.now());
-            })
-            .catch(err => {
-              notifications.push("error", err.message);
-              store.fulfill(0, Date.now());
-            });
-        }
-      },
-      "Delete"
-    )
-  ];
-
-  if (window.authorizer.hasAccess("users", 3)) {
-    const formData = {
-      resource: "users",
-      attributes: [
-        attributes[0],
-        { id: "password", label: "Password", type: "password" },
-        { id: "confirm", label: "Confirm password", type: "password" },
-        attributes[1]
-      ]
-    };
-    buttons.push(
-      m(
-        "button.primary",
-        {
-          title: "Create new user",
-          onclick: () => {
-            const cb = (): Children => {
-              return m(
-                putFormComponent,
-                Object.assign(
-                  {
-                    actionHandler: (action, object) => {
-                      return new Promise(resolve => {
-                        putActionHandler(action, object, true)
-                          .then(errors => {
-                            const errorList = errors
-                              ? Object.values(errors)
-                              : [];
-                            if (errorList.length) {
-                              for (const err of errorList)
-                                notifications.push("error", err);
-                            } else {
-                              overlay.close(cb);
-                            }
-                            resolve();
-                          })
-                          .catch(err => {
-                            notifications.push("error", err.message);
-                            resolve();
-                          });
-                      });
-                    }
-                  },
-                  formData
-                )
-              );
-            };
-            overlay.open(cb);
-          }
-        },
-        "New"
-      )
-    );
-  }
-
-  return [
-    m(
-      "table.table.highlight",
-      m("thead", m("tr", labels)),
-      m("tbody", rows),
-      tfoot
-    ),
-    m("div.actions-bar", buttons)
-  ];
-}
-
 export const component: ClosureComponent = (): Component => {
   return {
     view: vnode => {
@@ -442,15 +156,30 @@ export const component: ClosureComponent = (): Component => {
         m.route.set(m.route.get(), ops);
       }
 
-      function onSortChange(sort): void {
-        const ops = { sort };
+      const sort = vnode.attrs["sort"]
+        ? memoizedJsonParse(vnode.attrs["sort"])
+        : {};
+
+      const sortAttributes = {};
+      for (let i = 0; i < attributes.length; i++) {
+        const attr = attributes[i];
+        if (attr.id !== "roles")
+          sortAttributes[i] = sort[attributes[i].id] || 0;
+      }
+
+      function onSortChange(sortAttrs): void {
+        const _sort = Object.assign({}, sort);
+        for (const [index, direction] of Object.entries(sortAttrs)) {
+          // Changing the priority of columns
+          delete _sort[attributes[index].id];
+          _sort[attributes[index].id] = direction;
+        }
+
+        const ops = { sort: JSON.stringify(_sort) };
         if (vnode.attrs["filter"]) ops["filter"] = vnode.attrs["filter"];
         m.route.set(m.route.get(), ops);
       }
 
-      const sort = vnode.attrs["sort"]
-        ? memoizedJsonParse(vnode.attrs["sort"])
-        : {};
       let filter = vnode.attrs["filter"]
         ? memoizedParse(vnode.attrs["filter"])
         : true;
@@ -472,34 +201,186 @@ export const component: ClosureComponent = (): Component => {
         }
       }
 
-      const selected = new Set();
-      if (vnode.state["selected"]) {
-        for (const user of users.value) {
-          if (vnode.state["selected"].has(user["_id"]))
-            selected.add(user["_id"]);
-        }
-      }
-      vnode.state["selected"] = selected;
-
       const downloadUrl = getDownloadUrl(filter);
 
+      const canWrite = window.authorizer.hasAccess("users", 3);
+
       const attrs = {};
-      attrs["resource"] = "users";
-      attrs["filter"] = vnode.attrs["filter"];
-      attrs["onChange"] = onFilterChanged;
+      attrs["attributes"] = attributes;
+      attrs["data"] = users.value;
+      attrs["total"] = count.value;
+      attrs["showMoreCallback"] = showMore;
+      attrs["sortAttributes"] = sortAttributes;
+      attrs["onSortChange"] = onSortChange;
+      attrs["downloadUrl"] = downloadUrl;
+      attrs["recordActionsCallback"] = user => {
+        return [
+          m(
+            "a",
+            {
+              onclick: () => {
+                const cb = (): Children => {
+                  const children = [
+                    m(
+                      putFormComponent,
+                      Object.assign(
+                        {
+                          base: {
+                            _id: user._id,
+                            roles: user.roles.split(",")
+                          },
+                          actionHandler: (action, object) => {
+                            return new Promise(resolve => {
+                              putActionHandler(action, object, false)
+                                .then(errors => {
+                                  const errorList = errors
+                                    ? Object.values(errors)
+                                    : [];
+                                  if (errorList.length) {
+                                    for (const err of errorList)
+                                      notifications.push("error", err);
+                                  } else {
+                                    overlay.close(cb);
+                                  }
+                                  resolve();
+                                })
+                                .catch(err => {
+                                  notifications.push("error", err.message);
+                                  resolve();
+                                });
+                            });
+                          }
+                        },
+                        {
+                          resource: "users",
+                          attributes: attributes
+                        }
+                      )
+                    )
+                  ];
+
+                  if (canWrite) {
+                    children.push(m("hr"));
+                    const _attrs = {
+                      noAuth: true,
+                      username: user._id,
+                      onPasswordChange: () => {
+                        overlay.close(cb);
+                        m.redraw();
+                      }
+                    };
+                    children.push(m(changePasswordComponent, _attrs));
+                  }
+
+                  return children;
+                };
+                overlay.open(cb);
+              }
+            },
+            "Show"
+          )
+        ];
+      };
+
+      if (canWrite) {
+        const formData = {
+          resource: "users",
+          attributes: [
+            attributes[0],
+            { id: "password", label: "Password", type: "password" },
+            { id: "confirm", label: "Confirm password", type: "password" },
+            attributes[1]
+          ]
+        };
+        attrs["actionsCallback"] = (selected): Children => {
+          return [
+            m(
+              "button.primary",
+              {
+                title: "Create new user",
+                onclick: () => {
+                  const cb = (): Children => {
+                    return m(
+                      putFormComponent,
+                      Object.assign(
+                        {
+                          actionHandler: (action, object) => {
+                            return new Promise(resolve => {
+                              putActionHandler(action, object, true)
+                                .then(errors => {
+                                  const errorList = errors
+                                    ? Object.values(errors)
+                                    : [];
+                                  if (errorList.length) {
+                                    for (const err of errorList)
+                                      notifications.push("error", err);
+                                  } else {
+                                    overlay.close(cb);
+                                  }
+                                  resolve();
+                                })
+                                .catch(err => {
+                                  notifications.push("error", err.message);
+                                  resolve();
+                                });
+                            });
+                          }
+                        },
+                        formData
+                      )
+                    );
+                  };
+                  overlay.open(cb);
+                }
+              },
+              "New"
+            ),
+            m(
+              "button.primary",
+              {
+                title: "Delete selected users",
+                disabled: !selected.size,
+                onclick: e => {
+                  if (
+                    !confirm(`Deleting ${selected.size} users. Are you sure?`)
+                  )
+                    return;
+
+                  e.redraw = false;
+                  e.target.disabled = true;
+                  Promise.all(
+                    Array.from(selected).map(id =>
+                      store.deleteResource("users", id)
+                    )
+                  )
+                    .then(res => {
+                      notifications.push(
+                        "success",
+                        `${res.length} users deleted`
+                      );
+                      store.fulfill(0, Date.now());
+                    })
+                    .catch(err => {
+                      notifications.push("error", err.message);
+                      store.fulfill(0, Date.now());
+                    });
+                }
+              },
+              "Delete"
+            )
+          ];
+        };
+      }
+
+      const filterAttrs = {};
+      filterAttrs["resource"] = "users";
+      filterAttrs["filter"] = vnode.attrs["filter"];
+      filterAttrs["onChange"] = onFilterChanged;
 
       return [
         m("h1", "Listing users"),
-        m(filterComponent, attrs),
-        renderTable(
-          users,
-          count.value,
-          selected,
-          showMore,
-          downloadUrl,
-          sort,
-          onSortChange
-        )
+        m(filterComponent, filterAttrs),
+        m(indexTableComponent, attrs)
       ];
     }
   };

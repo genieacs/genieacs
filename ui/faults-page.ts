@@ -1,6 +1,7 @@
 import { ClosureComponent, Component, Children } from "mithril";
 import { m } from "./components";
 import config from "./config";
+import indexTableComponent from "./index-table-component";
 import filterComponent from "./filter-component";
 import * as store from "./store";
 import * as notifications from "./notifications";
@@ -19,7 +20,7 @@ const attributes = [
   { id: "channel", label: "Channel" },
   { id: "code", label: "Code" },
   { id: "message", label: "Message" },
-  { id: "detail", label: "Detail", unsortable: true },
+  { id: "detail", label: "Detail" },
   { id: "retries", label: "Retries" },
   { id: "timestamp", label: "Timestamp" }
 ];
@@ -63,171 +64,6 @@ export function init(args): Promise<{}> {
   });
 }
 
-function renderTable(
-  faultsResponse,
-  total,
-  selected,
-  showMoreCallback,
-  downloadUrl,
-  sort,
-  onSortChange
-): Children {
-  const faults = faultsResponse.value;
-  const selectAll = m("input", {
-    type: "checkbox",
-    checked: faults.length && selected.size === faults.length,
-    onchange: e => {
-      for (const f of faults) {
-        if (e.target.checked) selected.add(f["_id"]);
-        else selected.delete(f["_id"]);
-      }
-    },
-    disabled: !total
-  });
-
-  const labels = [m("th", selectAll)];
-  for (const attr of attributes) {
-    const label = attr.label;
-
-    if (attr.unsortable) {
-      labels.push(m("th", label));
-      continue;
-    }
-
-    // Offset direction by 1 since sort["_id"] = -1
-    let direction = 2;
-
-    let symbol = "\u2981";
-    if (sort[attr.id] > 0) symbol = "\u2bc6";
-    else if (sort[attr.id] < 0) symbol = "\u2bc5";
-
-    const sortable = m(
-      "button",
-      {
-        onclick: () => {
-          if (sort[attr.id] > 0) direction *= -1;
-          return onSortChange(JSON.stringify({ [attr.id]: direction }));
-        }
-      },
-      symbol
-    );
-
-    labels.push(m("th", [label, sortable]));
-  }
-
-  const rows = [];
-  for (const f of faults) {
-    const checkbox = m("input", {
-      type: "checkbox",
-      checked: selected.has(f["_id"]),
-      onchange: e => {
-        if (e.target.checked) selected.add(f["_id"]);
-        else selected.delete(f["_id"]);
-      },
-      onclick: e => {
-        e.stopPropagation();
-        e.redraw = false;
-      }
-    });
-
-    const deviceHref = `#!/devices/${encodeURIComponent(f["device"])}`;
-
-    const tds = [m("td", checkbox)];
-    for (const attr of attributes) {
-      if (attr.id === "device")
-        tds.push(m("td", m("a", { href: deviceHref }, f[attr.id])));
-      else if (attr.id === "timestamp")
-        tds.push(m("td", new Date(f[attr.id]).toLocaleString()));
-      else if (attr.id === "detail")
-        tds.push(m("td", m("long-text", { text: yaml.stringify(f[attr.id]) })));
-      else tds.push(m("td", f[attr.id]));
-    }
-
-    rows.push(
-      m(
-        "tr",
-        {
-          onclick: e => {
-            if (["INPUT", "BUTTON", "A"].includes(e.target.nodeName)) {
-              e.redraw = false;
-              return;
-            }
-
-            if (!selected.delete(f["_id"])) selected.add(f["_id"]);
-          }
-        },
-        tds
-      )
-    );
-  }
-
-  if (!rows.length)
-    rows.push(m("tr.empty", m("td", { colspan: 7 }, "No faults")));
-
-  const footerElements = [];
-  if (total != null) footerElements.push(`${faults.length}/${total}`);
-  else footerElements.push(`${faults.length}`);
-
-  footerElements.push(
-    m(
-      "button",
-      {
-        title: "Show more faults",
-        onclick: showMoreCallback,
-        disabled: faults.length >= total || !faultsResponse.fulfilled
-      },
-      "More"
-    )
-  );
-
-  if (downloadUrl) {
-    footerElements.push(
-      m("a.download-csv", { href: downloadUrl, download: "" }, "Download")
-    );
-  }
-
-  const tfoot = m(
-    "tfoot",
-    m("tr", m("td", { colspan: labels.length }, footerElements))
-  );
-
-  const buttons = [
-    m(
-      "button.primary",
-      {
-        title: "Delete selected faults",
-        disabled: !selected.size,
-        onclick: e => {
-          e.redraw = false;
-          e.target.disabled = true;
-          Promise.all(
-            Array.from(selected).map(id => store.deleteResource("faults", id))
-          )
-            .then(res => {
-              notifications.push("success", `${res.length} faults deleted`);
-              store.fulfill(0, Date.now());
-            })
-            .catch(err => {
-              notifications.push("error", err.message);
-              store.fulfill(0, Date.now());
-            });
-        }
-      },
-      "Delete"
-    )
-  ];
-
-  return [
-    m(
-      "table.table.highlight",
-      m("thead", m("tr", labels)),
-      m("tbody", rows),
-      tfoot
-    ),
-    buttons
-  ];
-}
-
 export const component: ClosureComponent = (): Component => {
   return {
     view: vnode => {
@@ -245,15 +81,29 @@ export const component: ClosureComponent = (): Component => {
         m.route.set("/faults", ops);
       }
 
-      function onSortChange(sort): void {
-        const ops = { sort };
-        if (vnode.attrs["filter"]) ops["filter"] = vnode.attrs["filter"];
-        m.route.set("/faults", ops);
-      }
-
       const sort = vnode.attrs["sort"]
         ? memoizedJsonParse(vnode.attrs["sort"])
         : {};
+
+      const sortAttributes = {};
+      for (let i = 0; i < attributes.length; i++) {
+        const attr = attributes[i];
+        if (attr.id !== "detail") sortAttributes[i] = sort[attr.id] || 0;
+      }
+
+      function onSortChange(sortAttrs): void {
+        const _sort = Object.assign({}, sort);
+        for (const [index, direction] of Object.entries(sortAttrs)) {
+          // Changing the priority of columns
+          delete _sort[attributes[index].id];
+          _sort[attributes[index].id] = direction;
+        }
+
+        const ops = { sort: JSON.stringify(_sort) };
+        if (vnode.attrs["filter"]) ops["filter"] = vnode.attrs["filter"];
+        m.route.set(m.route.get(), ops);
+      }
+
       let filter = vnode.attrs["filter"]
         ? memoizedParse(vnode.attrs["filter"])
         : true;
@@ -265,32 +115,82 @@ export const component: ClosureComponent = (): Component => {
       });
       const count = store.count("faults", filter);
 
-      const selected = new Set();
-      if (vnode.state["selected"]) {
-        for (const f of faults.value)
-          if (vnode.state["selected"].has(f["_id"])) selected.add(f["_id"]);
-      }
-      vnode.state["selected"] = selected;
-
       const downloadUrl = getDownloadUrl(filter);
 
+      const valueCallback = (attr, fault): Children => {
+        if (attr.id === "device") {
+          const deviceHref = `#!/devices/${encodeURIComponent(
+            fault["device"]
+          )}`;
+
+          return m("a", { href: deviceHref }, fault["device"]);
+        }
+
+        if (attr.id === "detail")
+          return m("long-text", { text: yaml.stringify(fault["detail"]) });
+
+        if (attr.id === "timestamp")
+          return new Date(fault["timestamp"]).toLocaleString();
+
+        return fault[attr.id];
+      };
+
       const attrs = {};
-      attrs["resource"] = "faults";
-      attrs["filter"] = vnode.attrs["filter"];
-      attrs["onChange"] = onFilterChanged;
+      attrs["attributes"] = attributes;
+      attrs["data"] = faults.value;
+      attrs["valueCallback"] = valueCallback;
+      attrs["total"] = count.value;
+      attrs["showMoreCallback"] = showMore;
+      attrs["sortAttributes"] = sortAttributes;
+      attrs["onSortChange"] = onSortChange;
+      attrs["downloadUrl"] = downloadUrl;
+
+      if (window.authorizer.hasAccess("faults", 3)) {
+        attrs["actionsCallback"] = (selected): Children => {
+          return m(
+            "button.primary",
+            {
+              disabled: selected.size === 0,
+              title: "Delete selected faults",
+              onclick: e => {
+                e.redraw = false;
+                e.target.disabled = true;
+
+                if (!confirm(`Deleting ${selected.size} faults. Are you sure?`))
+                  return;
+
+                Promise.all(
+                  Array.from(selected).map(id =>
+                    store.deleteResource("faults", id)
+                  )
+                )
+                  .then(res => {
+                    notifications.push(
+                      "success",
+                      `${res.length} faults deleted`
+                    );
+                    store.fulfill(0, Date.now());
+                  })
+                  .catch(err => {
+                    notifications.push("error", err.message);
+                    store.fulfill(0, Date.now());
+                  });
+              }
+            },
+            "Delete"
+          );
+        };
+      }
+
+      const filterAttrs = {};
+      filterAttrs["resource"] = "faults";
+      filterAttrs["filter"] = vnode.attrs["filter"];
+      filterAttrs["onChange"] = onFilterChanged;
 
       return [
         m("h1", "Listing faults"),
-        m(filterComponent, attrs),
-        renderTable(
-          faults,
-          count.value,
-          selected,
-          showMore,
-          downloadUrl,
-          sort,
-          onSortChange
-        )
+        m(filterComponent, filterAttrs),
+        m(indexTableComponent, attrs)
       ];
     }
   };

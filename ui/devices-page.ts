@@ -1,12 +1,13 @@
 import { ClosureComponent, Component, Children } from "mithril";
 import { m } from "./components";
 import config from "./config";
+import indexTableComponent from "./index-table-component";
 import filterComponent from "./filter-component";
 import * as store from "./store";
 import * as taskQueue from "./task-queue";
 import * as notifications from "./notifications";
-import { evaluate, extractParams } from "../lib/common/expression";
 import { parse, stringify } from "../lib/common/expression-parser";
+import { evaluate, extractParams } from "../lib/common/expression";
 import memoize from "../lib/common/memoize";
 import * as smartQuery from "./smart-query";
 import * as expressionParser from "../lib/common/expression-parser";
@@ -51,147 +52,6 @@ export function init(args): Promise<{}> {
     const indexParameters = Object.values(config.ui.index);
     resolve({ filter, indexParameters, sort });
   });
-}
-
-function renderTable(
-  devicesResponse,
-  parameters,
-  total,
-  selected,
-  showMoreCallback,
-  downloadUrl,
-  sort,
-  onSortChange
-): Children {
-  const devices = devicesResponse.value;
-  const selectAll = m("input", {
-    type: "checkbox",
-    checked: devices.length && selected.size === devices.length,
-    onchange: e => {
-      for (const d of devices) {
-        if (e.target.checked) selected.add(d["DeviceID.ID"].value[0]);
-        else selected.delete(d["DeviceID.ID"].value[0]);
-      }
-    },
-    disabled: !total
-  });
-
-  const labels = [m("th", selectAll)];
-  for (const param of parameters) {
-    const label = param.label;
-    let _param;
-    if (!param.unsortable && (_param = memoizedGetSortable(param.parameter))) {
-      let direction = 1;
-
-      let symbol = "\u2981";
-      if (sort[_param] > 0) symbol = "\u2bc6";
-      else if (sort[_param] < 0) symbol = "\u2bc5";
-
-      const sortable = m(
-        "button",
-        {
-          onclick: () => {
-            if (sort[_param] > 0) direction *= -1;
-            return onSortChange(JSON.stringify({ [_param]: direction }));
-          }
-        },
-        symbol
-      );
-
-      labels.push(m("th", [label, sortable]));
-    } else {
-      labels.push(m("th", label));
-    }
-  }
-
-  const rows = [];
-  for (const device of devices) {
-    const checkbox = m("input", {
-      type: "checkbox",
-      checked: selected.has(device["DeviceID.ID"].value[0]),
-      onchange: e => {
-        if (e.target.checked) selected.add(device["DeviceID.ID"].value[0]);
-        else selected.delete(device["DeviceID.ID"].value[0]);
-      }
-    });
-
-    rows.push(
-      m(
-        "tr",
-        {
-          onclick: e => {
-            if (["INPUT", "BUTTON", "A"].includes(e.target.nodeName)) {
-              e.redraw = false;
-              return;
-            }
-
-            if (!selected.delete(device["DeviceID.ID"].value[0]))
-              selected.add(device["DeviceID.ID"].value[0]);
-          }
-        },
-        m("td", checkbox),
-        parameters.map(p => {
-          const comp = m.context(
-            { device: device, parameter: p.parameter },
-            p.type || "parameter",
-            p
-          );
-          return m("td", comp);
-        }),
-        m(
-          "td.table-row-links",
-          m(
-            "a",
-            {
-              href: `#!/devices/${encodeURIComponent(
-                device["DeviceID.ID"].value[0]
-              )}`
-            },
-            "Show"
-          )
-        )
-      )
-    );
-  }
-
-  if (!rows.length) {
-    rows.push(
-      m("tr.empty", m("td", { colspan: parameters.length + 1 }, "No devices"))
-    );
-  }
-
-  const footerElements = [];
-  if (total != null) footerElements.push(`${devices.length}/${total}`);
-  else footerElements.push(`${devices.length}`);
-
-  footerElements.push(
-    m(
-      "button",
-      {
-        title: "Show more devices",
-        onclick: showMoreCallback,
-        disabled: devices.length >= total || !devicesResponse.fulfilled
-      },
-      "More"
-    )
-  );
-
-  if (downloadUrl) {
-    footerElements.push(
-      m("a.download-csv", { href: downloadUrl, download: "" }, "Download")
-    );
-  }
-
-  const tfoot = m(
-    "tfoot",
-    m("tr", m("td", { colspan: labels.length }, footerElements))
-  );
-
-  return m("table.table.highlight", [
-    m("thead", m("tr", labels)),
-    m("tbody", rows),
-    tfoot
-  ]);
 }
 
 function renderActions(selected): Children {
@@ -332,13 +192,14 @@ function renderActions(selected): Children {
     )
   );
 
-  return m(".actions-bar", buttons);
+  return buttons;
 }
 
 export const component: ClosureComponent = (): Component => {
   return {
     view: vnode => {
       document.title = "Devices - GenieACS";
+      const attributes = vnode.attrs["indexParameters"];
 
       function showMore(): void {
         vnode.state["showCount"] =
@@ -352,15 +213,34 @@ export const component: ClosureComponent = (): Component => {
         m.route.set("/devices", ops);
       }
 
-      function onSortChange(sort): void {
-        const ops = { sort };
-        if (vnode.attrs["filter"]) ops["filter"] = vnode.attrs["filter"];
-        m.route.set("/devices", ops);
-      }
-
       const sort = vnode.attrs["sort"]
         ? memoizedJsonParse(vnode.attrs["sort"])
         : {};
+
+      const sortAttributes = {};
+      for (let i = 0; i < attributes.length; i++) {
+        const attr = attributes[i];
+        if (attr.unsortable) continue;
+        const param = memoizedGetSortable(attr.parameter);
+        if (param) sortAttributes[i] = sort[param] || 0;
+      }
+
+      function onSortChange(sortedAttrs): void {
+        const _sort = Object.assign({}, sort);
+        for (const [index, direction] of Object.entries(sortedAttrs)) {
+          const param = memoizedGetSortable(attributes[index].parameter);
+          if (param) {
+            // Changing the priority of columns
+            delete _sort[param];
+            _sort[param] = direction;
+          }
+        }
+
+        const ops = { sort: JSON.stringify(_sort) };
+        if (vnode.attrs["filter"]) ops["filter"] = vnode.attrs["filter"];
+        m.route.set(m.route.get(), ops);
+      }
+
       let filter = vnode.attrs["filter"]
         ? memoizedParse(vnode.attrs["filter"])
         : true;
@@ -372,39 +252,49 @@ export const component: ClosureComponent = (): Component => {
       });
       const count = store.count("devices", filter);
 
-      const selected = new Set();
-      if (vnode.state["selected"]) {
-        for (const d of devs.value) {
-          if (vnode.state["selected"].has(d["DeviceID.ID"].value[0]))
-            selected.add(d["DeviceID.ID"].value[0]);
-        }
-      }
-      vnode.state["selected"] = selected;
+      const downloadUrl = getDownloadUrl(filter, attributes);
 
-      const downloadUrl = getDownloadUrl(
-        filter,
-        vnode.attrs["indexParameters"]
-      );
+      const valueCallback = (attr, device): Children => {
+        return m.context(
+          { device: device, parameter: attr.parameter },
+          attr.type || "parameter",
+          attr
+        );
+      };
 
       const attrs = {};
-      attrs["resource"] = "devices";
-      attrs["filter"] = vnode.attrs["filter"];
-      attrs["onChange"] = onFilterChanged;
+      attrs["attributes"] = attributes;
+      attrs["data"] = devs.value;
+      attrs["total"] = count.value;
+      attrs["showMoreCallback"] = showMore;
+      attrs["sortAttributes"] = sortAttributes;
+      attrs["onSortChange"] = onSortChange;
+      attrs["downloadUrl"] = downloadUrl;
+      attrs["valueCallback"] = valueCallback;
+      attrs["recordActionsCallback"] = (device): Children => {
+        return m(
+          "a",
+          {
+            href: `#!/devices/${encodeURIComponent(
+              device["DeviceID.ID"].value[0]
+            )}`
+          },
+          "Show"
+        );
+      };
+
+      if (window.authorizer.hasAccess("devices", 3))
+        attrs["actionsCallback"] = renderActions;
+
+      const filterAttrs = {};
+      filterAttrs["resource"] = "devices";
+      filterAttrs["filter"] = vnode.attrs["filter"];
+      filterAttrs["onChange"] = onFilterChanged;
 
       return [
         m("h1", "Listing devices"),
-        m(filterComponent, attrs),
-        renderTable(
-          devs,
-          vnode.attrs["indexParameters"],
-          count.value,
-          selected,
-          showMore,
-          downloadUrl,
-          sort,
-          onSortChange
-        ),
-        renderActions(selected)
+        m(filterComponent, filterAttrs),
+        m(indexTableComponent, attrs)
       ];
     }
   };
