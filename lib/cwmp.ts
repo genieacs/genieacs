@@ -21,6 +21,7 @@ import * as zlib from "zlib";
 import * as crypto from "crypto";
 import * as fs from "fs";
 import { Socket } from "net";
+import * as auth from "./auth";
 import * as config from "./config";
 import * as common from "./common";
 import * as soap from "./soap";
@@ -39,7 +40,8 @@ import {
   SetAcsRequest,
   SessionFault,
   Operation,
-  Fault
+  Fault,
+  Expression
 } from "./types";
 
 const MAX_CYCLES = 4;
@@ -62,6 +64,46 @@ function throwError(err, httpResponse?): never {
     stats.concurrentRequests -= 1;
   }
   throw err;
+}
+
+function authenticate(sessionContext: SessionContext): boolean {
+  const authExpression: Expression = localCache.getConfigExpression(
+    sessionContext.cacheSnapshot,
+    "cwmp.auth"
+  );
+  if (!authExpression) return true;
+
+  let authentication;
+
+  if (sessionContext.httpRequest.headers["authorization"]) {
+    authentication = auth.parseAuthorizationHeader(
+      sessionContext.httpRequest.headers["authorization"]
+    );
+  }
+
+  const now = Date.now();
+  const res = evaluate(
+    authExpression,
+    sessionContext.configContext,
+    now,
+    (e: Expression): Expression => {
+      if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "AUTH") {
+        if (authentication && authentication["method"] === "Basic") {
+          return (
+            authentication["username"] === e[2] &&
+            authentication["password"] === e[3]
+          );
+        } else {
+          return false;
+        }
+      }
+      return e;
+    }
+  );
+
+  if (res && !Array.isArray(res)) return true;
+
+  return false;
 }
 
 function writeResponse(
@@ -218,6 +260,7 @@ function recordFault(
 function inform(sessionContext, rpc): void {
   session.inform(sessionContext, rpc.cpeRequest, (err, acsResponse) => {
     if (err) return void throwError(err, sessionContext.httpResponse);
+    sessionContext.state = 1;
 
     const res = soap.response({
       id: rpc.id,
@@ -845,6 +888,8 @@ export function onConnection(socket): void {
       );
     }, timeout + 1000).unref();
 
+    if (sessionContext.state === 0) return;
+
     session.serialize(sessionContext, (err, sessionContextString) => {
       if (err) return void throwError(err);
       cache.set(
@@ -979,9 +1024,23 @@ function cacheDueTasksAndFaultsAndOperations(
   );
 }
 
+function reportBadState(sessionContext): void {
+  logger.accessError({
+    message: "Bad session state",
+    sessionContext: sessionContext
+  });
+  currentSessions.delete(sessionContext.httpResponse.connection);
+  sessionContext.httpResponse.writeHead(400, { Connection: "close" });
+  sessionContext.httpResponse.end("Bad session state");
+  stats.concurrentRequests -= 1;
+}
+
 function processRequest(sessionContext, rpc): void {
   if (rpc.cpeRequest) {
     if (rpc.cpeRequest.name === "Inform") {
+      if (sessionContext.state !== 0)
+        return void reportBadState(sessionContext);
+
       logger.accessInfo({
         sessionContext: sessionContext,
         message: "Inform",
@@ -989,6 +1048,9 @@ function processRequest(sessionContext, rpc): void {
       });
       inform(sessionContext, rpc);
     } else if (rpc.cpeRequest.name === "TransferComplete") {
+      if (sessionContext.state !== 1)
+        return void reportBadState(sessionContext);
+
       logger.accessInfo({
         sessionContext: sessionContext,
         message: "CPE request",
@@ -996,6 +1058,9 @@ function processRequest(sessionContext, rpc): void {
       });
       transferComplete(sessionContext, rpc);
     } else if (rpc.cpeRequest.name === "GetRPCMethods") {
+      if (sessionContext.state !== 1)
+        return void reportBadState(sessionContext);
+
       logger.accessInfo({
         sessionContext: sessionContext,
         message: "CPE request",
@@ -1011,17 +1076,24 @@ function processRequest(sessionContext, rpc): void {
       });
       writeResponse(sessionContext, res);
     } else {
+      if (sessionContext.state !== 1)
+        return void reportBadState(sessionContext);
+
       return void throwError(
         new Error("ACS method not supported"),
         sessionContext.httpResponse
       );
     }
   } else if (rpc.cpeResponse) {
+    if (sessionContext.state !== 2) return void reportBadState(sessionContext);
+
     session.rpcResponse(sessionContext, rpc.id, rpc.cpeResponse, err => {
       if (err) return void throwError(err, sessionContext.httpResponse);
       nextRpc(sessionContext);
     });
   } else if (rpc.cpeFault) {
+    if (sessionContext.state !== 2) return void reportBadState(sessionContext);
+
     logger.accessWarn({
       sessionContext: sessionContext,
       message: "CPE fault",
@@ -1038,6 +1110,9 @@ function processRequest(sessionContext, rpc): void {
     });
   } else {
     // CPE sent empty response
+    if (sessionContext.state !== 1) return void reportBadState(sessionContext);
+
+    sessionContext.state = 2;
     session.timeoutOperations(sessionContext, (err, faults, operations) => {
       if (err) return void throwError(err, sessionContext.httpResponse);
 
@@ -1203,16 +1278,15 @@ export function listener(httpRequest, httpResponse): void {
       }
 
       if (sessionContext) {
-        if (
-          (rpc.cpeRequest && rpc.cpeRequest.name === "Inform") ||
-          !sessionContext.rpcRequest !== !(rpc.cpeResponse || rpc.cpeFault)
-        ) {
+        if (sessionContext.state === 0 && !authenticate(sessionContext)) {
           logger.accessError({
-            message: "Bad session state",
+            message: "Authentication failure",
             sessionContext: sessionContext
           });
-          httpResponse.writeHead(400, { Connection: "close" });
-          httpResponse.end("Bad session state");
+
+          httpResponse.writeHead(401);
+          httpResponse.end("Unauthorized");
+          currentSessions.set(httpRequest.connection, sessionContext);
           stats.concurrentRequests -= 1;
           return;
         }
@@ -1296,6 +1370,20 @@ export function listener(httpRequest, httpResponse): void {
                     _sessionContext.retries[k] = v.retries;
                   }
                 }
+
+                if (!authenticate(_sessionContext)) {
+                  logger.accessError({
+                    message: "Authentication failure",
+                    sessionContext: _sessionContext
+                  });
+
+                  httpResponse.writeHead(401);
+                  httpResponse.end("Unauthorized");
+                  currentSessions.set(httpRequest.connection, _sessionContext);
+                  stats.concurrentRequests -= 1;
+                  return;
+                }
+
                 parsedRpc(_sessionContext, rpc, parseWarnings);
               }
             );

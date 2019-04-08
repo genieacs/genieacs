@@ -120,6 +120,7 @@ export interface SessionContext {
   toLoad?: Map<Path, number>;
   new?: boolean;
   debug?: boolean;
+  state: number;
   tasks?: Task[];
   operations?: { [commandKey: string]: Operation };
   cacheUntil?: number;

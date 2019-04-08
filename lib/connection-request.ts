@@ -134,7 +134,9 @@ export async function httpConnectionRequest(
     if (res.statusCode === 200 || res.statusCode === 204) return;
 
     if (res.statusCode === 401 && res.headers["www-authenticate"]) {
-      authHeader = auth.parseAuthHeader(res.headers["www-authenticate"]);
+      authHeader = auth.parseWwwAuthenticateHeader(
+        res.headers["www-authenticate"]
+      );
       [username, password, authExp] = extractAuth(authExp, context, now, false);
     } else {
       throw new Error(

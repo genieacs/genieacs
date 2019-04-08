@@ -19,7 +19,27 @@
 
 import { createHash, randomBytes, pbkdf2 } from "crypto";
 
-export function parseAuthHeader(authHeader): {} {
+export function parseAuthorizationHeader(authHeader): { method: string } {
+  authHeader = authHeader.trim();
+  const method = authHeader.split(" ", 1)[0];
+  const res = { method: method };
+
+  if (method === "Basic") {
+    // Inspired by https://github.com/jshttp/basic-auth
+    const USER_PASS_REGEX = /^([^:]*):(.*)$/;
+    const creds = USER_PASS_REGEX.exec(
+      Buffer.from(authHeader.slice(method.length + 1), "base64").toString()
+    );
+
+    if (!creds) throw new Error("Unable to parse auth header");
+    res["username"] = creds[1];
+    res["password"] = creds[2];
+  }
+
+  return res;
+}
+
+export function parseWwwAuthenticateHeader(authHeader): {} {
   authHeader = authHeader.trim();
   const method = authHeader.split(" ", 1)[0];
   const res = { method: method };

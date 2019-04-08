@@ -78,7 +78,8 @@ export function init(
     iteration: 0,
     cycle: 0,
     extensionsCache: {},
-    declarations: []
+    declarations: [],
+    state: 0
   };
 
   callback(null, sessionContext);
