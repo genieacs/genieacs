@@ -88,14 +88,7 @@ function renderStagingDownload(task): Children {
   ].map(t =>
     m(
       "option",
-      {
-        disabled: !t,
-        value: t,
-        selected: (task.fileType || "") === t,
-        onclick: () => {
-          task.fileType = t;
-        }
-      },
+      { disabled: !t, value: t, selected: (task.fileType || "") === t },
       t
     )
   );
@@ -114,17 +107,7 @@ function renderStagingDownload(task): Children {
     .map(f =>
       m(
         "option",
-        {
-          disabled: !f,
-          value: f,
-          selected: (task.fileName || "") === f,
-          onclick: () => {
-            task.fileName = f;
-            task.fileType = "";
-            for (const file of files.value)
-              if (file._id === f) task.fileType = file["metadata.fileType"];
-          }
-        },
+        { disabled: !f, value: f, selected: (task.fileName || "") === f },
         f
       )
     );
@@ -133,11 +116,29 @@ function renderStagingDownload(task): Children {
     "Push ",
     m(
       "select",
-      { disabled: files.fulfilling, style: "width: 350px" },
+      {
+        onchange: e => {
+          const f = e.target.value;
+          task.fileName = f;
+          task.fileType = "";
+          for (const file of files.value)
+            if (file._id === f) task.fileType = file["metadata.fileType"];
+        },
+        disabled: files.fulfilling,
+        style: "width: 350px"
+      },
       filesList
     ),
     " as ",
-    m("select", typesList)
+    m(
+      "select",
+      {
+        onchange: e => {
+          task.fileType = e.target.value;
+        }
+      },
+      typesList
+    )
   ];
 }
 
