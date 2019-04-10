@@ -7,7 +7,8 @@ const singular = {
   provisions: "provision",
   virtualParameters: "virtual parameter",
   files: "file",
-  users: "user"
+  users: "user",
+  permissions: "permission"
 };
 
 function createField(current, attr, focus): Children {
