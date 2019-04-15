@@ -109,7 +109,14 @@ export function digest(
     .update(httpMethod)
     .update(":")
     .update(uri);
-  if (qop === "auth-int") ha2.update(":").update(body);
+
+  if (qop === "auth-int") {
+    const bodyHash = createHash("md5")
+      .update(body)
+      .digest("hex");
+    ha2.update(":").update(bodyHash);
+  }
+
   const ha2d = ha2.digest("hex");
 
   const hash = createHash("md5");
