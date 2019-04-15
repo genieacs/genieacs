@@ -36,6 +36,21 @@ export function map(exp, callback): Expression {
   return callback(clone || exp);
 }
 
+export async function mapAsync(exp, callback): Promise<Expression> {
+  if (!Array.isArray(exp)) return callback(exp);
+
+  let clone;
+  for (let i = 1; i < exp.length; ++i) {
+    const sub = await mapAsync(exp[i], callback);
+    if (sub !== exp[i]) {
+      clone = clone || exp.slice();
+      clone[i] = sub;
+    }
+  }
+
+  return callback(clone || exp);
+}
+
 function binaryLeft(operatorsParser, nextParser): parsimmon.Parser<{}> {
   return parsimmon.seqMap(
     nextParser,
