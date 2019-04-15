@@ -26,7 +26,7 @@ import * as config from "./config";
 import * as common from "./common";
 import * as soap from "./soap";
 import * as session from "./session";
-import { evaluate, extractParams } from "./common/expression";
+import { evaluateAsync, evaluate, extractParams } from "./common/expression";
 import * as device from "./device";
 import * as cache from "./cache";
 import * as localCache from "./local-cache";
@@ -34,6 +34,7 @@ import * as db from "./db";
 import * as logger from "./logger";
 import * as scheduling from "./scheduling";
 import Path from "./common/path";
+import * as extensions from "./extensions";
 import {
   SessionContext,
   AcsRequest,
@@ -64,7 +65,7 @@ const stats = {
   initiatedSessions: 0
 };
 
-function authenticate(sessionContext: SessionContext): boolean {
+async function authenticate(sessionContext: SessionContext): Promise<boolean> {
   const authExpression: Expression = localCache.getConfigExpression(
     sessionContext.cacheSnapshot,
     "cwmp.auth"
@@ -80,19 +81,29 @@ function authenticate(sessionContext: SessionContext): boolean {
   }
 
   const now = Date.now();
-  const res = evaluate(
+  const res = await evaluateAsync(
     authExpression,
     sessionContext.configContext,
     now,
-    (e: Expression): Expression => {
-      if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "AUTH") {
-        if (authentication && authentication["method"] === "Basic") {
-          return (
-            authentication["username"] === e[2] &&
-            authentication["password"] === e[3]
-          );
-        } else {
-          return false;
+    async (e: Expression): Promise<Expression> => {
+      if (Array.isArray(e) && e[0] === "FUNC") {
+        if (e[1] === "EXT") {
+          if (typeof e[2] !== "string" || typeof e[3] !== "string") return null;
+
+          for (let i = 4; i < e.length; i++)
+            if (Array.isArray(e[i])) return null;
+
+          const { fault, value } = await extensions.run(e.slice(2));
+          return fault ? null : value;
+        } else if (e[1] === "AUTH") {
+          if (authentication && authentication["method"] === "Basic") {
+            return (
+              authentication["username"] === e[2] &&
+              authentication["password"] === e[3]
+            );
+          } else {
+            return false;
+          }
         }
       }
       return e;
@@ -1160,7 +1171,10 @@ async function listenerAsync(
   }
 
   if (sessionContext) {
-    if (sessionContext.state === 0 && !authenticate(sessionContext)) {
+    const authenticated =
+      sessionContext.state === 0 ? await authenticate(sessionContext) : true;
+
+    if (!authenticated) {
       logger.accessError({
         message: "Authentication failure",
         sessionContext: sessionContext
@@ -1248,7 +1262,8 @@ async function listenerAsync(
     }
   }
 
-  if (!authenticate(_sessionContext)) {
+  const authenticated = await authenticate(_sessionContext);
+  if (!authenticated) {
     logger.accessError({
       message: "Authentication failure",
       sessionContext: _sessionContext

@@ -21,29 +21,44 @@ import * as crypto from "crypto";
 import * as dgram from "dgram";
 import { parse } from "url";
 import * as http from "http";
-import { evaluate } from "./common/expression";
+import { evaluateAsync } from "./common/expression";
 import { Expression } from "./types";
 import * as auth from "./auth";
+import * as extensions from "./extensions";
 
-function extractAuth(
+async function extractAuth(
   exp: Expression,
   context: {},
   now: number,
   dflt: any
-): [string, string, Expression] {
+): Promise<[string, string, Expression]> {
   let username, password;
-  exp = evaluate(exp, context, now, e => {
-    if (!username && Array.isArray(e) && e[0] === "FUNC" && e[1] === "AUTH") {
-      if (!Array.isArray(e[2]) && !Array.isArray(e[3])) {
-        username = e[2];
-        password = e[3];
-      }
-      return dflt;
-    }
-    return e;
-  });
+  const _exp = await evaluateAsync(
+    exp,
+    context,
+    now,
+    async (e: Expression): Promise<Expression> => {
+      if (!username && Array.isArray(e) && e[0] === "FUNC") {
+        if (e[1] === "EXT") {
+          if (typeof e[2] !== "string" || typeof e[3] !== "string") return null;
 
-  return [username, password, exp];
+          for (let i = 4; i < e.length; i++)
+            if (Array.isArray(e[i])) return null;
+
+          const { fault, value } = await extensions.run(e.slice(2));
+          return fault ? null : value;
+        } else if (e[1] === "AUTH") {
+          if (!Array.isArray(e[2]) && !Array.isArray(e[3])) {
+            username = e[2];
+            password = e[3];
+          }
+          return dflt;
+        }
+      }
+      return e;
+    }
+  );
+  return [username, password, _exp];
 }
 
 function httpGet(
@@ -137,7 +152,12 @@ export async function httpConnectionRequest(
       authHeader = auth.parseWwwAuthenticateHeader(
         res.headers["www-authenticate"]
       );
-      [username, password, authExp] = extractAuth(authExp, context, now, false);
+      [username, password, authExp] = await extractAuth(
+        authExp,
+        context,
+        now,
+        false
+      );
     } else {
       throw new Error(
         `Unexpected response code from device: ${res.statusCode}`
@@ -169,7 +189,13 @@ export async function udpConnectionRequest(
   let username: string;
   let password: string;
 
-  [username, password, authExp] = extractAuth(authExp, context, now, null);
+  [username, password, authExp] = await extractAuth(
+    authExp,
+    context,
+    now,
+    null
+  );
+
   if (username == null) username = "";
   if (password == null) password = "";
   while (username != null && password != null) {
@@ -194,7 +220,12 @@ export async function udpConnectionRequest(
       });
     }
 
-    [username, password, authExp] = extractAuth(authExp, context, now, null);
+    [username, password, authExp] = await extractAuth(
+      authExp,
+      context,
+      now,
+      null
+    );
   }
   client.close();
 }

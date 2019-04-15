@@ -119,7 +119,7 @@ export async function connectionRequest(deviceId): Promise<void> {
     udpProm = udpConnectionRequest(
       udpConnectionRequestAddress,
       authExp,
-      db.configCollection,
+      context,
       UDP_CONNECTION_REQUEST_PORT
     );
   }
