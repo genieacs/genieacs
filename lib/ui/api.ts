@@ -483,7 +483,14 @@ router.post("/devices/:id/tags", async (ctx, next) => {
     return void (ctx.status = 403);
   }
 
-  await db.updateDeviceTags(ctx.params.id, ctx.request.body);
+  try {
+    await db.updateDeviceTags(ctx.params.id, ctx.request.body);
+  } catch (error) {
+    log.message += " failed";
+    logger.accessWarn(log);
+    ctx.body = error.message;
+    return void (ctx.status = 400);
+  }
 
   logger.accessInfo(log);
 

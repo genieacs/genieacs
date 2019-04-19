@@ -211,9 +211,16 @@ export function updateDeviceTags(deviceId, tags): Promise<void> {
     const add = [];
     const pull = [];
 
-    for (const [tag, onOff] of Object.entries(tags)) {
-      if (onOff) add.push(tag);
-      else pull.push(tag);
+    const regex = /^[0-9a-zA-Z_]+$/;
+    for (let [tag, onOff] of Object.entries(tags)) {
+      tag = tag.trim();
+      if (onOff) {
+        if (!tag.match(regex))
+          return void reject(new Error(`Invalid tag '${tag}'`));
+        add.push(tag);
+      } else {
+        pull.push(tag);
+      }
     }
     getClient()
       .then(client => {
