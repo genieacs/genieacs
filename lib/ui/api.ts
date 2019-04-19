@@ -367,7 +367,7 @@ for (const [resource, flags] of Object.entries(resources)) {
       } catch (err) {
         log.message += " failed";
         logger.accessWarn(log);
-        ctx.body = err;
+        ctx.body = `${err.name}: ${err.message}`;
         return void (ctx.status = 400);
       }
 
