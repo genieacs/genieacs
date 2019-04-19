@@ -51,7 +51,7 @@ export function commit(tasks, callback): Promise<void> {
     for (const [deviceId, tasks2] of Object.entries(devices)) {
       ++counter;
       store
-        .postTasks(deviceId, tasks)
+        .postTasks(deviceId, tasks2)
         .then(connectionRequestStatus => {
           for (const t of tasks2) {
             if (t.status === "pending") t.status = "stale";
