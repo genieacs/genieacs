@@ -87,9 +87,9 @@ function evalExp(e: Expression): Expression {
       ((e as any[]).length >= 4 && e[3] == null)
     )
       return null;
-    const r = regExpCache.get(e as any[]);
+    let r = regExpCache.get(e as any[]);
     if (!r) {
-      likePatternToRegExp(e[2], e[3]);
+      r = likePatternToRegExp(e[2], e[3]);
       regExpCache.set(e as any[], r);
     }
     return r.test(e[1]);
@@ -101,9 +101,9 @@ function evalExp(e: Expression): Expression {
       ((e as any[]).length >= 4 && e[3] == null)
     )
       return null;
-    const r = regExpCache.get(e as any[]);
+    let r = regExpCache.get(e as any[]);
     if (!r) {
-      likePatternToRegExp(e[2], e[3]);
+      r = likePatternToRegExp(e[2], e[3]);
       regExpCache.set(e as any[], r);
     }
     return !r.test(e[1]);
