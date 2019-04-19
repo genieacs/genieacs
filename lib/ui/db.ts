@@ -1,4 +1,5 @@
 import { MongoClient, GridFSBucket } from "mongodb";
+import { Script } from "vm";
 import * as config from "../config";
 import * as mongodbFunctions from "../mongodb-functions";
 import * as expression from "../common/expression";
@@ -272,6 +273,12 @@ export function deletePreset(id): Promise<void> {
 }
 
 export function putProvision(id, object): Promise<void> {
+  if (!object.script) object.script = "";
+  try {
+    new Script(`"use strict";(function(){\n${object.script}\n})();`);
+  } catch (error) {
+    return Promise.reject(error);
+  }
   return putResource("provisions", id, object);
 }
 
@@ -280,6 +287,12 @@ export function deleteProvision(id): Promise<void> {
 }
 
 export function putVirtualParameter(id, object): Promise<void> {
+  if (!object.script) object.script = "";
+  try {
+    new Script(`"use strict";(function(){\n${object.script}\n})();`);
+  } catch (error) {
+    return Promise.reject(error);
+  }
   return putResource("virtualParameters", id, object);
 }
 
