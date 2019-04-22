@@ -108,391 +108,326 @@ function flattenObject(src, prefix = "", dst = {}): {} {
   return dst;
 }
 
-function refresh(callback): void {
+async function fetchPresets(): Promise<Preset[]> {
+  const res = await db.getPresets();
+  let objects = await db.getObjects();
+
+  objects = objects.map(obj => {
+    // Flatten object
+    obj = flattenObject(obj);
+
+    // If no keys are defined, consider all parameters as keys to keep the
+    // same behavior from v1.0
+    if (!obj["_keys"] || !obj["_keys"].length)
+      obj["_keys"] = Object.keys(obj).filter(k => !k.startsWith("_"));
+
+    return obj;
+  });
+
+  res.sort((a, b) => {
+    if (a["weight"] === b["weight"])
+      return a["_id"] > b["_id"] ? 1 : a["_id"] < b["_id"] ? -1 : 0;
+    else return a["weight"] - b["weight"];
+  });
+
+  const presets = [] as Preset[];
+  for (const preset of res) {
+    let schedule: { md5: string; duration: number; schedule: any } = null;
+    if (preset["schedule"]) {
+      const parts = preset["schedule"].trim().split(/\s+/);
+      schedule = {
+        md5: crypto
+          .createHash("md5")
+          .update(preset["schedule"])
+          .digest("hex"),
+        duration: null,
+        schedule: null
+      };
+
+      try {
+        schedule.duration = +parts.shift() * 1000;
+        schedule.schedule = scheduling.parseCron(parts.join(" "));
+      } catch (err) {
+        logger.warn({
+          message: "Invalid preset schedule",
+          preset: preset["_id"],
+          schedule: preset["schedule"]
+        });
+        schedule.schedule = false;
+      }
+    }
+
+    const events = preset["events"] || {};
+    let precondition;
+    try {
+      precondition = parse(preset["precondition"]);
+    } catch (error) {
+      precondition = mongoQueryToFilter(JSON.parse(preset["precondition"]));
+    }
+
+    const _provisions = preset["provisions"] || [];
+
+    // Generate provisions from the old configuration format
+    for (const c of preset["configurations"]) {
+      switch (c.type) {
+        case "age":
+          _provisions.push(["refresh", c.name, c.age]);
+          break;
+
+        case "value":
+          _provisions.push(["value", c.name, c.value]);
+          break;
+
+        case "add_tag":
+          _provisions.push(["tag", c.tag, true]);
+          break;
+
+        case "delete_tag":
+          _provisions.push(["tag", c.tag, false]);
+          break;
+
+        case "provision":
+          _provisions.push([c.name].concat(c.args || []));
+          break;
+
+        case "add_object":
+          for (const obj of objects) {
+            if (obj["_id"] === c.object) {
+              const alias = obj["_keys"]
+                .map(k => `${k}:${JSON.stringify(obj[k])}`)
+                .join(",");
+              const p = `${c.name}.[${alias}]`;
+              _provisions.push(["instances", p, 1]);
+
+              for (const k in obj) {
+                if (!k.startsWith("_") && !(obj["_keys"].indexOf(k) !== -1))
+                  _provisions.push(["value", `${p}.${k}`, obj[k]]);
+              }
+            }
+          }
+
+          break;
+
+        case "delete_object":
+          for (const obj of objects) {
+            if (obj["_id"] === c.object) {
+              const alias = obj["_keys"]
+                .map(k => `${k}:${JSON.stringify(obj[k])}`)
+                .join(",");
+              const p = `${c.name}.[${alias}]`;
+              _provisions.push(["instances", p, 0]);
+            }
+          }
+
+          break;
+
+        default:
+          throw new Error(`Unknown configuration type ${c.type}`);
+      }
+    }
+
+    presets.push({
+      name: preset["_id"],
+      channel: (preset["channel"] as string) || "default",
+      schedule: schedule,
+      events: events,
+      precondition: precondition,
+      provisions: _provisions
+    });
+  }
+
+  return presets;
+}
+
+async function fetchProvisions(): Promise<{}> {
+  const res = await db.getProvisions();
+
+  const provisions = {};
+  for (const r of res) {
+    provisions[r["_id"]] = {};
+    provisions[r["_id"]].md5 = crypto
+      .createHash("md5")
+      .update(r["script"])
+      .digest("hex");
+    provisions[r["_id"]].script = new vm.Script(
+      `"use strict";(function(){\n${r["script"]}\n})();`,
+      { filename: r["_id"], lineOffset: -1, timeout: 50 }
+    );
+  }
+
+  return provisions;
+}
+
+async function fetchVirtualParameters(): Promise<{}> {
+  const res = await db.getVirtualParameters();
+
+  const virtualParameters = {};
+  for (const r of res) {
+    virtualParameters[r["_id"]] = {};
+    virtualParameters[r["_id"]].md5 = crypto
+      .createHash("md5")
+      .update(r["script"])
+      .digest("hex");
+    virtualParameters[r["_id"]].script = new vm.Script(
+      `"use strict";(function(){\n${r["script"]}\n})();`,
+      { filename: r["_id"], lineOffset: -1, timeout: 50 }
+    );
+  }
+
+  return virtualParameters;
+}
+
+async function fetchPermissions(): Promise<Permissions> {
+  const perms = await db.getPermissions();
+  const permissions: Permissions = {};
+
+  for (const p of perms) {
+    if (!permissions[p.role]) permissions[p.role] = {};
+    if (!permissions[p.role][p.access]) permissions[p.role][p.access] = {};
+
+    permissions[p.role][p.access][p.resource] = {
+      access: p.access,
+      filter: parse(p.filter || "true")
+    };
+    if (p.validate)
+      permissions[p.role][p.access][p.resource].validate = parse(p.validate);
+  }
+
+  return permissions;
+}
+
+async function fetchFiles(): Promise<{}> {
+  const res = await db.getFiles();
+  const files = {};
+
+  for (const r of res) {
+    const id = r["filename"] || r["_id"].toString();
+    files[id] = {};
+    files[id].length = r["length"];
+    files[id].md5 = r["md5"];
+    files[id].contentType = r["contentType"];
+  }
+
+  return files;
+}
+
+async function fetchUsers(): Promise<{}> {
+  const _users = await db.getUsers();
+  const users = {};
+
+  for (const user of _users) {
+    users[user._id] = {
+      password: user.password,
+      salt: user.salt,
+      roles: user.roles.split(",").map(s => s.trim())
+    };
+  }
+
+  return users;
+}
+
+async function fetchConfig(): Promise<[{}, {}]> {
+  const conf = await db.getConfig();
+
+  conf.sort((a, b) => (a.id > b.id ? 1 : a.id < b.id ? -1 : 0));
+
+  const ui = {
+    filters: {},
+    device: {},
+    index: {},
+    overview: { charts: {}, groups: {} }
+  };
+  const _config = {};
+
+  for (const c of conf) {
+    // Evaluate expressions to simplify them
+    const val = expression.evaluate(c.value);
+    _config[c.id] = val;
+    if (c.id.startsWith("ui.")) {
+      const keys = c.id.split(".");
+      // remove the first key(ui)
+      keys.shift();
+      let ref = ui;
+      while (keys.length > 1) {
+        const k = keys.shift();
+        if (typeof ref[k] !== "object") ref[k] = {};
+        ref = ref[k];
+      }
+      ref[keys[0]] = val;
+    }
+  }
+
+  if (!Object.keys(ui["index"]).length) {
+    ui["index"] = {
+      "0": {
+        label: "ID",
+        parameter: ["PARAM", "DeviceID.ID"]
+      }
+    };
+  }
+
+  return [_config, ui];
+}
+
+async function refresh(): Promise<void> {
   if (!nextRefresh) {
-    return void setTimeout(() => {
-      refresh(callback);
-    }, 20);
+    await new Promise(resolve => setTimeout(resolve, 20));
+    await refresh();
+    return;
   }
 
   nextRefresh = 0;
   const now = Date.now();
 
-  cache.get("presets_hash", (err, dbHash) => {
-    if (err) return void callback(err);
+  const dbHash = await cache.get("presets_hash");
 
-    if (currentSnapshot && dbHash === currentSnapshot) {
-      nextRefresh = now + (REFRESH - (now % REFRESH));
-      return void callback();
-    }
-
-    cache.lock("presets_hash_lock", 3, (err, unlockOrExtend) => {
-      if (err) return void callback(err);
-
-      const promises = [];
-
-      promises.push(
-        new Promise((resolve, reject) => {
-          db.getPresets((err, res) => {
-            if (err) return void reject(err);
-
-            db.getObjects((err, objects) => {
-              if (err) return void reject(err);
-
-              objects = objects.map(obj => {
-                // Flatten object
-                obj = flattenObject(obj);
-
-                // If no keys are defined, consider all parameters as keys to keep the
-                // same behavior from v1.0
-                if (!obj["_keys"] || !obj["_keys"].length) {
-                  obj["_keys"] = Object.keys(obj).filter(
-                    k => !k.startsWith("_")
-                  );
-                }
-
-                return obj;
-              });
-
-              res.sort((a, b) => {
-                if (a.weight === b.weight) return a._id > b._id;
-                else return a.weight - b.weight;
-              });
-
-              const presets = [] as Preset[];
-              for (const preset of res) {
-                let schedule = null;
-                if (preset.schedule) {
-                  const parts = preset.schedule.trim().split(/\s+/);
-                  schedule = {
-                    md5: crypto
-                      .createHash("md5")
-                      .update(preset.schedule)
-                      .digest("hex")
-                  };
-
-                  try {
-                    schedule.duration = +parts.shift() * 1000;
-                    schedule.schedule = scheduling.parseCron(parts.join(" "));
-                  } catch (err) {
-                    logger.warn({
-                      message: "Invalid preset schedule",
-                      preset: preset._id,
-                      schedule: preset.schedule
-                    });
-                    schedule.schedule = false;
-                  }
-                }
-
-                const events = preset.events || {};
-                let precondition;
-                try {
-                  precondition = parse(preset.precondition);
-                } catch (error) {
-                  precondition = mongoQueryToFilter(
-                    JSON.parse(preset.precondition)
-                  );
-                }
-
-                const _provisions = preset.provisions || [];
-
-                // Generate provisions from the old configuration format
-                for (const c of preset.configurations) {
-                  switch (c.type) {
-                    case "age":
-                      _provisions.push(["refresh", c.name, c.age]);
-                      break;
-
-                    case "value":
-                      _provisions.push(["value", c.name, c.value]);
-                      break;
-
-                    case "add_tag":
-                      _provisions.push(["tag", c.tag, true]);
-                      break;
-
-                    case "delete_tag":
-                      _provisions.push(["tag", c.tag, false]);
-                      break;
-
-                    case "provision":
-                      _provisions.push([c.name].concat(c.args || []));
-                      break;
-
-                    case "add_object":
-                      for (const obj of objects) {
-                        if (obj["_id"] === c.object) {
-                          const alias = obj["_keys"]
-                            .map(k => `${k}:${JSON.stringify(obj[k])}`)
-                            .join(",");
-                          const p = `${c.name}.[${alias}]`;
-                          _provisions.push(["instances", p, 1]);
-
-                          for (const k in obj) {
-                            if (
-                              !k.startsWith("_") &&
-                              !(obj["_keys"].indexOf(k) !== -1)
-                            )
-                              _provisions.push(["value", `${p}.${k}`, obj[k]]);
-                          }
-                        }
-                      }
-
-                      break;
-
-                    case "delete_object":
-                      for (const obj of objects) {
-                        if (obj["_id"] === c.object) {
-                          const alias = obj["_keys"]
-                            .map(k => `${k}:${JSON.stringify(obj[k])}`)
-                            .join(",");
-                          const p = `${c.name}.[${alias}]`;
-                          _provisions.push(["instances", p, 0]);
-                        }
-                      }
-
-                      break;
-
-                    default:
-                      return void reject(
-                        new Error(`Unknown configuration type ${c.type}`)
-                      );
-                  }
-                }
-
-                presets.push({
-                  name: preset._id,
-                  channel: preset.channel || "default",
-                  schedule: schedule,
-                  events: events,
-                  precondition: precondition,
-                  provisions: _provisions
-                });
-              }
-
-              resolve(presets);
-            });
-          });
-        })
-      );
-
-      promises.push(
-        new Promise((resolve, reject) => {
-          db.getProvisions((err, res) => {
-            if (err) return void reject(err);
-
-            const provisions = {};
-            for (const r of res) {
-              provisions[r._id] = {};
-              provisions[r._id].md5 = crypto
-                .createHash("md5")
-                .update(r.script)
-                .digest("hex");
-              provisions[r._id].script = new vm.Script(
-                `"use strict";(function(){\n${r.script}\n})();`,
-                { filename: r._id, lineOffset: -1, timeout: 50 }
-              );
-            }
-
-            resolve(provisions);
-          });
-        })
-      );
-
-      promises.push(
-        new Promise((resolve, reject) => {
-          db.getVirtualParameters((err, res) => {
-            if (err) return void reject(err);
-
-            const virtualParameters = {};
-            for (const r of res) {
-              virtualParameters[r._id] = {};
-              virtualParameters[r._id].md5 = crypto
-                .createHash("md5")
-                .update(r.script)
-                .digest("hex");
-              virtualParameters[r._id].script = new vm.Script(
-                `"use strict";(function(){\n${r.script}\n})();`,
-                { filename: r._id, lineOffset: -1, timeout: 50 }
-              );
-            }
-
-            resolve(virtualParameters);
-          });
-        })
-      );
-
-      promises.push(
-        new Promise((resolve, reject) => {
-          db.getFiles((err, res) => {
-            if (err) return void reject(err);
-
-            const files = {};
-            for (const r of res) {
-              const id = r.filename || r._id.toString();
-              files[id] = {};
-              files[id].length = r.length;
-              files[id].md5 = r.md5;
-              files[id].contentType = r.contentType;
-            }
-
-            resolve(files);
-          });
-        })
-      );
-
-      promises.push(
-        new Promise((resolve, reject) => {
-          db.getPermissions((err, perms) => {
-            if (err) return void reject(err);
-            const permissions: Permissions = {};
-            for (const p of perms) {
-              if (!permissions[p.role]) permissions[p.role] = {};
-              if (!permissions[p.role][p.access])
-                permissions[p.role][p.access] = {};
-
-              permissions[p.role][p.access][p.resource] = {
-                access: p.access,
-                filter: parse(p.filter || "true")
-              };
-              if (p.validate) {
-                permissions[p.role][p.access][p.resource].validate = parse(
-                  p.validate
-                );
-              }
-            }
-
-            resolve(permissions);
-          });
-        })
-      );
-
-      promises.push(
-        new Promise((resolve, reject) => {
-          db.getUsers((err, _users) => {
-            if (err) return void reject(err);
-            const users = {};
-            for (const user of _users) {
-              users[user._id] = {
-                password: user.password,
-                salt: user.salt,
-                roles: user.roles.split(",").map(s => s.trim())
-              };
-            }
-            resolve(users);
-          });
-        })
-      );
-
-      promises.push(
-        new Promise((resolve, reject) => {
-          db.getConfig((err, conf) => {
-            if (err) return void reject(err);
-
-            conf.sort((a, b) => (a.id > b.id ? 1 : a.id < b.id ? -1 : 0));
-
-            const ui = {
-              filters: {},
-              device: {},
-              index: {},
-              overview: { charts: {}, groups: {} }
-            };
-            const _config = {};
-
-            for (const c of conf) {
-              // Evaluate expressions to simplify them
-              const val = expression.evaluate(c.value);
-              _config[c.id] = val;
-              if (c.id.startsWith("ui.")) {
-                const keys = c.id.split(".");
-                // remove the first key(ui)
-                keys.shift();
-                let ref = ui;
-                while (keys.length > 1) {
-                  const k = keys.shift();
-                  if (typeof ref[k] !== "object") ref[k] = {};
-                  ref = ref[k];
-                }
-                ref[keys[0]] = val;
-              }
-            }
-
-            if (!Object.keys(ui["index"]).length) {
-              ui["index"] = {
-                "0": {
-                  label: "ID",
-                  parameter: ["PARAM", "DeviceID.ID"]
-                }
-              };
-            }
-
-            resolve([_config, ui]);
-          });
-        })
-      );
-
-      Promise.all(promises)
-        .then(res => {
-          const snapshot = {
-            presets: res[0],
-            provisions: res[1],
-            virtualParameters: res[2],
-            files: res[3],
-            permissions: res[4],
-            users: res[5],
-            config: res[6][0],
-            ui: res[6][1]
-          };
-
-          if (currentSnapshot) {
-            const h = currentSnapshot;
-            const s = snapshots.get(h);
-            setTimeout(() => {
-              if (snapshots.get(h) === s) snapshots.delete(h);
-            }, EVICT_TIMEOUT).unref();
-          }
-
-          currentSnapshot = computeHash(snapshot);
-          snapshots.set(currentSnapshot, snapshot);
-          cache.set("presets_hash", currentSnapshot, 300, err => {
-            unlockOrExtend(0);
-            if (err) return void callback(err);
-            nextRefresh = now + (REFRESH - (now % REFRESH));
-            callback();
-          });
-        })
-        .catch(callback);
-    });
-  });
-}
-
-interface GetCurrentSnapshotCallback {
-  (err: null, currentSnapshot: string): void;
-  (err: Error, currentSnapshot?: null): void;
-}
-
-export function getCurrentSnapshot(callback: GetCurrentSnapshotCallback);
-export function getCurrentSnapshot(): Promise<string>;
-export function getCurrentSnapshot(
-  callback?: GetCurrentSnapshotCallback
-): Promise<string> | void {
-  if (Date.now() < nextRefresh) {
-    if (callback) return callback(null, currentSnapshot);
-    return Promise.resolve(currentSnapshot);
+  if (currentSnapshot && dbHash === currentSnapshot) {
+    nextRefresh = now + (REFRESH - (now % REFRESH));
+    return;
   }
 
-  if (callback) {
-    return refresh(err => {
-      callback(err, currentSnapshot);
-    });
+  const unlockOrExtend = await cache.lock("presets_hash_lock", 3);
+
+  const res = await Promise.all([
+    fetchPresets(),
+    fetchProvisions(),
+    fetchVirtualParameters(),
+    fetchFiles(),
+    fetchPermissions(),
+    fetchUsers(),
+    fetchConfig()
+  ]);
+
+  const snapshot = {
+    presets: res[0],
+    provisions: res[1],
+    virtualParameters: res[2],
+    files: res[3],
+    permissions: res[4],
+    users: res[5],
+    config: res[6][0],
+    ui: res[6][1]
+  };
+
+  if (currentSnapshot) {
+    const h = currentSnapshot;
+    const s = snapshots.get(h);
+    setTimeout(() => {
+      if (snapshots.get(h) === s) snapshots.delete(h);
+    }, EVICT_TIMEOUT).unref();
   }
 
-  return new Promise((resolve, reject) => {
-    refresh(err => {
-      if (err) return void reject(err);
-      resolve(currentSnapshot);
-    });
-  });
+  currentSnapshot = computeHash(snapshot);
+  snapshots.set(currentSnapshot, snapshot);
+  await cache.set("presets_hash", currentSnapshot, 300);
+  await unlockOrExtend(0);
+
+  nextRefresh = now + (REFRESH - (now % REFRESH));
+}
+
+export async function getCurrentSnapshot(): Promise<string> {
+  if (Date.now() > nextRefresh) await refresh();
+  return currentSnapshot;
 }
 
 export function hasSnapshot(hash): boolean {

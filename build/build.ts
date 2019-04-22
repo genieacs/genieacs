@@ -31,6 +31,7 @@ const externals = [
   "https",
   "zlib",
   "crypto",
+  "util",
   "mongodb",
   "libxmljs",
   "vm",

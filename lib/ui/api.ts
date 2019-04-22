@@ -546,16 +546,7 @@ router.put("/users/:id/password", async (ctx, next) => {
   const password = await hashPassword(newPassword, salt);
   await db.putUser(username, { password, salt });
 
-  function delCache(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      del("presets_hash", err => {
-        if (err) return void reject(err);
-        resolve();
-      });
-    });
-  }
-
-  await delCache();
+  await del("presets_hash");
 
   logger.accessInfo(log);
   ctx.body = "";

@@ -43,8 +43,24 @@ import {
   CpeResponse,
   CpeFault,
   CpeSetResponse,
-  CpeGetResponse
+  CpeGetResponse,
+  AcsRequest,
+  AcsResponse,
+  InformRequest,
+  TransferCompleteRequest,
+  Operation,
+  ScriptResult
 } from "./types";
+
+const VALID_PARAM_TYPES = new Set([
+  "xsd:int",
+  "xsd:unsignedInt",
+  "xsd:boolean",
+  "xsd:string",
+  "xsd:dateTime",
+  "xsd:base64",
+  "xsd:hexBinary"
+]);
 
 function initDeviceData(): DeviceData {
   return {
@@ -60,9 +76,8 @@ function initDeviceData(): DeviceData {
 export function init(
   deviceId: string,
   cwmpVersion: string,
-  timeout: number,
-  callback: (err: Error, sessionContext: SessionContext) => void
-): void {
+  timeout: number
+): SessionContext {
   const timestamp = Date.now();
   const sessionContext: SessionContext = {
     timestamp: timestamp,
@@ -82,51 +97,46 @@ export function init(
     state: 0
   };
 
-  callback(null, sessionContext);
+  return sessionContext;
 }
 
-function loadParameters(sessionContext: SessionContext, callback): void {
-  if (!sessionContext.toLoad || !sessionContext.toLoad.size)
-    return void callback();
+async function loadParameters(sessionContext: SessionContext): Promise<void> {
+  if (!sessionContext.toLoad || !sessionContext.toLoad.size) return;
 
   const toLoad = Array.from(sessionContext.toLoad.entries());
-  db.fetchDevice(
+  let [parameters, loaded] = await db.fetchDevice(
     sessionContext.deviceId,
     sessionContext.timestamp,
-    toLoad,
-    (err, parameters, loaded) => {
-      if (err) return void callback(err);
-
-      if (!parameters) {
-        // Device not available in database, mark as new
-        sessionContext.new = true;
-        loaded = [
-          [
-            Path.parse(""),
-            (1 << +config.get("MAX_DEPTH", sessionContext.deviceId)) - 1
-          ]
-        ];
-        parameters = [];
-      }
-
-      for (const p of loaded) {
-        const path = sessionContext.deviceData.paths.add(p[0]);
-        if (p[1]) {
-          const l = sessionContext.deviceData.loaded.get(path) | 0;
-          sessionContext.deviceData.loaded.set(path, l | p[1]);
-        }
-      }
-
-      for (const p of parameters) {
-        const path = sessionContext.deviceData.paths.add(p[0]);
-        sessionContext.deviceData.timestamps.set(path, p[1], 0);
-        if (p[2]) sessionContext.deviceData.attributes.set(path, p[2], 0);
-      }
-
-      delete sessionContext.toLoad;
-      callback();
-    }
+    toLoad
   );
+
+  if (!parameters) {
+    // Device not available in database, mark as new
+    sessionContext.new = true;
+    loaded = [
+      [
+        Path.parse(""),
+        (1 << +config.get("MAX_DEPTH", sessionContext.deviceId)) - 1
+      ]
+    ];
+    parameters = [];
+  }
+
+  for (const p of loaded) {
+    const path = sessionContext.deviceData.paths.add(p[0]);
+    if (p[1]) {
+      const l = sessionContext.deviceData.loaded.get(path) | 0;
+      sessionContext.deviceData.loaded.set(path, l | p[1]);
+    }
+  }
+
+  for (const p of parameters) {
+    const path = sessionContext.deviceData.paths.add(p[0]);
+    sessionContext.deviceData.timestamps.set(path, p[1], 0);
+    if (p[2]) sessionContext.deviceData.attributes.set(path, p[2], 0);
+  }
+
+  delete sessionContext.toLoad;
 }
 
 function generateRpcId(sessionContext: SessionContext): string {
@@ -137,7 +147,10 @@ function generateRpcId(sessionContext: SessionContext): string {
   );
 }
 
-export function inform(sessionContext: SessionContext, rpcReq, callback): void {
+export async function inform(
+  sessionContext: SessionContext,
+  rpcReq: InformRequest
+): Promise<AcsResponse> {
   const timestamp = sessionContext.timestamp + sessionContext.iteration + 1;
   const params: [Path, number, Attributes][] = [
     [
@@ -188,7 +201,7 @@ export function inform(sessionContext: SessionContext, rpcReq, callback): void {
       timestamp,
       {
         object: [timestamp, 0],
-        value: [timestamp, p.slice(1)]
+        value: [timestamp, p.slice(1) as [string | number | boolean, string]]
       }
     ]);
   }
@@ -220,60 +233,56 @@ export function inform(sessionContext: SessionContext, rpcReq, callback): void {
 
   for (const p of params) loadPath(sessionContext, p[0]);
 
-  loadParameters(sessionContext, err => {
-    if (err) return void callback(err);
+  await loadParameters(sessionContext);
 
-    if (sessionContext.new) {
-      params.push([
-        Path.parse("DeviceID.ID"),
-        timestamp,
-        {
-          object: [timestamp, 0],
-          writable: [timestamp, 0],
-          value: [timestamp, [sessionContext.deviceId, "xsd:string"]]
-        }
-      ]);
-      params.push([
-        Path.parse("Events.Registered"),
-        timestamp,
-        {
-          object: [timestamp, 0],
-          writable: [timestamp, 0],
-          value: [timestamp, [sessionContext.timestamp, "xsd:dateTime"]]
-        }
-      ]);
-    }
-
-    sessionContext.deviceData.timestamps.revision = 1;
-    sessionContext.deviceData.attributes.revision = 1;
-
-    let toClear = null;
-    for (const p of params) {
-      // Don't need to clear wildcards for Events
-      if (p[0].segments[0] === "Events") {
-        device.set(sessionContext.deviceData, p[0], p[1], p[2]);
-      } else {
-        toClear = device.set(
-          sessionContext.deviceData,
-          p[0],
-          p[1],
-          p[2],
-          toClear
-        );
+  if (sessionContext.new) {
+    params.push([
+      Path.parse("DeviceID.ID"),
+      timestamp,
+      {
+        object: [timestamp, 0],
+        writable: [timestamp, 0],
+        value: [timestamp, [sessionContext.deviceId, "xsd:string"]]
       }
-    }
+    ]);
+    params.push([
+      Path.parse("Events.Registered"),
+      timestamp,
+      {
+        object: [timestamp, 0],
+        writable: [timestamp, 0],
+        value: [timestamp, [sessionContext.timestamp, "xsd:dateTime"]]
+      }
+    ]);
+  }
 
-    clear(sessionContext, toClear, err => {
-      callback(err, { name: "InformResponse" });
-    });
-  });
+  sessionContext.deviceData.timestamps.revision = 1;
+  sessionContext.deviceData.attributes.revision = 1;
+
+  let toClear = null;
+  for (const p of params) {
+    // Don't need to clear wildcards for Events
+    if (p[0].segments[0] === "Events") {
+      device.set(sessionContext.deviceData, p[0], p[1], p[2]);
+    } else {
+      toClear = device.set(
+        sessionContext.deviceData,
+        p[0],
+        p[1],
+        p[2],
+        toClear
+      );
+    }
+  }
+
+  await clear(sessionContext, toClear);
+  return { name: "InformResponse" };
 }
 
-export function transferComplete(
+export async function transferComplete(
   sessionContext: SessionContext,
-  rpcReq,
-  callback
-): void {
+  rpcReq: TransferCompleteRequest
+): Promise<{ acsResponse: AcsResponse; operation: Operation; fault: Fault }> {
   const revision =
     (sessionContext.revisions[sessionContext.revisions.length - 1] || 0) + 1;
   sessionContext.deviceData.timestamps.revision = revision;
@@ -281,8 +290,13 @@ export function transferComplete(
   const commandKey = rpcReq.commandKey;
   const operation = sessionContext.operations[commandKey];
 
-  if (!operation)
-    return void callback(null, { name: "TransferCompleteResponse" });
+  if (!operation) {
+    return {
+      acsResponse: { name: "TransferCompleteResponse" },
+      operation: null,
+      fault: null
+    };
+  }
 
   const instance = operation.args.instance;
 
@@ -291,160 +305,153 @@ export function transferComplete(
   sessionContext.operationsTouched[commandKey] = 1;
 
   if (rpcReq.faultStruct && rpcReq.faultStruct.faultCode !== "0") {
-    return void revertDownloadParameters(
-      sessionContext,
-      operation.args.instance,
-      err => {
-        const fault = {
-          code: `cwmp.${rpcReq.faultStruct.faultCode}`,
-          message: rpcReq.faultStruct.faultString,
-          detail: rpcReq.faultStruct,
-          timestamp: operation.timestamp
-        };
+    await revertDownloadParameters(sessionContext, operation.args.instance);
 
-        callback(err, { name: "TransferCompleteResponse" }, operation, fault);
-      }
-    );
+    const fault: Fault = {
+      code: `cwmp.${rpcReq.faultStruct.faultCode}`,
+      message: rpcReq.faultStruct.faultString,
+      detail: rpcReq.faultStruct,
+      timestamp: operation.timestamp
+    };
+
+    return {
+      acsResponse: { name: "TransferCompleteResponse" },
+      operation: operation,
+      fault: fault
+    };
   }
 
   loadPath(sessionContext, Path.parse(`Downloads.${instance}.*`));
 
-  loadParameters(sessionContext, err => {
-    if (err) return void callback(err);
+  await loadParameters(sessionContext);
 
-    let toClear = null;
-    const timestamp = sessionContext.timestamp + sessionContext.iteration + 1;
+  let toClear = null;
+  const timestamp = sessionContext.timestamp + sessionContext.iteration + 1;
 
-    let p;
+  let p;
 
-    p = sessionContext.deviceData.paths.add(
-      Path.parse(`Downloads.${instance}.LastDownload`)
-    );
-    toClear = device.set(
-      sessionContext.deviceData,
-      p,
-      timestamp,
-      { value: [timestamp, [operation.timestamp, "xsd:dateTime"]] },
-      toClear
-    );
+  p = sessionContext.deviceData.paths.add(
+    Path.parse(`Downloads.${instance}.LastDownload`)
+  );
+  toClear = device.set(
+    sessionContext.deviceData,
+    p,
+    timestamp,
+    { value: [timestamp, [operation.timestamp, "xsd:dateTime"]] },
+    toClear
+  );
 
-    p = sessionContext.deviceData.paths.add(
-      Path.parse(`Downloads.${instance}.LastFileType`)
-    );
-    toClear = device.set(
-      sessionContext.deviceData,
-      p,
-      timestamp,
-      { value: [timestamp, [operation.args.fileType, "xsd:string"]] },
-      toClear
-    );
+  p = sessionContext.deviceData.paths.add(
+    Path.parse(`Downloads.${instance}.LastFileType`)
+  );
+  toClear = device.set(
+    sessionContext.deviceData,
+    p,
+    timestamp,
+    { value: [timestamp, [operation.args.fileType, "xsd:string"]] },
+    toClear
+  );
 
-    p = sessionContext.deviceData.paths.add(
-      Path.parse(`Downloads.${instance}.LastFileName`)
-    );
-    toClear = device.set(
-      sessionContext.deviceData,
-      p,
-      timestamp,
-      { value: [timestamp, [operation.args.fileName, "xsd:string"]] },
-      toClear
-    );
+  p = sessionContext.deviceData.paths.add(
+    Path.parse(`Downloads.${instance}.LastFileName`)
+  );
+  toClear = device.set(
+    sessionContext.deviceData,
+    p,
+    timestamp,
+    { value: [timestamp, [operation.args.fileName, "xsd:string"]] },
+    toClear
+  );
 
-    p = sessionContext.deviceData.paths.add(
-      Path.parse(`Downloads.${instance}.LastTargetFileName`)
-    );
-    toClear = device.set(
-      sessionContext.deviceData,
-      p,
-      timestamp,
-      { value: [timestamp, [operation.args.targetFileName, "xsd:string"]] },
-      toClear
-    );
+  p = sessionContext.deviceData.paths.add(
+    Path.parse(`Downloads.${instance}.LastTargetFileName`)
+  );
+  toClear = device.set(
+    sessionContext.deviceData,
+    p,
+    timestamp,
+    { value: [timestamp, [operation.args.targetFileName, "xsd:string"]] },
+    toClear
+  );
 
-    p = sessionContext.deviceData.paths.add(
-      Path.parse(`Downloads.${instance}.StartTime`)
-    );
-    toClear = device.set(
-      sessionContext.deviceData,
-      p,
-      timestamp,
-      { value: [timestamp, [+rpcReq.startTime, "xsd:dateTime"]] },
-      toClear
-    );
+  p = sessionContext.deviceData.paths.add(
+    Path.parse(`Downloads.${instance}.StartTime`)
+  );
+  toClear = device.set(
+    sessionContext.deviceData,
+    p,
+    timestamp,
+    { value: [timestamp, [+rpcReq.startTime, "xsd:dateTime"]] },
+    toClear
+  );
 
-    p = sessionContext.deviceData.paths.add(
-      Path.parse(`Downloads.${instance}.CompleteTime`)
-    );
-    toClear = device.set(
-      sessionContext.deviceData,
-      p,
-      timestamp,
-      { value: [timestamp, [+rpcReq.completeTime, "xsd:dateTime"]] },
-      toClear
-    );
+  p = sessionContext.deviceData.paths.add(
+    Path.parse(`Downloads.${instance}.CompleteTime`)
+  );
+  toClear = device.set(
+    sessionContext.deviceData,
+    p,
+    timestamp,
+    { value: [timestamp, [+rpcReq.completeTime, "xsd:dateTime"]] },
+    toClear
+  );
 
-    clear(sessionContext, toClear, err => {
-      callback(err, { name: "TransferCompleteResponse" }, operation);
-    });
-  });
+  await clear(sessionContext, toClear);
+  return {
+    acsResponse: { name: "TransferCompleteResponse" },
+    operation: operation,
+    fault: null
+  };
 }
 
-function revertDownloadParameters(
+async function revertDownloadParameters(
   sessionContext: SessionContext,
-  instance,
-  callback
-): void {
+  instance
+): Promise<void> {
   loadPath(sessionContext, Path.parse(`Downloads.${instance}.*`));
 
-  loadParameters(sessionContext, err => {
-    if (err) return void callback(err);
+  await loadParameters(sessionContext);
 
-    const timestamp = sessionContext.timestamp + sessionContext.iteration + 1;
+  const timestamp = sessionContext.timestamp + sessionContext.iteration + 1;
 
-    let p;
+  let p;
 
-    p = sessionContext.deviceData.paths.add(
-      Path.parse(`Downloads.${instance}.LastDownload`)
-    );
+  p = sessionContext.deviceData.paths.add(
+    Path.parse(`Downloads.${instance}.LastDownload`)
+  );
 
-    const lastDownload = sessionContext.deviceData.attributes.get(p);
+  const lastDownload = sessionContext.deviceData.attributes.get(p);
 
-    p = sessionContext.deviceData.paths.add(
-      Path.parse(`Downloads.${instance}.Download`)
-    );
+  p = sessionContext.deviceData.paths.add(
+    Path.parse(`Downloads.${instance}.Download`)
+  );
 
-    const toClear = device.set(sessionContext.deviceData, p, timestamp, {
-      value: [
-        timestamp,
-        [
-          lastDownload && lastDownload.value[1] ? lastDownload.value[1][0] : 0,
-          "xsd:dateTime"
-        ]
+  const toClear = device.set(sessionContext.deviceData, p, timestamp, {
+    value: [
+      timestamp,
+      [
+        lastDownload && lastDownload.value[1] ? lastDownload.value[1][0] : 0,
+        "xsd:dateTime"
       ]
-    });
-
-    clear(sessionContext, toClear, callback);
+    ]
   });
+
+  await clear(sessionContext, toClear);
 }
 
-export function timeoutOperations(
-  sessionContext: SessionContext,
-  callback
-): void {
+export async function timeoutOperations(
+  sessionContext: SessionContext
+): Promise<{ faults: Fault[]; operations: Operation[] }> {
   const revision =
     (sessionContext.revisions[sessionContext.revisions.length - 1] || 0) + 1;
   sessionContext.deviceData.timestamps.revision = revision;
   sessionContext.deviceData.attributes.revision = revision;
   const faults = [];
   const operations = [];
-  let counter = 3;
 
   for (const [commandKey, operation] of Object.entries(operations)) {
-    if (operation.name !== "Download") {
-      return void callback(
-        new Error(`Unknown operation name ${operation.name}`)
-      );
-    }
+    if (operation.name !== "Download")
+      throw new Error(`Unknown operation name ${operation.name}`);
 
     const DOWNLOAD_TIMEOUT =
       +localCache.getConfig(
@@ -467,17 +474,11 @@ export function timeoutOperations(
 
       operations.push(operation);
 
-      counter += 2;
-      revertDownloadParameters(sessionContext, operation.args.instance, err => {
-        if (err) {
-          if (counter & 1) callback(err);
-          return void (counter = 0);
-        }
-        if ((counter -= 2) === 1) callback(null, faults, operations);
-      });
+      revertDownloadParameters(sessionContext, operation.args.instance);
     }
   }
-  if ((counter -= 2) === 1) callback(null, faults, operations);
+
+  return { faults, operations };
 }
 
 export function addProvisions(
@@ -569,233 +570,189 @@ export function clearProvisions(sessionContext: SessionContext): void {
   sessionContext.extensionsCache = {};
 }
 
-function runProvisions(
+async function runProvisions(
   sessionContext: SessionContext,
   provisions: any[][],
   startRevision: number,
-  endRevision: number,
-  callback: (
-    err: Error,
-    fault?: Fault,
-    ret?: any,
-    decs?: Declaration[],
-    toClear?: Clear[]
-  ) => void
-): void {
-  let done = true;
-  let allDeclarations = [];
-  let allClear = [];
-  let counter = 3;
+  endRevision: number
+): Promise<ScriptResult> {
   const allProvisions = localCache.getProvisions(sessionContext.cacheSnapshot);
 
-  for (const [j, provision] of provisions.entries()) {
-    if (!allProvisions[provision[0]]) {
-      allDeclarations[j] = [];
-      allClear[j] = [];
-      if (defaultProvisions[provision[0]]) {
-        done =
-          defaultProvisions[provision[0]](
+  const res = await Promise.all(
+    provisions.map(async provision => {
+      if (!allProvisions[provision[0]]) {
+        if (defaultProvisions[provision[0]]) {
+          const dec = [];
+          const done = defaultProvisions[provision[0]](
             sessionContext,
             provision,
-            allDeclarations[j],
+            dec,
             startRevision,
             endRevision
-          ) && done;
+          );
+          return {
+            fault: null,
+            clear: null,
+            declare: dec,
+            done: done,
+            returnValue: null
+          };
+        }
+        return null;
       }
 
-      continue;
-    }
-    counter += 2;
+      return sandbox.run(
+        allProvisions[provision[0]].script,
+        { args: provision.slice(1) },
+        sessionContext,
+        startRevision,
+        endRevision
+      );
+    })
+  );
 
-    sandbox.run(
-      allProvisions[provision[0]].script,
-      { args: provision.slice(1) },
-      sessionContext,
-      startRevision,
-      endRevision,
-      (err, _fault, _clear, _declarations, _done) => {
-        if (err || _fault) {
-          if (counter & 1) callback(err, _fault);
-          return void (counter = 0);
-        }
-        done = done && _done;
-        allDeclarations[j] = _declarations || [];
-        allClear[j] = _clear || [];
+  let done = true;
+  let allDeclarations = [];
+  let allClear = [];
+  let fault;
 
-        if ((counter -= 2) === 1) {
-          allDeclarations = Array.prototype.concat.apply([], allDeclarations);
-          if (done) for (const d of allDeclarations) d.defer = false;
-          allClear = Array.prototype.concat.apply([], allClear);
-          callback(null, null, done, allDeclarations, allClear);
-        }
-      }
-    );
+  for (const r of res) {
+    if (!r) continue;
+    done = done && r.done;
+    if (r.declare) allDeclarations = allDeclarations.concat(r.declare);
+    if (r.clear) allClear = allClear.concat(r.clear);
+    fault = r.fault || fault;
   }
 
-  if ((counter -= 2) === 1) {
-    allDeclarations = Array.prototype.concat.apply([], allDeclarations);
-    if (done) for (const d of allDeclarations) d.defer = false;
-    allClear = Array.prototype.concat.apply([], allClear);
-    callback(null, null, done, allDeclarations, allClear);
-  }
+  if (done) for (const d of allDeclarations) d.defer = false;
+
+  return {
+    fault: fault,
+    clear: allClear,
+    declare: allDeclarations,
+    done: done,
+    returnValue: null
+  };
 }
 
-function runVirtualParameters(
+async function runVirtualParameters(
   sessionContext: SessionContext,
   provisions: any[][],
   startRevision: number,
-  endRevision: number,
-  callback: (
-    err: Error,
-    fault?: Fault,
-    ret?: any,
-    decs?: Declaration[],
-    toClear?: Clear[]
-  ) => void
-): void {
-  let done = true;
-  const virtualParameterUpdates = [];
-  let allDeclarations = [];
-  let allClear = [];
-  let counter = 3;
+  endRevision: number
+): Promise<ScriptResult> {
   const allVirtualParameters = localCache.getVirtualParameters(
     sessionContext.cacheSnapshot
   );
 
-  for (const [j, provision] of provisions.entries()) {
-    counter += 2;
-    const globals = {
-      args: provision.slice(1)
-    };
+  const res = await Promise.all(
+    provisions.map(async provision => {
+      const globals = {
+        args: provision.slice(1)
+      };
 
-    sandbox.run(
-      allVirtualParameters[provision[0]].script,
-      globals,
-      sessionContext,
-      startRevision,
-      endRevision,
-      (err, _fault, _clear, _declarations, _done, _returnValue) => {
-        if (err || _fault) {
-          if (counter & 1) callback(err, _fault);
-          return void (counter = 0);
+      const r = await sandbox.run(
+        allVirtualParameters[provision[0]].script,
+        globals,
+        sessionContext,
+        startRevision,
+        endRevision
+      );
+
+      if (r.done && !r.fault) {
+        if (!r.returnValue) {
+          r.fault = {
+            code: "script",
+            message: "Invalid virtual parameter return value"
+          };
+          return r;
         }
 
-        done = done && _done;
-        allDeclarations[j] = _declarations || [];
-        allClear[j] = _clear || [];
+        const ret: {
+          writable?: boolean;
+          value?: [string | number | boolean, string?];
+        } = {};
 
-        if (_done) {
-          if (!_returnValue) {
-            if (counter & 1) {
-              callback(null, {
-                code: "script",
-                message: "Invalid virtual parameter return value"
-              });
-            }
+        if (r.returnValue.writable != null) {
+          ret.writable = !!r.returnValue.writable;
+        } else if (
+          provision[1].writable != null ||
+          provision[2].writable != null
+        ) {
+          r.fault = {
+            code: "script",
+            message: `Virtual parameter '${
+              provision[0]
+            }' must provide 'writable' attribute`
+          };
+          return r;
+        }
 
-            return void (counter = 0);
+        if (r.returnValue.value != null) {
+          let v: string | number | boolean, t: string;
+
+          if (Array.isArray(r.returnValue.value)) [v, t] = r.returnValue.value;
+          else v = r.returnValue.value;
+
+          if (!t) {
+            if (typeof v === "number") t = "xsd:int";
+            else if (typeof v === "boolean") t = "xsd:boolean";
+            else if (((v as unknown) as object) instanceof Date)
+              t = "xsd:datetime";
+            else t = "xsd:string";
           }
 
-          const ret: {
-            writable?: number;
-            value?: [string | number | boolean, string?];
-          } = {};
-
-          if (_returnValue.writable != null) {
-            ret.writable = +!!_returnValue.writable;
-          } else if (
-            provision[1].writable != null ||
-            provision[2].writable != null
-          ) {
-            if (counter & 1) {
-              callback(null, {
-                code: "script",
-                message: "Virtual parameter must provide declared attributes"
-              });
-            }
-
-            return void (counter = 0);
-          }
-
-          if (_returnValue.value != null) {
-            if (!Array.isArray(_returnValue.value))
-              _returnValue.value = [_returnValue.value];
-
-            if (!_returnValue.value[1]) {
-              if (typeof _returnValue.value[0] === "number")
-                _returnValue.value[1] = "xsd:int";
-              else if (typeof _returnValue.value[0] === "boolean")
-                _returnValue.value[1] = "xsd:boolean";
-              else if (_returnValue.value[0] instanceof Date)
-                _returnValue.value[1] = "xsd:dateTime";
-              else _returnValue.value[1] = "xsd:string";
-            }
-
-            const allowed = {
-              "xsd:int": 1,
-              "xsd:unsignedInt": 1,
-              "xsd:boolean": 1,
-              "xsd:string": 1,
-              "xsd:dateTime": 1,
-              "xsd:base64": 1,
-              "xsd:hexBinary": 1
+          if (v == null || !VALID_PARAM_TYPES.has(t)) {
+            r.fault = {
+              code: "script",
+              message: "Invalid virtual parameter value attribute"
             };
-
-            if (
-              _returnValue.value[0] == null ||
-              !allowed[_returnValue.value[1]]
-            ) {
-              if (counter & 1) {
-                callback(null, {
-                  code: "script",
-                  message: "Invalid virtual parameter value attribute"
-                });
-              }
-
-              return void (counter = 0);
-            }
-            ret.value = device.sanitizeParameterValue(_returnValue.value);
-          } else if (provision[1].value != null || provision[2].value != null) {
-            if (counter & 1) {
-              callback(null, {
-                code: "script",
-                message: "Virtual parameter must provide declared attributes"
-              });
-            }
-
-            return void (counter = 0);
+            return r;
           }
-          virtualParameterUpdates[j] = ret;
+
+          ret.value = device.sanitizeParameterValue([v, t]);
+        } else if (provision[1].value != null || provision[2].value != null) {
+          r.fault = {
+            code: "script",
+            message: `Virtual parameter '${
+              provision[0]
+            }' must provide 'value' attribute`
+          };
+          return r;
         }
 
-        if ((counter -= 2) === 1) {
-          allDeclarations = Array.prototype.concat.apply([], allDeclarations);
-          if (done) for (const d of allDeclarations) d.defer = false;
-          allClear = Array.prototype.concat.apply([], allClear);
-          callback(
-            null,
-            null,
-            done ? virtualParameterUpdates : null,
-            allDeclarations,
-            allClear
-          );
-        }
+        r.returnValue = ret;
       }
-    );
+      return r;
+    })
+  );
+
+  let done = true;
+  const virtualParameterUpdates = [];
+  let allDeclarations = [];
+  let allClear = [];
+  let fault;
+
+  for (const r of res) {
+    if (!r) {
+      virtualParameterUpdates.push(null);
+      continue;
+    }
+
+    done = done && r.done;
+    if (r.declare) allDeclarations = allDeclarations.concat(r.declare);
+    if (r.clear) allClear = allClear.concat(r.clear);
+    virtualParameterUpdates.push(r.returnValue);
+    fault = r.fault || fault;
   }
 
-  if ((counter -= 2) === 1) {
-    allDeclarations = Array.prototype.concat.apply([], allDeclarations);
-    if (done) for (const d of allDeclarations) d.defer = false;
-    allClear = Array.prototype.concat.apply([], allClear);
-    callback(
-      null,
-      null,
-      done ? virtualParameterUpdates : null,
-      allDeclarations,
-      allClear
-    );
-  }
+  return {
+    fault: fault,
+    clear: allClear,
+    declare: allDeclarations,
+    done: done,
+    returnValue: done ? virtualParameterUpdates : null
+  };
 }
 
 function runDeclarations(
@@ -1010,18 +967,16 @@ function runDeclarations(
   );
 }
 
-export function rpcRequest(
+export async function rpcRequest(
   sessionContext: SessionContext,
-  _declarations: Declaration[],
-  callback
-): void {
+  _declarations: Declaration[]
+): Promise<{ fault: Fault; rpcId: string; rpc: AcsRequest }> {
   if (sessionContext.rpcRequest != null) {
-    return void callback(
-      null,
-      null,
-      generateRpcId(sessionContext),
-      sessionContext.rpcRequest
-    );
+    return {
+      fault: null,
+      rpcId: generateRpcId(sessionContext),
+      rpc: sessionContext.rpcRequest
+    };
   }
 
   if (
@@ -1030,7 +985,7 @@ export function rpcRequest(
     !(_declarations && _declarations.length) &&
     !sessionContext.provisions.length
   )
-    return void callback();
+    return { fault: null, rpcId: null, rpc: null };
 
   if (
     sessionContext.declarations.length <=
@@ -1050,60 +1005,56 @@ export function rpcRequest(
       provisions = sessionContext.virtualParameters[inception - 1];
     }
 
-    return void run(
+    const {
+      fault,
+      clear: toClear,
+      declare: decs,
+      done: done,
+      returnValue: ret
+    } = await run(
       sessionContext,
       provisions,
       sessionContext.revisions[inception - 1] || 0,
-      sessionContext.revisions[inception],
-      (err, fault, ret, decs, toClear) => {
-        if (err) return void callback(err);
-
-        if (fault) {
-          fault.timestamp = sessionContext.timestamp;
-          return void callback(null, fault);
-        }
-
-        // Enforce max clear timestamp
-        for (const c of toClear) {
-          if (c[1] > sessionContext.timestamp) c[1] = sessionContext.timestamp;
-
-          if (c[2]) {
-            for (const [k, v] of Object.entries(c[2])) {
-              if (v > sessionContext.timestamp)
-                c[2][k] = sessionContext.timestamp;
-            }
-          }
-        }
-
-        sessionContext.declarations.push(decs);
-        sessionContext.provisionsRet[inception] = ret;
-
-        for (const d of decs) {
-          // Enforce max timestamp
-          if (d.pathGet > sessionContext.timestamp)
-            d.pathGet = sessionContext.timestamp;
-
-          if (d.attrGet) {
-            for (const [k, v] of Object.entries(d.attrGet)) {
-              if (v > sessionContext.timestamp)
-                d.attrGet[k] = sessionContext.timestamp;
-            }
-          }
-
-          for (const ad of device.getAliasDeclarations(d.path, 1))
-            loadPath(sessionContext, ad.path);
-        }
-
-        clear(sessionContext, toClear, err => {
-          if (err) return void callback(err);
-
-          loadParameters(sessionContext, err => {
-            if (err) return void callback(err);
-            rpcRequest(sessionContext, _declarations, callback);
-          });
-        });
-      }
+      sessionContext.revisions[inception]
     );
+
+    if (fault) {
+      fault.timestamp = sessionContext.timestamp;
+      return { fault: fault, rpcId: null, rpc: null };
+    }
+
+    // Enforce max clear timestamp
+    for (const c of toClear) {
+      if (c[1] > sessionContext.timestamp) c[1] = sessionContext.timestamp;
+
+      if (c[2]) {
+        for (const [k, v] of Object.entries(c[2]))
+          if (v > sessionContext.timestamp) c[2][k] = sessionContext.timestamp;
+      }
+    }
+
+    sessionContext.declarations.push(decs);
+    sessionContext.provisionsRet[inception] = inception ? ret : done;
+
+    for (const d of decs) {
+      // Enforce max timestamp
+      if (d.pathGet > sessionContext.timestamp)
+        d.pathGet = sessionContext.timestamp;
+
+      if (d.attrGet) {
+        for (const [k, v] of Object.entries(d.attrGet)) {
+          if (v > sessionContext.timestamp)
+            d.attrGet[k] = sessionContext.timestamp;
+        }
+      }
+
+      for (const ad of device.getAliasDeclarations(d.path, 1))
+        loadPath(sessionContext, ad.path);
+    }
+
+    await clear(sessionContext, toClear);
+    await loadParameters(sessionContext);
+    return rpcRequest(sessionContext, _declarations);
   }
 
   if (_declarations && _declarations.length) {
@@ -1118,36 +1069,45 @@ export function rpcRequest(
         loadPath(sessionContext, ad.path);
     }
 
-    return void loadParameters(sessionContext, err => {
-      if (err) return void callback(err);
-
-      rpcRequest(sessionContext, null, callback);
-    });
+    await loadParameters(sessionContext);
+    return rpcRequest(sessionContext, null);
   }
 
   if (sessionContext.rpcCount >= 255) {
-    return void callback(null, {
-      code: "too_many_rpcs",
-      message: "Too many RPC requests",
-      timestamp: sessionContext.timestamp
-    });
+    return {
+      fault: {
+        code: "too_many_rpcs",
+        message: "Too many RPC requests",
+        timestamp: sessionContext.timestamp
+      },
+      rpcId: null,
+      rpc: null
+    };
   }
 
   if (sessionContext.revisions.length >= 8) {
-    return void callback(null, {
-      code: "deeply_nested_vparams",
-      message:
-        "Virtual parameters are referencing other virtual parameters in a deeply nested manner",
-      timestamp: sessionContext.timestamp
-    });
+    return {
+      fault: {
+        code: "deeply_nested_vparams",
+        message:
+          "Virtual parameters are referencing other virtual parameters in a deeply nested manner",
+        timestamp: sessionContext.timestamp
+      },
+      rpcId: null,
+      rpc: null
+    };
   }
 
   if (sessionContext.cycle >= 255) {
-    return void callback(null, {
-      code: "too_many_cycles",
-      message: "Too many provision cycles",
-      timestamp: sessionContext.timestamp
-    });
+    return {
+      fault: {
+        code: "too_many_cycles",
+        message: "Too many provision cycles",
+        timestamp: sessionContext.timestamp
+      },
+      rpcId: null,
+      rpc: null
+    };
   }
 
   // Multiply by two because every iteration is two
@@ -1160,11 +1120,15 @@ export function rpcRequest(
     ) * 2;
 
   if (sessionContext.iteration >= MAX_ITERATIONS * (sessionContext.cycle + 1)) {
-    return void callback(null, {
-      code: "too_many_commits",
-      message: "Too many commit iterations",
-      timestamp: sessionContext.timestamp
-    });
+    return {
+      fault: {
+        code: "too_many_commits",
+        message: "Too many commit iterations",
+        timestamp: sessionContext.timestamp
+      },
+      rpcId: null,
+      rpc: null
+    };
   }
 
   if (
@@ -1268,14 +1232,12 @@ export function rpcRequest(
       return false;
     });
 
-    return void clear(sessionContext, toClear, err => {
-      if (err) return void callback(err);
-      sessionContext.syncState.virtualParameterDeclarations[inception] = vpd;
-      rpcRequest(sessionContext, null, callback);
-    });
+    await clear(sessionContext, toClear);
+    sessionContext.syncState.virtualParameterDeclarations[inception] = vpd;
+    return rpcRequest(sessionContext, null);
   }
 
-  if (!sessionContext.syncState) return void callback();
+  if (!sessionContext.syncState) return { fault: null, rpcId: null, rpc: null };
 
   const inception = sessionContext.declarations.length - 1;
 
@@ -1292,7 +1254,7 @@ export function rpcRequest(
       if (sessionContext.deviceData.changes.has("prerequisite")) {
         delete sessionContext.syncState;
         device.clearTrackers(sessionContext.deviceData, "prerequisite");
-        return void rpcRequest(sessionContext, null, callback);
+        return rpcRequest(sessionContext, null);
       }
 
       let toClear;
@@ -1445,10 +1407,8 @@ export function rpcRequest(
       }
 
       if (toClear || sessionContext.deviceData.changes.has("prerequisite")) {
-        return void clear(sessionContext, toClear, err => {
-          if (err) return void callback(err);
-          rpcRequest(sessionContext, null, callback);
-        });
+        await clear(sessionContext, toClear);
+        return rpcRequest(sessionContext, null);
       }
 
       provisions = generateSetVirtualParameterProvisions(
@@ -1463,16 +1423,15 @@ export function rpcRequest(
   if (provisions) {
     sessionContext.virtualParameters.push(provisions);
     sessionContext.revisions.push(sessionContext.revisions[inception]);
-    return void rpcRequest(sessionContext, null, callback);
+    return rpcRequest(sessionContext, null);
   }
 
   if (sessionContext.rpcRequest) {
-    return void callback(
-      null,
-      null,
-      generateRpcId(sessionContext),
-      sessionContext.rpcRequest
-    );
+    return {
+      fault: null,
+      rpcId: generateRpcId(sessionContext),
+      rpc: sessionContext.rpcRequest
+    };
   }
 
   ++sessionContext.revisions[inception];
@@ -1480,7 +1439,7 @@ export function rpcRequest(
   sessionContext.syncState.virtualParameterDeclarations.pop();
 
   const ret = sessionContext.provisionsRet.splice(inception)[0];
-  if (!ret) return void rpcRequest(sessionContext, null, callback);
+  if (!ret) return rpcRequest(sessionContext, null);
 
   sessionContext.revisions.pop();
   const rev =
@@ -1496,7 +1455,7 @@ export function rpcRequest(
   }
 
   const vparams = sessionContext.virtualParameters.pop();
-  if (!vparams) return void callback();
+  if (!vparams) return { fault: null, rpcId: null, rpc: null };
 
   const timestamp = sessionContext.timestamp + sessionContext.iteration;
   let toClear;
@@ -1513,10 +1472,8 @@ export function rpcRequest(
     );
   }
 
-  clear(sessionContext, toClear, err => {
-    if (err) return void callback(err);
-    rpcRequest(sessionContext, null, callback);
-  });
+  await clear(sessionContext, toClear);
+  return rpcRequest(sessionContext, null);
 }
 
 function generateGetRpcRequest(sessionContext: SessionContext): GetAcsRequest {
@@ -2315,12 +2272,11 @@ function processInstances(
   }
 }
 
-function clear(
+async function clear(
   sessionContext: SessionContext,
-  toClear: Clear[],
-  callback
-): void {
-  if (!toClear || !toClear.length) return void callback();
+  toClear: Clear[]
+): Promise<void> {
+  if (!toClear || !toClear.length) return;
 
   const MAX_DEPTH = +config.get("MAX_DEPTH", sessionContext.deviceId);
 
@@ -2343,23 +2299,18 @@ function clear(
     }
   }
 
-  loadParameters(sessionContext, err => {
-    if (err) return void callback(err);
-    for (const c of toClear)
-      device.clear(sessionContext.deviceData, c[0], c[1], c[2], c[3]);
-
-    callback();
-  });
+  await loadParameters(sessionContext);
+  for (const c of toClear)
+    device.clear(sessionContext.deviceData, c[0], c[1], c[2], c[3]);
 }
 
-export function rpcResponse(
+export async function rpcResponse(
   sessionContext: SessionContext,
   id: string,
-  _rpcRes: CpeResponse,
-  callback
-): void {
+  _rpcRes: CpeResponse
+): Promise<void> {
   if (id !== generateRpcId(sessionContext))
-    return void callback(new Error("Request ID not recognized"));
+    throw new Error("Request ID not recognized");
 
   ++sessionContext.rpcCount;
 
@@ -2426,11 +2377,8 @@ export function rpcResponse(
 
   switch (rpcRes.name) {
     case "GetParameterValuesResponse":
-      if (rpcReq.name !== "GetParameterValues") {
-        return void callback(
-          new Error("Response name does not match request name")
-        );
-      }
+      if (rpcReq.name !== "GetParameterValues")
+        throw new Error("Response name does not match request name");
 
       for (const p of rpcRes.parameterList) {
         toClear = device.set(
@@ -2444,11 +2392,8 @@ export function rpcResponse(
 
       break;
     case "GetParameterNamesResponse":
-      if (rpcReq.name !== "GetParameterNames") {
-        return void callback(
-          new Error("Response name does not match request name")
-        );
-      }
+      if (rpcReq.name !== "GetParameterNames")
+        throw new Error("Response name does not match request name");
 
       if (rpcReq.parameterPath.endsWith("."))
         root = Path.parse(rpcReq.parameterPath.slice(0, -1));
@@ -2518,44 +2463,38 @@ export function rpcResponse(
         loadPath(sessionContext, root, (1 << MAX_DEPTH) - 1);
       }
 
-      loadParameters(sessionContext, err => {
-        if (err) return void callback(err);
-
-        if (!root.length) {
-          for (const n of [
-            "DeviceID",
-            "Events",
-            "Tags",
-            "Reboot",
-            "FactoryReset",
-            "VirtualParameters",
-            "Downloads"
-          ]) {
-            const p = sessionContext.deviceData.paths.get(Path.parse(n));
-            if (p && sessionContext.deviceData.attributes.has(p))
-              sessionContext.deviceData.timestamps.set(p, timestamp);
-          }
+      await loadParameters(sessionContext);
+      if (!root.length) {
+        for (const n of [
+          "DeviceID",
+          "Events",
+          "Tags",
+          "Reboot",
+          "FactoryReset",
+          "VirtualParameters",
+          "Downloads"
+        ]) {
+          const p = sessionContext.deviceData.paths.get(Path.parse(n));
+          if (p && sessionContext.deviceData.attributes.has(p))
+            sessionContext.deviceData.timestamps.set(p, timestamp);
         }
+      }
 
-        for (const p of params) {
-          toClear = device.set(
-            sessionContext.deviceData,
-            p[0],
-            p[1],
-            p[2],
-            toClear
-          );
-        }
-
-        clear(sessionContext, toClear, callback);
-      });
-      return;
-    case "SetParameterValuesResponse":
-      if (rpcReq.name !== "SetParameterValues") {
-        return void callback(
-          new Error("Response name does not match request name")
+      for (const p of params) {
+        toClear = device.set(
+          sessionContext.deviceData,
+          p[0],
+          p[1],
+          p[2],
+          toClear
         );
       }
+
+      await clear(sessionContext, toClear);
+      return;
+    case "SetParameterValuesResponse":
+      if (rpcReq.name !== "SetParameterValues")
+        throw new Error("Response name does not match request name");
 
       for (const p of rpcReq.parameterList) {
         toClear = device.set(
@@ -2694,17 +2633,16 @@ export function rpcResponse(
       }
       break;
     default:
-      return void callback(new Error("Response name not recognized"));
+      throw new Error("Response name not recognized");
   }
-  clear(sessionContext, toClear, callback);
+  await clear(sessionContext, toClear);
 }
 
-export function rpcFault(
+export async function rpcFault(
   sessionContext: SessionContext,
   id: string,
-  faultResponse: CpeFault,
-  callback: (err: Error, fault?: Fault) => void
-): void {
+  faultResponse: CpeFault
+): Promise<Fault> {
   const rpcReq = sessionContext.rpcRequest as GetAcsRequest & SetAcsRequest;
   delete sessionContext.syncState;
   delete sessionContext.rpcRequest;
@@ -2739,7 +2677,8 @@ export function rpcFault(
       toClear = [[Path.parse(rpcReq.objectName.replace(/\.$/, "")), timestamp]];
     }
 
-    if (toClear) return void clear(sessionContext, toClear, callback);
+    if (toClear) await clear(sessionContext, toClear);
+    return null;
   }
 
   const fault: Fault = {
@@ -2748,10 +2687,12 @@ export function rpcFault(
     detail: faultResponse.detail
   };
 
-  callback(null, fault);
+  return fault;
 }
 
-export function deserialize(sessionContextString, callback): void {
+export async function deserialize(
+  sessionContextString
+): Promise<SessionContext> {
   const sessionContext = JSON.parse(sessionContextString);
 
   for (const decs of sessionContext.declarations)
@@ -2773,12 +2714,14 @@ export function deserialize(sessionContextString, callback): void {
 
   sessionContext.deviceData = deviceData;
   // Ensure cache is populated
-  localCache.getCurrentSnapshot(err => {
-    callback(err, sessionContext);
-  });
+  await localCache.getCurrentSnapshot();
+
+  return sessionContext;
 }
 
-export function serialize(sessionContext: SessionContext, callback): void {
+export async function serialize(
+  sessionContext: SessionContext
+): Promise<string> {
   const deviceData = [];
 
   for (const path of sessionContext.deviceData.paths.find(
@@ -2807,5 +2750,5 @@ export function serialize(sessionContext: SessionContext, callback): void {
 
   const sessionContextString = JSON.stringify(jsonSessionContext);
 
-  callback(null, sessionContextString);
+  return sessionContextString;
 }

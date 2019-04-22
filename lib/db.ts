@@ -17,59 +17,60 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MongoClient, ObjectID } from "mongodb";
+import { MongoClient, ObjectID, Collection, FindOneOptions } from "mongodb";
 import { get } from "./config";
 import { escapeRegExp } from "./common";
 import { parse } from "./common/expression-parser";
-import { DeviceData, Attributes } from "./types";
+import {
+  DeviceData,
+  Attributes,
+  SessionFault,
+  Task,
+  Operation,
+  Expression
+} from "./types";
 import Path from "./common/path";
 
-export let tasksCollection,
-  devicesCollection,
-  presetsCollection,
-  objectsCollection,
-  provisionsCollection,
-  virtualParametersCollection,
-  faultsCollection,
-  filesCollection,
-  operationsCollection,
-  permissionsCollection,
-  usersCollection,
-  configCollection;
+export let tasksCollection: Collection,
+  devicesCollection: Collection,
+  presetsCollection: Collection,
+  objectsCollection: Collection,
+  provisionsCollection: Collection,
+  virtualParametersCollection: Collection,
+  faultsCollection: Collection,
+  filesCollection: Collection,
+  operationsCollection: Collection,
+  permissionsCollection: Collection,
+  usersCollection: Collection,
+  configCollection: Collection;
 
-export let client;
+export let client: MongoClient;
 
-export function connect(callback): void {
-  MongoClient.connect(
-    "" + get("MONGODB_CONNECTION_URL"),
-    { useNewUrlParser: true },
-    (err, _client) => {
-      if (err) return void callback(err);
-      client = _client;
-      const db = client.db();
+export async function connect(): Promise<void> {
+  client = await MongoClient.connect("" + get("MONGODB_CONNECTION_URL"), {
+    useNewUrlParser: true
+  });
 
-      tasksCollection = db.collection("tasks");
-      tasksCollection.createIndex({ device: 1, timestamp: 1 });
+  const db = client.db();
 
-      devicesCollection = db.collection("devices");
-      presetsCollection = db.collection("presets");
-      objectsCollection = db.collection("objects");
-      filesCollection = db.collection("fs.files");
-      provisionsCollection = db.collection("provisions");
-      virtualParametersCollection = db.collection("virtualParameters");
-      faultsCollection = db.collection("faults");
-      operationsCollection = db.collection("operations");
-      permissionsCollection = db.collection("permissions");
-      usersCollection = db.collection("users");
-      configCollection = db.collection("config");
+  tasksCollection = db.collection("tasks");
+  await tasksCollection.createIndex({ device: 1, timestamp: 1 });
 
-      callback();
-    }
-  );
+  devicesCollection = db.collection("devices");
+  presetsCollection = db.collection("presets");
+  objectsCollection = db.collection("objects");
+  filesCollection = db.collection("fs.files");
+  provisionsCollection = db.collection("provisions");
+  virtualParametersCollection = db.collection("virtualParameters");
+  faultsCollection = db.collection("faults");
+  operationsCollection = db.collection("operations");
+  permissionsCollection = db.collection("permissions");
+  usersCollection = db.collection("users");
+  configCollection = db.collection("config");
 }
 
-export function disconnect(): void {
-  if (client) client.close();
+export async function disconnect(): Promise<void> {
+  if (client) await client.close();
 }
 
 // Optimize projection by removing overlaps
@@ -93,12 +94,11 @@ function optimizeProjection(obj: {}): {} {
   return obj;
 }
 
-export function fetchDevice(
+export async function fetchDevice(
   id: string,
   timestamp: number,
-  patterns: [Path, number][],
-  callback
-): void {
+  patterns: [Path, number][]
+): Promise<[[Path, number, Attributes?][], [Path, number][]]> {
   const MAX_DEPTH = +get("MAX_DEPTH", id);
 
   if (!patterns || !patterns.length)
@@ -273,259 +273,257 @@ export function fetchDevice(
     }
   }
 
-  let options;
+  let options: FindOneOptions;
   if (!projection[""]) {
     if (!Object.keys(projection).length) options = { projection: { _id: 1 } };
     else options = { projection: projection };
   }
 
-  devicesCollection.findOne({ _id: id }, options, (err, device) => {
-    if (err || !device) return void callback(err);
+  const device = await devicesCollection.findOne({ _id: id }, options);
+  if (!device) return [null, null];
 
-    function storeParams(
-      obj,
-      path: string,
-      pathLength: number,
-      ts,
-      descendantsFetched,
-      projTree
-    ): void {
-      let thisFetched = false;
-      if (descendantsFetched) {
+  function storeParams(
+    obj,
+    path: string,
+    pathLength: number,
+    ts,
+    descendantsFetched,
+    projTree
+  ): void {
+    let thisFetched = false;
+    if (descendantsFetched) {
+      thisFetched = true;
+    } else if (projection[path.slice(0, -1)]) {
+      descendantsFetched = true;
+      if (
+        pathLength &&
+        projection[
+          path.slice(0, path.lastIndexOf(".", path.length - 2) + 1) +
+            "_timestamp"
+        ]
+      ) {
         thisFetched = true;
-      } else if (projection[path.slice(0, -1)]) {
-        descendantsFetched = true;
-        if (
-          pathLength &&
-          projection[
-            path.slice(0, path.lastIndexOf(".", path.length - 2) + 1) +
-              "_timestamp"
-          ]
-        ) {
-          thisFetched = true;
-          loaded.push([
-            Path.parse(path.slice(0, -1)),
-            ((1 << (pathLength - 1)) - 1) ^ ((1 << MAX_DEPTH) - 1)
-          ]);
-        } else {
-          loaded.push([
-            Path.parse(path.slice(0, -1)),
-            ((1 << pathLength) - 1) ^ ((1 << MAX_DEPTH) - 1)
-          ]);
-        }
-      } else if (projection[path + "_writable"]) {
-        loaded.push([Path.parse(path.slice(0, -1)), 1 << (pathLength - 1)]);
-        thisFetched = true;
+        loaded.push([
+          Path.parse(path.slice(0, -1)),
+          ((1 << (pathLength - 1)) - 1) ^ ((1 << MAX_DEPTH) - 1)
+        ]);
+      } else {
+        loaded.push([
+          Path.parse(path.slice(0, -1)),
+          ((1 << pathLength) - 1) ^ ((1 << MAX_DEPTH) - 1)
+        ]);
       }
+    } else if (projection[path + "_writable"]) {
+      loaded.push([Path.parse(path.slice(0, -1)), 1 << (pathLength - 1)]);
+      thisFetched = true;
+    }
 
-      if (obj["_timestamp"]) obj["_timestamp"] = +obj["_timestamp"];
+    if (obj["_timestamp"]) obj["_timestamp"] = +obj["_timestamp"];
 
-      // For compatibility with v1.0 database
-      if (obj["_instance"] && obj["_object"] == null) obj["_object"] = true;
+    // For compatibility with v1.0 database
+    if (obj["_instance"] && obj["_object"] == null) obj["_object"] = true;
 
-      if (thisFetched) {
-        const attrs: Attributes = {};
-        let t = obj["_timestamp"] || 1;
-        if (ts > t) t = ts;
+    if (thisFetched) {
+      const attrs: Attributes = {};
+      let t = obj["_timestamp"] || 1;
+      if (ts > t) t = ts;
 
-        if (obj["_value"] != null) {
-          attrs.value = [obj["_timestamp"] || 1, [obj["_value"], obj["_type"]]];
-          if (obj["_type"] === "xsd:dateTime")
-            attrs.value[1][0] = +attrs.value[1][0];
+      if (obj["_value"] != null) {
+        attrs.value = [obj["_timestamp"] || 1, [obj["_value"], obj["_type"]]];
+        if (obj["_type"] === "xsd:dateTime")
+          attrs.value[1][0] = +attrs.value[1][0];
 
-          obj["_object"] = false;
-        }
-        if (obj["_writable"] != null)
-          attrs.writable = [ts || 1, obj["_writable"] ? 1 : 0];
-
-        if (obj["_object"] != null) attrs.object = [t, obj["_object"] ? 1 : 0];
-
-        res.push([Path.parse(path.slice(0, -1)), t, attrs]);
+        obj["_object"] = false;
       }
+      if (obj["_writable"] != null)
+        attrs.writable = [ts || 1, obj["_writable"] ? 1 : 0];
 
-      for (const [k, v] of Object.entries(obj)) {
-        if (!k.startsWith("_")) {
-          obj["_object"] = true;
-          storeParams(
-            v,
-            path + k + ".",
-            pathLength + 1,
-            obj["_timestamp"],
-            descendantsFetched,
-            projTree ? projTree[k] : null
-          );
-          if (projTree) delete projTree[k];
-        }
-      }
+      if (obj["_object"] != null) attrs.object = [t, obj["_object"] ? 1 : 0];
 
-      if (!descendantsFetched) {
-        if (projTree) {
-          for (const k of Object.keys(projTree)) {
-            const p = Path.parse(path + k);
-            loaded.push([p, ((1 << pathLength) - 1) ^ ((1 << MAX_DEPTH) - 1)]);
-            if ((obj["_object"] || !pathLength) && obj["_timestamp"])
-              res.push([p, obj["_timestamp"]]);
-          }
-        }
-      } else if ((obj["_object"] || !pathLength) && obj["_timestamp"]) {
-        res.push([Path.parse(path + "*"), obj["_timestamp"]]);
+      res.push([Path.parse(path.slice(0, -1)), t, attrs]);
+    }
+
+    for (const [k, v] of Object.entries(obj)) {
+      if (!k.startsWith("_")) {
+        obj["_object"] = true;
+        storeParams(
+          v,
+          path + k + ".",
+          pathLength + 1,
+          obj["_timestamp"],
+          descendantsFetched,
+          projTree ? projTree[k] : null
+        );
+        if (projTree) delete projTree[k];
       }
     }
 
-    for (const [k, v] of Object.entries(device)) {
-      switch (k) {
-        case "_lastInform":
+    if (!descendantsFetched) {
+      if (projTree) {
+        for (const k of Object.keys(projTree)) {
+          const p = Path.parse(path + k);
+          loaded.push([p, ((1 << pathLength) - 1) ^ ((1 << MAX_DEPTH) - 1)]);
+          if ((obj["_object"] || !pathLength) && obj["_timestamp"])
+            res.push([p, obj["_timestamp"]]);
+        }
+      }
+    } else if ((obj["_object"] || !pathLength) && obj["_timestamp"]) {
+      res.push([Path.parse(path + "*"), obj["_timestamp"]]);
+    }
+  }
+
+  for (const [k, v] of Object.entries(device)) {
+    switch (k) {
+      case "_lastInform":
+        res.push([
+          Path.parse("Events.Inform"),
+          +v,
+          {
+            object: [+v, 0],
+            writable: [+v, 0],
+            value: [+v, [+v, "xsd:dateTime"]]
+          }
+        ]);
+        delete device[k];
+        break;
+      case "_lastBoot":
+        res.push([
+          Path.parse("Events.1_BOOT"),
+          +v,
+          {
+            object: [+v, 0],
+            writable: [+v, 0],
+            value: [+v, [+v, "xsd:dateTime"]]
+          }
+        ]);
+        delete device[k];
+        break;
+      case "_lastBootstrap":
+        res.push([
+          Path.parse("Events.0_BOOTSTRAP"),
+          +v,
+          {
+            object: [+v, 0],
+            writable: [+v, 0],
+            value: [+v, [+v, "xsd:dateTime"]]
+          }
+        ]);
+        delete device[k];
+        break;
+      case "_registered":
+        // Use current timestamp for registered event attribute timestamps
+        res.push([
+          Path.parse("Events.Registered"),
+          timestamp,
+          {
+            object: [timestamp, 0],
+            writable: [timestamp, 0],
+            value: [timestamp, [+v, "xsd:dateTime"]]
+          }
+        ]);
+        delete device[k];
+        break;
+      case "_id":
+        if (projection[""] || projection["_id"]) {
           res.push([
-            Path.parse("Events.Inform"),
-            +v,
-            {
-              object: [+v, 0],
-              writable: [+v, 0],
-              value: [+v, [+v, "xsd:dateTime"]]
-            }
-          ]);
-          delete device[k];
-          break;
-        case "_lastBoot":
-          res.push([
-            Path.parse("Events.1_BOOT"),
-            +v,
-            {
-              object: [+v, 0],
-              writable: [+v, 0],
-              value: [+v, [+v, "xsd:dateTime"]]
-            }
-          ]);
-          delete device[k];
-          break;
-        case "_lastBootstrap":
-          res.push([
-            Path.parse("Events.0_BOOTSTRAP"),
-            +v,
-            {
-              object: [+v, 0],
-              writable: [+v, 0],
-              value: [+v, [+v, "xsd:dateTime"]]
-            }
-          ]);
-          delete device[k];
-          break;
-        case "_registered":
-          // Use current timestamp for registered event attribute timestamps
-          res.push([
-            Path.parse("Events.Registered"),
+            Path.parse("DeviceID.ID"),
             timestamp,
             {
               object: [timestamp, 0],
               writable: [timestamp, 0],
-              value: [timestamp, [+v, "xsd:dateTime"]]
+              value: [timestamp, [v as string, "xsd:string"]]
             }
           ]);
-          delete device[k];
-          break;
-        case "_id":
-          if (projection[""] || projection["_id"]) {
-            res.push([
-              Path.parse("DeviceID.ID"),
-              timestamp,
-              {
-                object: [timestamp, 0],
-                writable: [timestamp, 0],
-                value: [timestamp, [v as string, "xsd:string"]]
-              }
-            ]);
-          }
+        }
 
-          delete device[k];
-          break;
-        case "_tags":
-          if ((v as string[]).length) {
-            res.push([
-              Path.parse("Tags"),
-              timestamp,
-              { object: [timestamp, 1], writable: [timestamp, 0] }
-            ]);
-          }
+        delete device[k];
+        break;
+      case "_tags":
+        if ((v as string[]).length) {
+          res.push([
+            Path.parse("Tags"),
+            timestamp,
+            { object: [timestamp, 1], writable: [timestamp, 0] }
+          ]);
+        }
 
-          for (let t of v as string[]) {
-            t = t.replace(/[^a-zA-Z0-9-]+/g, "_");
-            res.push([
-              Path.parse("Tags." + t),
-              timestamp,
-              {
-                object: [timestamp, 0],
-                writable: [timestamp, 1],
-                value: [timestamp, [true, "xsd:boolean"]]
-              }
-            ]);
-          }
-          delete device[k];
-          break;
-        case "_deviceId":
-          if (v["_Manufacturer"] != null) {
-            res.push([
-              Path.parse("DeviceID.Manufacturer"),
-              timestamp,
-              {
-                object: [timestamp, 0],
-                writable: [timestamp, 0],
-                value: [timestamp, [v["_Manufacturer"], "xsd:string"]]
-              }
-            ]);
-          }
+        for (let t of v as string[]) {
+          t = t.replace(/[^a-zA-Z0-9-]+/g, "_");
+          res.push([
+            Path.parse("Tags." + t),
+            timestamp,
+            {
+              object: [timestamp, 0],
+              writable: [timestamp, 1],
+              value: [timestamp, [true, "xsd:boolean"]]
+            }
+          ]);
+        }
+        delete device[k];
+        break;
+      case "_deviceId":
+        if (v["_Manufacturer"] != null) {
+          res.push([
+            Path.parse("DeviceID.Manufacturer"),
+            timestamp,
+            {
+              object: [timestamp, 0],
+              writable: [timestamp, 0],
+              value: [timestamp, [v["_Manufacturer"], "xsd:string"]]
+            }
+          ]);
+        }
 
-          if (v["_OUI"] != null) {
-            res.push([
-              Path.parse("DeviceID.OUI"),
-              timestamp,
-              {
-                object: [timestamp, 0],
-                writable: [timestamp, 0],
-                value: [timestamp, [v["_OUI"], "xsd:string"]]
-              }
-            ]);
-          }
+        if (v["_OUI"] != null) {
+          res.push([
+            Path.parse("DeviceID.OUI"),
+            timestamp,
+            {
+              object: [timestamp, 0],
+              writable: [timestamp, 0],
+              value: [timestamp, [v["_OUI"], "xsd:string"]]
+            }
+          ]);
+        }
 
-          if (v["_ProductClass"] != null) {
-            res.push([
-              Path.parse("DeviceID.ProductClass"),
-              timestamp,
-              {
-                object: [timestamp, 0],
-                writable: [timestamp, 0],
-                value: [timestamp, [v["_ProductClass"], "xsd:string"]]
-              }
-            ]);
-          }
+        if (v["_ProductClass"] != null) {
+          res.push([
+            Path.parse("DeviceID.ProductClass"),
+            timestamp,
+            {
+              object: [timestamp, 0],
+              writable: [timestamp, 0],
+              value: [timestamp, [v["_ProductClass"], "xsd:string"]]
+            }
+          ]);
+        }
 
-          if (v["_SerialNumber"] != null) {
-            res.push([
-              Path.parse("DeviceID.SerialNumber"),
-              timestamp,
-              {
-                object: [timestamp, 0],
-                writable: [timestamp, 0],
-                value: [timestamp, [v["_SerialNumber"], "xsd:string"]]
-              }
-            ]);
-          }
+        if (v["_SerialNumber"] != null) {
+          res.push([
+            Path.parse("DeviceID.SerialNumber"),
+            timestamp,
+            {
+              object: [timestamp, 0],
+              writable: [timestamp, 0],
+              value: [timestamp, [v["_SerialNumber"], "xsd:string"]]
+            }
+          ]);
+        }
 
-          delete device[k];
-      }
+        delete device[k];
     }
+  }
 
-    storeParams(device, "", 0, 0, false, projectionTree);
-    callback(null, res, loaded);
-  });
+  storeParams(device, "", 0, 0, false, projectionTree);
+  return [res, loaded];
 }
 
-export function saveDevice(
+export async function saveDevice(
   deviceId: string,
   deviceData: DeviceData,
   isNew: boolean,
-  sessionTimestamp: number,
-  callback
-): void {
+  sessionTimestamp: number
+): Promise<void> {
   const update = { $set: {}, $unset: {}, $addToSet: {}, $pull: {} };
 
   for (const diff of deviceData.timestamps.diff()) {
@@ -737,7 +735,7 @@ export function saveDevice(
     if (!Object.keys(v).length) delete update[k];
   }
 
-  if (!Object.keys(update).length) return void callback();
+  if (!Object.keys(update).length) return;
 
   // Mongo doesn't allow $addToSet and $pull at the same time
   let update2;
@@ -746,52 +744,41 @@ export function saveDevice(
     delete update["$pull"];
   }
 
-  devicesCollection.updateOne(
-    { _id: deviceId },
-    update,
-    { upsert: isNew },
-    (err, result) => {
-      if (err || result.result.n !== 1) {
-        return void callback(
-          err || new Error(`Device ${deviceId} not found in database`)
-        );
-      }
+  const result = await devicesCollection.updateOne({ _id: deviceId }, update, {
+    upsert: isNew
+  });
 
-      if (update2) {
-        return void devicesCollection.updateOne(
-          { _id: deviceId },
-          update2,
-          callback
-        );
-      }
+  if (result.result.n !== 1)
+    throw new Error(`Device ${deviceId} not found in database`);
 
-      callback();
-    }
-  );
+  if (update2) {
+    await devicesCollection.updateOne({ _id: deviceId }, update2);
+    return;
+  }
 }
 
-export function getFaults(deviceId, callback): void {
-  faultsCollection
+export async function getFaults(
+  deviceId
+): Promise<{ [channel: string]: SessionFault }> {
+  const res = await faultsCollection
     .find({ _id: { $regex: `^${escapeRegExp(deviceId)}\\:` } })
-    .toArray((err, res) => {
-      if (err) return callback(err);
+    .toArray();
 
-      const faults = {};
-      for (const r of res) {
-        const channel = r._id.slice(deviceId.length + 1);
-        delete r._id;
-        delete r.channel;
-        delete r.device;
-        r.timestamp = +r.timestamp;
-        r.provisions = JSON.parse(r.provisions);
-        faults[channel] = r;
-      }
+  const faults: { [channel: string]: SessionFault } = {};
+  for (const r of res) {
+    const channel = r._id.slice(deviceId.length + 1);
+    delete r._id;
+    delete r.channel;
+    delete r.device;
+    r.timestamp = +r.timestamp;
+    r.provisions = JSON.parse(r.provisions);
+    faults[channel] = r;
+  }
 
-      return callback(err, faults);
-    });
+  return faults;
 }
 
-export function saveFault(deviceId, channel, fault, callback): void {
+export async function saveFault(deviceId, channel, fault): Promise<void> {
   const id = `${deviceId}:${channel}`;
   fault = Object.assign({}, fault);
   fault._id = id;
@@ -799,87 +786,79 @@ export function saveFault(deviceId, channel, fault, callback): void {
   fault.channel = channel;
   fault.timestamp = new Date(fault.timestamp);
   fault.provisions = JSON.stringify(fault.provisions);
-  faultsCollection.replaceOne({ _id: id }, fault, { upsert: true }, callback);
+  await faultsCollection.replaceOne({ _id: id }, fault, { upsert: true });
 }
 
-export function deleteFault(deviceId, channel, callback): void {
-  faultsCollection.deleteOne({ _id: `${deviceId}:${channel}` }, callback);
+export async function deleteFault(deviceId, channel): Promise<void> {
+  await faultsCollection.deleteOne({ _id: `${deviceId}:${channel}` });
 }
 
-export function getDueTasks(deviceId, timestamp, callback): void {
+export async function getDueTasks(
+  deviceId,
+  timestamp
+): Promise<[Task[], number]> {
   const cur = tasksCollection.find({ device: deviceId }).sort(["timestamp"]);
-  const tasks = [];
+  const tasks = [] as Task[];
 
-  let f;
-  cur.next(
-    (f = (err, task) => {
-      if (err) return void callback(err);
+  for await (const task of cur) {
+    if (task.timestamp) task.timestamp = +task.timestamp;
+    if (task.expiry) task.expiry = +task.expiry;
+    if (task.timestamp >= timestamp) return [tasks, +task.timestamp];
+    task._id = String(task._id);
 
-      if (!task) return void callback(null, tasks, null);
+    tasks.push(task);
 
-      if (task.timestamp) task.timestamp = +task.timestamp;
-      if (task.expiry) task.expiry = +task.expiry;
-      if (task.timestamp >= timestamp)
-        return void callback(null, tasks, +task.timestamp);
-      task._id = String(task._id);
+    // For API compatibility
+    if (task.name === "download" && task.file) {
+      let q;
+      if (ObjectID.isValid(task.file))
+        q = { _id: { $in: [task.file, new ObjectID(task.file)] } };
+      else q = { _id: task.file };
 
-      tasks.push(task);
+      const res = await filesCollection.find(q).toArray();
 
-      // For API compatibility
-      if (task.name === "download" && task.file) {
-        let q;
-        if (ObjectID.isValid(task.file))
-          q = { _id: { $in: [task.file, new ObjectID(task.file)] } };
-        else q = { _id: task.file };
+      if (res[0]) {
+        if (!task.fileType) task.fileType = res[0].metadata.fileType;
 
-        filesCollection.find(q).toArray((err, res) => {
-          if (err) return void callback(err);
-
-          if (res[0]) {
-            if (!task.fileType) task.fileType = res[0].metadata.fileType;
-
-            if (!task.fileName)
-              task.fileName = res[0].filename || res[0]._id.toString();
-          }
-
-          cur.next(f);
-        });
-      } else {
-        cur.next(f);
+        if (!task.fileName)
+          task.fileName = res[0].filename || res[0]._id.toString();
       }
-    })
-  );
+    }
+  }
+  return [tasks, null];
 }
 
-export function clearTasks(deviceId, taskIds, callback): void {
-  tasksCollection.deleteMany(
-    { _id: { $in: taskIds.map(id => new ObjectID(id)) } },
-    callback
-  );
+export async function clearTasks(deviceId, taskIds): Promise<void> {
+  await tasksCollection.deleteMany({
+    _id: { $in: taskIds.map(id => new ObjectID(id)) }
+  });
 }
 
-export function getOperations(deviceId, callback): void {
-  operationsCollection
+export async function getOperations(
+  deviceId
+): Promise<{ [commandKey: string]: Operation }> {
+  const res = await operationsCollection
     .find({ _id: { $regex: `^${escapeRegExp(deviceId)}\\:` } })
-    .toArray((err, res) => {
-      if (err) return void callback(err);
+    .toArray();
 
-      const operations = {};
-      for (const r of res) {
-        const commandKey = r._id.slice(deviceId.length + 1);
-        delete r._id;
-        r.timestamp = +r.timestamp;
-        if (r.args) r.args = JSON.parse(r.args);
-        r.provisions = JSON.parse(r.provisions);
-        r.retries = JSON.parse(r.retries);
-        operations[commandKey] = r;
-      }
-
-      callback(err, operations);
-    });
+  const operations: { [commandKey: string]: Operation } = {};
+  for (const r of res) {
+    const commandKey = r._id.slice(deviceId.length + 1);
+    delete r._id;
+    r.timestamp = +r.timestamp;
+    if (r.args) r.args = JSON.parse(r.args);
+    r.provisions = JSON.parse(r.provisions);
+    r.retries = JSON.parse(r.retries);
+    operations[commandKey] = r;
+  }
+  return operations;
 }
 
-export function saveOperation(deviceId, commandKey, operation, callback): void {
+export async function saveOperation(
+  deviceId,
+  commandKey,
+  operation
+): Promise<void> {
   const id = `${deviceId}:${commandKey}`;
   operation = Object.assign({}, operation);
   operation._id = id;
@@ -887,75 +866,64 @@ export function saveOperation(deviceId, commandKey, operation, callback): void {
   operation.provisions = JSON.stringify(operation.provisions);
   operation.retries = JSON.stringify(operation.retries);
   operation.args = JSON.stringify(operation.args);
-  operationsCollection.replaceOne(
-    { _id: id },
-    operation,
-    { upsert: true },
-    callback
-  );
-}
-
-export function deleteOperation(deviceId, commandKey, callback): void {
-  operationsCollection.deleteOne(
-    { _id: `${deviceId}:${commandKey}` },
-    callback
-  );
-}
-
-export function getPresets(callback): void {
-  presetsCollection.find().toArray(callback);
-}
-
-export function getObjects(callback): void {
-  objectsCollection.find().toArray(callback);
-}
-
-export function getProvisions(callback): void {
-  provisionsCollection.find().toArray(callback);
-}
-
-export function getVirtualParameters(callback): void {
-  virtualParametersCollection.find().toArray(callback);
-}
-
-export function getFiles(callback): void {
-  filesCollection.find().toArray(callback);
-}
-
-export function getConfig(callback): void {
-  configCollection.find().toArray((err, res) => {
-    if (err) return void callback(err);
-
-    callback(
-      null,
-      res.map(c => ({
-        id: c["_id"],
-        value: parse(c["value"])
-      }))
-    );
+  await operationsCollection.replaceOne({ _id: id }, operation, {
+    upsert: true
   });
 }
 
-export function getPermissions(
-  callback: (
-    err?: Error,
-    permissions?: {
-      role: string;
-      resource: string;
-      access: number;
-      filter: string;
-      validate: string;
-    }[]
-  ) => void
-): void {
-  permissionsCollection.find().toArray(callback);
+export async function deleteOperation(deviceId, commandKey): Promise<void> {
+  await operationsCollection.deleteOne({ _id: `${deviceId}:${commandKey}` });
 }
 
-export function getUsers(
-  callback: (
-    err?: Error,
-    users?: { _id: string; password: string; salt: string; roles: string }[]
-  ) => void
-): void {
-  usersCollection.find().toArray(callback);
+export async function getPresets(): Promise<{}[]> {
+  return presetsCollection.find().toArray();
+}
+
+export async function getObjects(): Promise<{}[]> {
+  return objectsCollection.find().toArray();
+}
+
+export async function getProvisions(): Promise<{}[]> {
+  return provisionsCollection.find().toArray();
+}
+
+export async function getVirtualParameters(): Promise<{}[]> {
+  return virtualParametersCollection.find().toArray();
+}
+
+export function getFiles(): Promise<{}[]> {
+  return filesCollection.find().toArray();
+}
+
+export async function getConfig(): Promise<
+  { id: string; value: Expression }[]
+> {
+  const res = await configCollection.find().toArray();
+  return res.map(c => ({
+    id: c["_id"],
+    value: parse(c["value"])
+  }));
+}
+
+interface Permission {
+  role: string;
+  resource: string;
+  access: number;
+  filter: string;
+  validate: string;
+}
+
+export async function getPermissions(): Promise<Permission[]> {
+  return permissionsCollection.find().toArray();
+}
+
+interface User {
+  _id: string;
+  password: string;
+  salt: string;
+  roles: string;
+}
+
+export async function getUsers(): Promise<User[]> {
+  return usersCollection.find().toArray();
 }

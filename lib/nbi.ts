@@ -91,24 +91,34 @@ export function listener(request, response): void {
           err => {
             if (err) return void throwError(err, response);
 
-            cache.del("presets_hash", err => {
-              if (err) return void throwError(err, response);
-
-              response.writeHead(200);
-              response.end();
-            });
+            cache
+              .del("presets_hash")
+              .then(() => {
+                response.writeHead(200);
+                response.end();
+              })
+              .catch(err => {
+                setTimeout(() => {
+                  throwError(err, response);
+                });
+              });
           }
         );
       } else if (request.method === "DELETE") {
         db.presetsCollection.deleteOne({ _id: presetName }, err => {
           if (err) return void throwError(err, response);
 
-          cache.del("presets_hash", err => {
-            if (err) return void throwError(err, response);
-
-            response.writeHead(200);
-            response.end();
-          });
+          cache
+            .del("presets_hash")
+            .then(() => {
+              response.writeHead(200);
+              response.end();
+            })
+            .catch(err => {
+              setTimeout(() => {
+                throwError(err, response);
+              });
+            });
         });
       } else {
         response.writeHead(405, { Allow: "PUT, DELETE" });
@@ -128,24 +138,34 @@ export function listener(request, response): void {
           err => {
             if (err) return void throwError(err, response);
 
-            cache.del("presets_hash", err => {
-              if (err) return void throwError(err, response);
-
-              response.writeHead(200);
-              response.end();
-            });
+            cache
+              .del("presets_hash")
+              .then(() => {
+                response.writeHead(200);
+                response.end();
+              })
+              .catch(err => {
+                setTimeout(() => {
+                  throwError(err, response);
+                });
+              });
           }
         );
       } else if (request.method === "DELETE") {
         db.objectsCollection.deleteOne({ _id: objectName }, err => {
           if (err) return void throwError(err, response);
 
-          cache.del("presets_hash", err => {
-            if (err) return void throwError(err, response);
-
-            response.writeHead(200);
-            response.end();
-          });
+          cache
+            .del("presets_hash")
+            .then(() => {
+              response.writeHead(200);
+              response.end();
+            })
+            .catch(err => {
+              setTimeout(() => {
+                throwError(err, response);
+              });
+            });
         });
       } else {
         response.writeHead(405, { Allow: "PUT, DELETE" });
@@ -176,24 +196,34 @@ export function listener(request, response): void {
           err => {
             if (err) return void throwError(err, response);
 
-            cache.del("presets_hash", err => {
-              if (err) return void throwError(err, response);
-
-              response.writeHead(200);
-              response.end();
-            });
+            cache
+              .del("presets_hash")
+              .then(() => {
+                response.writeHead(200);
+                response.end();
+              })
+              .catch(err => {
+                setTimeout(() => {
+                  throwError(err, response);
+                });
+              });
           }
         );
       } else if (request.method === "DELETE") {
         db.provisionsCollection.deleteOne({ _id: provisionName }, err => {
           if (err) return void throwError(err, response);
 
-          cache.del("presets_hash", err => {
-            if (err) return void throwError(err, response);
-
-            response.writeHead(200);
-            response.end();
-          });
+          cache
+            .del("presets_hash")
+            .then(() => {
+              response.writeHead(200);
+              response.end();
+            })
+            .catch(err => {
+              setTimeout(() => {
+                throwError(err, response);
+              });
+            });
         });
       } else {
         response.writeHead(405, { Allow: "PUT, DELETE" });
@@ -224,12 +254,17 @@ export function listener(request, response): void {
           err => {
             if (err) return void throwError(err, response);
 
-            cache.del("presets_hash", err => {
-              if (err) return void throwError(err, response);
-
-              response.writeHead(200);
-              response.end();
-            });
+            cache
+              .del("presets_hash")
+              .then(() => {
+                response.writeHead(200);
+                response.end();
+              })
+              .catch(err => {
+                setTimeout(() => {
+                  throwError(err, response);
+                });
+              });
           }
         );
       } else if (request.method === "DELETE") {
@@ -238,12 +273,17 @@ export function listener(request, response): void {
           err => {
             if (err) return void throwError(err, response);
 
-            cache.del("presets_hash", err => {
-              if (err) return void throwError(err, response);
-
-              response.writeHead(200);
-              response.end();
-            });
+            cache
+              .del("presets_hash")
+              .then(() => {
+                response.writeHead(200);
+                response.end();
+              })
+              .catch(err => {
+                setTimeout(() => {
+                  throwError(err, response);
+                });
+              });
           }
         );
       } else {
@@ -258,7 +298,6 @@ export function listener(request, response): void {
         db.devicesCollection.updateOne(
           { _id: deviceId },
           { $addToSet: { _tags: tag } },
-          { safe: true },
           err => {
             if (err) return void throwError(err, response);
             response.writeHead(200);
@@ -269,7 +308,6 @@ export function listener(request, response): void {
         db.devicesCollection.updateOne(
           { _id: deviceId },
           { $pull: { _tags: tag } },
-          { safe: true },
           err => {
             if (err) return void throwError(err, response);
 
@@ -296,21 +334,31 @@ export function listener(request, response): void {
             return void db.tasksCollection.deleteOne({ _id: objId }, err => {
               if (err) return void throwError(err, response);
 
-              cache.del(`${deviceId}_tasks_faults_operations`, err => {
-                if (err) return void throwError(err, response);
-
-                response.writeHead(200);
-                response.end();
-              });
+              cache
+                .del(`${deviceId}_tasks_faults_operations`)
+                .then(() => {
+                  response.writeHead(200);
+                  response.end();
+                })
+                .catch(err => {
+                  setTimeout(() => {
+                    throwError(err, response);
+                  });
+                });
             });
           }
 
-          cache.del(`${deviceId}_tasks_faults_operations`, err => {
-            if (err) return void throwError(err, response);
-
-            response.writeHead(200);
-            response.end();
-          });
+          cache
+            .del(`${deviceId}_tasks_faults_operations`)
+            .then(() => {
+              response.writeHead(200);
+              response.end();
+            })
+            .catch(err => {
+              setTimeout(() => {
+                throwError(err, response);
+              });
+            });
         });
       } else {
         response.writeHead(405, { Allow: "DELETE" });
@@ -324,83 +372,95 @@ export function listener(request, response): void {
         if (body.length) {
           const task = JSON.parse(body.toString());
           task.device = deviceId;
-          apiFunctions.insertTasks(task, err => {
-            if (err) return void throwError(err, response);
+          apiFunctions
+            .insertTasks(task)
+            .then(() => {
+              cache
+                .del(`${deviceId}_tasks_faults_operations`)
+                .then(() => {
+                  if (urlParts.query.connection_request != null) {
+                    apiFunctions
+                      .connectionRequest(deviceId)
+                      .then(() => {
+                        const taskTimeout =
+                          (urlParts.query.timeout &&
+                            parseInt(urlParts.query.timeout as string)) ||
+                          config.get("DEVICE_ONLINE_THRESHOLD", deviceId);
 
-            cache.del(`${deviceId}_tasks_faults_operations`, err => {
-              if (err) return void throwError(err, response);
+                        apiFunctions
+                          .watchTask(deviceId, task._id, taskTimeout)
+                          .then(status => {
+                            if (status === "timeout") {
+                              response.writeHead(
+                                202,
+                                "Task queued but not processed",
+                                {
+                                  "Content-Type": "application/json"
+                                }
+                              );
+                              response.end(JSON.stringify(task));
+                            } else if (status === "fault") {
+                              db.tasksCollection.findOne(
+                                { _id: task._id },
+                                (err, task2) => {
+                                  if (err)
+                                    return void throwError(err, response);
 
-              if (urlParts.query.connection_request != null) {
-                apiFunctions.connectionRequest(deviceId, err => {
-                  if (err) {
-                    response.writeHead(202, err.message, {
-                      "Content-Type": "application/json"
-                    });
-                    response.end(JSON.stringify(task));
-                    return;
-                  }
-
-                  const taskTimeout =
-                    (urlParts.query.timeout &&
-                      parseInt(urlParts.query.timeout as string)) ||
-                    config.get("DEVICE_ONLINE_THRESHOLD", deviceId);
-
-                  apiFunctions.watchTask(
-                    deviceId,
-                    task._id,
-                    taskTimeout,
-                    (err, status) => {
-                      if (err) return void throwError(err, response);
-
-                      if (status === "timeout") {
-                        response.writeHead(
-                          202,
-                          "Task queued but not processed",
-                          {
-                            "Content-Type": "application/json"
-                          }
-                        );
-                        response.end(JSON.stringify(task));
-                      } else if (status === "fault") {
-                        db.tasksCollection.findOne(
-                          { _id: task._id },
-                          (err, task2) => {
-                            if (err) return void throwError(err, response);
-
-                            response.writeHead(202, "Task faulted", {
-                              "Content-Type": "application/json"
+                                  response.writeHead(202, "Task faulted", {
+                                    "Content-Type": "application/json"
+                                  });
+                                  response.end(JSON.stringify(task2));
+                                }
+                              );
+                            } else {
+                              response.writeHead(200, {
+                                "Content-Type": "application/json"
+                              });
+                              response.end(JSON.stringify(task));
+                            }
+                          })
+                          .catch(err => {
+                            setTimeout(() => {
+                              throwError(err, response);
                             });
-                            response.end(JSON.stringify(task2));
-                          }
-                        );
-                      } else {
-                        response.writeHead(200, {
+                          });
+                      })
+                      .catch(err => {
+                        response.writeHead(202, err.message, {
                           "Content-Type": "application/json"
                         });
                         response.end(JSON.stringify(task));
-                      }
-                    }
-                  );
+                      });
+                  } else {
+                    response.writeHead(202, {
+                      "Content-Type": "application/json"
+                    });
+                    response.end(JSON.stringify(task));
+                  }
+                })
+                .catch(err => {
+                  setTimeout(() => {
+                    throwError(err, response);
+                  });
                 });
-              } else {
-                response.writeHead(202, {
-                  "Content-Type": "application/json"
-                });
-                response.end(JSON.stringify(task));
-              }
+            })
+            .catch(err => {
+              setTimeout(() => {
+                throwError(err, response);
+              });
             });
-          });
         } else if (urlParts.query.connection_request != null) {
           // No task, send connection request only
-          apiFunctions.connectionRequest(deviceId, err => {
-            if (err) {
+          apiFunctions
+            .connectionRequest(deviceId)
+            .then(() => {
+              response.writeHead(200);
+              response.end();
+            })
+            .catch(err => {
               response.writeHead(504);
               response.end(`${err.name}: ${err.message}`);
-              return;
-            }
-            response.writeHead(200);
-            response.end();
-          });
+            });
         } else {
           response.writeHead(400);
           response.end();
@@ -438,12 +498,17 @@ export function listener(request, response): void {
                     err => {
                       if (err) return void throwError(err, response);
 
-                      cache.del(`${deviceId}_tasks_faults_operations`, err => {
-                        if (err) return void throwError(err, response);
-
-                        response.writeHead(200);
-                        response.end();
-                      });
+                      cache
+                        .del(`${deviceId}_tasks_faults_operations`)
+                        .then(() => {
+                          response.writeHead(200);
+                          response.end();
+                        })
+                        .catch(err => {
+                          setTimeout(() => {
+                            throwError(err, response);
+                          });
+                        });
                     }
                   );
                 }
@@ -468,12 +533,17 @@ export function listener(request, response): void {
                 err => {
                   if (err) return void throwError(err, response);
 
-                  cache.del(`${deviceId}_tasks_faults_operations`, err => {
-                    if (err) return void throwError(err, response);
-
-                    response.writeHead(200);
-                    response.end();
-                  });
+                  cache
+                    .del(`${deviceId}_tasks_faults_operations`)
+                    .then(() => {
+                      response.writeHead(200);
+                      response.end();
+                    })
+                    .catch(err => {
+                      setTimeout(() => {
+                        throwError(err, response);
+                      });
+                    });
                 }
               );
             }
@@ -547,12 +617,17 @@ export function listener(request, response): void {
       const deviceId = querystring.unescape(
         DELETE_DEVICE_REGEX.exec(urlParts.pathname)[1]
       );
-      apiFunctions.deleteDevice(deviceId, err => {
-        if (err) return void throwError(err, response);
-
-        response.writeHead(200);
-        response.end();
-      });
+      apiFunctions
+        .deleteDevice(deviceId)
+        .then(() => {
+          response.writeHead(200);
+          response.end();
+        })
+        .catch(err => {
+          setTimeout(() => {
+            throwError(err, response);
+          });
+        });
     } else if (QUERY_REGEX.test(urlParts.pathname)) {
       let collectionName = QUERY_REGEX.exec(urlParts.pathname)[1];
 

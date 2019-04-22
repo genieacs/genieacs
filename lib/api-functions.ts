@@ -29,9 +29,9 @@ import {
   httpConnectionRequest,
   udpConnectionRequest
 } from "./connection-request";
-import { Expression } from "./types";
+import { Expression, Task } from "./types";
 
-export function connectionRequest(deviceId, callback): void {
+export async function connectionRequest(deviceId): Promise<void> {
   const options = {
     projection: {
       _deviceId: 1,
@@ -46,133 +46,119 @@ export function connectionRequest(deviceId, callback): void {
     }
   };
 
-  db.devicesCollection.findOne({ _id: deviceId }, options, (err, device) => {
-    if (err) return void callback(err);
-    if (!device) return void callback(new Error("No such device"));
+  const device = await db.devicesCollection.findOne({ _id: deviceId }, options);
+  if (!device) throw new Error("No such device");
 
-    let managementServer,
-      connectionRequestUrl,
+  let managementServer,
+    connectionRequestUrl,
+    udpConnectionRequestAddress,
+    username,
+    password;
+  if (device.Device)
+    // TR-181 data model
+    managementServer = device.Device.ManagementServer;
+  // TR-098 data model
+  else managementServer = device.InternetGatewayDevice.ManagementServer;
+
+  if (managementServer.ConnectionRequestURL)
+    connectionRequestUrl = managementServer.ConnectionRequestURL._value;
+  if (managementServer.UDPConnectionRequestAddress) {
+    udpConnectionRequestAddress =
+      managementServer.UDPConnectionRequestAddress._value;
+  }
+  if (managementServer.ConnectionRequestUsername)
+    username = managementServer.ConnectionRequestUsername._value;
+  if (managementServer.ConnectionRequestPassword)
+    password = managementServer.ConnectionRequestPassword._value;
+
+  const context = {
+    id: device["_id"],
+    serialNumber: device["_deviceId"]["SerialNumber"],
+    productClass: device["_deviceId"]["ProductClass"],
+    oui: device["_deviceId"]["OUI"],
+    username: username || "",
+    password: password || ""
+  };
+
+  const snapshot = await getCurrentSnapshot();
+  const now = Date.now();
+  const UDP_CONNECTION_REQUEST_PORT = +getConfig(
+    snapshot,
+    "cwmp.udpConnectionRequestAuth",
+    context,
+    now
+  );
+  const CONNECTION_REQUEST_TIMEOUT = +getConfig(
+    snapshot,
+    "cwmp.connectionRequestTimeout",
+    context,
+    now
+  );
+  const CONNECTION_REQUEST_ALLOW_BASIC_AUTH = !!getConfig(
+    snapshot,
+    "cwmp.connectionRequestAllowBasicAuth",
+    context,
+    now
+  );
+  let authExp: Expression = getConfigExpression(
+    snapshot,
+    "cwmp.connectionRequestAuth"
+  );
+
+  if (authExp === undefined) {
+    authExp = [
+      "FUNC",
+      "AUTH",
+      ["PARAM", "username"],
+      ["PARAM", "password"]
+    ] as Expression;
+  }
+
+  let udpProm;
+  if (udpConnectionRequestAddress) {
+    udpProm = udpConnectionRequest(
       udpConnectionRequestAddress,
-      username,
-      password;
-    if (device.Device)
-      // TR-181 data model
-      managementServer = device.Device.ManagementServer;
-    // TR-098 data model
-    else managementServer = device.InternetGatewayDevice.ManagementServer;
-
-    if (managementServer.ConnectionRequestURL)
-      connectionRequestUrl = managementServer.ConnectionRequestURL._value;
-    if (managementServer.UDPConnectionRequestAddress) {
-      udpConnectionRequestAddress =
-        managementServer.UDPConnectionRequestAddress._value;
-    }
-    if (managementServer.ConnectionRequestUsername)
-      username = managementServer.ConnectionRequestUsername._value;
-    if (managementServer.ConnectionRequestPassword)
-      password = managementServer.ConnectionRequestPassword._value;
-
-    const context = {
-      id: device["_id"],
-      serialNumber: device["_deviceId"]["SerialNumber"],
-      productClass: device["_deviceId"]["ProductClass"],
-      oui: device["_deviceId"]["OUI"],
-      username: username || "",
-      password: password || ""
-    };
-
-    getCurrentSnapshot()
-      .then(snapshot => {
-        const now = Date.now();
-        const UDP_CONNECTION_REQUEST_PORT = +getConfig(
-          snapshot,
-          "cwmp.udpConnectionRequestAuth",
-          context,
-          now
-        );
-        const CONNECTION_REQUEST_TIMEOUT = +getConfig(
-          snapshot,
-          "cwmp.connectionRequestTimeout",
-          context,
-          now
-        );
-        const CONNECTION_REQUEST_ALLOW_BASIC_AUTH = !!getConfig(
-          snapshot,
-          "cwmp.connectionRequestAllowBasicAuth",
-          context,
-          now
-        );
-        let authExp: Expression = getConfigExpression(
-          snapshot,
-          "cwmp.connectionRequestAuth"
-        );
-
-        if (authExp === undefined) {
-          authExp = [
-            "FUNC",
-            "AUTH",
-            ["PARAM", "username"],
-            ["PARAM", "password"]
-          ] as Expression;
-        }
-
-        let udpProm;
-        if (udpConnectionRequestAddress) {
-          udpProm = udpConnectionRequest(
-            udpConnectionRequestAddress,
-            authExp,
-            db.configCollection,
-            UDP_CONNECTION_REQUEST_PORT
-          );
-        }
-
-        httpConnectionRequest(
-          connectionRequestUrl,
-          authExp,
-          context,
-          CONNECTION_REQUEST_ALLOW_BASIC_AUTH,
-          CONNECTION_REQUEST_TIMEOUT
-        )
-          .then(callback)
-          .catch(err => {
-            if (udpProm) return void udpProm.then(callback).catch(callback);
-            callback(err);
-          });
-      })
-      .catch(callback);
-  });
-}
-
-export function watchTask(deviceId, taskId, timeout, callback): void {
-  setTimeout(() => {
-    db.tasksCollection.findOne(
-      { _id: taskId },
-      { projection: { _id: 1 } },
-      (err, task) => {
-        if (err) return void callback(err);
-
-        if (!task) return void callback(null, "completed");
-
-        const q = { _id: `${deviceId}:task_${taskId}` };
-        db.faultsCollection.findOne(
-          q,
-          { projection: { _id: 1 } },
-          (err, fault) => {
-            if (err) return void callback(err);
-
-            if (fault) return void callback(null, "fault");
-
-            if ((timeout -= 500) <= 0) return void callback(null, "timeout");
-
-            watchTask(deviceId, taskId, timeout, callback);
-          }
-        );
-      }
+      authExp,
+      db.configCollection,
+      UDP_CONNECTION_REQUEST_PORT
     );
-  }, 500);
+  }
+
+  try {
+    await httpConnectionRequest(
+      connectionRequestUrl,
+      authExp,
+      context,
+      CONNECTION_REQUEST_ALLOW_BASIC_AUTH,
+      CONNECTION_REQUEST_TIMEOUT
+    );
+  } catch (err) {
+    if (!udpProm) throw err;
+    await udpProm;
+  }
 }
 
-function sanitizeTask(task, callback): void {
+export async function watchTask(deviceId, taskId, timeout): Promise<string> {
+  await new Promise(resolve => setTimeout(resolve, 500));
+
+  const task = await db.tasksCollection.findOne(
+    { _id: taskId },
+    { projection: { _id: 1 } }
+  );
+  if (!task) return "completed";
+
+  const q = { _id: `${deviceId}:task_${taskId}` };
+  const fault = await db.faultsCollection.findOne(q, {
+    projection: { _id: 1 }
+  });
+  if (fault) return "fault";
+
+  if ((timeout -= 500) <= 0) return "timeout";
+
+  return watchTask(deviceId, taskId, timeout);
+}
+
+function sanitizeTask(task): void {
   task.timestamp = new Date(task.timestamp || Date.now());
   if (task.expiry) {
     if (common.typeOf(task.expiry) === common.DATE_TYPE || isNaN(task.expiry))
@@ -180,55 +166,40 @@ function sanitizeTask(task, callback): void {
     else task.expiry = new Date(task.timestamp.getTime() + +task.expiry * 1000);
   }
 
-  callback(task);
+  return task;
 }
 
-export function insertTasks(tasks, callback): void {
+export async function insertTasks(tasks): Promise<Task[]> {
   if (tasks && common.typeOf(tasks) !== common.ARRAY_TYPE) tasks = [tasks];
-  else if (!tasks || tasks.length === 0)
-    return void callback(null, tasks || []);
+  else if (!tasks || tasks.length === 0) return tasks || [];
 
-  let counter = tasks.length;
   for (const task of tasks) {
-    sanitizeTask(task, t => {
-      if (t.uniqueKey) {
-        db.tasksCollection.deleteOne(
-          { device: t.device, uniqueKey: t.uniqueKey },
-          () => {}
-        );
-      }
-
-      if (--counter === 0) db.tasksCollection.insertMany(tasks, callback);
-    });
+    sanitizeTask(task);
+    if (task.uniqueKey) {
+      await db.tasksCollection.deleteOne({
+        device: task.device,
+        uniqueKey: task.uniqueKey
+      });
+    }
   }
+  await db.tasksCollection.insertMany(tasks);
+  return tasks;
 }
 
-export function deleteDevice(deviceId, callback): void {
-  db.tasksCollection.deleteMany({ device: deviceId }, err => {
-    if (err) return void callback(err);
-    db.devicesCollection.deleteOne({ _id: deviceId }, err => {
-      if (err) return void callback(err);
-      db.faultsCollection.deleteMany(
-        {
-          _id: {
-            $regex: `^${common.escapeRegExp(deviceId)}\\:`
-          }
-        },
-        err => {
-          if (err) return void callback(err);
-          db.operationsCollection.deleteMany(
-            {
-              _id: {
-                $regex: `^${common.escapeRegExp(deviceId)}\\:`
-              }
-            },
-            err => {
-              if (err) return void callback(err);
-              cache.del(`${deviceId}_tasks_faults_operations`, callback);
-            }
-          );
-        }
-      );
-    });
-  });
+export async function deleteDevice(deviceId): Promise<void> {
+  await Promise.all([
+    db.tasksCollection.deleteMany({ device: deviceId }),
+    db.devicesCollection.deleteOne({ _id: deviceId }),
+    db.faultsCollection.deleteMany({
+      _id: {
+        $regex: `^${common.escapeRegExp(deviceId)}\\:`
+      }
+    }),
+    db.operationsCollection.deleteMany({
+      _id: {
+        $regex: `^${common.escapeRegExp(deviceId)}\\:`
+      }
+    }),
+    cache.del(`${deviceId}_tasks_faults_operations`)
+  ]);
 }

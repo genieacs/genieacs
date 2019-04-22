@@ -14,10 +14,10 @@
     "handle-callback-err": "error",
     "prefer-arrow-callback": "error",
     "curly": ["error", "multi-or-nest", "consistent"],
-    "consistent-return": ["error", {"treatUndefinedAsUnspecified": true}],
     "no-buffer-constructor": "error",
     "prefer-const": ["error", {"destructuring": "all"}],
     "eqeqeq": ["error", "always", {"null": "ignore"}],
+    "no-return-await": "error",
     "@typescript-eslint/no-explicit-any": 0,
     "@typescript-eslint/no-use-before-define": ["error", { "functions": false }]
   }

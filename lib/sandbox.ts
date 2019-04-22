@@ -24,7 +24,7 @@ import * as extensions from "./extensions";
 import * as logger from "./logger";
 import * as scheduling from "./scheduling";
 import Path from "./common/path";
-import { Fault, SessionContext } from "./types";
+import { Fault, SessionContext, ScriptResult } from "./types";
 
 // Used for throwing to exit user script and commit
 const COMMIT = Symbol();
@@ -38,25 +38,35 @@ const context = vm.createContext();
 
 let state;
 
-const runningExtensions = new WeakMap();
-function runExtension(sessionContext, key, extCall, callback): void {
+const runningExtensions = new WeakMap<
+  SessionContext,
+  Map<string, Promise<Fault>>
+>();
+function runExtension(sessionContext, key, extCall): Promise<Fault> {
   let re = runningExtensions.get(sessionContext);
   if (!re) {
-    re = {};
+    re = new Map<string, Promise<Fault>>();
     runningExtensions.set(sessionContext, re);
   }
 
-  if (re[key]) {
-    re[key].push(callback);
-  } else {
-    re[key] = [callback];
-    extensions.run(extCall, (err, fault, res) => {
-      const callbacks = re[key];
-      delete re[key];
-      if (!err && !fault) sessionContext.extensionsCache[key] = res;
-      for (const c of callbacks) c(err, fault);
-    });
+  let prom = re.get(key);
+  if (!prom) {
+    re.set(
+      key,
+      (prom = new Promise((resolve, reject) => {
+        extensions
+          .run(extCall)
+          .then(({ fault, value }) => {
+            re.delete(key);
+            if (!fault) sessionContext.extensionsCache[key] = value;
+            resolve(fault);
+          })
+          .catch(reject);
+      }))
+    );
   }
+
+  return prom;
 }
 
 class SandboxDate {
@@ -343,15 +353,14 @@ function errorToFault(err: Error): Fault {
   return fault;
 }
 
-export function run(
+export async function run(
   script: vm.Script,
-  globals,
+  globals: {},
   sessionContext: SessionContext,
   startRevision: number,
   maxRevision: number,
-  callback,
   extCounter = 0
-): void {
+): Promise<ScriptResult> {
   state = {
     sessionContext: sessionContext,
     revision: startRevision,
@@ -374,61 +383,56 @@ export function run(
     ret = script.runInContext(context, { displayErrors: false });
     status = 0;
   } catch (err) {
-    if (err === COMMIT) status = 1;
-    else if (err === EXT) status = 2;
-    else return void callback(null, errorToFault(err));
+    if (err === COMMIT) {
+      status = 1;
+    } else if (err === EXT) {
+      status = 2;
+    } else {
+      return {
+        fault: errorToFault(err),
+        clear: null,
+        declare: null,
+        done: false,
+        returnValue: null
+      };
+    }
   }
 
   const _state = state;
-  const args = Array.from(arguments);
+  let fault;
 
-  // Need to maintain a counter of ext() calls to avoid calling certain
-  // functions (e.g. log()) multiple times as calling ext() results in
-  // re-execution of script without revision being incremented.
-  args[6] = 0 - (state.extCounter - extCounter);
+  await Promise.all(
+    Object.entries(_state.extensions).map(async ([k, v]) => {
+      fault = (await runExtension(_state.sessionContext, k, v)) || fault;
+    })
+  );
 
-  let counter = 3;
-  for (const key of Object.keys(_state.extensions)) {
-    counter += 2;
-    runExtension(
-      _state.sessionContext,
-      key,
-      _state.extensions[key],
-      (err, fault) => {
-        if (err || fault) {
-          if (counter & 1) callback(err, fault);
-          return void (counter = 0);
-        }
-        if ((counter -= 2) === 1) {
-          if (status === 2) {
-            return void run.apply(null, args);
-          } else {
-            return void callback(
-              null,
-              null,
-              _state.clear,
-              _state.declarations,
-              status === 0,
-              ret
-            );
-          }
-        }
-      }
+  if (fault) {
+    return {
+      fault: fault,
+      clear: null,
+      declare: null,
+      done: false,
+      returnValue: null
+    };
+  }
+
+  if (status === 2) {
+    return run(
+      script,
+      globals,
+      sessionContext,
+      startRevision,
+      maxRevision,
+      extCounter - _state.extCounter
     );
   }
 
-  if ((counter -= 2) === 1) {
-    if (status === 2) {
-      run.apply(null, args);
-    } else {
-      callback(
-        null,
-        null,
-        _state.clear,
-        _state.declarations,
-        status === 0,
-        ret
-      );
-    }
-  }
+  return {
+    fault: null,
+    clear: _state.clear,
+    declare: _state.declarations,
+    done: status === 0,
+    returnValue: ret
+  };
 }

@@ -27,7 +27,7 @@ function exitWorkerGracefully(): void {
 }
 
 function exitWorkerUngracefully(): void {
-  extensions.killAll(() => {
+  extensions.killAll().then(() => {
     process.exit(1);
   });
 }
@@ -97,10 +97,8 @@ if (!cluster.worker) {
       .catch(exitWorkerUngracefully);
   });
 
-  db.connect(err => {
-    if (err) throw err;
-    cache.connect(err => {
-      if (err) throw err;
+  Promise.all([db.connect(), cache.connect()])
+    .then(() => {
       server.start(
         SERVICE_PORT,
         SERVICE_ADDRESS,
@@ -108,6 +106,10 @@ if (!cluster.worker) {
         cwmp.listener,
         cwmp.onConnection
       );
+    })
+    .catch(err => {
+      setTimeout(() => {
+        throw err;
+      });
     });
-  });
 }

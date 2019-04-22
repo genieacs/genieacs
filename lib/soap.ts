@@ -21,7 +21,6 @@ import { parseXml, Document, Element, ParserOptions } from "libxmljs";
 import * as config from "./config";
 import { version as VERSION } from "../package.json";
 import {
-  CpeResponse,
   CpeGetResponse,
   CpeSetResponse,
   InformRequest,
@@ -29,7 +28,9 @@ import {
   CpeRequest,
   FaultStruct,
   SpvFault,
-  CpeFault
+  CpeFault,
+  SoapMessage,
+  TransferCompleteRequest
 } from "./types";
 
 const SERVER_NAME = `GenieACS/${VERSION}`;
@@ -444,7 +445,7 @@ function GetRPCMethodsResponse(xml, methodResponse): void {
   for (const m of methodResponse.methodList) el.node("string").text(m);
 }
 
-function TransferComplete(xml): AcsResponse {
+function TransferComplete(xml): TransferCompleteRequest {
   let commandKey, _faultStruct, startTime, completeTime;
   for (const c of xml.childNodes()) {
     switch (c.name()) {
@@ -545,18 +546,7 @@ function fault(xml): CpeFault {
   return { faultCode, faultString, detail };
 }
 
-export function request(
-  data,
-  cwmpVersion,
-  warn
-): {
-  id: string;
-  cwmpVersion: string;
-  sessionTimeout: number;
-  cpeRequest?: CpeRequest;
-  cpeFault?: CpeFault;
-  cpeResponse?: CpeResponse;
-} {
+export function request(data, cwmpVersion, warn): SoapMessage {
   warnings = warn;
 
   const rpc = {

@@ -41,8 +41,16 @@ import {
   SessionFault,
   Operation,
   Fault,
-  Expression
+  Expression,
+  Task,
+  SoapMessage
 } from "./types";
+import { IncomingMessage, ServerResponse } from "http";
+import { Readable } from "stream";
+import { promisify } from "util";
+
+const gzipPromisified = promisify(zlib.gzip);
+const deflatePromisified = promisify(zlib.deflate);
 
 const MAX_CYCLES = 4;
 const MAX_CONCURRENT_REQUESTS = +config.get("MAX_CONCURRENT_REQUESTS");
@@ -55,16 +63,6 @@ const stats = {
   droppedRequests: 0,
   initiatedSessions: 0
 };
-
-function throwError(err, httpResponse?): never {
-  if (httpResponse) {
-    currentSessions.delete(httpResponse.connection);
-    httpResponse.writeHead(500, { Connection: "close" });
-    httpResponse.end(`${err.name}: ${err.message}`);
-    stats.concurrentRequests -= 1;
-  }
-  throw err;
-}
 
 function authenticate(sessionContext: SessionContext): boolean {
   const authExpression: Expression = localCache.getConfigExpression(
@@ -106,11 +104,11 @@ function authenticate(sessionContext: SessionContext): boolean {
   return false;
 }
 
-function writeResponse(
+async function writeResponse(
   sessionContext: SessionContext,
   res,
   close = false
-): void {
+): Promise<void> {
   // Close connection after last request in session
   if (close) res.headers["Connection"] = "close";
 
@@ -122,38 +120,12 @@ function writeResponse(
       res.data +
       "\n\n";
     fs.appendFile(`./debug/${sessionContext.deviceId}.dump`, dump, err => {
-      if (err) throwError(err);
+      if (err) throw err;
     });
   }
 
-  function finish(): void {
-    stats.concurrentRequests -= 1;
-    if (sessionContext.httpRequest.connection.destroyed) {
-      logger.accessError({
-        sessionContext: sessionContext,
-        message: "Connection dropped"
-      });
-    } else if (close) {
-      endSession(sessionContext, (err, isNew) => {
-        if (err) return void throwError(err);
+  let data = res.data;
 
-        if (isNew) {
-          logger.accessInfo({
-            sessionContext: sessionContext,
-            message: "New device registered"
-          });
-        }
-      });
-    } else {
-      sessionContext.lastActivity = Date.now();
-      currentSessions.set(
-        sessionContext.httpRequest.connection,
-        sessionContext
-      );
-    }
-  }
-
-  let compress;
   // Respond using the same content-encoding as the request
   if (
     sessionContext.httpRequest.headers["content-encoding"] &&
@@ -162,28 +134,34 @@ function writeResponse(
     switch (sessionContext.httpRequest.headers["content-encoding"]) {
       case "gzip":
         res.headers["Content-Encoding"] = "gzip";
-        compress = zlib.gzip;
+        data = await gzipPromisified(data);
         break;
       case "deflate":
         res.headers["Content-Encoding"] = "deflate";
-        compress = zlib.deflate;
+        data = await deflatePromisified(data);
     }
   }
 
-  if (compress) {
-    compress(res.data, (err, data) => {
-      if (err) return void throwError(err, sessionContext.httpResponse);
+  res.headers["Content-Length"] = data.length;
+  sessionContext.httpResponse.writeHead(res.code, res.headers);
+  sessionContext.httpResponse.end(data);
 
-      res.headers["Content-Length"] = data.length;
-      sessionContext.httpResponse.writeHead(res.code, res.headers);
-      sessionContext.httpResponse.end(data);
-      finish();
+  if (sessionContext.httpRequest.connection.destroyed) {
+    logger.accessError({
+      sessionContext: sessionContext,
+      message: "Connection dropped"
     });
+  } else if (close) {
+    const isNew = await endSession(sessionContext);
+    if (isNew) {
+      logger.accessInfo({
+        sessionContext: sessionContext,
+        message: "New device registered"
+      });
+    }
   } else {
-    res.headers["Content-Length"] = res.data.length;
-    sessionContext.httpResponse.writeHead(res.code, res.headers);
-    sessionContext.httpResponse.end(res.data);
-    finish();
+    sessionContext.lastActivity = Date.now();
+    currentSessions.set(sessionContext.httpRequest.connection, sessionContext);
   }
 }
 
@@ -257,69 +235,64 @@ function recordFault(
   session.clearProvisions(sessionContext);
 }
 
-function inform(sessionContext, rpc): void {
-  session.inform(sessionContext, rpc.cpeRequest, (err, acsResponse) => {
-    if (err) return void throwError(err, sessionContext.httpResponse);
-    sessionContext.state = 1;
+async function inform(sessionContext: SessionContext, rpc): Promise<void> {
+  const acsResponse = await session.inform(sessionContext, rpc.cpeRequest);
+  sessionContext.state = 1;
 
-    const res = soap.response({
-      id: rpc.id,
-      acsResponse: acsResponse,
-      cwmpVersion: sessionContext.cwmpVersion
-    });
-
-    const cookiesPath = localCache.getConfig(
-      sessionContext.cacheSnapshot,
-      "cwmp.cookiesPath",
-      sessionContext.configContext
-    );
-
-    if (cookiesPath) {
-      res.headers["Set-Cookie"] = `session=${
-        sessionContext.sessionId
-      }; Path=${cookiesPath}`;
-    } else {
-      res.headers["Set-Cookie"] = `session=${sessionContext.sessionId}`;
-    }
-
-    writeResponse(sessionContext, res);
+  const res = soap.response({
+    id: rpc.id,
+    acsResponse: acsResponse,
+    cwmpVersion: sessionContext.cwmpVersion
   });
+
+  const cookiesPath = localCache.getConfig(
+    sessionContext.cacheSnapshot,
+    "cwmp.cookiesPath",
+    sessionContext.configContext
+  );
+
+  if (cookiesPath) {
+    res.headers["Set-Cookie"] = `session=${
+      sessionContext.sessionId
+    }; Path=${cookiesPath}`;
+  } else {
+    res.headers["Set-Cookie"] = `session=${sessionContext.sessionId}`;
+  }
+
+  return writeResponse(sessionContext, res);
 }
 
-function transferComplete(sessionContext, rpc): void {
-  session.transferComplete(
+async function transferComplete(sessionContext, rpc): Promise<void> {
+  const { acsResponse, operation, fault } = await session.transferComplete(
     sessionContext,
-    rpc.cpeRequest,
-    (err, acsResponse, operation, fault) => {
-      if (err) return void throwError(err, sessionContext.httpResponse);
-
-      if (!operation) {
-        logger.accessWarn({
-          sessionContext: sessionContext,
-          message: "Unrecognized command key",
-          rpc: rpc
-        });
-      }
-
-      if (fault) {
-        Object.assign(sessionContext.retries, operation.retries);
-        recordFault(
-          sessionContext,
-          fault,
-          operation.provisions,
-          operation.channels
-        );
-      }
-
-      const res = soap.response({
-        id: rpc.id,
-        acsResponse: acsResponse,
-        cwmpVersion: sessionContext.cwmpVersion
-      });
-
-      writeResponse(sessionContext, res);
-    }
+    rpc.cpeRequest
   );
+
+  if (!operation) {
+    logger.accessWarn({
+      sessionContext: sessionContext,
+      message: "Unrecognized command key",
+      rpc: rpc
+    });
+  }
+
+  if (fault) {
+    Object.assign(sessionContext.retries, operation.retries);
+    recordFault(
+      sessionContext,
+      fault,
+      operation.provisions,
+      operation.channels
+    );
+  }
+
+  const res = soap.response({
+    id: rpc.id,
+    acsResponse: acsResponse,
+    cwmpVersion: sessionContext.cwmpVersion
+  });
+
+  return writeResponse(sessionContext, res);
 }
 
 // Append provisions and remove duplicates
@@ -354,7 +327,7 @@ function appendProvisions(original, toAppend): boolean {
   return modified;
 }
 
-function applyPresets(sessionContext: SessionContext): void {
+async function applyPresets(sessionContext: SessionContext): Promise<void> {
   const deviceData = sessionContext.deviceData;
   const presets = localCache.getPresets(sessionContext.cacheSnapshot);
 
@@ -440,358 +413,309 @@ function applyPresets(sessionContext: SessionContext): void {
     defer: true
   }));
 
-  session.rpcRequest(
+  const { fault: flt, rpcId: reqId, rpc: acsReq } = await session.rpcRequest(
     sessionContext,
-    declarations,
-    (err, flt, reqId, acsReq) => {
-      if (err) return void throwError(err, sessionContext.httpResponse);
-
-      if (flt) {
-        recordFault(sessionContext, flt);
-        session.clearProvisions(sessionContext);
-        return void applyPresets(sessionContext);
-      }
-
-      if (acsReq) return void sendAcsRequest(sessionContext, reqId, acsReq);
-
-      session.clearProvisions(sessionContext);
-
-      const parameterValues = {};
-      for (const [k, v] of Object.entries(parameters)) {
-        const unpacked = device.unpack(deviceData, v);
-        if (!unpacked.length) continue;
-        const attrs = deviceData.attributes.get(unpacked[0]);
-        if (attrs && attrs.value && attrs.value[1])
-          parameterValues[k] = attrs.value[1][0];
-      }
-
-      if (whiteList != null)
-        session.addProvisions(sessionContext, whiteList, whiteListProvisions);
-
-      const appendProvisionsToFaults = {};
-      const now = Date.now();
-      for (const p of filteredPresets) {
-        if (evaluate(p.precondition, parameterValues, now)) {
-          if (blackList[p.channel] === 2) {
-            appendProvisionsToFaults[p.channel] = (
-              appendProvisionsToFaults[p.channel] || []
-            ).concat(p.provisions);
-          } else {
-            session.addProvisions(sessionContext, p.channel, p.provisions);
-          }
-        }
-      }
-
-      for (const [channel, provisions] of Object.entries(
-        appendProvisionsToFaults
-      )) {
-        if (
-          appendProvisions(
-            sessionContext.faults[channel].provisions,
-            provisions
-          )
-        ) {
-          if (!sessionContext.faultsTouched) sessionContext.faultsTouched = {};
-          sessionContext.faultsTouched[channel] = true;
-        }
-      }
-
-      // Don't increment when processing a single channel (e.g. after fault)
-      if (whiteList == null)
-        sessionContext.presetCycles = (sessionContext.presetCycles || 0) + 1;
-
-      if (sessionContext.presetCycles > MAX_CYCLES) {
-        const fault = {
-          code: "preset_loop",
-          message: "The presets are stuck in an endless configuration loop",
-          timestamp: sessionContext.timestamp
-        };
-        recordFault(sessionContext, fault);
-        // No need to save retryNow
-        for (const f of Object.values(sessionContext.faults)) delete f.retryNow;
-        session.clearProvisions(sessionContext);
-        return void sendAcsRequest(sessionContext);
-      }
-
-      deviceData.timestamps.dirty = 0;
-      deviceData.attributes.dirty = 0;
-      session.rpcRequest(sessionContext, null, (err, fault, id, acsRequest) => {
-        if (err) return void throwError(err, sessionContext.httpResponse);
-
-        if (fault) {
-          recordFault(sessionContext, fault);
-          session.clearProvisions(sessionContext);
-          return void applyPresets(sessionContext);
-        }
-
-        if (!acsRequest) {
-          for (const channel of Object.keys(sessionContext.channels)) {
-            if (sessionContext.faults[channel]) {
-              delete sessionContext.faults[channel];
-              if (!sessionContext.faultsTouched)
-                sessionContext.faultsTouched = {};
-              sessionContext.faultsTouched[channel] = true;
-            }
-          }
-
-          if (whiteList != null) return void applyPresets(sessionContext);
-
-          if (
-            sessionContext.deviceData.timestamps.dirty > 1 ||
-            sessionContext.deviceData.attributes.dirty > 1
-          )
-            return void applyPresets(sessionContext);
-        }
-
-        sendAcsRequest(sessionContext, id, acsRequest);
-      });
-    }
+    declarations
   );
-}
 
-function nextRpc(sessionContext: SessionContext): void {
-  session.rpcRequest(sessionContext, null, (err, fault, id, acsRequest) => {
-    if (err) return void throwError(err, sessionContext.httpResponse);
-
-    if (fault) {
-      recordFault(sessionContext, fault);
-      session.clearProvisions(sessionContext);
-      return void nextRpc(sessionContext);
-    }
-
-    if (acsRequest) return void sendAcsRequest(sessionContext, id, acsRequest);
-
-    for (const [channel, flags] of Object.entries(sessionContext.channels)) {
-      if (flags && sessionContext.faults[channel]) {
-        delete sessionContext.faults[channel];
-        if (!sessionContext.faultsTouched) sessionContext.faultsTouched = {};
-
-        sessionContext.faultsTouched[channel] = true;
-      }
-      if (channel.startsWith("task_")) {
-        const taskId = channel.slice(5);
-        if (!sessionContext.doneTasks) sessionContext.doneTasks = [];
-        sessionContext.doneTasks.push(taskId);
-
-        for (let j = 0; j < sessionContext.tasks.length; ++j) {
-          if (sessionContext.tasks[j]._id === taskId) {
-            sessionContext.tasks.splice(j, 1);
-            break;
-          }
-        }
-      }
-    }
-
+  if (flt) {
+    recordFault(sessionContext, flt);
     session.clearProvisions(sessionContext);
+    return applyPresets(sessionContext);
+  }
 
-    // Clear expired tasks
-    sessionContext.tasks = sessionContext.tasks.filter(task => {
-      if (!(task.expiry <= sessionContext.timestamp)) return true;
+  if (acsReq) return sendAcsRequest(sessionContext, reqId, acsReq);
 
-      logger.accessInfo({
-        sessionContext: sessionContext,
-        message: "Task expired",
-        task: task
-      });
+  session.clearProvisions(sessionContext);
 
-      if (!sessionContext.doneTasks) sessionContext.doneTasks = [];
-      sessionContext.doneTasks.push(task._id);
+  const parameterValues = {};
+  for (const [k, v] of Object.entries(parameters)) {
+    const unpacked = device.unpack(deviceData, v);
+    if (!unpacked.length) continue;
+    const attrs = deviceData.attributes.get(unpacked[0]);
+    if (attrs && attrs.value && attrs.value[1])
+      parameterValues[k] = attrs.value[1][0];
+  }
 
-      const channel = `task_${task._id}`;
+  if (whiteList != null)
+    session.addProvisions(sessionContext, whiteList, whiteListProvisions);
+
+  const appendProvisionsToFaults = {};
+  const now = Date.now();
+  for (const p of filteredPresets) {
+    if (evaluate(p.precondition, parameterValues, now)) {
+      if (blackList[p.channel] === 2) {
+        appendProvisionsToFaults[p.channel] = (
+          appendProvisionsToFaults[p.channel] || []
+        ).concat(p.provisions);
+      } else {
+        session.addProvisions(sessionContext, p.channel, p.provisions);
+      }
+    }
+  }
+
+  for (const [channel, provisions] of Object.entries(
+    appendProvisionsToFaults
+  )) {
+    if (
+      appendProvisions(sessionContext.faults[channel].provisions, provisions)
+    ) {
+      if (!sessionContext.faultsTouched) sessionContext.faultsTouched = {};
+      sessionContext.faultsTouched[channel] = true;
+    }
+  }
+
+  // Don't increment when processing a single channel (e.g. after fault)
+  if (whiteList == null)
+    sessionContext.presetCycles = (sessionContext.presetCycles || 0) + 1;
+
+  if (sessionContext.presetCycles > MAX_CYCLES) {
+    const fault = {
+      code: "preset_loop",
+      message: "The presets are stuck in an endless configuration loop",
+      timestamp: sessionContext.timestamp
+    };
+    recordFault(sessionContext, fault);
+    // No need to save retryNow
+    for (const f of Object.values(sessionContext.faults)) delete f.retryNow;
+    session.clearProvisions(sessionContext);
+    return sendAcsRequest(sessionContext);
+  }
+
+  deviceData.timestamps.dirty = 0;
+  deviceData.attributes.dirty = 0;
+  const { fault: fault, rpcId: id, rpc: acsRequest } = await session.rpcRequest(
+    sessionContext,
+    null
+  );
+
+  if (fault) {
+    recordFault(sessionContext, fault);
+    session.clearProvisions(sessionContext);
+    return applyPresets(sessionContext);
+  }
+
+  if (!acsRequest) {
+    for (const channel of Object.keys(sessionContext.channels)) {
       if (sessionContext.faults[channel]) {
         delete sessionContext.faults[channel];
         if (!sessionContext.faultsTouched) sessionContext.faultsTouched = {};
         sessionContext.faultsTouched[channel] = true;
       }
-
-      return false;
-    });
-
-    const task = sessionContext.tasks.find(
-      t => !sessionContext.faults[`task_${t._id}`]
-    );
-
-    if (!task) return void applyPresets(sessionContext);
-
-    let alias;
-
-    switch (task.name) {
-      case "getParameterValues":
-        // Set channel in case params array is empty
-        sessionContext.channels[`task_${task._id}`] = 0;
-        for (const p of task.parameterNames) {
-          session.addProvisions(sessionContext, `task_${task._id}`, [
-            ["refresh", p]
-          ]);
-        }
-
-        break;
-      case "setParameterValues":
-        // Set channel in case params array is empty
-        sessionContext.channels[`task_${task._id}`] = 0;
-        for (const p of task.parameterValues) {
-          session.addProvisions(sessionContext, `task_${task._id}`, [
-            ["value", p[0], p[1]]
-          ]);
-        }
-
-        break;
-      case "refreshObject":
-        session.addProvisions(sessionContext, `task_${task._id}`, [
-          ["refresh", task.objectName]
-        ]);
-        break;
-      case "reboot":
-        session.addProvisions(sessionContext, `task_${task._id}`, [["reboot"]]);
-        break;
-      case "factoryReset":
-        session.addProvisions(sessionContext, `task_${task._id}`, [["reset"]]);
-        break;
-      case "download":
-        session.addProvisions(sessionContext, `task_${task._id}`, [
-          ["download", task.fileType, task.fileName, task.targetFileName]
-        ]);
-        break;
-      case "addObject":
-        alias = (task.parameterValues || [])
-          .map(p => `${p[0]}:${JSON.stringify(p[1])}`)
-          .join(",");
-        session.addProvisions(sessionContext, `task_${task._id}`, [
-          ["instances", `${task.objectName}.[${alias}]`, "+1"]
-        ]);
-        break;
-      case "deleteObject":
-        session.addProvisions(sessionContext, `task_${task._id}`, [
-          ["instances", task.objectName, 0]
-        ]);
-        break;
-      default:
-        return void throwError(
-          new Error("Task name not recognized"),
-          sessionContext.httpResponse
-        );
     }
-    nextRpc(sessionContext);
-  });
+
+    if (whiteList != null) return applyPresets(sessionContext);
+
+    if (
+      sessionContext.deviceData.timestamps.dirty > 1 ||
+      sessionContext.deviceData.attributes.dirty > 1
+    )
+      return applyPresets(sessionContext);
+  }
+
+  return sendAcsRequest(sessionContext, id, acsRequest);
 }
 
-function endSession(sessionContext: SessionContext, callback): void {
-  let saveCache = sessionContext.cacheUntil != null;
-  let counter = 3;
+async function nextRpc(sessionContext: SessionContext): Promise<void> {
+  const { fault: fault, rpcId: id, rpc: acsRequest } = await session.rpcRequest(
+    sessionContext,
+    null
+  );
 
-  counter += 2;
-  db.saveDevice(
-    sessionContext.deviceId,
-    sessionContext.deviceData,
-    sessionContext.new,
-    sessionContext.timestamp,
-    err => {
-      if (err) {
-        if (counter & 1) callback(err);
-        return void (counter = 0);
-      }
-      if ((counter -= 2) === 1) callback(null, sessionContext.new);
+  if (fault) {
+    recordFault(sessionContext, fault);
+    session.clearProvisions(sessionContext);
+    return nextRpc(sessionContext);
+  }
+
+  if (acsRequest) return sendAcsRequest(sessionContext, id, acsRequest);
+
+  for (const [channel, flags] of Object.entries(sessionContext.channels)) {
+    if (flags && sessionContext.faults[channel]) {
+      delete sessionContext.faults[channel];
+      if (!sessionContext.faultsTouched) sessionContext.faultsTouched = {};
+
+      sessionContext.faultsTouched[channel] = true;
     }
+    if (channel.startsWith("task_")) {
+      const taskId = channel.slice(5);
+      if (!sessionContext.doneTasks) sessionContext.doneTasks = [];
+      sessionContext.doneTasks.push(taskId);
+
+      for (let j = 0; j < sessionContext.tasks.length; ++j) {
+        if (sessionContext.tasks[j]._id === taskId) {
+          sessionContext.tasks.splice(j, 1);
+          break;
+        }
+      }
+    }
+  }
+
+  session.clearProvisions(sessionContext);
+
+  // Clear expired tasks
+  sessionContext.tasks = sessionContext.tasks.filter(task => {
+    if (!(task.expiry <= sessionContext.timestamp)) return true;
+
+    logger.accessInfo({
+      sessionContext: sessionContext,
+      message: "Task expired",
+      task: task
+    });
+
+    if (!sessionContext.doneTasks) sessionContext.doneTasks = [];
+    sessionContext.doneTasks.push(task._id);
+
+    const channel = `task_${task._id}`;
+    if (sessionContext.faults[channel]) {
+      delete sessionContext.faults[channel];
+      if (!sessionContext.faultsTouched) sessionContext.faultsTouched = {};
+      sessionContext.faultsTouched[channel] = true;
+    }
+
+    return false;
+  });
+
+  const task = sessionContext.tasks.find(
+    t => !sessionContext.faults[`task_${t._id}`]
+  );
+
+  if (!task) return applyPresets(sessionContext);
+
+  let alias;
+
+  switch (task.name) {
+    case "getParameterValues":
+      // Set channel in case params array is empty
+      sessionContext.channels[`task_${task._id}`] = 0;
+      for (const p of task.parameterNames) {
+        session.addProvisions(sessionContext, `task_${task._id}`, [
+          ["refresh", p]
+        ]);
+      }
+
+      break;
+    case "setParameterValues":
+      // Set channel in case params array is empty
+      sessionContext.channels[`task_${task._id}`] = 0;
+      for (const p of task.parameterValues) {
+        session.addProvisions(sessionContext, `task_${task._id}`, [
+          ["value", p[0], p[1]]
+        ]);
+      }
+
+      break;
+    case "refreshObject":
+      session.addProvisions(sessionContext, `task_${task._id}`, [
+        ["refresh", task.objectName]
+      ]);
+      break;
+    case "reboot":
+      session.addProvisions(sessionContext, `task_${task._id}`, [["reboot"]]);
+      break;
+    case "factoryReset":
+      session.addProvisions(sessionContext, `task_${task._id}`, [["reset"]]);
+      break;
+    case "download":
+      session.addProvisions(sessionContext, `task_${task._id}`, [
+        ["download", task.fileType, task.fileName, task.targetFileName]
+      ]);
+      break;
+    case "addObject":
+      alias = (task.parameterValues || [])
+        .map(p => `${p[0]}:${JSON.stringify(p[1])}`)
+        .join(",");
+      session.addProvisions(sessionContext, `task_${task._id}`, [
+        ["instances", `${task.objectName}.[${alias}]`, "+1"]
+      ]);
+      break;
+    case "deleteObject":
+      session.addProvisions(sessionContext, `task_${task._id}`, [
+        ["instances", task.objectName, 0]
+      ]);
+      break;
+    default:
+      throw new Error("Task name not recognized");
+  }
+
+  return nextRpc(sessionContext);
+}
+
+async function endSession(sessionContext: SessionContext): Promise<boolean> {
+  let saveCache = sessionContext.cacheUntil != null;
+
+  const promises = [];
+
+  promises.push(
+    db.saveDevice(
+      sessionContext.deviceId,
+      sessionContext.deviceData,
+      sessionContext.new,
+      sessionContext.timestamp
+    )
   );
 
   if (sessionContext.operationsTouched) {
     for (const k of Object.keys(sessionContext.operationsTouched)) {
-      counter += 2;
       saveCache = true;
       if (sessionContext.operations[k]) {
-        db.saveOperation(
-          sessionContext.deviceId,
-          k,
-          sessionContext.operations[k],
-          err => {
-            if (err) {
-              if (counter & 1) callback(err);
-              return void (counter = 0);
-            }
-            if ((counter -= 2) === 1) callback(null, sessionContext.new);
-          }
+        promises.push(
+          db.saveOperation(
+            sessionContext.deviceId,
+            k,
+            sessionContext.operations[k]
+          )
         );
       } else {
-        db.deleteOperation(sessionContext.deviceId, k, err => {
-          if (err) {
-            if (counter & 1) callback(err);
-            return void (counter = 0);
-          }
-          if ((counter -= 2) === 1) callback(null, sessionContext.new);
-        });
+        promises.push(db.deleteOperation(sessionContext.deviceId, k));
       }
     }
   }
 
   if (sessionContext.doneTasks && sessionContext.doneTasks.length) {
-    counter += 2;
     saveCache = true;
-    db.clearTasks(sessionContext.deviceId, sessionContext.doneTasks, err => {
-      if (err) {
-        if (counter & 1) callback(err);
-        return void (counter = 0);
-      }
-      if ((counter -= 2) === 1) callback(null, sessionContext.new);
-    });
+    promises.push(
+      db.clearTasks(sessionContext.deviceId, sessionContext.doneTasks)
+    );
   }
 
   if (sessionContext.faultsTouched) {
     for (const k of Object.keys(sessionContext.faultsTouched)) {
-      counter += 2;
       saveCache = true;
       if (sessionContext.faults[k]) {
         sessionContext.faults[k].retries = sessionContext.retries[k];
-        db.saveFault(
-          sessionContext.deviceId,
-          k,
-          sessionContext.faults[k],
-          err => {
-            if (err) {
-              if (counter & 1) callback(err);
-              return void (counter = 0);
-            }
-            if ((counter -= 2) === 1) callback(null, sessionContext.new);
-          }
+        promises.push(
+          db.saveFault(sessionContext.deviceId, k, sessionContext.faults[k])
         );
       } else {
-        db.deleteFault(sessionContext.deviceId, k, err => {
-          if (err) {
-            if (counter & 1) callback(err);
-            return void (counter = 0);
-          }
-          if ((counter -= 2) === 1) callback(null, sessionContext.new);
-        });
+        promises.push(db.deleteFault(sessionContext.deviceId, k));
       }
     }
   }
 
   if (saveCache) {
-    counter += 2;
-    cacheDueTasksAndFaultsAndOperations(
-      sessionContext.deviceId,
-      sessionContext.tasks,
-      sessionContext.faults,
-      sessionContext.operations,
-      sessionContext.cacheUntil,
-      err => {
-        if (err) {
-          if (counter & 1) callback(err);
-          return void (counter = 0);
-        }
-        if ((counter -= 2) === 1) callback(null, sessionContext.new);
-      }
+    promises.push(
+      cacheDueTasksAndFaultsAndOperations(
+        sessionContext.deviceId,
+        sessionContext.tasks,
+        sessionContext.faults,
+        sessionContext.operations,
+        sessionContext.cacheUntil
+      )
     );
   }
-  if ((counter -= 2) === 1) callback(null, sessionContext.new);
+
+  await Promise.all(promises);
+  return sessionContext.new;
 }
 
-function sendAcsRequest(
+async function sendAcsRequest(
   sessionContext: SessionContext,
   id?: string,
   acsRequest?: AcsRequest
-): void {
+): Promise<void> {
   if (!acsRequest)
-    return void writeResponse(sessionContext, soap.response(null), true);
+    return writeResponse(sessionContext, soap.response(null), true);
 
   if (acsRequest.name === "Download") {
     const downloadRequest = acsRequest as SetAcsRequest;
@@ -824,28 +748,23 @@ function sendAcsRequest(
   });
 
   const res = soap.response(rpc);
-  writeResponse(sessionContext, res);
+  return writeResponse(sessionContext, res);
 }
 
-function getSession(
-  connection,
-  sessionId,
-  callback: (err?: Error, sessionContext?: SessionContext) => void
-): void {
+async function getSession(connection, sessionId): Promise<SessionContext> {
   const sessionContext = currentSessions.get(connection);
   if (sessionContext) {
     currentSessions.delete(connection);
-    return void callback(null, sessionContext);
+    return sessionContext;
   }
 
-  if (!sessionId) return void callback();
+  if (!sessionId) return null;
 
-  setTimeout(() => {
-    cache.pop(`session_${sessionId}`, (err, sessionContextString) => {
-      if (err || !sessionContextString) return void callback(err);
-      session.deserialize(sessionContextString, callback);
-    });
-  }, 100);
+  await new Promise(resolve => setTimeout(resolve, 100));
+
+  const sessionContextString = await cache.pop(`session_${sessionId}`);
+  if (!sessionContextString) return null;
+  return session.deserialize(sessionContextString);
 }
 
 // When socket closes, store active sessions in cache
@@ -854,7 +773,7 @@ export function onConnection(socket): void {
   // closed, unless we read it at least once (caching?)
   socket.remoteAddress;
 
-  socket.on("close", () => {
+  socket.on("close", async () => {
     const sessionContext = currentSessions.get(socket);
     if (!sessionContext) return;
     currentSessions.delete(socket);
@@ -871,36 +790,24 @@ export function onConnection(socket): void {
       sessionContext.lastActivity + sessionContext.timeout * 1000 - now;
     if (timeout <= 0) return void logger.accessError(timeoutMsg);
 
-    setTimeout(() => {
-      cache.get(
-        `session_${sessionContext.sessionId}`,
-        (err, sessionContextString) => {
-          if (err) return void throwError(err);
-
-          if (!sessionContextString) return;
-
-          session.deserialize(sessionContextString, (err, _sessionContext) => {
-            if (err) return void throwError(err);
-            if (_sessionContext.lastActivity === lastActivity)
-              logger.accessError(timeoutMsg);
-          });
-        }
+    setTimeout(async () => {
+      const sessionContextString = await cache.get(
+        `session_${sessionContext.sessionId}`
       );
+      if (!sessionContextString) return;
+      const _sessionContext = await session.deserialize(sessionContextString);
+      if (_sessionContext.lastActivity === lastActivity)
+        logger.accessError(timeoutMsg);
     }, timeout + 1000).unref();
 
     if (sessionContext.state === 0) return;
 
-    session.serialize(sessionContext, (err, sessionContextString) => {
-      if (err) return void throwError(err);
-      cache.set(
-        `session_${sessionContext.sessionId}`,
-        sessionContextString,
-        Math.ceil(timeout / 1000) + 3,
-        err => {
-          if (err) return void throwError(err);
-        }
-      );
-    });
+    const sessionContextString = await session.serialize(sessionContext);
+    await cache.set(
+      `session_${sessionContext.sessionId}`,
+      sessionContextString,
+      Math.ceil(timeout / 1000) + 3
+    );
   });
 }
 
@@ -920,89 +827,46 @@ setInterval(() => {
   stats.initiatedSessions = 0;
 }, 10000).unref();
 
-interface GetDueTasksAndFaultsAndOperationsCallback {
-  (
-    err: null,
-    tasks: any[],
-    faults: { [channel: string]: SessionFault },
-    operations: { [commandKey: string]: Operation },
-    ttl: number
-  ): void;
-
-  (
-    err: Error,
-    tasks?: null,
-    faults?: null,
-    operations?: null,
-    ttl?: null
-  ): void;
-}
-
-function getDueTasksAndFaultsAndOperations(
+async function getDueTasksAndFaultsAndOperations(
   deviceId,
-  timestamp,
-  callback: GetDueTasksAndFaultsAndOperationsCallback
-): void {
-  cache.get(`${deviceId}_tasks_faults_operations`, (err, res) => {
-    if (err) return void callback(err);
+  timestamp
+): Promise<{
+  tasks: Task[];
+  faults: { [channel: string]: SessionFault };
+  operations: { [commandKey: string]: Operation };
+  ttl: number;
+}> {
+  const res = await cache.get(`${deviceId}_tasks_faults_operations`);
+  if (res) {
+    const resParsed = JSON.parse(res);
+    return {
+      tasks: resParsed.tasks || [],
+      faults: resParsed.faults || {},
+      operations: resParsed.operations || {},
+      ttl: 0
+    };
+  }
 
-    if (res) {
-      res = JSON.parse(res);
-      return void callback(
-        null,
-        res.tasks || [],
-        res.faults || {},
-        res.operations || {},
-        0
-      );
-    }
-
-    let faults, tasks, operations, cacheUntil;
-
-    db.getFaults(deviceId, (err, _faults) => {
-      if (err) {
-        if (callback) callback(err);
-        return void (callback = null);
-      }
-      faults = _faults;
-      if (tasks && operations)
-        callback(null, tasks, faults, operations, cacheUntil);
-    });
-
-    db.getDueTasks(deviceId, timestamp, (err, dueTasks, nextTimestamp) => {
-      if (err) {
-        if (callback) callback(err);
-        return void (callback = null);
-      }
-      tasks = dueTasks;
-      cacheUntil = nextTimestamp || 0;
-      if (faults && operations)
-        callback(null, tasks, faults, operations, cacheUntil);
-    });
-
-    db.getOperations(deviceId, (err, _operations) => {
-      if (err) {
-        if (callback) callback(err);
-        return void (callback = null);
-      }
-      operations = _operations;
-      if (faults && tasks)
-        callback(null, tasks, faults, operations, cacheUntil);
-    });
-
-    if (faults && tasks && operations)
-      callback(null, tasks, faults, operations, cacheUntil);
-  });
+  const res2 = await Promise.all([
+    db.getDueTasks(deviceId, timestamp),
+    db.getFaults(deviceId),
+    db.getOperations(deviceId)
+  ]);
+  return {
+    tasks: res2[0][0],
+    faults: res2[1],
+    operations: res2[2],
+    ttl: res2[0][1] || 0
+  };
 }
 
-function cacheDueTasksAndFaultsAndOperations(
+async function cacheDueTasksAndFaultsAndOperations(
   deviceId,
   tasks,
   faults,
   operations,
-  cacheUntil,
-  callback
-): void {
+  cacheUntil
+): Promise<void> {
   const v = {
     tasks: null,
     faults: null,
@@ -1016,15 +880,14 @@ function cacheDueTasksAndFaultsAndOperations(
   if (cacheUntil) ttl = Math.trunc((Date.now() - cacheUntil) / 1000);
   else ttl = config.get("MAX_CACHE_TTL", deviceId);
 
-  cache.set(
+  await cache.set(
     `${deviceId}_tasks_faults_operations`,
     JSON.stringify(v),
-    ttl,
-    callback
+    ttl
   );
 }
 
-function reportBadState(sessionContext): void {
+function reportBadState(sessionContext: SessionContext): void {
   logger.accessError({
     message: "Bad session state",
     sessionContext: sessionContext
@@ -1032,10 +895,12 @@ function reportBadState(sessionContext): void {
   currentSessions.delete(sessionContext.httpResponse.connection);
   sessionContext.httpResponse.writeHead(400, { Connection: "close" });
   sessionContext.httpResponse.end("Bad session state");
-  stats.concurrentRequests -= 1;
 }
 
-function processRequest(sessionContext, rpc): void {
+async function processRequest(
+  sessionContext: SessionContext,
+  rpc: SoapMessage
+): Promise<void> {
   if (rpc.cpeRequest) {
     if (rpc.cpeRequest.name === "Inform") {
       if (sessionContext.state !== 0)
@@ -1046,7 +911,7 @@ function processRequest(sessionContext, rpc): void {
         message: "Inform",
         rpc: rpc
       });
-      inform(sessionContext, rpc);
+      return inform(sessionContext, rpc);
     } else if (rpc.cpeRequest.name === "TransferComplete") {
       if (sessionContext.state !== 1)
         return void reportBadState(sessionContext);
@@ -1056,10 +921,9 @@ function processRequest(sessionContext, rpc): void {
         message: "CPE request",
         rpc: rpc
       });
-      transferComplete(sessionContext, rpc);
+      return transferComplete(sessionContext, rpc);
     } else if (rpc.cpeRequest.name === "GetRPCMethods") {
-      if (sessionContext.state !== 1)
-        return void reportBadState(sessionContext);
+      if (sessionContext.state !== 1) return reportBadState(sessionContext);
 
       logger.accessInfo({
         sessionContext: sessionContext,
@@ -1074,23 +938,18 @@ function processRequest(sessionContext, rpc): void {
         },
         cwmpVersion: sessionContext.cwmpVersion
       });
-      writeResponse(sessionContext, res);
+      return writeResponse(sessionContext, res);
     } else {
       if (sessionContext.state !== 1)
         return void reportBadState(sessionContext);
 
-      return void throwError(
-        new Error("ACS method not supported"),
-        sessionContext.httpResponse
-      );
+      throw new Error("ACS method not supported");
     }
   } else if (rpc.cpeResponse) {
     if (sessionContext.state !== 2) return void reportBadState(sessionContext);
 
-    session.rpcResponse(sessionContext, rpc.id, rpc.cpeResponse, err => {
-      if (err) return void throwError(err, sessionContext.httpResponse);
-      nextRpc(sessionContext);
-    });
+    await session.rpcResponse(sessionContext, rpc.id, rpc.cpeResponse);
+    return nextRpc(sessionContext);
   } else if (rpc.cpeFault) {
     if (sessionContext.state !== 2) return void reportBadState(sessionContext);
 
@@ -1100,40 +959,61 @@ function processRequest(sessionContext, rpc): void {
       rpc: rpc
     });
 
-    session.rpcFault(sessionContext, rpc.id, rpc.cpeFault, (err, fault) => {
-      if (err) return void throwError(err, sessionContext.httpResponse);
-      if (fault) {
-        recordFault(sessionContext, fault);
-        session.clearProvisions(sessionContext);
-      }
-      nextRpc(sessionContext);
-    });
+    const fault = await session.rpcFault(sessionContext, rpc.id, rpc.cpeFault);
+    if (fault) {
+      recordFault(sessionContext, fault);
+      session.clearProvisions(sessionContext);
+    }
+    return nextRpc(sessionContext);
   } else {
     // CPE sent empty response
     if (sessionContext.state !== 1) return void reportBadState(sessionContext);
 
     sessionContext.state = 2;
-    session.timeoutOperations(sessionContext, (err, faults, operations) => {
-      if (err) return void throwError(err, sessionContext.httpResponse);
+    const { faults, operations } = await session.timeoutOperations(
+      sessionContext
+    );
 
-      for (const i of faults) {
-        for (const [k, v] of Object.entries(operations[i].retries))
-          sessionContext.retries[k] = v;
+    for (const [i, f] of faults.entries()) {
+      for (const [k, v] of Object.entries(operations[i].retries))
+        sessionContext.retries[k] = v;
 
-        recordFault(
-          sessionContext,
-          faults[i],
-          operations[i].provisions,
-          operations[i].channels
-        );
-      }
+      recordFault(
+        sessionContext,
+        f,
+        operations[i].provisions,
+        operations[i].channels
+      );
+    }
 
-      nextRpc(sessionContext);
-    });
+    return nextRpc(sessionContext);
   }
 }
 
-export function listener(httpRequest, httpResponse): void {
+export function listener(
+  httpRequest: IncomingMessage,
+  httpResponse: ServerResponse
+): void {
+  stats.concurrentRequests += 1;
+  listenerAsync(httpRequest, httpResponse)
+    .then(() => {
+      stats.concurrentRequests -= 1;
+    })
+    .catch(err => {
+      currentSessions.delete(httpResponse.connection);
+      httpResponse.writeHead(500, { Connection: "close" });
+      httpResponse.end(`${err.name}: ${err.message}`);
+      stats.concurrentRequests -= 1;
+      setTimeout(() => {
+        throw err;
+      });
+    });
+}
+
+async function listenerAsync(
+  httpRequest: IncomingMessage,
+  httpResponse: ServerResponse
+): Promise<void> {
   stats.totalRequests += 1;
 
   if (httpRequest.method !== "POST") {
@@ -1163,7 +1043,7 @@ export function listener(httpRequest, httpResponse): void {
     return;
   }
 
-  let stream = httpRequest;
+  let stream: Readable = httpRequest;
   if (httpRequest.headers["content-encoding"]) {
     switch (httpRequest.headers["content-encoding"]) {
       case "gzip":
@@ -1179,217 +1059,206 @@ export function listener(httpRequest, httpResponse): void {
     }
   }
 
-  stats.concurrentRequests += 1;
-  httpRequest.on("aborted", () => {
-    stats.concurrentRequests -= 1;
-    // In some cases event end can be emitted after aborted event
-    httpRequest.removeAllListeners("end");
-  });
+  const body = await new Promise<Buffer>((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let bytes = 0;
 
-  const chunks = [];
-  let bytes = 0;
-  stream.on("data", chunk => {
-    chunks.push(chunk);
-    bytes += chunk.length;
-  });
+    stream.on("data", chunk => {
+      chunks.push(chunk);
+      bytes += chunk.length;
+    });
 
-  stream.on("end", () => {
-    const body = Buffer.allocUnsafe(bytes);
-    let offset = 0;
-    for (const chunk of chunks) {
-      chunk.copy(body, offset, 0, chunk.length);
-      offset += chunk.length;
-    }
-
-    function parsedRpc(sessionContext, rpc, parseWarnings): void {
-      for (const w of parseWarnings) {
-        w.sessionContext = sessionContext;
-        w.rpc = rpc;
-        logger.accessWarn(w);
+    stream.on("end", () => {
+      const _body = Buffer.allocUnsafe(bytes);
+      let offset = 0;
+      for (const chunk of chunks) {
+        chunk.copy(_body, offset, 0, chunk.length);
+        offset += chunk.length;
       }
+      resolve(_body);
+    });
 
-      if (sessionContext.debug) {
-        const dump =
-          `# REQUEST ${new Date(Date.now())}\n` +
-          JSON.stringify(httpRequest.headers) +
-          "\n" +
-          body +
-          "\n\n";
-        fs.appendFile(`./debug/${sessionContext.deviceId}.dump`, dump, err => {
-          if (err) return void throwError(err);
-        });
-      }
+    stream.on("error", reject);
 
-      processRequest(sessionContext, rpc);
-    }
-
-    getSession(httpRequest.connection, sessionId, (err, sessionContext) => {
-      if (err) return void throwError(err, httpResponse);
-
-      if (sessionContext) {
-        sessionContext.httpRequest = httpRequest;
-        sessionContext.httpResponse = httpResponse;
-        if (
-          sessionContext.sessionId !== sessionId ||
-          sessionContext.lastActivity + sessionContext.timeout * 1000 <
-            Date.now()
-        ) {
-          logger.accessError({
-            message: "Invalid session",
-            sessionContext: sessionContext
-          });
-
-          httpResponse.writeHead(400, { Connection: "close" });
-          httpResponse.end("Invalid session");
-          stats.concurrentRequests -= 1;
-          return;
-        }
-      } else if (stats.concurrentRequests > MAX_CONCURRENT_REQUESTS) {
-        // Check again just in case device included old session ID
-        // from the previous session
-        httpResponse.writeHead(503, { "Retry-after": 60, Connection: "close" });
-        httpResponse.end("503 Service Unavailable");
-        stats.droppedRequests += 1;
-        stats.concurrentRequests -= 1;
-        return;
-      }
-
-      const parseWarnings = [];
-      let rpc;
-      try {
-        rpc = soap.request(
-          body,
-          sessionContext ? sessionContext.cwmpVersion : null,
-          parseWarnings
-        );
-      } catch (error) {
-        logger.accessError({
-          message: "XML parse error",
-          parseError: error.message.trim(),
-          sessionContext: sessionContext || {
-            httpRequest: httpRequest,
-            httpResponse: httpResponse
-          }
-        });
-        httpResponse.writeHead(400, { Connection: "close" });
-        httpResponse.end(error.message);
-        stats.concurrentRequests -= 1;
-        return;
-      }
-
-      if (sessionContext) {
-        if (sessionContext.state === 0 && !authenticate(sessionContext)) {
-          logger.accessError({
-            message: "Authentication failure",
-            sessionContext: sessionContext
-          });
-
-          httpResponse.writeHead(401);
-          httpResponse.end("Unauthorized");
-          currentSessions.set(httpRequest.connection, sessionContext);
-          stats.concurrentRequests -= 1;
-          return;
-        }
-        return void parsedRpc(sessionContext, rpc, parseWarnings);
-      }
-
-      if (!(rpc.cpeRequest && rpc.cpeRequest.name === "Inform")) {
-        logger.accessError({
-          message: "Invalid session",
-          sessionContext: sessionContext || {
-            httpRequest: httpRequest,
-            httpResponse: httpResponse
-          }
-        });
-        httpResponse.writeHead(400, { Connection: "close" });
-        httpResponse.end("Invalid session");
-        stats.concurrentRequests -= 1;
-        return;
-      }
-
-      stats.initiatedSessions += 1;
-      const deviceId = common.generateDeviceId(rpc.cpeRequest.deviceId);
-
-      localCache.getCurrentSnapshot((err, cacheSnapshot) => {
-        if (err) return void throwError(err, httpResponse);
-
-        const configContext = {
-          id: deviceId,
-          serialNumber: rpc.cpeRequest.deviceId["SerialNumber"],
-          productClass: rpc.cpeRequest.deviceId["ProductClass"],
-          oui: rpc.cpeRequest.deviceId["OUI"]
-        };
-
-        const sessionTimeout =
-          rpc.sessionTimeout ||
-          localCache.getConfig(
-            cacheSnapshot,
-            "cwmp.sessionTimeout",
-            configContext
-          );
-
-        session.init(
-          deviceId,
-          rpc.cwmpVersion,
-          sessionTimeout,
-          (err, _sessionContext) => {
-            if (err) return void throwError(err, httpResponse);
-
-            _sessionContext.cacheSnapshot = cacheSnapshot;
-            _sessionContext.configContext = configContext;
-            _sessionContext.debug = !!localCache.getConfig(
-              cacheSnapshot,
-              "cwmp.debug",
-              configContext
-            );
-
-            _sessionContext.httpRequest = httpRequest;
-            _sessionContext.httpResponse = httpResponse;
-            _sessionContext.sessionId = crypto.randomBytes(8).toString("hex");
-            httpRequest.connection.setTimeout(_sessionContext.timeout * 1000);
-
-            getDueTasksAndFaultsAndOperations(
-              deviceId,
-              _sessionContext.timestamp,
-              (err, dueTasks, faults, operations, cacheUntil) => {
-                if (err) return void throwError(err, httpResponse);
-
-                _sessionContext.tasks = dueTasks;
-                _sessionContext.operations = operations;
-                _sessionContext.cacheUntil = cacheUntil;
-                _sessionContext.faults = faults;
-                _sessionContext.retries = {};
-                for (const [k, v] of Object.entries(_sessionContext.faults)) {
-                  if (v.expiry >= _sessionContext.timestamp) {
-                    // Delete expired faults
-                    delete _sessionContext.faults[k];
-                    if (!_sessionContext.faultsTouched)
-                      _sessionContext.faultsTouched = {};
-                    _sessionContext.faultsTouched[k] = true;
-                  } else {
-                    _sessionContext.retries[k] = v.retries;
-                  }
-                }
-
-                if (!authenticate(_sessionContext)) {
-                  logger.accessError({
-                    message: "Authentication failure",
-                    sessionContext: _sessionContext
-                  });
-
-                  httpResponse.writeHead(401);
-                  httpResponse.end("Unauthorized");
-                  currentSessions.set(httpRequest.connection, _sessionContext);
-                  stats.concurrentRequests -= 1;
-                  return;
-                }
-
-                parsedRpc(_sessionContext, rpc, parseWarnings);
-              }
-            );
-          }
-        );
-      });
+    httpRequest.on("aborted", () => {
+      resolve(null);
     });
   });
+
+  // Request aborted
+  if (!body) return;
+
+  async function parsedRpc(sessionContext, rpc, parseWarnings): Promise<void> {
+    for (const w of parseWarnings) {
+      w.sessionContext = sessionContext;
+      w.rpc = rpc;
+      logger.accessWarn(w);
+    }
+
+    if (sessionContext.debug) {
+      const dump =
+        `# REQUEST ${new Date(Date.now())}\n` +
+        JSON.stringify(httpRequest.headers) +
+        "\n" +
+        body +
+        "\n\n";
+      fs.appendFile(`./debug/${sessionContext.deviceId}.dump`, dump, err => {
+        if (err) throw err;
+      });
+    }
+
+    return processRequest(sessionContext, rpc);
+  }
+
+  const sessionContext = await getSession(httpRequest.connection, sessionId);
+
+  if (sessionContext) {
+    sessionContext.httpRequest = httpRequest;
+    sessionContext.httpResponse = httpResponse;
+    if (
+      sessionContext.sessionId !== sessionId ||
+      sessionContext.lastActivity + sessionContext.timeout * 1000 < Date.now()
+    ) {
+      logger.accessError({
+        message: "Invalid session",
+        sessionContext: sessionContext
+      });
+
+      httpResponse.writeHead(400, { Connection: "close" });
+      httpResponse.end("Invalid session");
+      return;
+    }
+  } else if (stats.concurrentRequests > MAX_CONCURRENT_REQUESTS) {
+    // Check again just in case device included old session ID
+    // from the previous session
+    httpResponse.writeHead(503, { "Retry-after": 60, Connection: "close" });
+    httpResponse.end("503 Service Unavailable");
+    stats.droppedRequests += 1;
+    return;
+  }
+
+  const parseWarnings = [];
+  let rpc;
+  try {
+    rpc = soap.request(
+      body,
+      sessionContext ? sessionContext.cwmpVersion : null,
+      parseWarnings
+    );
+  } catch (error) {
+    logger.accessError({
+      message: "XML parse error",
+      parseError: error.message.trim(),
+      sessionContext: sessionContext || {
+        httpRequest: httpRequest,
+        httpResponse: httpResponse
+      }
+    });
+    httpResponse.writeHead(400, { Connection: "close" });
+    httpResponse.end(error.message);
+    return;
+  }
+
+  if (sessionContext) {
+    if (sessionContext.state === 0 && !authenticate(sessionContext)) {
+      logger.accessError({
+        message: "Authentication failure",
+        sessionContext: sessionContext
+      });
+
+      httpResponse.writeHead(401);
+      httpResponse.end("Unauthorized");
+      currentSessions.set(httpRequest.connection, sessionContext);
+      return;
+    }
+    return parsedRpc(sessionContext, rpc, parseWarnings);
+  }
+
+  if (!(rpc.cpeRequest && rpc.cpeRequest.name === "Inform")) {
+    logger.accessError({
+      message: "Invalid session",
+      sessionContext: sessionContext || {
+        httpRequest: httpRequest,
+        httpResponse: httpResponse
+      }
+    });
+    httpResponse.writeHead(400, { Connection: "close" });
+    httpResponse.end("Invalid session");
+    return;
+  }
+
+  stats.initiatedSessions += 1;
+  const deviceId = common.generateDeviceId(rpc.cpeRequest.deviceId);
+
+  const cacheSnapshot = await localCache.getCurrentSnapshot();
+
+  const configContext = {
+    id: deviceId,
+    serialNumber: rpc.cpeRequest.deviceId["SerialNumber"],
+    productClass: rpc.cpeRequest.deviceId["ProductClass"],
+    oui: rpc.cpeRequest.deviceId["OUI"]
+  };
+
+  const sessionTimeout =
+    rpc.sessionTimeout ||
+    localCache.getConfig(cacheSnapshot, "cwmp.sessionTimeout", configContext);
+
+  const _sessionContext = session.init(
+    deviceId,
+    rpc.cwmpVersion,
+    sessionTimeout
+  );
+
+  _sessionContext.cacheSnapshot = cacheSnapshot;
+  _sessionContext.configContext = configContext;
+  _sessionContext.debug = !!localCache.getConfig(
+    cacheSnapshot,
+    "cwmp.debug",
+    configContext
+  );
+
+  _sessionContext.httpRequest = httpRequest;
+  _sessionContext.httpResponse = httpResponse;
+  _sessionContext.sessionId = crypto.randomBytes(8).toString("hex");
+  httpRequest.connection.setTimeout(_sessionContext.timeout * 1000);
+
+  const {
+    tasks: dueTasks,
+    faults,
+    operations,
+    ttl: cacheUntil
+  } = await getDueTasksAndFaultsAndOperations(
+    deviceId,
+    _sessionContext.timestamp
+  );
+
+  _sessionContext.tasks = dueTasks;
+  _sessionContext.operations = operations;
+  _sessionContext.cacheUntil = cacheUntil;
+  _sessionContext.faults = faults;
+  _sessionContext.retries = {};
+  for (const [k, v] of Object.entries(_sessionContext.faults)) {
+    if (v.expiry >= _sessionContext.timestamp) {
+      // Delete expired faults
+      delete _sessionContext.faults[k];
+      if (!_sessionContext.faultsTouched) _sessionContext.faultsTouched = {};
+      _sessionContext.faultsTouched[k] = true;
+    } else {
+      _sessionContext.retries[k] = v.retries;
+    }
+  }
+
+  if (!authenticate(_sessionContext)) {
+    logger.accessError({
+      message: "Authentication failure",
+      sessionContext: _sessionContext
+    });
+
+    httpResponse.writeHead(401);
+    httpResponse.end("Unauthorized");
+    currentSessions.set(httpRequest.connection, _sessionContext);
+    return;
+  }
+
+  parsedRpc(_sessionContext, rpc, parseWarnings);
 }

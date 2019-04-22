@@ -16,6 +16,7 @@ export interface Fault {
         message: string;
         stack?: string;
       };
+  timestamp?: number;
 }
 
 export interface SessionFault extends Fault {
@@ -255,12 +256,18 @@ export interface InformRequest extends CpeRequest {
   parameterList: [string, string | number | boolean, string][];
 }
 
-export interface AcsResponse {
-  name: string;
+export interface TransferCompleteRequest extends CpeRequest {
+  name: "TransferComplete";
   commandKey?: string;
   faultStruct?: FaultStruct;
   startTime?: number;
   completeTime?: number;
+}
+
+export interface AcsResponse {
+  name: string;
+  commandKey?: string;
+  faultStruct?: FaultStruct;
 }
 
 export interface QueryOptions {
@@ -308,3 +315,20 @@ export type PermissionSet = {
     filter: Expression;
   };
 }[];
+
+export interface SoapMessage {
+  id: string;
+  cwmpVersion: string;
+  sessionTimeout: number;
+  cpeRequest?: CpeRequest;
+  cpeFault?: CpeFault;
+  cpeResponse?: CpeResponse;
+}
+
+export interface ScriptResult {
+  fault: Fault;
+  clear: Clear[];
+  declare: Declaration[];
+  done: boolean;
+  returnValue: any;
+}

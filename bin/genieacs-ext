@@ -59,7 +59,7 @@ function errorToFault(err: Error): Fault {
 process.on("uncaughtException", err => {
   const fault = errorToFault(err);
   jobs.forEach(jobId => {
-    process.send([jobId, fault]);
+    process.send([jobId, fault, null]);
   });
   jobs.clear();
   process.disconnect();
@@ -81,7 +81,7 @@ process.on("message", message => {
       code: "ext",
       message: `No such function '${funcName}' in extension '${fileName}'`
     };
-    process.send([message[0], fault]);
+    process.send([message[0], fault, null]);
     return;
   }
 

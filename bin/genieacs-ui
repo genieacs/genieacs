@@ -105,11 +105,13 @@ if (!cluster.worker) {
     listener(req, res);
   };
 
-  db2.connect(err => {
-    if (err) throw err;
-    cache.connect(err => {
-      if (err) throw err;
+  Promise.all([db2.connect(), cache.connect()])
+    .then(() => {
       server.start(SERVICE_PORT, SERVICE_ADDRESS, ssl, _listener);
+    })
+    .catch(err => {
+      setTimeout(() => {
+        throw err;
+      });
     });
-  });
 }
