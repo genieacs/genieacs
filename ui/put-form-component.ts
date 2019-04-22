@@ -87,6 +87,35 @@ function createField(current, attr, focus): Children {
         e.redraw = false;
       }
     });
+  } else if (attr.type === "textarea") {
+    return m("textarea", {
+      name: attr.id,
+      value: current.object[attr.id],
+      readonly: attr.id === "_id" && !current.isNew,
+      cols: attr.cols || 80,
+      rows: attr.rows || 4,
+      style: "resize: none;",
+      oncreate: focus
+        ? _vnode => {
+            const dom = _vnode.dom as HTMLInputElement;
+            dom.focus();
+            dom.setSelectionRange(dom.value.length, dom.value.length);
+          }
+        : null,
+      oninput: e => {
+        current.object[attr.id] = e.target.value;
+        e.redraw = false;
+      },
+      onkeypress: e => {
+        e.redraw = false;
+        if (e.which === 13 && !e.shiftKey) {
+          const dom = e.target;
+          dom.form.querySelector("button[type=submit]").click();
+          return false;
+        }
+        return true;
+      }
+    });
   }
 
   return m("input", {

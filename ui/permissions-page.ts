@@ -36,14 +36,14 @@ const attributes = [
       "virtualParameters"
     ]
   },
-  { id: "filter", label: "Filter" },
+  { id: "filter", label: "Filter", type: "textarea" },
   {
     id: "access",
     label: "Access",
     type: "combo",
     options: ["1: count", "2: read", "3: write"]
   },
-  { id: "validate", label: "Validate" }
+  { id: "validate", label: "Validate", type: "textarea" }
 ];
 
 const unpackSmartQuery = memoize(query => {

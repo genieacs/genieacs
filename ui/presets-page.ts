@@ -22,7 +22,7 @@ const attributes = [
   { id: "weight", label: "Weight" },
   { id: "schedule", label: "Schedule" },
   { id: "events", label: "Events" },
-  { id: "precondition", label: "Precondition" },
+  { id: "precondition", label: "Precondition", type: "textarea" },
   { id: "provision", label: "Provision", type: "combo" },
   { id: "provisionArgs", label: "Arguments" }
 ];

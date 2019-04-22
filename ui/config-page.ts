@@ -4,13 +4,13 @@ import * as notifications from "./notifications";
 import putFormComponent from "./put-form-component";
 import uiConfigComponent from "./ui-config-component";
 import * as overlay from "./overlay";
-import * as expressionParser from "../lib/common/expression-parser";
+import { parse, stringify } from "../lib/common/expression-parser";
 import { loadCodeMirror, loadYaml } from "./dynamic-loader";
 import { ClosureComponent, Component, Children } from "mithril";
 
 const attributes = [
   { id: "_id", label: "Key" },
-  { id: "value", label: "Value" }
+  { id: "value", label: "Value", type: "textarea" }
 ];
 
 interface ValidationErrors {
@@ -21,12 +21,15 @@ function putActionHandler(action, _object, isNew?): Promise<ValidationErrors> {
   return new Promise((resolve, reject) => {
     const object = Object.assign({}, _object);
     if (action === "save") {
-      const id = object["_id"];
+      let id = object["_id"] || "";
       delete object["_id"];
 
-      if (!id) return void resolve({ _id: "ID can not be empty" });
+      const regex = /^[0-9a-zA-Z_.-]+$/;
+      id = id.trim();
+      if (!id.match(regex)) return void resolve({ _id: "Invalid ID" });
+
       try {
-        expressionParser.parse(object.value);
+        object.value = stringify(parse(object.value || ""));
       } catch (err) {
         return void resolve({
           value: "Config value must be valid expression"
