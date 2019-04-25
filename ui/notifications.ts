@@ -4,18 +4,32 @@ interface Notification {
   type: string;
   message: string;
   timestamp: number;
+  actions?: { [label: string]: () => void };
 }
 
 const notifications = new Set<Notification>();
 
-export function push(type, message): void {
-  const n = { type: type, message: message, timestamp: Date.now() };
+export function push(type, message, actions?): Notification {
+  const n: Notification = {
+    type: type,
+    message: message,
+    timestamp: Date.now(),
+    actions: actions
+  };
   notifications.add(n);
   m.redraw();
-  setTimeout(() => {
-    notifications.delete(n);
-    m.redraw();
-  }, 4000);
+  if (!actions) {
+    setTimeout(() => {
+      dismiss(n);
+    }, 4000);
+  }
+
+  return n;
+}
+
+export function dismiss(n: Notification): void {
+  notifications.delete(n);
+  m.redraw();
 }
 
 export function getNotifications(): Set<Notification> {

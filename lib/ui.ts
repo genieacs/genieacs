@@ -41,6 +41,7 @@ koa.on("error", async err => {
 koa.use(async (ctx, next) => {
   const configSnapshot = await localCache.getCurrentSnapshot();
   ctx.state.configSnapshot = configSnapshot;
+  ctx.set("X-Config-Snapshot", configSnapshot);
   return next();
 });
 
@@ -137,6 +138,7 @@ router.get("/", async ctx => {
         window.clientConfig = ${JSON.stringify({
           ui: localCache.getUiConfig(ctx.state.configSnapshot)
         })};
+        window.configSnapshot = ${JSON.stringify(ctx.state.configSnapshot)};
         window.username = ${JSON.stringify(
           ctx.state.user ? ctx.state.user.username : ""
         )};

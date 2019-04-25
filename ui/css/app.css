@@ -18,6 +18,7 @@
   --status-red: hsl(0, 80%, 80%);
   --status-green: hsl(125, 80%, 80%);
   --status-gray: hsl(58, 3%, 80%);
+  --status-yellow: hsl(46, 79%, 80%);
 }
 
 body,
@@ -200,6 +201,10 @@ i {
         &.success {
           background-color: color(var(--status-green) a(90%));
           border: 1px solid var(--status-green);
+        }
+        &.warning {
+          background-color: color(var(--status-yellow) a(90%));
+          border: 1px solid var(--status-yellow);
         }
       }
     }

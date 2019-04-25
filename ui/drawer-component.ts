@@ -290,6 +290,14 @@ function renderNotifications(notifs): Child[] {
   const notificationElements: Child[] = [];
 
   for (const n of notifs) {
+    let buttons;
+    if (n.actions) {
+      const btns = Object.entries(n.actions).map(([label, onclick]) =>
+        m("button.primary", { onclick: onclick }, label)
+      );
+      if (btns.length) buttons = m("div", { style: "float: right" }, btns);
+    }
+
     notificationElements.push(
       m(
         "div.notification",
@@ -309,7 +317,7 @@ function renderNotifications(notifs): Child[] {
           },
           key: n.timestamp
         },
-        n.message
+        m("div", buttons, n.message)
       )
     );
   }

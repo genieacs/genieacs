@@ -24,6 +24,7 @@ declare global {
     permissionSets: any;
     username: string;
     clientConfig: any;
+    configSnapshot: string;
   }
 }
 

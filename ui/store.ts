@@ -3,11 +3,14 @@ import { map, stringify } from "../lib/common/expression-parser";
 import { or, and, not, evaluate, subset } from "../lib/common/expression";
 import memoize from "../lib/common/memoize";
 import { QueryOptions, Expression } from "../lib/types";
+import * as notifications from "./notifications";
+import { configSnapshot } from "./config";
 
 const memoizedStringify = memoize(stringify);
 const memoizedEvaluate = memoize(evaluate);
 
 let fulfillTimestamp = 0;
+let refreshNotification;
 
 const queries = {
   filter: new WeakMap(),
@@ -65,6 +68,59 @@ class QueryResponse {
     queries.accessed.set(this, Date.now());
     return queries.value.get(this);
   }
+}
+
+export async function xhrRequest(
+  options: { url: string } & m.RequestOptions<{}>
+): Promise<any> {
+  const extract = options.extract;
+  const deserialize = options.deserialize;
+
+  options.extract = (
+    xhr: XMLHttpRequest,
+    _options?: { url: string } & m.RequestOptions<{}>
+  ): any => {
+    if (
+      !refreshNotification &&
+      configSnapshot !== xhr.getResponseHeader("x-config-snapshot")
+    ) {
+      refreshNotification = notifications.push(
+        "warning",
+        "Configuration has been modified, please reload the page",
+        {
+          Reload: () => {
+            window.location.reload();
+          }
+        }
+      );
+    }
+
+    if (typeof extract === "function") return extract(xhr, _options);
+
+    let response: any;
+    if (typeof deserialize === "function") {
+      response = deserialize(xhr.responseText);
+    } else {
+      try {
+        response = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+      } catch (err) {
+        throw new Error("Invalid JSON: " + response);
+      }
+    }
+
+    // https://mithril.js.org/request.html#error-handling
+    if (xhr.status !== 304 && Math.floor(xhr.status / 100) !== 2) {
+      const err = new Error();
+      err["message"] = xhr.responseText;
+      err["code"] = xhr.status;
+      err["response"] = response;
+      throw err;
+    }
+
+    return response;
+  };
+
+  return m.request(options);
 }
 
 export function unpackExpression(exp): Expression {
@@ -271,7 +327,7 @@ export function fulfill(accessTimestamp, _fulfillTimestamp): Promise<boolean> {
             updated = true;
             let filter = queries.filter.get(queryResponse);
             filter = unpackExpression(filter);
-            m.request({
+            xhrRequest({
               method: "HEAD",
               url:
                 `/api/${resourceType}/?` +
@@ -317,7 +373,7 @@ export function fulfill(accessTimestamp, _fulfillTimestamp): Promise<boolean> {
               updated = true;
               let filter = queries.filter.get(queryResponse);
               filter = unpackExpression(filter);
-              m.request({
+              xhrRequest({
                 method: "GET",
                 url:
                   `/api/${resourceType}/?` +
@@ -410,7 +466,7 @@ export function fulfill(accessTimestamp, _fulfillTimestamp): Promise<boolean> {
 
           allPromises2.push(
             new Promise((resolve2, reject2) => {
-              m.request({
+              xhrRequest({
                 method: "GET",
                 url:
                   `/api/${resourceType}/?` +
@@ -473,30 +529,28 @@ export function postTasks(deviceId, tasks): Promise<string> {
     t.device = deviceId;
   }
 
-  return new Promise((resolve, reject) => {
-    m.request({
-      method: "POST",
-      url: `/api/devices/${encodeURIComponent(deviceId)}/tasks`,
-      data: tasks,
-      extract: xhr => {
-        if (xhr.status !== 200) throw new Error(xhr.response);
-        const connectionRequestStatus = xhr.getResponseHeader(
-          "Connection-Request"
-        );
-        const st = JSON.parse(xhr.response);
-        for (const [i, t] of st.entries()) {
-          tasks[i]._id = t._id;
-          tasks[i].status = t.status;
-          tasks[i].fault = t.fault;
-        }
-        resolve(connectionRequestStatus);
+  return xhrRequest({
+    method: "POST",
+    url: `/api/devices/${encodeURIComponent(deviceId)}/tasks`,
+    data: tasks,
+    extract: xhr => {
+      if (xhr.status !== 200) throw new Error(xhr.response);
+      const connectionRequestStatus = xhr.getResponseHeader(
+        "Connection-Request"
+      );
+      const st = JSON.parse(xhr.response);
+      for (const [i, t] of st.entries()) {
+        tasks[i]._id = t._id;
+        tasks[i].status = t.status;
+        tasks[i].fault = t.fault;
       }
-    }).catch(reject);
+      return connectionRequestStatus;
+    }
   });
 }
 
 export function updateTags(deviceId, tags): Promise<void> {
-  return m.request({
+  return xhrRequest({
     method: "POST",
     url: `/api/devices/${encodeURIComponent(deviceId)}/tags`,
     data: tags
@@ -504,7 +558,7 @@ export function updateTags(deviceId, tags): Promise<void> {
 }
 
 export function deleteResource(resourceType, id): Promise<void> {
-  return m.request({
+  return xhrRequest({
     method: "DELETE",
     url: `/api/${resourceType}/${encodeURIComponent(id)}`
   });
@@ -513,7 +567,7 @@ export function deleteResource(resourceType, id): Promise<void> {
 export function putResource(resourceType, id, object): Promise<void> {
   for (const k in object) if (object[k] === undefined) object[k] = null;
 
-  return m.request({
+  return xhrRequest({
     method: "PUT",
     url: `/api/${resourceType}/${encodeURIComponent(id)}`,
     data: object
@@ -522,7 +576,7 @@ export function putResource(resourceType, id, object): Promise<void> {
 
 export function queryConfig(pattern = "%"): Promise<any[]> {
   const filter = stringify(["LIKE", ["PARAM", "_id"], pattern]);
-  return m.request({
+  return xhrRequest({
     method: "GET",
     url: `api/config/?${m.buildQueryString({ filter: filter })}`,
     background: true
@@ -532,7 +586,7 @@ export function queryConfig(pattern = "%"): Promise<any[]> {
 export function resourceExists(resource, id): Promise<number> {
   const param = resource === "devices" ? "DeviceID.ID" : "_id";
   const filter = ["=", ["PARAM", param], id];
-  return m.request({
+  return xhrRequest({
     method: "HEAD",
     url:
       `/api/${resource}/?` +
@@ -556,7 +610,7 @@ export function changePassword(
 ): Promise<void> {
   const data = { newPassword };
   if (authPassword) data["authPassword"] = authPassword;
-  return m.request({
+  return xhrRequest({
     method: "PUT",
     url: `/api/users/${username}/password`,
     background: true,
@@ -565,7 +619,7 @@ export function changePassword(
 }
 
 export function logIn(username, password): Promise<void> {
-  return m.request({
+  return xhrRequest({
     method: "POST",
     url: "/login",
     background: true,
@@ -574,14 +628,14 @@ export function logIn(username, password): Promise<void> {
 }
 
 export function logOut(): Promise<void> {
-  return m.request({
+  return xhrRequest({
     method: "POST",
     url: "/logout"
   });
 }
 
 export function ping(host): Promise<{}> {
-  return m.request({
+  return xhrRequest({
     url: `/api/ping/${encodeURIComponent(host)}`
   });
 }
