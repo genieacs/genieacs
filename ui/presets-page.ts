@@ -53,6 +53,16 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
 
       if (Object.keys(errors).length) return void resolve(errors);
 
+      if (object.precondition) {
+        try {
+          object.precondition = stringify(memoizedParse(object.precondition));
+        } catch (err) {
+          return void resolve({
+            precondition: "Precondition must be valid expression"
+          });
+        }
+      }
+
       store
         .resourceExists("presets", id)
         .then(exists => {
