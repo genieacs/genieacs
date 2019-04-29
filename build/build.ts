@@ -27,6 +27,7 @@ const externals = [
   "fs",
   "cluster",
   "os",
+  "tls",
   "http",
   "https",
   "zlib",

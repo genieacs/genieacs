@@ -124,7 +124,7 @@ export async function httpConnectionRequest(
         opts = Object.assign(
           {
             headers: {
-              Authorization: auth.digest(
+              Authorization: auth.solveDigest(
                 username,
                 password,
                 options.path,

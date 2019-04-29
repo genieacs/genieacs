@@ -49,14 +49,17 @@ import {
 import { IncomingMessage, ServerResponse } from "http";
 import { Readable } from "stream";
 import { promisify } from "util";
+import { TLSSocket } from "tls";
 
 const gzipPromisified = promisify(zlib.gzip);
 const deflatePromisified = promisify(zlib.deflate);
 
+const REALM = "GenieACS";
 const MAX_CYCLES = 4;
 const MAX_CONCURRENT_REQUESTS = +config.get("MAX_CONCURRENT_REQUESTS");
 
 const currentSessions = new WeakMap<Socket, SessionContext>();
+const sessionsNonces = new WeakMap<Socket, string>();
 
 const stats = {
   concurrentRequests: 0,
@@ -65,7 +68,10 @@ const stats = {
   initiatedSessions: 0
 };
 
-async function authenticate(sessionContext: SessionContext): Promise<boolean> {
+async function authenticate(
+  sessionContext: SessionContext,
+  body: string | Buffer
+): Promise<boolean> {
   const authExpression: Expression = localCache.getConfigExpression(
     sessionContext.cacheSnapshot,
     "cwmp.auth"
@@ -78,6 +84,21 @@ async function authenticate(sessionContext: SessionContext): Promise<boolean> {
     authentication = auth.parseAuthorizationHeader(
       sessionContext.httpRequest.headers["authorization"]
     );
+  }
+
+  if (authentication && authentication.method === "Digest") {
+    const sessionNonce = sessionsNonces.get(
+      sessionContext.httpRequest.connection
+    );
+
+    if (
+      !sessionNonce ||
+      authentication.nonce !== sessionNonce ||
+      (authentication.qop && (!authentication.cnonce || !authentication.nc))
+    )
+      return false;
+
+    authentication["body"] = body;
   }
 
   const now = Date.now();
@@ -96,14 +117,33 @@ async function authenticate(sessionContext: SessionContext): Promise<boolean> {
           const { fault, value } = await extensions.run(e.slice(2));
           return fault ? null : value;
         } else if (e[1] === "AUTH") {
-          if (authentication && authentication["method"] === "Basic") {
-            return (
-              authentication["username"] === e[2] &&
-              authentication["password"] === e[3]
-            );
-          } else {
-            return false;
+          const username = e[2];
+          const password = e[3];
+          if (username != null && password != null && authentication) {
+            if (authentication["method"] === "Basic") {
+              return (
+                authentication["username"] === e[2] &&
+                authentication["password"] === e[3]
+              );
+            }
+
+            if (authentication["method"] === "Digest") {
+              const expected = auth.digest(
+                username,
+                REALM,
+                password,
+                authentication["nonce"],
+                "POST",
+                authentication["uri"],
+                authentication["qop"],
+                authentication["body"],
+                authentication["cnonce"],
+                authentication["nc"]
+              );
+              return expected === authentication["response"];
+            }
           }
+          return false;
         }
       }
       return e;
@@ -898,7 +938,7 @@ async function cacheDueTasksAndFaultsAndOperations(
   );
 }
 
-function reportBadState(sessionContext: SessionContext): void {
+async function reportBadState(sessionContext: SessionContext): Promise<void> {
   logger.accessError({
     message: "Bad session state",
     sessionContext: sessionContext
@@ -908,14 +948,45 @@ function reportBadState(sessionContext: SessionContext): void {
   sessionContext.httpResponse.end("Bad session state");
 }
 
+async function responseUnauthorized(
+  sessionContext: SessionContext
+): Promise<void> {
+  const authHeader = sessionContext.httpRequest.headers["authorization"];
+  const resHeaders = {};
+  if (authHeader) {
+    // Invalid credentials
+    logger.accessError({
+      message: "Authentication failure",
+      sessionContext: sessionContext
+    });
+
+    resHeaders["Connection"] = "close";
+  } else {
+    if (sessionContext.httpRequest.socket instanceof TLSSocket) {
+      resHeaders["WWW-Authenticate"] = `Basic realm="${REALM}"`;
+    } else {
+      const nonce = crypto.randomBytes(16).toString("hex");
+      sessionsNonces.set(sessionContext.httpRequest.connection, nonce);
+      let d = `Digest realm="${REALM}"`;
+      d += ',qop="auth,auth-int"';
+      d += `,nonce="${nonce}"`;
+
+      resHeaders["WWW-Authenticate"] = d;
+    }
+    currentSessions.set(sessionContext.httpRequest.connection, sessionContext);
+  }
+
+  sessionContext.httpResponse.writeHead(401, resHeaders);
+  sessionContext.httpResponse.end("Unauthorized");
+}
+
 async function processRequest(
   sessionContext: SessionContext,
   rpc: SoapMessage
 ): Promise<void> {
   if (rpc.cpeRequest) {
     if (rpc.cpeRequest.name === "Inform") {
-      if (sessionContext.state !== 0)
-        return void reportBadState(sessionContext);
+      if (sessionContext.state !== 0) return reportBadState(sessionContext);
 
       logger.accessInfo({
         sessionContext: sessionContext,
@@ -924,8 +995,7 @@ async function processRequest(
       });
       return inform(sessionContext, rpc);
     } else if (rpc.cpeRequest.name === "TransferComplete") {
-      if (sessionContext.state !== 1)
-        return void reportBadState(sessionContext);
+      if (sessionContext.state !== 1) return reportBadState(sessionContext);
 
       logger.accessInfo({
         sessionContext: sessionContext,
@@ -957,12 +1027,12 @@ async function processRequest(
       throw new Error("ACS method not supported");
     }
   } else if (rpc.cpeResponse) {
-    if (sessionContext.state !== 2) return void reportBadState(sessionContext);
+    if (sessionContext.state !== 2) return reportBadState(sessionContext);
 
     await session.rpcResponse(sessionContext, rpc.id, rpc.cpeResponse);
     return nextRpc(sessionContext);
   } else if (rpc.cpeFault) {
-    if (sessionContext.state !== 2) return void reportBadState(sessionContext);
+    if (sessionContext.state !== 2) return reportBadState(sessionContext);
 
     logger.accessWarn({
       sessionContext: sessionContext,
@@ -978,7 +1048,7 @@ async function processRequest(
     return nextRpc(sessionContext);
   } else {
     // CPE sent empty response
-    if (sessionContext.state !== 1) return void reportBadState(sessionContext);
+    if (sessionContext.state !== 1) return reportBadState(sessionContext);
 
     sessionContext.state = 2;
     const { faults, operations } = await session.timeoutOperations(
@@ -1121,13 +1191,15 @@ async function listenerAsync(
     return processRequest(sessionContext, rpc);
   }
 
+  const newConnection = !currentSessions.has(httpRequest.connection);
+
   const sessionContext = await getSession(httpRequest.connection, sessionId);
 
   if (sessionContext) {
     sessionContext.httpRequest = httpRequest;
     sessionContext.httpResponse = httpResponse;
     if (
-      sessionContext.sessionId !== sessionId ||
+      (newConnection && sessionContext.sessionId !== sessionId) ||
       sessionContext.lastActivity + sessionContext.timeout * 1000 < Date.now()
     ) {
       logger.accessError({
@@ -1171,20 +1243,14 @@ async function listenerAsync(
   }
 
   if (sessionContext) {
+    // Authenticate in case of new connection or unauthenticated session
     const authenticated =
-      sessionContext.state === 0 ? await authenticate(sessionContext) : true;
+      sessionContext.state === 0 || newConnection
+        ? await authenticate(sessionContext, body)
+        : true;
 
-    if (!authenticated) {
-      logger.accessError({
-        message: "Authentication failure",
-        sessionContext: sessionContext
-      });
+    if (!authenticated) return responseUnauthorized(sessionContext);
 
-      httpResponse.writeHead(401);
-      httpResponse.end("Unauthorized");
-      currentSessions.set(httpRequest.connection, sessionContext);
-      return;
-    }
     return parsedRpc(sessionContext, rpc, parseWarnings);
   }
 
@@ -1262,18 +1328,8 @@ async function listenerAsync(
     }
   }
 
-  const authenticated = await authenticate(_sessionContext);
-  if (!authenticated) {
-    logger.accessError({
-      message: "Authentication failure",
-      sessionContext: _sessionContext
-    });
-
-    httpResponse.writeHead(401);
-    httpResponse.end("Unauthorized");
-    currentSessions.set(httpRequest.connection, _sessionContext);
-    return;
-  }
+  const authenticated = await authenticate(_sessionContext, body);
+  if (!authenticated) return responseUnauthorized(_sessionContext);
 
   parsedRpc(_sessionContext, rpc, parseWarnings);
 }
