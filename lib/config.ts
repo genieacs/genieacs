@@ -84,6 +84,7 @@ const options = {
   XML_FORMAT: { type: "bool", default: false },
   XML_NO_DECL: { type: "bool", default: false },
   XML_NO_EMPTY: { type: "bool", default: false },
+  XML_LIBXMLJS: { type: "bool", default: false },
 
   // Should probably never be changed
   DEVICE_ONLINE_THRESHOLD: { type: "int", default: 4000 }

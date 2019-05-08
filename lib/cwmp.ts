@@ -24,7 +24,8 @@ import { Socket } from "net";
 import * as auth from "./auth";
 import * as config from "./config";
 import * as common from "./common";
-import * as soap from "./soap";
+import * as soapCustom from "./soap";
+import * as soapLibxmljs from "./soap-libxmljs";
 import * as session from "./session";
 import { evaluateAsync, evaluate, extractParams } from "./common/expression";
 import * as device from "./device";
@@ -50,7 +51,13 @@ import { IncomingMessage, ServerResponse } from "http";
 import { Readable } from "stream";
 import { promisify } from "util";
 import { TLSSocket } from "tls";
+import { dependencies as DEPENDENCIES } from "../package.json";
+import { parseXmlDeclaration } from "./xml-parser";
 
+const soap =
+  DEPENDENCIES["libxmljs"] && config.get("XML_LIBXMLJS")
+    ? soapLibxmljs
+    : soapCustom;
 const gzipPromisified = promisify(zlib.gzip);
 const deflatePromisified = promisify(zlib.deflate);
 
@@ -70,7 +77,7 @@ const stats = {
 
 async function authenticate(
   sessionContext: SessionContext,
-  body: string | Buffer
+  body: string
 ): Promise<boolean> {
   const authExpression: Expression = localCache.getConfigExpression(
     sessionContext.cacheSnapshot,
@@ -1220,11 +1227,26 @@ async function listenerAsync(
     return;
   }
 
+  let charset;
+  if (httpRequest.headers["content-type"]) {
+    const m = httpRequest.headers["content-type"].match(
+      /charset=['"]?([^'"\s]+)/i
+    );
+    if (m) charset = m[1].toLowerCase();
+  }
+
+  if (!charset) {
+    const e = parseXmlDeclaration(body).find(s => s.localName === "encoding");
+    charset = e ? e.value : "utf8";
+  }
+
+  const bodyStr = body.toString(charset);
+
   const parseWarnings = [];
   let rpc;
   try {
     rpc = soap.request(
-      body,
+      bodyStr,
       sessionContext ? sessionContext.cwmpVersion : null,
       parseWarnings
     );
@@ -1246,7 +1268,7 @@ async function listenerAsync(
     // Authenticate in case of new connection or unauthenticated session
     const authenticated =
       sessionContext.state === 0 || newConnection
-        ? await authenticate(sessionContext, body)
+        ? await authenticate(sessionContext, bodyStr)
         : true;
 
     if (!authenticated) return responseUnauthorized(sessionContext);
@@ -1328,7 +1350,7 @@ async function listenerAsync(
     }
   }
 
-  const authenticated = await authenticate(_sessionContext, body);
+  const authenticated = await authenticate(_sessionContext, bodyStr);
   if (!authenticated) return responseUnauthorized(_sessionContext);
 
   parsedRpc(_sessionContext, rpc, parseWarnings);

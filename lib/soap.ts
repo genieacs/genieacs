@@ -1,5 +1,5 @@
 /**
- * Copyright 2013-2018  Zaid Abdulla
+ * Copyright 2013-2019  Zaid Abdulla
  *
  * This file is part of GenieACS.
  *
@@ -17,8 +17,14 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { parseXml, Document, Element, ParserOptions } from "libxmljs";
-import * as config from "./config";
+import {
+  parseXml,
+  Element,
+  parseAttrs,
+  encodeEntities,
+  decodeEntities
+} from "./xml-parser";
+import memoize from "./common/memoize";
 import { version as VERSION } from "../package.json";
 import {
   CpeGetResponse,
@@ -73,34 +79,9 @@ const NAMESPACES = {
   }
 };
 
-const LIBXMLJS_PARSE_OPTIONS: ParserOptions = {
-  nocdata: true,
-  recover: !!config.get("XML_RECOVER"),
-  /* eslint-disable-next-line @typescript-eslint/camelcase */
-  ignore_enc: !!config.get("XML_IGNORE_ENC")
-};
-
-interface WriterOptions {
-  declaration?: boolean;
-  format?: boolean;
-  selfCloseEmpty?: boolean;
-  whitespace?: boolean;
-  type?: "XML" | "HTML" | "XHTML";
-}
-
-declare module "libxmljs" {
-  interface Document {
-    toString(formatting: boolean | WriterOptions): string;
-  }
-}
-
-const LIBXMLJS_SAVE_OPTIONS: WriterOptions = {
-  format: !!config.get("XML_FORMAT"),
-  declaration: !config.get("XML_NO_DECL"),
-  selfCloseEmpty: !config.get("XML_NO_EMPTY")
-};
-
 let warnings;
+
+const memoizedParseAttrs = memoize(parseAttrs);
 
 function parseBool(v): boolean {
   v = "" + v;
@@ -110,37 +91,29 @@ function parseBool(v): boolean {
   else return null;
 }
 
-function event(xml): string[] {
-  return xml
-    .childNodes()
-    .filter(n => n.name() === "EventStruct")
-    .map(c =>
-      c
-        .childNodes()
-        .find(n => n.name() === "EventCode")
-        .text()
-        .trim()
-    );
+function event(xml: Element): string[] {
+  return xml.children
+    .filter(n => n.localName === "EventStruct")
+    .map(c => c.children.find(n => n.localName === "EventCode").text.trim());
 }
 
-function parameterInfoList(xml): [string, boolean][] {
-  return xml
-    .childNodes()
-    .filter(e => e.name() === "ParameterInfoStruct")
-    .map(e => {
-      let param, value;
-      for (const c of e.childNodes()) {
-        switch (c.name()) {
+function parameterInfoList(xml: Element): [string, boolean][] {
+  return xml.children
+    .filter(e => e.localName === "ParameterInfoStruct")
+    .map<[string, boolean]>(e => {
+      let param: string, value: string;
+      for (const c of e.children) {
+        switch (c.localName) {
           case "Name":
-            param = c.text();
+            param = c.text;
             break;
           case "Writable":
-            value = c.text();
+            value = c.text;
             break;
         }
       }
 
-      let parsed = parseBool(value);
+      let parsed: boolean = parseBool(value);
 
       if (parsed === null) {
         warnings.push({
@@ -154,18 +127,23 @@ function parameterInfoList(xml): [string, boolean][] {
     });
 }
 
+const getValueType = memoize(str =>
+  parseAttrs(str)
+    .find(s => s.localName === "type")
+    .value.trim()
+);
+
 function parameterValueList(
-  xml
+  xml: Element
 ): [string, string | number | boolean, string][] {
-  return xml
-    .childNodes()
-    .filter(e => e.name() === "ParameterValueStruct")
-    .map(e => {
-      let valueElement, param;
-      for (const c of e.childNodes()) {
-        switch (c.name()) {
+  return xml.children
+    .filter(e => e.localName === "ParameterValueStruct")
+    .map<[string, string | number | boolean, string]>(e => {
+      let valueElement: Element, param: string;
+      for (const c of e.children) {
+        switch (c.localName) {
           case "Name":
-            param = c.text();
+            param = c.text;
             break;
           case "Value":
             valueElement = c;
@@ -173,9 +151,10 @@ function parameterValueList(
         }
       }
 
-      const valueType = valueElement.attr("type").value();
-      const value = valueElement.text();
-      let parsed = value;
+      const valueType = getValueType(valueElement.attrs);
+
+      const value = decodeEntities(valueElement.text);
+      let parsed: string | number | boolean = value;
       if (valueType === "xsd:boolean") {
         parsed = parseBool(value);
         if (parsed === null) {
@@ -209,51 +188,40 @@ function parameterValueList(
     });
 }
 
-function GetParameterNames(xml, methodRequest): void {
-  const el = xml.node("cwmp:GetParameterNames");
-  el.node("ParameterPath").text(methodRequest.parameterPath);
-  el.node("NextLevel").text(+methodRequest.nextLevel);
+function GetParameterNames(methodRequest): string {
+  return `<cwmp:GetParameterNames><ParameterPath>${
+    methodRequest.parameterPath
+  }</ParameterPath><NextLevel>${+methodRequest.nextLevel}</NextLevel></cwmp:GetParameterNames>`;
 }
 
 function GetParameterNamesResponse(xml): CpeGetResponse {
   return {
     name: "GetParameterNamesResponse",
     parameterList: parameterInfoList(
-      xml.childNodes().find(n => n.name() === "ParameterList")
+      xml.children.find(n => n.localName === "ParameterList")
     )
   };
 }
 
-function GetParameterValues(xml, methodRequest): void {
-  const el = xml.node("cwmp:GetParameterValues").node("ParameterNames");
-  el.attr({
-    "soap-enc:arrayType": `xsd:string[${methodRequest.parameterNames.length}]`
-  });
-
-  for (const p of methodRequest.parameterNames) el.node("string").text(p);
+function GetParameterValues(methodRequest): string {
+  return `<cwmp:GetParameterValues><ParameterNames soap-enc:arrayType="xsd:string[${
+    methodRequest.parameterNames.length
+  }]">${methodRequest.parameterNames
+    .map(p => `<string>${p}</string>`)
+    .join("")}</ParameterNames></cwmp:GetParameterValues>`;
 }
 
-function GetParameterValuesResponse(xml): CpeGetResponse {
+function GetParameterValuesResponse(xml: Element): CpeGetResponse {
   return {
     name: "GetParameterValuesResponse",
     parameterList: parameterValueList(
-      xml.childNodes().find(n => n.name() === "ParameterList")
+      xml.children.find(n => n.localName === "ParameterList")
     )
   };
 }
 
-function SetParameterValues(xml, methodRequest): void {
-  const el = xml.node("cwmp:SetParameterValues");
-  const paramList = el.node("ParameterList");
-  paramList.attr({
-    "soap-enc:arrayType": `cwmp:ParameterValueStruct[${
-      methodRequest.parameterList.length
-    }]`
-  });
-
-  for (const p of methodRequest.parameterList) {
-    const pvs = paramList.node("ParameterValueStruct");
-    pvs.node("Name").text(p[0]);
+function SetParameterValues(methodRequest): string {
+  const params = methodRequest.parameterList.map(p => {
     let val = p[1];
     if (p[2] === "xsd:dateTime" && typeof val === "number") {
       val = new Date(val).toISOString();
@@ -262,43 +230,42 @@ function SetParameterValues(xml, methodRequest): void {
     }
     if (p[2] === "xsd:boolean" && typeof val === "boolean")
       if (methodRequest.BOOLEAN_LITERAL === false) val = +val;
+    `<ParameterValueStruct><Name>${p[0]}</Name><Value xsi:type="${
+      p[2]
+    }">${encodeEntities("" + val)}</Value></ParameterValueStruct>`;
+  });
 
-    pvs
-      .node("Value")
-      .attr({ "xsi:type": p[2] })
-      .text(val);
-  }
-
-  el.node("ParameterKey").text(methodRequest.parameterKey || "");
+  return `<cwmp:SetParameterValues><ParameterList soap-enc:arrayType="cwmp:ParameterValueStruct[${
+    methodRequest.parameterList.length
+  }]">${params.join(
+    ""
+  )}</ParameterList><ParameterKey>${methodRequest.parameterKey ||
+    ""}</ParameterKey></cwmp:SetParameterValues>`;
 }
 
-function SetParameterValuesResponse(xml): CpeSetResponse {
+function SetParameterValuesResponse(xml: Element): CpeSetResponse {
   return {
     name: "SetParameterValuesResponse",
-    status: parseInt(
-      xml
-        .childNodes()
-        .find(n => n.name() === "Status")
-        .text()
-    )
+    status: parseInt(xml.children.find(n => n.localName === "Status").text)
   };
 }
 
-function AddObject(xml, methodRequest): void {
-  const el = xml.node("cwmp:AddObject");
-  el.node("ObjectName").text(methodRequest.objectName);
-  el.node("ParameterKey").text(methodRequest.parameterKey || "");
+function AddObject(methodRequest): string {
+  return `<cwmp:AddObject><ObjectName>${
+    methodRequest.objectName
+  }</ObjectName><ParameterKey>${methodRequest.parameterKey ||
+    ""}</ParameterKey></cwmp:AddObject>`;
 }
 
-function AddObjectResponse(xml): CpeSetResponse {
+function AddObjectResponse(xml: Element): CpeSetResponse {
   let instanceNumber, status;
-  for (const c of xml.childNodes()) {
-    switch (c.name()) {
+  for (const c of xml.children) {
+    switch (c.localName) {
       case "InstanceNumber":
-        instanceNumber = parseInt(c.text());
+        instanceNumber = parseInt(c.text);
         break;
       case "Status":
-        status = parseInt(c.text());
+        status = parseInt(c.text);
         break;
     }
   }
@@ -310,27 +277,23 @@ function AddObjectResponse(xml): CpeSetResponse {
   };
 }
 
-function DeleteObject(xml, methodRequest): void {
-  const el = xml.node("cwmp:DeleteObject");
-  el.node("ObjectName").text(methodRequest.objectName);
-  el.node("ParameterKey").text(methodRequest.parameterKey || "");
+function DeleteObject(methodRequest): string {
+  return `<cwmp:DeleteObject><ObjectName>${
+    methodRequest.objectName
+  }</ObjectName><ParameterKey>${methodRequest.parameterKey ||
+    ""}</ParameterKey></cwmp:DeleteObject>`;
 }
 
-function DeleteObjectResponse(xml): CpeSetResponse {
+function DeleteObjectResponse(xml: Element): CpeSetResponse {
   return {
     name: "DeleteObjectResponse",
-    status: parseInt(
-      xml
-        .childNodes()
-        .find(n => n.name() === "Status")
-        .text()
-    )
+    status: parseInt(xml.children.find(n => n.localName === "Status").text)
   };
 }
 
-function Reboot(xml, methodRequest): void {
-  const el = xml.node("cwmp:Reboot");
-  el.node("CommandKey").text(methodRequest.commandKey || "");
+function Reboot(methodRequest): string {
+  return `<cwmp:Reboot><CommandKey>${methodRequest.commandKey ||
+    ""}</CommandKey></cwmp:Reboot>`;
 }
 
 function RebootResponse(): CpeSetResponse {
@@ -339,8 +302,8 @@ function RebootResponse(): CpeSetResponse {
   };
 }
 
-function FactoryReset(xml): void {
-  xml.node("cwmp:FactoryReset");
+function FactoryReset(): string {
+  return "<cwmp:FactoryReset></cwmp:FactoryReset>";
 }
 
 function FactoryResetResponse(): CpeSetResponse {
@@ -349,32 +312,37 @@ function FactoryResetResponse(): CpeSetResponse {
   };
 }
 
-function Download(xml, methodRequest): void {
-  const el = xml.node("cwmp:Download");
-  el.node("CommandKey").text(methodRequest.commandKey || "");
-  el.node("FileType").text(methodRequest.fileType);
-  el.node("URL").text(methodRequest.url);
-  el.node("Username").text(methodRequest.username || "");
-  el.node("Password").text(methodRequest.password || "");
-  el.node("FileSize").text(methodRequest.fileSize || "0");
-  el.node("TargetFileName").text(methodRequest.targetFileName || "");
-  el.node("DelaySeconds").text(methodRequest.delaySeconds || "0");
-  el.node("SuccessURL").text(methodRequest.successUrl || "");
-  el.node("FailureURL").text(methodRequest.failureUrl || "");
+function Download(methodRequest): string {
+  return `<cwmp:Download><CommandKey>${methodRequest.commandKey ||
+    ""}</CommandKey><FileType>${methodRequest.fileType}</FileType><URL>${
+    methodRequest.url
+  }</URL><Username>${encodeEntities(
+    methodRequest.username || ""
+  )}</Username><Password>${encodeEntities(
+    methodRequest.password || ""
+  )}</Password><FileSize>${methodRequest.fileSize ||
+    "0"}</FileSize><TargetFileName>${encodeEntities(
+    methodRequest.targetFileName || ""
+  )}</TargetFileName><DelaySeconds>${methodRequest.delaySeconds ||
+    "0"}</DelaySeconds><SuccessURL>${encodeEntities(
+    methodRequest.successUrl || ""
+  )}</SuccessURL><FailureURL>${encodeEntities(
+    methodRequest.failureUrl || ""
+  )}</FailureURL></cwmp:Download>`;
 }
 
-function DownloadResponse(xml): CpeSetResponse {
+function DownloadResponse(xml: Element): CpeSetResponse {
   let status, startTime, completeTime;
-  for (const c of xml.childNodes()) {
-    switch (c.name()) {
+  for (const c of xml.children) {
+    switch (c.localName) {
       case "Status":
-        status = parseInt(c.text());
+        status = parseInt(c.text);
         break;
       case "StartTime":
-        startTime = Date.parse(c.text());
+        startTime = Date.parse(c.text);
         break;
       case "CompleteTime":
-        completeTime = Date.parse(c.text());
+        completeTime = Date.parse(c.text);
         break;
     }
   }
@@ -387,7 +355,7 @@ function DownloadResponse(xml): CpeSetResponse {
   };
 }
 
-function Inform(xml): InformRequest {
+function Inform(xml: Element): InformRequest {
   let retryCount, evnt, parameterList;
   const deviceId = {
     Manufacturer: null,
@@ -396,22 +364,22 @@ function Inform(xml): InformRequest {
     SerialNumber: null
   };
 
-  for (const c of xml.childNodes()) {
-    switch (c.name()) {
+  for (const c of xml.children) {
+    switch (c.localName) {
       case "ParameterList":
         parameterList = parameterValueList(c);
         break;
       case "DeviceId":
-        for (const cc of c.childNodes()) {
-          const n = cc.name();
-          if (n in deviceId) deviceId[n] = cc.text();
+        for (const cc of c.children) {
+          const n = cc.localName;
+          if (n in deviceId) deviceId[n] = decodeEntities(cc.text);
         }
         break;
       case "Event":
         evnt = event(c);
         break;
       case "RetryCount":
-        retryCount = parseInt(c.text());
+        retryCount = parseInt(c.text);
         break;
     }
   }
@@ -425,41 +393,37 @@ function Inform(xml): InformRequest {
   };
 }
 
-function InformResponse(xml): void {
-  xml
-    .node("cwmp:InformResponse")
-    .node("MaxEnvelopes")
-    .text(1);
+function InformResponse(): string {
+  return "<cwmp:InformResponse><MaxEnvelopes>1</MaxEnvelopes></cwmp:InformResponse>";
 }
 
 function GetRPCMethods(): AcsResponse {
   return { name: "GetRPCMethods" };
 }
 
-function GetRPCMethodsResponse(xml, methodResponse): void {
-  const el = xml.node("cwmp:GetRPCMethodsResponse").node("MethodList");
-  el.attr({
-    "soap-enc:arrayType": `xsd:string[${methodResponse.methodList.length}]`
-  });
-
-  for (const m of methodResponse.methodList) el.node("string").text(m);
+function GetRPCMethodsResponse(methodResponse): string {
+  return `<cwmp:GetRPCMethodsResponse><MethodList soap-enc:arrayType="xsd:string[${
+    methodResponse.methodList.length
+  }]">${methodResponse.methodList
+    .map(m => `<string>${m}</string>`)
+    .join("")}</MethodList></cwmp:GetRPCMethodsResponse>`;
 }
 
-function TransferComplete(xml): TransferCompleteRequest {
+function TransferComplete(xml: Element): TransferCompleteRequest {
   let commandKey, _faultStruct, startTime, completeTime;
-  for (const c of xml.childNodes()) {
-    switch (c.name()) {
+  for (const c of xml.children) {
+    switch (c.localName) {
       case "CommandKey":
-        commandKey = c.text();
+        commandKey = c.text;
         break;
       case "FaultStruct":
         _faultStruct = faultStruct(c);
         break;
       case "StartTime":
-        startTime = Date.parse(c.text());
+        startTime = Date.parse(c.text);
         break;
       case "CompleteTime":
-        completeTime = Date.parse(c.text());
+        completeTime = Date.parse(c.text);
         break;
     }
   }
@@ -473,46 +437,43 @@ function TransferComplete(xml): TransferCompleteRequest {
   };
 }
 
-function TransferCompleteResponse(xml): void {
-  xml.node("cwmp:TransferCompleteResponse").text("");
+function TransferCompleteResponse(): string {
+  return "<cwmp:TransferCompleteResponse></cwmp:TransferCompleteResponse>";
 }
 
-function RequestDownload(xml): CpeRequest {
+function RequestDownload(xml: Element): CpeRequest {
   return {
     name: "RequestDownload",
-    fileType: xml
-      .childNodes()
-      .find(n => n.name() === "FileType")
-      .text()
+    fileType: xml.children.find(n => n.localName === "FileType").text
   };
 }
 
-function RequestDownloadResponse(xml): void {
-  xml.node("cwmp:RequestDownloadResponse").text("");
+function RequestDownloadResponse(): string {
+  return "<cwmp:RequestDownloadResponse></cwmp:RequestDownloadResponse>";
 }
 
-function faultStruct(xml): FaultStruct {
+function faultStruct(xml: Element): FaultStruct {
   let faultCode, faultString, setParameterValuesFault: SpvFault[], pn, fc, fs;
-  for (const c of xml.childNodes()) {
-    switch (c.name()) {
+  for (const c of xml.children) {
+    switch (c.localName) {
       case "FaultCode":
-        faultCode = c.text();
+        faultCode = c.text;
         break;
       case "FaultString":
-        faultString = c.text();
+        faultString = decodeEntities(c.text);
         break;
       case "SetParameterValuesFault":
         setParameterValuesFault = setParameterValuesFault || [];
-        for (const cc of c.childNodes()) {
-          switch (cc.name()) {
+        for (const cc of c.children) {
+          switch (cc.localName) {
             case "ParameterName":
-              pn = cc.text();
+              pn = cc.text;
               break;
             case "FaultCode":
-              fc = cc.text();
+              fc = cc.text;
               break;
             case "FaultString":
-              fs = cc.text();
+              fs = decodeEntities(cc.text);
               break;
           }
         }
@@ -527,18 +488,18 @@ function faultStruct(xml): FaultStruct {
   return { faultCode, faultString, setParameterValuesFault };
 }
 
-function fault(xml): CpeFault {
+function fault(xml: Element): CpeFault {
   let faultCode, faultString, detail;
-  for (const c of xml.childNodes()) {
-    switch (c.name()) {
+  for (const c of xml.children) {
+    switch (c.localName) {
       case "faultcode":
-        faultCode = c.text();
+        faultCode = c.text;
         break;
       case "faultstring":
-        faultString = c.text();
+        faultString = decodeEntities(c.text);
         break;
       case "detail":
-        detail = faultStruct(c.childNodes().find(n => n.name() === "Fault"));
+        detail = faultStruct(c.children.find(n => n.localName === "Fault"));
         break;
     }
   }
@@ -546,7 +507,7 @@ function fault(xml): CpeFault {
   return { faultCode, faultString, detail };
 }
 
-export function request(data, cwmpVersion, warn): SoapMessage {
+export function request(body: string, cwmpVersion, warn): SoapMessage {
   warnings = warn;
 
   const rpc = {
@@ -558,14 +519,18 @@ export function request(data, cwmpVersion, warn): SoapMessage {
     cpeResponse: null
   };
 
-  if (!data.length) return rpc;
+  if (!body.length) return rpc;
 
-  const xml = parseXml(data, LIBXMLJS_PARSE_OPTIONS);
+  const xml = parseXml(body);
 
-  let headerElement, bodyElement;
+  if (!xml.children.length) return rpc;
 
-  for (const c of xml.childNodes()) {
-    switch (c.name()) {
+  const envelope = xml.children[0];
+
+  let headerElement: Element, bodyElement: Element;
+
+  for (const c of envelope.children) {
+    switch (c.localName) {
       case "Header":
         headerElement = c;
         break;
@@ -576,100 +541,120 @@ export function request(data, cwmpVersion, warn): SoapMessage {
   }
 
   if (headerElement) {
-    for (const c of headerElement.childNodes()) {
-      switch (c.name()) {
+    for (const c of headerElement.children) {
+      switch (c.localName) {
         case "ID":
-          rpc.id = c.text();
+          rpc.id = decodeEntities(c.text);
           break;
         case "sessionTimeout":
-          rpc.sessionTimeout = parseInt(c.text());
+          rpc.sessionTimeout = parseInt(c.text);
           break;
       }
     }
   }
 
-  for (const methodElement of bodyElement.childNodes()) {
-    const methodName = methodElement.name();
-    if (methodName === "text") continue;
+  const methodElement = bodyElement.children[0];
 
-    if (!rpc.cwmpVersion && methodName !== "Fault") {
-      switch (methodElement.namespace().href()) {
-        case "urn:dslforum-org:cwmp-1-0":
-          rpc.cwmpVersion = "1.0";
-          break;
-        case "urn:dslforum-org:cwmp-1-1":
-          rpc.cwmpVersion = "1.1";
-          break;
-        case "urn:dslforum-org:cwmp-1-2":
-          if (rpc.sessionTimeout) rpc.cwmpVersion = "1.3";
-          else rpc.cwmpVersion = "1.2";
+  if (!rpc.cwmpVersion && methodElement.localName !== "Fault") {
+    let namespace, namespaceHref;
+    for (const e of [methodElement, bodyElement, envelope]) {
+      namespace = namespace || e.namespace;
+      if (e.attrs) {
+        const attrs = memoizedParseAttrs(e.attrs);
+        const attr = namespace
+          ? attrs.find(
+              s => s.namespace === "xmlns" && s.localName === namespace
+            )
+          : attrs.find(s => s.name === "xmlns");
 
-          break;
-        case "urn:dslforum-org:cwmp-1-3":
-          rpc.cwmpVersion = "1.4";
-          break;
-        default:
-          throw new Error("Unrecognized CWMP version");
+        if (attr) namespaceHref = attr.value;
       }
     }
 
-    switch (methodName) {
-      case "Inform":
-        rpc.cpeRequest = Inform(methodElement);
+    switch (namespaceHref) {
+      case "urn:dslforum-org:cwmp-1-0":
+        rpc.cwmpVersion = "1.0";
         break;
-      case "GetRPCMethods":
-        rpc.cpeRequest = GetRPCMethods();
+      case "urn:dslforum-org:cwmp-1-1":
+        rpc.cwmpVersion = "1.1";
         break;
-      case "TransferComplete":
-        rpc.cpeRequest = TransferComplete(methodElement);
+      case "urn:dslforum-org:cwmp-1-2":
+        if (rpc.sessionTimeout) rpc.cwmpVersion = "1.3";
+        else rpc.cwmpVersion = "1.2";
+
         break;
-      case "RequestDownload":
-        rpc.cpeRequest = RequestDownload(methodElement);
-        break;
-      case "GetParameterNamesResponse":
-        rpc.cpeResponse = GetParameterNamesResponse(methodElement);
-        break;
-      case "GetParameterValuesResponse":
-        rpc.cpeResponse = GetParameterValuesResponse(methodElement);
-        break;
-      case "SetParameterValuesResponse":
-        rpc.cpeResponse = SetParameterValuesResponse(methodElement);
-        break;
-      case "AddObjectResponse":
-        rpc.cpeResponse = AddObjectResponse(methodElement);
-        break;
-      case "DeleteObjectResponse":
-        rpc.cpeResponse = DeleteObjectResponse(methodElement);
-        break;
-      case "RebootResponse":
-        rpc.cpeResponse = RebootResponse();
-        break;
-      case "FactoryResetResponse":
-        rpc.cpeResponse = FactoryResetResponse();
-        break;
-      case "DownloadResponse":
-        rpc.cpeResponse = DownloadResponse(methodElement);
-        break;
-      case "Fault":
-        rpc.cpeFault = fault(methodElement);
+      case "urn:dslforum-org:cwmp-1-3":
+        rpc.cwmpVersion = "1.4";
         break;
       default:
-        throw new Error(`8000 Method not supported ${methodName}`);
+        throw new Error("Unrecognized CWMP version");
     }
+  }
+
+  switch (methodElement.localName) {
+    case "Inform":
+      rpc.cpeRequest = Inform(methodElement);
+      break;
+    case "GetRPCMethods":
+      rpc.cpeRequest = GetRPCMethods();
+      break;
+    case "TransferComplete":
+      rpc.cpeRequest = TransferComplete(methodElement);
+      break;
+    case "RequestDownload":
+      rpc.cpeRequest = RequestDownload(methodElement);
+      break;
+    case "GetParameterNamesResponse":
+      rpc.cpeResponse = GetParameterNamesResponse(methodElement);
+      break;
+    case "GetParameterValuesResponse":
+      rpc.cpeResponse = GetParameterValuesResponse(methodElement);
+      break;
+    case "SetParameterValuesResponse":
+      rpc.cpeResponse = SetParameterValuesResponse(methodElement);
+      break;
+    case "AddObjectResponse":
+      rpc.cpeResponse = AddObjectResponse(methodElement);
+      break;
+    case "DeleteObjectResponse":
+      rpc.cpeResponse = DeleteObjectResponse(methodElement);
+      break;
+    case "RebootResponse":
+      rpc.cpeResponse = RebootResponse();
+      break;
+    case "FactoryResetResponse":
+      rpc.cpeResponse = FactoryResetResponse();
+      break;
+    case "DownloadResponse":
+      rpc.cpeResponse = DownloadResponse(methodElement);
+      break;
+    case "Fault":
+      rpc.cpeFault = fault(methodElement);
+      break;
+    default:
+      throw new Error(`8000 Method not supported ${methodElement.localName}`);
   }
 
   return rpc;
 }
 
-function createSoapEnv(cwmpVersion: string): Element {
-  const xml = new Document();
-  const env = xml.node("soap-env:Envelope");
-
-  for (const prefix of Object.keys(NAMESPACES[cwmpVersion]))
-    env.defineNamespace(prefix, NAMESPACES[cwmpVersion][prefix]);
-
-  return env;
-}
+const namespacesAttrs = {
+  "1.0": Object.entries(NAMESPACES["1.0"])
+    .map(([k, v]) => `xmlns:${k}="${v}"`)
+    .join(" "),
+  "1.1": Object.entries(NAMESPACES["1.1"])
+    .map(([k, v]) => `xmlns:${k}="${v}"`)
+    .join(" "),
+  "1.2": Object.entries(NAMESPACES["1.2"])
+    .map(([k, v]) => `xmlns:${k}="${v}"`)
+    .join(" "),
+  "1.3": Object.entries(NAMESPACES["1.3"])
+    .map(([k, v]) => `xmlns:${k}="${v}"`)
+    .join(" "),
+  "1.4": Object.entries(NAMESPACES["1.4"])
+    .map(([k, v]) => `xmlns:${k}="${v}"`)
+    .join(" ")
+};
 
 export function response(rpc): { code: number; headers: {}; data: string } {
   const headers = {
@@ -679,30 +664,20 @@ export function response(rpc): { code: number; headers: {}; data: string } {
 
   if (!rpc) return { code: 204, headers: headers, data: "" };
 
-  const env = createSoapEnv(rpc.cwmpVersion);
-  const header = env.node("soap-env:Header");
-  header
-    .node("cwmp:ID")
-    .attr({
-      "soap-env:mustUnderstand": "1"
-    })
-    .text(rpc.id);
-
-  const body = env.node("soap-env:Body");
-
+  let body;
   if (rpc.acsResponse) {
     switch (rpc.acsResponse.name) {
       case "InformResponse":
-        InformResponse(body);
+        body = InformResponse();
         break;
       case "GetRPCMethodsResponse":
-        GetRPCMethodsResponse(body, rpc.acsResponse);
+        body = GetRPCMethodsResponse(rpc.acsResponse);
         break;
       case "TransferCompleteResponse":
-        TransferCompleteResponse(body);
+        body = TransferCompleteResponse();
         break;
       case "RequestDownloadResponse":
-        RequestDownloadResponse(body);
+        body = RequestDownloadResponse();
         break;
       default:
         throw new Error(`Unknown method response type ${rpc.acsResponse.name}`);
@@ -710,28 +685,28 @@ export function response(rpc): { code: number; headers: {}; data: string } {
   } else if (rpc.acsRequest) {
     switch (rpc.acsRequest.name) {
       case "GetParameterNames":
-        GetParameterNames(body, rpc.acsRequest);
+        body = GetParameterNames(rpc.acsRequest);
         break;
       case "GetParameterValues":
-        GetParameterValues(body, rpc.acsRequest);
+        body = GetParameterValues(rpc.acsRequest);
         break;
       case "SetParameterValues":
-        SetParameterValues(body, rpc.acsRequest);
+        body = SetParameterValues(rpc.acsRequest);
         break;
       case "AddObject":
-        AddObject(body, rpc.acsRequest);
+        body = AddObject(rpc.acsRequest);
         break;
       case "DeleteObject":
-        DeleteObject(body, rpc.acsRequest);
+        body = DeleteObject(rpc.acsRequest);
         break;
       case "Reboot":
-        Reboot(body, rpc.acsRequest);
+        body = Reboot(rpc.acsRequest);
         break;
       case "FactoryReset":
-        FactoryReset(body);
+        body = FactoryReset();
         break;
       case "Download":
-        Download(body, rpc.acsRequest);
+        body = Download(rpc.acsRequest);
         break;
       default:
         throw new Error(`Unknown method request ${rpc.acsRequest.name}`);
@@ -742,6 +717,10 @@ export function response(rpc): { code: number; headers: {}; data: string } {
   return {
     code: 200,
     headers: headers,
-    data: env.doc().toString(LIBXMLJS_SAVE_OPTIONS)
+    data: `<?xml version="1.0" encoding="UTF-8"?>\n<soap-env:Envelope ${
+      namespacesAttrs[rpc.cwmpVersion]
+    }><soap-env:Header><cwmp:ID soap-env:mustUnderstand="1">${
+      rpc.id
+    }</cwmp:ID></soap-env:Header><soap-env:Body>${body}</soap-env:Body></soap-env:Envelope>`
   };
 }
