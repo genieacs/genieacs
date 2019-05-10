@@ -17,7 +17,7 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MongoClient, ObjectID, Collection, FindOneOptions } from "mongodb";
+import { MongoClient, ObjectID, Collection } from "mongodb";
 import { get } from "./config";
 import { escapeRegExp } from "./common";
 import { parse } from "./common/expression-parser";
@@ -96,280 +96,54 @@ function optimizeProjection(obj: {}): {} {
 
 export async function fetchDevice(
   id: string,
-  timestamp: number,
-  patterns: [Path, number][]
-): Promise<[[Path, number, Attributes?][], [Path, number][]]> {
-  const MAX_DEPTH = +get("MAX_DEPTH", id);
+  timestamp: number
+): Promise<[Path, number, Attributes?][]> {
+  const res: [Path, number, Attributes?][] = [
+    [
+      Path.parse("Events"),
+      timestamp,
+      { object: [timestamp, 1], writable: [timestamp, 0] }
+    ],
+    [
+      Path.parse("DeviceID"),
+      timestamp,
+      { object: [timestamp, 1], writable: [timestamp, 0] }
+    ]
+  ];
 
-  if (!patterns || !patterns.length)
-    patterns = [[Path.parse(""), (1 << MAX_DEPTH) - 1]];
+  const device = await devicesCollection.findOne({ _id: id });
+  if (!device) return null;
 
-  let projection = {};
-  const projectionTree = {};
-  function func(
-    path: string,
-    pathLength: number,
-    pats: [Path, number][],
-    projTree
-  ): void {
-    const children: { [fragment: string]: [Path, number][] } = {};
-    for (const pat of pats) {
-      const fragment = (pat[0].segments[pathLength] as string) || "*";
-      if (fragment === "*") {
-        if (pat[1] << pathLength) projection[path.slice(0, -1)] = 1;
-        return;
-      }
-
-      if (!projTree[fragment]) projTree[fragment] = {};
-
-      if (pat[1] & (1 << pathLength)) {
-        projection[path + "_timestamp"] = 1;
-        projection[path + "_object"] = 1;
-        projection[path + "_instance"] = 1;
-        projection[path + fragment + "._timestamp"] = 1;
-        projection[path + fragment + "._value"] = 1;
-        projection[path + fragment + "._type"] = 1;
-        projection[path + fragment + "._object"] = 1;
-        projection[path + fragment + "._instance"] = 1;
-        projection[path + fragment + "._writable"] = 1;
-        projection[path + fragment + "._orig"] = 1;
-      }
-
-      if (pat[1] >> (pathLength + 1)) {
-        if (!children[fragment]) children[fragment] = [];
-        children[fragment].push(pat);
-      }
-    }
-
-    for (const [k, v] of Object.entries(children))
-      func(path + k + ".", pathLength + 1, v, projTree[k]);
-  }
-
-  func("", 0, patterns, projectionTree);
-
-  delete projectionTree["DeviceID"];
-  delete projectionTree["Events"];
-  delete projectionTree["Tags"];
-
-  const res: [Path, number, Attributes?][] = [];
-  const loaded: [Path, number][] = [];
-
-  projection = optimizeProjection(projection);
-
-  for (const k of Object.keys(projection)) {
-    if (k === "" || k === "Events" || k.startsWith("Events.")) {
-      if (k === "" || k === "Events" || k === "Events._writable") {
-        res.push([
-          Path.parse("Events"),
-          timestamp,
-          { object: [timestamp, 1], writable: [timestamp, 0] }
-        ]);
-        if (k === "Events._writable") loaded.push([Path.parse("Events"), 1]);
-      }
-      if (k === "Events") {
-        projection["_lastInform"] = 1;
-        projection["_lastBoot"] = 1;
-        projection["_lastBootstrap"] = 1;
-        projection["_registered"] = 1;
-        loaded.push([Path.parse("Events"), (1 << MAX_DEPTH) - 1]);
-      } else if (k === "Events.Inform._writable" || k === "Events.Inform") {
-        projection["_lastInform"] = 1;
-        loaded.push([Path.parse("Events.Inform"), 1 ^ ((1 << MAX_DEPTH) - 1)]);
-      } else if (k === "Events.1_BOOT._writable" || k === "Events.1_BOOT") {
-        projection["_lastBoot"] = 1;
-        loaded.push([Path.parse("Events.1_BOOT"), 1 ^ ((1 << MAX_DEPTH) - 1)]);
-      } else if (
-        k === "Events.0_BOOTSTRAP._writable" ||
-        k === "Events.0_BOOTSTRAP"
-      ) {
-        projection["_lastBootstrap"] = 1;
-        loaded.push([
-          Path.parse("Events.0_BOOTSTRAP"),
-          1 ^ ((1 << MAX_DEPTH) - 1)
-        ]);
-      } else if (
-        k === "Events.Registered._writable" ||
-        k === "Events.Registered"
-      ) {
-        projection["_registered"] = 1;
-        loaded.push([
-          Path.parse("Events.Registered"),
-          1 ^ ((1 << MAX_DEPTH) - 1)
-        ]);
-      } else if (k.endsWith("._writable") && k !== "Events._writable") {
-        loaded.push([
-          Path.parse(k.split(".", 2).join(".")),
-          1 ^ ((1 << MAX_DEPTH) - 1)
-        ]);
-      }
-      if (k !== "") delete projection[k];
-    }
-
-    if (k === "" || k === "DeviceID" || k.startsWith("DeviceID.")) {
-      if (k === "" || k === "DeviceID" || k === "DeviceID._writable") {
-        res.push([
-          Path.parse("DeviceID"),
-          timestamp,
-          { object: [timestamp, 1], writable: [timestamp, 0] }
-        ]);
-        if (k === "DeviceID._writable")
-          loaded.push([Path.parse("DeviceID"), 1]);
-      }
-      if (k === "DeviceID") {
-        projection["_id"] = 1;
-        projection["_deviceId"] = 1;
-        loaded.push([Path.parse("DeviceID"), (1 << MAX_DEPTH) - 1]);
-      } else if (k === "DeviceID.ID._writable" || k === "DeviceID.ID") {
-        projection["_id"] = 1;
-        loaded.push([Path.parse("DeviceID.ID"), 1 ^ ((1 << MAX_DEPTH) - 1)]);
-      } else if (
-        k === "DeviceID.Manufacturer._writable" ||
-        k === "DeviceID.DeManufacturer"
-      ) {
-        projection["_deviceId._Manufacturer"] = 1;
-        loaded.push([
-          Path.parse("DeviceID.Manufacturer"),
-          1 ^ ((1 << MAX_DEPTH) - 1)
-        ]);
-      } else if (
-        k === "DeviceID.ProductClass._writable" ||
-        k === "DeviceID.ProductClass"
-      ) {
-        projection["_deviceId._ProductClass"] = 1;
-        loaded.push([
-          Path.parse("DeviceID.ProductClass"),
-          1 ^ ((1 << MAX_DEPTH) - 1)
-        ]);
-      } else if (k === "DeviceID.OUI._writable" || k === "DeviceID.OUI") {
-        projection["_deviceId._OUI"] = 1;
-        loaded.push([
-          Path.parse("DeviceID.ProductClass"),
-          1 ^ ((1 << MAX_DEPTH) - 1)
-        ]);
-      } else if (
-        k === "DeviceID.SerialNumber._writable" ||
-        k === "DeviceID.SerialNumber"
-      ) {
-        projection["_deviceId._SerialNumber"] = 1;
-        loaded.push([
-          Path.parse("DeviceID.SerialNumber"),
-          1 ^ ((1 << MAX_DEPTH) - 1)
-        ]);
-      } else if (k.endsWith("._writable") && k !== "DeviceID._writable") {
-        loaded.push([
-          Path.parse(k.split(".", 2).join(".")),
-          1 ^ ((1 << MAX_DEPTH) - 1)
-        ]);
-      }
-      if (k !== "") delete projection[k];
-    }
-
-    if (k === "Tags" || k.startsWith("Tags.")) {
-      if (!projection["_tags"]) {
-        projection["_tags"] = 1;
-        loaded.push([Path.parse("Tags"), (1 << MAX_DEPTH) - 1]);
-      }
-      delete projection[k];
-    }
-  }
-
-  let options: FindOneOptions;
-  if (!projection[""]) {
-    if (!Object.keys(projection).length) options = { projection: { _id: 1 } };
-    else options = { projection: projection };
-  }
-
-  const device = await devicesCollection.findOne({ _id: id }, options);
-  if (!device) return [null, null];
-
-  function storeParams(
-    obj,
-    path: string,
-    pathLength: number,
-    ts,
-    descendantsFetched,
-    projTree
-  ): void {
-    let thisFetched = false;
-    if (descendantsFetched) {
-      thisFetched = true;
-    } else if (projection[path.slice(0, -1)]) {
-      descendantsFetched = true;
-      if (
-        pathLength &&
-        projection[
-          path.slice(0, path.lastIndexOf(".", path.length - 2) + 1) +
-            "_timestamp"
-        ]
-      ) {
-        thisFetched = true;
-        loaded.push([
-          Path.parse(path.slice(0, -1)),
-          ((1 << (pathLength - 1)) - 1) ^ ((1 << MAX_DEPTH) - 1)
-        ]);
-      } else {
-        loaded.push([
-          Path.parse(path.slice(0, -1)),
-          ((1 << pathLength) - 1) ^ ((1 << MAX_DEPTH) - 1)
-        ]);
-      }
-    } else if (projection[path + "_writable"]) {
-      loaded.push([Path.parse(path.slice(0, -1)), 1 << (pathLength - 1)]);
-      thisFetched = true;
-    }
-
+  function storeParams(obj, path: string, pathLength: number, ts): void {
     if (obj["_timestamp"]) obj["_timestamp"] = +obj["_timestamp"];
 
-    // For compatibility with v1.0 database
-    if (obj["_instance"] && obj["_object"] == null) obj["_object"] = true;
+    const attrs: Attributes = {};
+    let t = obj["_timestamp"] || 1;
+    if (ts > t) t = ts;
 
-    if (thisFetched) {
-      const attrs: Attributes = {};
-      let t = obj["_timestamp"] || 1;
-      if (ts > t) t = ts;
+    if (obj["_value"] != null) {
+      attrs.value = [obj["_timestamp"] || 1, [obj["_value"], obj["_type"]]];
+      if (obj["_type"] === "xsd:dateTime")
+        attrs.value[1][0] = +attrs.value[1][0];
 
-      if (obj["_value"] != null) {
-        attrs.value = [obj["_timestamp"] || 1, [obj["_value"], obj["_type"]]];
-        if (obj["_type"] === "xsd:dateTime")
-          attrs.value[1][0] = +attrs.value[1][0];
-
-        obj["_object"] = false;
-      }
-      if (obj["_writable"] != null)
-        attrs.writable = [ts || 1, obj["_writable"] ? 1 : 0];
-
-      if (obj["_object"] != null) attrs.object = [t, obj["_object"] ? 1 : 0];
-
-      res.push([Path.parse(path.slice(0, -1)), t, attrs]);
+      obj["_object"] = false;
     }
+    if (obj["_writable"] != null)
+      attrs.writable = [ts || 1, obj["_writable"] ? 1 : 0];
+
+    if (obj["_object"] != null) attrs.object = [t, obj["_object"] ? 1 : 0];
+
+    res.push([Path.parse(path.slice(0, -1)), t, attrs]);
 
     for (const [k, v] of Object.entries(obj)) {
       if (!k.startsWith("_")) {
         obj["_object"] = true;
-        storeParams(
-          v,
-          path + k + ".",
-          pathLength + 1,
-          obj["_timestamp"],
-          descendantsFetched,
-          projTree ? projTree[k] : null
-        );
-        if (projTree) delete projTree[k];
+        storeParams(v, path + k + ".", pathLength + 1, obj["_timestamp"]);
       }
     }
 
-    if (!descendantsFetched) {
-      if (projTree) {
-        for (const k of Object.keys(projTree)) {
-          const p = Path.parse(path + k);
-          loaded.push([p, ((1 << pathLength) - 1) ^ ((1 << MAX_DEPTH) - 1)]);
-          if ((obj["_object"] || !pathLength) && obj["_timestamp"])
-            res.push([p, obj["_timestamp"]]);
-        }
-      }
-    } else if ((obj["_object"] || !pathLength) && obj["_timestamp"]) {
+    if ((obj["_object"] || !pathLength) && obj["_timestamp"])
       res.push([Path.parse(path + "*"), obj["_timestamp"]]);
-    }
   }
 
   for (const [k, v] of Object.entries(device)) {
@@ -384,7 +158,6 @@ export async function fetchDevice(
             value: [+v, [+v, "xsd:dateTime"]]
           }
         ]);
-        delete device[k];
         break;
       case "_lastBoot":
         res.push([
@@ -396,7 +169,6 @@ export async function fetchDevice(
             value: [+v, [+v, "xsd:dateTime"]]
           }
         ]);
-        delete device[k];
         break;
       case "_lastBootstrap":
         res.push([
@@ -408,7 +180,6 @@ export async function fetchDevice(
             value: [+v, [+v, "xsd:dateTime"]]
           }
         ]);
-        delete device[k];
         break;
       case "_registered":
         // Use current timestamp for registered event attribute timestamps
@@ -421,22 +192,17 @@ export async function fetchDevice(
             value: [timestamp, [+v, "xsd:dateTime"]]
           }
         ]);
-        delete device[k];
         break;
       case "_id":
-        if (projection[""] || projection["_id"]) {
-          res.push([
-            Path.parse("DeviceID.ID"),
-            timestamp,
-            {
-              object: [timestamp, 0],
-              writable: [timestamp, 0],
-              value: [timestamp, [v as string, "xsd:string"]]
-            }
-          ]);
-        }
-
-        delete device[k];
+        res.push([
+          Path.parse("DeviceID.ID"),
+          timestamp,
+          {
+            object: [timestamp, 0],
+            writable: [timestamp, 0],
+            value: [timestamp, [v as string, "xsd:string"]]
+          }
+        ]);
         break;
       case "_tags":
         if ((v as string[]).length) {
@@ -459,7 +225,6 @@ export async function fetchDevice(
             }
           ]);
         }
-        delete device[k];
         break;
       case "_deviceId":
         if (v["_Manufacturer"] != null) {
@@ -509,13 +274,11 @@ export async function fetchDevice(
             }
           ]);
         }
-
-        delete device[k];
     }
   }
 
-  storeParams(device, "", 0, 0, false, projectionTree);
-  return [res, loaded];
+  storeParams(device, "", 0, 0);
+  return res;
 }
 
 export async function saveDevice(

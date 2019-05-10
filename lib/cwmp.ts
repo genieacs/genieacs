@@ -1350,6 +1350,22 @@ async function listenerAsync(
     }
   }
 
+  const parameters = await db.fetchDevice(
+    _sessionContext.deviceId,
+    _sessionContext.timestamp
+  );
+
+  if (parameters) {
+    for (const p of parameters) {
+      const path = _sessionContext.deviceData.paths.add(p[0]);
+      _sessionContext.deviceData.timestamps.set(path, p[1], 0);
+      if (p[2]) _sessionContext.deviceData.attributes.set(path, p[2], 0);
+    }
+  } else {
+    // Device not available in database, mark as new
+    _sessionContext.new = true;
+  }
+
   const authenticated = await authenticate(_sessionContext, bodyStr);
   if (!authenticated) return responseUnauthorized(_sessionContext);
 

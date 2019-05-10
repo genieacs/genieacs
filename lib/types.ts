@@ -50,7 +50,6 @@ export interface DeviceData {
   paths: PathSet;
   timestamps: VersionedMap<Path, number>;
   attributes: VersionedMap<Path, Attributes>;
-  loaded: Map<Path, number>;
   trackers: Map<Path, { [name: string]: number }>;
   changes: Set<string>;
 }
@@ -118,7 +117,6 @@ export interface SessionContext {
   httpRequest?: IncomingMessage;
   faultsTouched?: { [channel: string]: boolean };
   presetCycles?: number;
-  toLoad?: Map<Path, number>;
   new?: boolean;
   debug?: boolean;
   state: number;
