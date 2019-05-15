@@ -22,10 +22,12 @@ import Path from "./path";
 export default class PathSet {
   private lengthIndex: Set<Path>[];
   private fragmentIndex: Map<string, Set<Path>>[];
+  private stringIndex: Map<string, Path>;
 
   public constructor() {
     this.lengthIndex = [];
     this.fragmentIndex = [];
+    this.stringIndex = new Map();
   }
 
   public get depth(): number {
@@ -38,9 +40,12 @@ export default class PathSet {
 
     if (p) return p;
 
+    this.stringIndex.set(path.toString(), path);
+
     while (this.lengthIndex.length <= path.length) {
       this.lengthIndex.push(new Set());
-      this.fragmentIndex.push(new Map());
+      // fragmentIndex is one less than lengthIndex
+      if (this.lengthIndex.length > 1) this.fragmentIndex.push(new Map());
     }
 
     const lengthIndex = this.lengthIndex[path.length];
@@ -63,41 +68,7 @@ export default class PathSet {
   }
 
   public get(path: Path): Path {
-    if (path.alias) throw new Error("PathSet does not support aliased paths");
-    const lengthIndex = this.lengthIndex[path.length];
-    if (!lengthIndex || !lengthIndex.size) return null;
-
-    if (lengthIndex.has(path)) return path;
-
-    const sets = [lengthIndex];
-
-    for (let i = 0; i < path.length; ++i) {
-      const fragmentIndex = this.fragmentIndex[i];
-      if (!fragmentIndex || !fragmentIndex.size) return null;
-
-      const fragment = path.segments[i] as string;
-
-      const fragmentIndexSet = fragmentIndex.get(fragment);
-      if (!fragmentIndexSet) return null;
-
-      sets.push(fragmentIndexSet);
-    }
-
-    sets.sort((a, b) => a.size - b.size);
-
-    const smallestSet = sets.shift();
-    for (let p of smallestSet) {
-      for (const s of sets) {
-        if (!s.has(p)) {
-          p = null;
-          break;
-        }
-      }
-
-      if (p) return p;
-    }
-
-    return null;
+    return this.stringIndex.get(path.toString()) || null;
   }
 
   public find(
@@ -107,61 +78,53 @@ export default class PathSet {
     depth: number = path.length
   ): Path[] {
     if (path.alias) throw new Error("PathSet does not support aliased paths");
-    const res = [];
-    const groups = [[]];
 
-    for (let i = path.length; i <= depth; ++i)
-      if (this.lengthIndex[i]) groups[0].push(this.lengthIndex[i]);
+    const len = path.length;
 
-    if (!groups[0].length) return res;
+    if (!superset && depth === len && (!subset || !path.wildcard)) {
+      const p = this.get(path);
+      return p ? [p] : [];
+    }
 
-    for (let i = 0; i < path.length; ++i) {
+    const lengthIndex = this.lengthIndex.slice(len, depth + 1);
+    if (!lengthIndex.length) return [];
+
+    let res;
+    for (let i = len - 1; i >= 0; --i) {
+      let fragmentIndexSet2;
       const fragmentIndex = this.fragmentIndex[i];
-      if (!fragmentIndex) return res;
+
+      if ((path.wildcard >> i) & 1) {
+        if (subset) continue;
+      } else if (superset) {
+        fragmentIndexSet2 = fragmentIndex.get("*");
+      }
 
       const fragment = path.segments[i] as string;
+      const fragmentIndexSet1 = fragmentIndex.get(fragment);
 
-      if (fragment === "*" && subset) continue;
-
-      const g = [];
-
-      const s = fragmentIndex.get(fragment);
-      if (s) g.push(s);
-
-      if (fragment !== "*" && superset && fragmentIndex.has("*"))
-        g.push(fragmentIndex.get("*"));
-
-      if (!g.length) return res;
-
-      groups.push(g);
-    }
-
-    groups.sort(
-      (a, b) =>
-        a.reduce((prev, cur) => prev + cur.size, 0) -
-        b.reduce((prev, cur) => prev + cur.size, 0)
-    );
-
-    const smallestGroup = groups.shift();
-    for (const set of smallestGroup) {
-      for (let p of set) {
-        for (const group of groups) {
-          let found = false;
-          for (const s of group) {
-            if (s.has(p)) {
-              found = true;
-              break;
-            }
-          }
-
-          if (!found) {
-            p = null;
-            break;
-          }
+      if (!fragmentIndexSet1) {
+        if (!fragmentIndexSet2) return [];
+        if (!res) res = [...fragmentIndexSet2];
+        else res = res.filter(r => fragmentIndexSet2.has(r));
+      } else if (!fragmentIndexSet2) {
+        if (!res) res = [...fragmentIndexSet1];
+        else res = res.filter(r => fragmentIndexSet1.has(r));
+      } else {
+        if (!res) {
+          res = [...fragmentIndexSet1, ...fragmentIndexSet2];
+        } else {
+          res = res.filter(
+            r => fragmentIndexSet1.has(r) || fragmentIndexSet2.has(r)
+          );
         }
-        if (p) res.push(p);
       }
+      if (!res.length) return res;
     }
+
+    if (!res) res = [].concat(...lengthIndex.map(a => [...a]));
+    else res = res.filter(r => lengthIndex.some(a => a.has(r)));
+
     return res;
   }
 }

@@ -28,6 +28,7 @@ export default class Path {
   public readonly wildcard: number;
   public readonly alias: number;
   protected _string: string;
+  protected _stringIndex: number[];
 
   protected static parseAlias(
     pattern: string,
@@ -35,8 +36,8 @@ export default class Path {
   ): { index: number; alias: Alias } {
     const alias: Alias = [];
     while (index < pattern.length && pattern[index] !== "]") {
-      const res = Path.parsePath(pattern, index);
-      let j = (index = res.index + 1);
+      const { index: idx, segments } = Path.parsePath(pattern, index);
+      let j = (index = idx + 1);
       while (pattern[j] !== "]" && pattern[j] !== ",") {
         if (pattern[j] === '"' && index === j) {
           ++j;
@@ -58,7 +59,7 @@ export default class Path {
         }
       }
 
-      alias.push([new Path(res.segments, res.wildcard, res.alias), value]);
+      alias.push([new Path(segments), value]);
       if (pattern[index] === ",") ++index;
     }
 
@@ -78,18 +79,15 @@ export default class Path {
   protected static parsePath(
     pattern: string,
     index: number
-  ): { index: number; segments: Segments; wildcard: number; alias: number } {
+  ): { index: number; segments: Segments } {
     const segments = [];
-    let wildcard = 0;
-    let alias = 0;
     // Colon separator is needed for parseAlias
     if (index < pattern.length && pattern[index] !== ":") {
       for (;;) {
         if (pattern[index] === "[") {
-          const res = Path.parseAlias(pattern, index + 1);
-          index = res.index + 1;
-          alias |= 1 << segments.length;
-          segments.push(res.alias);
+          const { index: idx, alias } = Path.parseAlias(pattern, index + 1);
+          index = idx + 1;
+          segments.push(alias);
         } else {
           const j = index;
           while (
@@ -99,7 +97,6 @@ export default class Path {
           )
             ++index;
           const s = pattern.slice(j, index).trim();
-          if (s === "*") wildcard |= 1 << segments.length;
           segments.push(s);
         }
 
@@ -111,14 +108,33 @@ export default class Path {
     }
 
     Object.freeze(segments);
-    return { index, segments, wildcard, alias };
+    return { index, segments };
   }
 
-  protected constructor(segments: Segments, wildcard: number, alias: number) {
+  protected constructor(segments: Segments) {
+    let alias = 0;
+    let wildcard = 0;
+    const arr = segments.map((s, i) => {
+      if (Array.isArray(s)) {
+        alias |= 1 << i;
+        const parts = s.map(
+          al => `${al[0].toString()}:${JSON.stringify(al[1])}`
+        );
+        return `[${parts.join(",")}]`;
+      } else if (s === "*") {
+        wildcard |= 1 << i;
+      }
+      return s;
+    });
+
+    let offset = 0;
+    const stringIndex = arr.map((s, i) => (offset += s.length) + i);
+
     this.segments = segments;
     this.wildcard = wildcard;
     this.alias = alias;
-    this._string = null;
+    this._string = arr.join(".");
+    this._stringIndex = stringIndex;
   }
 
   public static parse(str: string): Path {
@@ -126,8 +142,9 @@ export default class Path {
     if (!path) {
       path = cache2.get(str);
       if (!path) {
-        const res = Path.parsePath(str, 0);
-        path = new Path(res.segments, res.wildcard, res.alias);
+        const { segments } = Path.parsePath(str, 0);
+        path = new Path(segments);
+        if (path.toString() !== str) cache1.set(path.toString(), path);
       }
       cache1.set(str, path);
     }
@@ -139,44 +156,75 @@ export default class Path {
   }
 
   public toString(): string {
-    if (this._string == null) {
-      this._string = this.segments
-        .map(s => {
-          if (Array.isArray(s)) {
-            const parts = s.map(
-              al => `${al[0].toString()}:${JSON.stringify(al[1])}`
-            );
-            return `[${parts.join(",")}]`;
-          }
-          return s;
-        })
-        .join(".");
-    }
     return this._string;
   }
 
   public slice(start: number = 0, end: number = this.segments.length): Path {
     if (start < 0) start = Math.max(0, this.segments.length + start);
     if (end < 0) end = Math.max(0, this.segments.length + end);
-    if (start >= end) return new Path([], 0, 0);
-    const segments = this.segments.slice(start, end);
-    const mask = (1 << (end - start)) - 1;
-    const wildcard = (this.wildcard >> start) & mask;
-    const alias = (this.alias >> start) & mask;
-    return new Path(segments, wildcard, alias);
+
+    let str;
+    if (start >= end) {
+      str = "";
+    } else {
+      const i1 = start > 0 ? this._stringIndex[start - 1] + 1 : 0;
+      const i2 =
+        end <= this.segments.length
+          ? this._stringIndex[end - 1]
+          : this._string.length;
+      str = this._string.slice(i1, i2);
+    }
+
+    let path = cache1.get(str);
+    if (!path) {
+      path = cache2.get(str);
+      if (!path) {
+        const segments = this.segments.slice(start, end);
+        Object.freeze(segments);
+        path = new Path(segments);
+      }
+      cache1.set(str, path);
+    }
+
+    return path;
   }
 
-  public concat(path: Path): Path {
-    const segments = this.segments.concat(path.segments);
-    const wildcard = this.wildcard | (path.wildcard << this.segments.length);
-    const alias = this.alias | (path.alias << this.segments.length);
-    return new Path(segments, wildcard, alias);
+  public concat(path2: Path): Path {
+    if (!path2._string) return this;
+    else if (!this._string) return path2;
+
+    const str = `${this._string}.${path2._string}`;
+
+    let path = cache1.get(str);
+    if (!path) {
+      path = cache2.get(str);
+      if (!path) {
+        const segments = this.segments.concat(path2.segments);
+        Object.freeze(segments);
+        path = new Path(segments);
+      }
+      cache1.set(str, path);
+    }
+
+    return path;
   }
 
   public stripAlias(): Path {
     if (!this.alias) return this;
     const segments = this.segments.map(s => (Array.isArray(s) ? "*" : s));
-    return new Path(segments, this.wildcard | this.alias, 0);
+    const str = segments.join(".");
+
+    let path = cache1.get(str);
+    if (!path) {
+      path = cache2.get(str);
+      if (!path) {
+        Object.freeze(segments);
+        path = new Path(segments);
+      }
+      cache1.set(str, path);
+    }
+
+    return path;
   }
 }
 
