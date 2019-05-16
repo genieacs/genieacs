@@ -82,7 +82,7 @@ router.post("/login", async ctx => {
   function success(roles, method): void {
     log.method = method;
     const token = jwt.sign({ username, roles }, JWT_SECRET);
-    ctx.cookies.set(JWT_COOKIE, token);
+    ctx.cookies.set(JWT_COOKIE, token, { sameSite: "lax" });
     ctx.body = JSON.stringify(token);
     logger.accessInfo(log);
   }
