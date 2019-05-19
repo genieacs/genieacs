@@ -18,10 +18,24 @@
  */
 
 import { resolve } from "path";
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
+
+// Find project root directory
+export let ROOT_DIR = resolve(__dirname, "..");
+while (!existsSync(`${ROOT_DIR}/package.json`)) {
+  const d = resolve(ROOT_DIR, "..");
+  if (d === ROOT_DIR) {
+    ROOT_DIR = process.cwd();
+    break;
+  }
+  ROOT_DIR = d;
+}
+
+// For compatibility with v1.1
+let configDir, cwmpSsl, nbiSsl, fsSsl, uiSsl;
 
 const options = {
-  CONFIG_DIR: { type: "path", default: "config" },
+  EXT_DIR: { type: "path", default: resolve(ROOT_DIR, "config/ext") },
   MONGODB_CONNECTION_URL: {
     type: "string",
     default: "mongodb://127.0.0.1/genieacs"
@@ -30,21 +44,24 @@ const options = {
   CWMP_WORKER_PROCESSES: { type: "int", default: 0 },
   CWMP_PORT: { type: "int", default: 7547 },
   CWMP_INTERFACE: { type: "string", default: "0.0.0.0" },
-  CWMP_SSL: { type: "bool", default: false },
+  CWMP_SSL_CERT: { type: "string", default: "" },
+  CWMP_SSL_KEY: { type: "string", default: "" },
   CWMP_LOG_FILE: { type: "path", default: "" },
   CWMP_ACCESS_LOG_FILE: { type: "path", default: "" },
 
   NBI_WORKER_PROCESSES: { type: "int", default: 0 },
   NBI_PORT: { type: "int", default: 7557 },
   NBI_INTERFACE: { type: "string", default: "0.0.0.0" },
-  NBI_SSL: { type: "bool", default: false },
+  NBI_SSL_CERT: { type: "string", default: "" },
+  NBI_SSL_KEY: { type: "string", default: "" },
   NBI_LOG_FILE: { type: "path", default: "" },
   NBI_ACCESS_LOG_FILE: { type: "path", default: "" },
 
   FS_WORKER_PROCESSES: { type: "int", default: 0 },
   FS_PORT: { type: "int", default: 7567 },
   FS_INTERFACE: { type: "string", default: "0.0.0.0" },
-  FS_SSL: { type: "bool", default: false },
+  FS_SSL_CERT: { type: "string", default: "" },
+  FS_SSL_KEY: { type: "string", default: "" },
   FS_HOSTNAME: { type: "string", default: "acs.example.com" },
   FS_LOG_FILE: { type: "path", default: "" },
   FS_ACCESS_LOG_FILE: { type: "path", default: "" },
@@ -52,7 +69,8 @@ const options = {
   UI_WORKER_PROCESSES: { type: "int", default: 0 },
   UI_PORT: { type: "int", default: 3000 },
   UI_INTERFACE: { type: "string", default: "0.0.0.0" },
-  UI_SSL: { type: "bool", default: false },
+  UI_SSL_CERT: { type: "string", default: "" },
+  UI_SSL_KEY: { type: "string", default: "" },
   UI_LOG_FILE: { type: "path", default: "" },
   UI_ACCESS_LOG_FILE: { type: "path", default: "" },
   UI_JWT_SECRET: { type: "string", default: "" },
@@ -95,6 +113,42 @@ const allConfig: { [name: string]: string | number } = {};
 function setConfig(name, value, commandLineArgument = false): boolean {
   if (allConfig[name] != null) return true;
 
+  // For compatibility with v1.1
+  if (name === "CONFIG_DIR" || name === "config-dir")
+    configDir = configDir || resolve(ROOT_DIR, value);
+
+  if (name === "CWMP_SSL" || name === "cwmp-ssl") {
+    cwmpSsl =
+      cwmpSsl ||
+      String(value)
+        .toLowerCase()
+        .trim();
+  }
+
+  if (name === "NBI_SSL" || name === "nbi-ssl") {
+    nbiSsl =
+      nbiSsl ||
+      String(value)
+        .toLowerCase()
+        .trim();
+  }
+
+  if (name === "FS_SSL" || name === "fs-ssl") {
+    fsSsl =
+      fsSsl ||
+      String(value)
+        .toLowerCase()
+        .trim();
+  }
+
+  if (name === "UI_SSL" || name === "ui-ssl") {
+    uiSsl =
+      uiSsl ||
+      String(value)
+        .toLowerCase()
+        .trim();
+  }
+
   // For compatibility with v1.0
   if (name === "PRESETS_CACHE_DURATION" || name === "presets-cache-duration")
     setConfig("MAX_CACHE_TTL", value);
@@ -124,7 +178,7 @@ function setConfig(name, value, commandLineArgument = false): boolean {
       case "int":
         return Number(val);
       case "bool":
-        return ["true", "on", "yes", "1"].includes(
+        return ["true", "1"].includes(
           String(val)
             .trim()
             .toLowerCase()
@@ -177,19 +231,45 @@ while (argv.length) {
 for (const [k, v] of Object.entries(process.env))
   if (k.startsWith("GENIEACS_")) setConfig(k.slice(9), v);
 
-// Use default config dir if none defined
-setConfig("CONFIG_DIR", options["CONFIG_DIR"]["default"]);
-
 // Configuration file
-const configFile = JSON.parse(
-  readFileSync(
-    resolve(allConfig.CONFIG_DIR as string, "config.json")
-  ).toString()
-);
-for (const [k, v] of Object.entries(configFile)) {
-  if (!setConfig(k, v))
-    // Pass as environment variable to be accessable by extensions
-    process.env[`GENIEACS_${k}`] = `${v}`;
+const configFilename = configDir
+  ? `${configDir}/config.json`
+  : `${ROOT_DIR}/config/config.json`;
+
+if (existsSync(configFilename)) {
+  const configFile = JSON.parse(readFileSync(configFilename).toString());
+
+  for (const [k, v] of Object.entries(configFile)) {
+    if (!setConfig(k, v))
+      // Pass as environment variable to be accessable by extensions
+      process.env[`GENIEACS_${k}`] = `${v}`;
+  }
+}
+
+if (configDir) setConfig("EXT_DIR", `${configDir}/ext`);
+
+if (["true", "1"].includes(cwmpSsl)) {
+  const d = configDir || `${ROOT_DIR}/config`;
+  setConfig("CWMP_SSL_CERT", `${d}/cwmp.crt`);
+  setConfig("CWMP_SSL_KEY", `${d}/cwmp.key`);
+}
+
+if (["true", "1"].includes(nbiSsl)) {
+  const d = configDir || `${ROOT_DIR}/config`;
+  setConfig("NBI_SSL_CERT", `${d}/cwmp.crt`);
+  setConfig("NBI_SSL_KEY", `${d}/cwmp.key`);
+}
+
+if (["true", "1"].includes(fsSsl)) {
+  const d = configDir || `${ROOT_DIR}/config`;
+  setConfig("FS_SSL_CERT", `${d}/cwmp.crt`);
+  setConfig("FS_SSL_KEY", `${d}/cwmp.key`);
+}
+
+if (["true", "1"].includes(uiSsl)) {
+  const d = configDir || `${ROOT_DIR}/config`;
+  setConfig("UI_SSL_CERT", `${d}/cwmp.crt`);
+  setConfig("UI_SSL_KEY", `${d}/cwmp.key`);
 }
 
 // Defaults

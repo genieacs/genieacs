@@ -157,6 +157,6 @@ koa.use(
 );
 
 koa.use(router.routes());
-koa.use(koaStatic("./public"));
+koa.use(koaStatic(config.ROOT_DIR + "/public"));
 
 export const listener = koa.callback();

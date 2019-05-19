@@ -1,9 +1,4 @@
 #!/usr/bin/env -S node -r esm -r ts-node/register/transpile-only
-import * as path from "path";
-import * as fs from "fs";
-
-process.chdir(path.resolve(path.dirname(fs.realpathSync(__filename)), ".."));
-
 import * as config from "../lib/config";
 import * as logger from "../lib/logger";
 import * as cluster from "../lib/cluster";
@@ -61,14 +56,10 @@ if (!cluster.worker) {
     cluster.stop();
   });
 } else {
-  let ssl;
-  if (config.get("NBI_SSL")) {
-    ssl = {
-      key: path.resolve("" + config.get("CONFIG_DIR"), "nbi.key"),
-      cert: path.resolve("" + config.get("CONFIG_DIR"), "nbi.crt"),
-      ca: path.resolve("" + config.get("CONFIG_DIR"), "nbi.ca-bundle")
-    };
-  }
+  const ssl = {
+    key: config.get("NBI_SSL_KEY"),
+    cert: config.get("NBI_SSL_CERT")
+  };
 
   process.on("uncaughtException", err => {
     if ((err as NodeJS.ErrnoException).code === "ERR_IPC_DISCONNECTED") return;

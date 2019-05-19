@@ -1,9 +1,4 @@
 #!/usr/bin/env -S node -r esm -r ts-node/register/transpile-only
-import * as path from "path";
-import * as fs from "fs";
-
-process.chdir(path.resolve(path.dirname(fs.realpathSync(__filename)), ".."));
-
 import * as config from "../lib/config";
 import * as logger from "../lib/logger";
 import * as cluster from "../lib/cluster";
@@ -63,14 +58,10 @@ if (!cluster.worker) {
     cluster.stop();
   });
 } else {
-  let ssl;
-  if (config.get("UI_SSL")) {
-    ssl = {
-      key: path.resolve("" + config.get("CONFIG_DIR"), "ui.key"),
-      cert: path.resolve("" + config.get("CONFIG_DIR"), "ui.crt"),
-      ca: path.resolve("" + config.get("CONFIG_DIR"), "ui.ca-bundle")
-    };
-  }
+  const ssl = {
+    key: config.get("UI_SSL_KEY"),
+    cert: config.get("UI_SSL_CERT")
+  };
 
   let stopping = false;
 

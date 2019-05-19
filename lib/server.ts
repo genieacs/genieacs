@@ -20,6 +20,8 @@
 import * as fs from "fs";
 import * as http from "http";
 import * as https from "https";
+import * as path from "path";
+import { ROOT_DIR } from "./config";
 
 let server: http.Server | https.Server;
 let listener: (...args) => void;
@@ -57,22 +59,16 @@ export function start(
 ): void {
   listener = _listener;
 
-  if (ssl) {
+  if (ssl && ssl.key && ssl.cert) {
     const options = {
-      key: fs.readFileSync(ssl.key),
-      cert: fs.readFileSync(ssl.cert),
-      ca: null
+      key: ssl.key
+        .split(":")
+        .map(f => fs.readFileSync(path.resolve(ROOT_DIR, f.trim()))),
+      cert: ssl.cert
+        .split(":")
+        .map(f => fs.readFileSync(path.resolve(ROOT_DIR, f.trim())))
     };
 
-    try {
-      // Use intermediate certificates if available
-      options.ca = fs
-        .readFileSync(ssl.ca)
-        .toString()
-        .match(/-+BEGIN CERTIFICATE-+[0-9a-zA-Z+\-/=\s]+?-+END CERTIFICATE-+/g);
-    } catch (error) {
-      // No intermediate certificate
-    }
     server = https.createServer(options, listener);
     if (onConnection != null) server.on("secureConnection", onConnection);
   } else {

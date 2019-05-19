@@ -69,7 +69,7 @@ process.on("message", message => {
   jobs.add(message[0]);
 
   if (!script) {
-    const cwd = process.env["GENIEACS_CONFIG_DIR"] + "/ext";
+    const cwd = process.env["GENIEACS_EXT_DIR"];
     process.chdir(cwd);
     script = require(`${cwd}/${fileName}`);
   }
