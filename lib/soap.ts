@@ -127,7 +127,7 @@ function parameterInfoList(xml: Element): [string, boolean][] {
     });
 }
 
-const getValueType = memoize(str =>
+const getValueType = memoize((str: string) =>
   parseAttrs(str)
     .find(s => s.localName === "type")
     .value.trim()

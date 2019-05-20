@@ -20,9 +20,10 @@ function getKey(obj): string {
   return k;
 }
 
-export default function memoize(func): Function {
-  return (...args) => {
-    const key = JSON.stringify(args.map(getKey)) + getKey(func);
+export default function memoize<T extends Function>(func: T): T {
+  const funcKey = getKey(func);
+  return ((...args) => {
+    const key = JSON.stringify(args.map(getKey)) + funcKey;
 
     if (cache1.has(key)) return cache1.get(key);
 
@@ -31,7 +32,7 @@ export default function memoize(func): Function {
     else r = func(...args);
     cache1.set(key, r);
     return r;
-  };
+  }) as any;
 }
 
 const interval = setInterval(() => {

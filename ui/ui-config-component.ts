@@ -27,7 +27,7 @@ function putActionHandler(prefix: string[], dataYaml: string): Promise<any> {
       }
 
       // Try parse to ensure valid expressions
-      for (const v of Object.values(updated)) parse(v);
+      for (const v of Object.values(updated)) parse(v as string);
 
       store
         .queryConfig(`${prefix.join(".")}.%`)

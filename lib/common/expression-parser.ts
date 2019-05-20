@@ -285,7 +285,7 @@ const lang = parsimmon.createLanguage({
   }
 });
 
-export function parse(str): Expression {
+export function parse(str: string): Expression {
   if (!str) return null;
   return lang.Expression.tryParse(str);
 }

@@ -6,7 +6,7 @@ import * as expression from "../../lib/common/expression";
 import memoize from "../../lib/common/memoize";
 import timeAgo from "../timeago";
 
-const evaluateParam = memoize((exp, obj, now) => {
+const evaluateParam = memoize((exp, obj, now: number) => {
   let timestamp = now;
   const params = new Set();
   const value = expression.evaluate(exp, obj, now, e => {

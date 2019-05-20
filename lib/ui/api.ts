@@ -206,7 +206,7 @@ for (const [resource, flags] of Object.entries(resources)) {
     const now = Date.now();
 
     for (const [k, v] of Object.entries(columns)) {
-      const e = evaluate(parse(v), null, now);
+      const e = evaluate(parse(v as string), null, now);
       columns[k] = e;
       for (const p of extractParams(e)) options.projection[p] = 1;
     }
