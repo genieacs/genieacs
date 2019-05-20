@@ -108,8 +108,8 @@ export function init(args): Promise<{}> {
     );
   }
 
-  const sort = args.sort;
-  const filter = args.filter;
+  const sort = args.hasOwnProperty("sort") ? "" + args["sort"] : "";
+  const filter = args.hasOwnProperty("filter") ? "" + args["filter"] : "";
 
   return new Promise((resolve, reject) => {
     loadCodeMirror()

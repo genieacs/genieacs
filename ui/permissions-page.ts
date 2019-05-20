@@ -151,8 +151,8 @@ export function init(args): Promise<{}> {
       new Error("You are not authorized to view this page")
     );
   }
-  const sort = args.sort;
-  const filter = args.filter;
+  const sort = args.hasOwnProperty("sort") ? "" + args["sort"] : "";
+  const filter = args.hasOwnProperty("filter") ? "" + args["filter"] : "";
   return Promise.resolve({ filter, sort });
 }
 

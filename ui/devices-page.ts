@@ -47,8 +47,8 @@ export function init(args): Promise<{}> {
     if (!window.authorizer.hasAccess("devices", 2))
       return void reject(new Error("You are not authorized to view this page"));
 
-    const filter = args.filter;
-    const sort = args.sort;
+    const filter = args.hasOwnProperty("filter") ? "" + args["filter"] : "";
+    const sort = args.hasOwnProperty("sort") ? "" + args["sort"] : "";
     const indexParameters = Object.values(config.ui.index);
     resolve({ filter, indexParameters, sort });
   });
