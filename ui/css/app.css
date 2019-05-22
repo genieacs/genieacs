@@ -66,6 +66,19 @@ i {
   }
 }
 
+body {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+#content-wrapper {
+  flex-grow: 1;
+  display: flex;
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
 #header {
   background-color: #f2eddf;
   border-bottom: 1px solid var(--color1);
@@ -260,10 +273,6 @@ i {
     float: right;
     margin: 5px;
   }
-}
-
-#content-wrapper {
-  display: flex;
 }
 
 #side-menu {
