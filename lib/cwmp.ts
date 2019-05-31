@@ -772,10 +772,15 @@ async function sendAcsRequest(
     downloadRequest.fileSize = 0;
     if (!downloadRequest.url) {
       const FS_PORT = config.get("FS_PORT");
-      const FS_HOSTNAME = config.get("FS_HOSTNAME");
       const FS_SSL = config.get("FS_SSL");
+      let hostname = config.get("FS_HOSTNAME");
+      if (!hostname) {
+        if (sessionContext.httpRequest.headers["host"])
+          hostname = sessionContext.httpRequest.headers["host"].split(":")[0];
+        else hostname = sessionContext.httpRequest.connection.localAddress;
+      }
       downloadRequest.url = FS_SSL ? "https://" : "http://";
-      downloadRequest.url += FS_HOSTNAME;
+      downloadRequest.url += hostname;
       if (FS_PORT !== 80) downloadRequest.url += ":" + FS_PORT;
       downloadRequest.url += "/" + encodeURI(downloadRequest.fileName);
 

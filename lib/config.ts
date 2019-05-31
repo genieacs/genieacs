@@ -62,7 +62,7 @@ const options = {
   FS_INTERFACE: { type: "string", default: "0.0.0.0" },
   FS_SSL_CERT: { type: "string", default: "" },
   FS_SSL_KEY: { type: "string", default: "" },
-  FS_HOSTNAME: { type: "string", default: "acs.example.com" },
+  FS_HOSTNAME: { type: "string", default: "" },
   FS_LOG_FILE: { type: "path", default: "" },
   FS_ACCESS_LOG_FILE: { type: "path", default: "" },
 
