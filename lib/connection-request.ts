@@ -25,6 +25,7 @@ import { evaluateAsync } from "./common/expression";
 import { Expression } from "./types";
 import * as auth from "./auth";
 import * as extensions from "./extensions";
+import * as debug from "./debug";
 
 async function extractAuth(
   exp: Expression,
@@ -62,18 +63,25 @@ async function extractAuth(
 }
 
 function httpGet(
-  options: {},
-  timeout
+  options: http.RequestOptions,
+  timeout,
+  _debug: boolean,
+  deviceId: string
 ): Promise<{ statusCode: number; headers: {} }> {
   return new Promise((resolve, reject) => {
     const req = http
       .get(options, res => {
         res.resume();
         resolve({ statusCode: res.statusCode, headers: res.headers });
+        if (_debug) {
+          debug.outgoingHttpRequest(req, deviceId, options, null);
+          debug.incomingHttpResponse(res, deviceId, null);
+        }
       })
-      .on("error", () => {
+      .on("error", err => {
         req.abort();
         reject(new Error("Device is offline"));
+        if (_debug) debug.outgoingHttpRequestError(req, deviceId, options, err);
       })
       .on("socket", socket => {
         socket.setTimeout(timeout);
@@ -89,7 +97,9 @@ export async function httpConnectionRequest(
   authExp: Expression,
   context: {},
   allowBasicAuth: boolean,
-  timeout: number
+  timeout: number,
+  _debug: boolean,
+  deviceId: string
 ): Promise<void> {
   const now = Date.now();
   const options: http.RequestOptions = parse(address);
@@ -141,10 +151,11 @@ export async function httpConnectionRequest(
       }
     }
 
-    let res = await httpGet(opts, timeout);
+    let res = await httpGet(opts, timeout, _debug, deviceId);
 
     // Workaround for some devices unexpectedly closing the connection
-    if (res.statusCode === 0 && authHeader) res = await httpGet(opts, timeout);
+    if (res.statusCode === 0 && authHeader)
+      res = await httpGet(opts, timeout, _debug, deviceId);
     if (res.statusCode === 0) throw new Error("Device is offline");
     if (res.statusCode === 200 || res.statusCode === 204) return;
 
@@ -171,7 +182,9 @@ export async function udpConnectionRequest(
   address: string,
   authExp: Expression,
   context: {},
-  sourcePort: number = 0
+  sourcePort: number = 0,
+  _debug: boolean,
+  deviceId: string
 ): Promise<void> {
   const [host, portStr] = address.split(":", 2);
   const port = portStr ? parseInt(portStr) : 80;
@@ -207,15 +220,15 @@ export async function udpConnectionRequest(
       .update(`${ts}${id}${username}${cn}`)
       .digest("hex");
     const uri = `http://${address}?ts=${ts}&id=${id}&un=${username}&cn=${cn}&sig=${sig}`;
-    const message = Buffer.from(
-      `GET ${uri} HTTP/1.1\r\nHost: ${address}\r\n\r\n`
-    );
+    const msg = `GET ${uri} HTTP/1.1\r\nHost: ${address}\r\n\r\n`;
+    const message = Buffer.from(msg);
 
     for (let i = 0; i < 3; ++i) {
       await new Promise((resolve, reject) => {
         client.send(message, 0, message.length, port, host, (err: Error) => {
           if (err) reject(err);
           else resolve();
+          if (_debug) debug.outgoingUdpMessage(host, deviceId, port, msg);
         });
       });
     }

@@ -19,7 +19,6 @@
 
 import * as zlib from "zlib";
 import * as crypto from "crypto";
-import * as fs from "fs";
 import { Socket } from "net";
 import * as auth from "./auth";
 import * as config from "./config";
@@ -53,6 +52,7 @@ import { promisify } from "util";
 import { TLSSocket } from "tls";
 import { dependencies as DEPENDENCIES } from "../package.json";
 import { parseXmlDeclaration } from "./xml-parser";
+import * as debug from "./debug";
 
 const soap =
   DEPENDENCIES["libxmljs"] && config.get("XML_LIBXMLJS")
@@ -170,18 +170,6 @@ async function writeResponse(
   // Close connection after last request in session
   if (close) res.headers["Connection"] = "close";
 
-  if (sessionContext.debug) {
-    const dump =
-      `# RESPONSE ${new Date(Date.now())}\n` +
-      JSON.stringify(res.headers) +
-      "\n" +
-      res.data +
-      "\n\n";
-    fs.appendFile(`./debug/${sessionContext.deviceId}.dump`, dump, err => {
-      if (err) throw err;
-    });
-  }
-
   let data = res.data;
 
   // Respond using the same content-encoding as the request
@@ -200,9 +188,13 @@ async function writeResponse(
     }
   }
 
-  res.headers["Content-Length"] = data.length;
-  sessionContext.httpResponse.writeHead(res.code, res.headers);
-  sessionContext.httpResponse.end(data);
+  const httpResponse = sessionContext.httpResponse;
+  httpResponse.setHeader("Content-Length", Buffer.byteLength(data));
+  httpResponse.writeHead(res.code, res.headers);
+  httpResponse.end(data);
+
+  if (sessionContext.debug)
+    debug.outgoingHttpResponse(httpResponse, sessionContext.deviceId, res.data);
 
   if (sessionContext.httpRequest.connection.destroyed) {
     logger.accessError({
@@ -950,9 +942,14 @@ async function reportBadState(sessionContext: SessionContext): Promise<void> {
     message: "Bad session state",
     sessionContext: sessionContext
   });
-  currentSessions.delete(sessionContext.httpResponse.connection);
-  sessionContext.httpResponse.writeHead(400, { Connection: "close" });
-  sessionContext.httpResponse.end("Bad session state");
+  const httpResponse = sessionContext.httpResponse;
+  currentSessions.delete(httpResponse.connection);
+  const body = "Bad session state";
+  httpResponse.setHeader("Content-Length", Buffer.byteLength(body));
+  httpResponse.writeHead(400, { Connection: "close" });
+  httpResponse.end(body);
+  if (sessionContext.debug)
+    debug.outgoingHttpResponse(httpResponse, sessionContext.deviceId, body);
 }
 
 async function responseUnauthorized(
@@ -983,8 +980,13 @@ async function responseUnauthorized(
     currentSessions.set(sessionContext.httpRequest.connection, sessionContext);
   }
 
-  sessionContext.httpResponse.writeHead(401, resHeaders);
-  sessionContext.httpResponse.end("Unauthorized");
+  const httpResponse = sessionContext.httpResponse;
+  const body = "Unauthorized";
+  httpResponse.setHeader("Content-Length", Buffer.byteLength(body));
+  httpResponse.writeHead(401, resHeaders);
+  httpResponse.end(body);
+  if (sessionContext.debug)
+    debug.outgoingHttpResponse(httpResponse, sessionContext.deviceId, body);
 }
 
 async function processRequest(
@@ -1176,28 +1178,6 @@ async function listenerAsync(
   // Request aborted
   if (!body) return;
 
-  async function parsedRpc(sessionContext, rpc, parseWarnings): Promise<void> {
-    for (const w of parseWarnings) {
-      w.sessionContext = sessionContext;
-      w.rpc = rpc;
-      logger.accessWarn(w);
-    }
-
-    if (sessionContext.debug) {
-      const dump =
-        `# REQUEST ${new Date(Date.now())}\n` +
-        JSON.stringify(httpRequest.headers) +
-        "\n" +
-        body +
-        "\n\n";
-      fs.appendFile(`./debug/${sessionContext.deviceId}.dump`, dump, err => {
-        if (err) throw err;
-      });
-    }
-
-    return processRequest(sessionContext, rpc);
-  }
-
   const newConnection = !currentSessions.has(httpRequest.connection);
 
   const sessionContext = await getSession(httpRequest.connection, sessionId);
@@ -1214,8 +1194,18 @@ async function listenerAsync(
         sessionContext: sessionContext
       });
 
+      const _body = "Invalid session";
+      httpResponse.setHeader("Content-Length", Buffer.byteLength(_body));
       httpResponse.writeHead(400, { Connection: "close" });
-      httpResponse.end("Invalid session");
+      httpResponse.end(_body);
+      if (sessionContext.debug) {
+        debug.outgoingHttpResponse(
+          httpResponse,
+          sessionContext.deviceId,
+          _body
+        );
+      }
+
       return;
     }
   } else if (stats.concurrentRequests > MAX_CONCURRENT_REQUESTS) {
@@ -1242,6 +1232,19 @@ async function listenerAsync(
 
   const bodyStr = body.toString(charset);
 
+  async function parsedRpc(_sessionContext, rpc, parseWarnings): Promise<void> {
+    for (const w of parseWarnings) {
+      w.sessionContext = _sessionContext;
+      w.rpc = rpc;
+      logger.accessWarn(w);
+    }
+
+    if (_sessionContext.debug)
+      debug.incomingHttpRequest(httpRequest, _sessionContext.deviceId, bodyStr);
+
+    return processRequest(_sessionContext, rpc);
+  }
+
   const parseWarnings = [];
   let rpc;
   try {
@@ -1259,8 +1262,30 @@ async function listenerAsync(
         httpResponse: httpResponse
       }
     });
+    httpResponse.setHeader("Content-Length", Buffer.byteLength(error.message));
     httpResponse.writeHead(400, { Connection: "close" });
     httpResponse.end(error.message);
+    if (sessionContext) {
+      if (sessionContext.debug) {
+        debug.outgoingHttpResponse(
+          httpResponse,
+          sessionContext.deviceId,
+          error.message
+        );
+      }
+    } else {
+      const cacheSnapshot = await localCache.getCurrentSnapshot();
+      const d = !!localCache.getConfig(cacheSnapshot, "cwmp.debug", {
+        remoteAddress: httpResponse.connection.remoteAddress
+      });
+      if (d) {
+        debug.outgoingHttpResponse(
+          httpResponse,
+          sessionContext.deviceId,
+          error.message
+        );
+      }
+    }
     return;
   }
 
@@ -1284,8 +1309,17 @@ async function listenerAsync(
         httpResponse: httpResponse
       }
     });
+    const _body = "Invalid session";
+    httpResponse.setHeader("Content-Length", Buffer.byteLength(_body));
     httpResponse.writeHead(400, { Connection: "close" });
-    httpResponse.end("Invalid session");
+    httpResponse.end(_body);
+    const cacheSnapshot = await localCache.getCurrentSnapshot();
+    const d = !!localCache.getConfig(cacheSnapshot, "cwmp.debug", {
+      remoteAddress: httpResponse.connection.remoteAddress
+    });
+    if (d)
+      debug.outgoingHttpResponse(httpResponse, sessionContext.deviceId, _body);
+
     return;
   }
 
@@ -1298,7 +1332,8 @@ async function listenerAsync(
     id: deviceId,
     serialNumber: rpc.cpeRequest.deviceId["SerialNumber"],
     productClass: rpc.cpeRequest.deviceId["ProductClass"],
-    oui: rpc.cpeRequest.deviceId["OUI"]
+    oui: rpc.cpeRequest.deviceId["OUI"],
+    remoteAddress: httpRequest.connection.remoteAddress
   };
 
   const sessionTimeout =

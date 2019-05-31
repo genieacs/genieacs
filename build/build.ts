@@ -53,6 +53,7 @@ const externals = [
   "stream",
   "mithril",
   "parsimmon",
+  "yaml",
   "codemirror",
   "codemirror/mode/javascript/javascript",
   "codemirror/mode/yaml/yaml"
@@ -78,7 +79,6 @@ async function init(): Promise<void> {
   fs.mkdirSync(OUTPUT_DIR);
   fs.mkdirSync(OUTPUT_DIR + "/bin");
   fs.mkdirSync(OUTPUT_DIR + "/config");
-  fs.mkdirSync(OUTPUT_DIR + "/debug");
   fs.mkdirSync(OUTPUT_DIR + "/public");
   fs.mkdirSync(OUTPUT_DIR + "/tools");
 

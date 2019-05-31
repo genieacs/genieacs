@@ -1,7 +1,6 @@
 *~
 node_modules
 dist
-debug
 config/config.json
 config/config-ui.json
 config/cwmp.key

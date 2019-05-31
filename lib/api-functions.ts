@@ -17,6 +17,7 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { parse } from "url";
 import * as db from "./db";
 import * as common from "./common";
 import * as cache from "./cache";
@@ -76,6 +77,9 @@ export async function connectionRequest(deviceId): Promise<void> {
     serialNumber: device["_deviceId"]["SerialNumber"],
     productClass: device["_deviceId"]["ProductClass"],
     oui: device["_deviceId"]["OUI"],
+    remoteAddress: connectionRequestUrl
+      ? parse(connectionRequestUrl).host
+      : null,
     username: username || "",
     password: password || ""
   };
@@ -114,13 +118,17 @@ export async function connectionRequest(deviceId): Promise<void> {
     ] as Expression;
   }
 
+  const debug = !!getConfig(snapshot, "cwmp.debug", context, now);
+
   let udpProm;
   if (udpConnectionRequestAddress) {
     udpProm = udpConnectionRequest(
       udpConnectionRequestAddress,
       authExp,
       context,
-      UDP_CONNECTION_REQUEST_PORT
+      UDP_CONNECTION_REQUEST_PORT,
+      debug,
+      deviceId
     );
   }
 
@@ -130,7 +138,9 @@ export async function connectionRequest(deviceId): Promise<void> {
       authExp,
       context,
       CONNECTION_REQUEST_ALLOW_BASIC_AUTH,
-      CONNECTION_REQUEST_TIMEOUT
+      CONNECTION_REQUEST_TIMEOUT,
+      debug,
+      deviceId
     );
   } catch (err) {
     if (!udpProm) throw err;
