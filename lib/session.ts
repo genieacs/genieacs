@@ -2432,7 +2432,7 @@ export async function rpcResponse(
     case "DownloadResponse":
       toClear = device.set(
         sessionContext.deviceData,
-        Path.parse(`Download.${rpcReq.instance}.Download`),
+        Path.parse(`Downloads.${rpcReq.instance}.Download`),
         timestamp + 1,
         { value: [timestamp + 1, [sessionContext.timestamp, "xsd:dateTime"]] },
         toClear
