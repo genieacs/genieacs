@@ -19,6 +19,7 @@
     "eqeqeq": ["error", "always", {"null": "ignore"}],
     "no-return-await": "error",
     "@typescript-eslint/no-explicit-any": 0,
-    "@typescript-eslint/no-use-before-define": ["error", { "functions": false }]
+    "@typescript-eslint/no-use-before-define": ["error", { "functions": false }],
+    "@typescript-eslint/explicit-function-return-type": ["error", { "allowExpressions": true }]
   }
 }

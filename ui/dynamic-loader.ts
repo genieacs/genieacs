@@ -7,7 +7,9 @@ export function loadCodeMirror(): Promise<void> {
   return new Promise((resolve, reject) => {
     const promises = [
       import(/* webpackChunkName: "codemirror" */ "codemirror"),
-      import(/* webpackChunkName: "codemirror" */ "codemirror/mode/javascript/javascript"),
+      import(
+        /* webpackChunkName: "codemirror" */ "codemirror/mode/javascript/javascript"
+      ),
       import(/* webpackChunkName: "codemirror" */ "codemirror/mode/yaml/yaml")
     ];
     Promise.all(promises)
