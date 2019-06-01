@@ -72,7 +72,10 @@ export async function postTasks(
   tasks,
   timeout
 ): Promise<{ connectionRequest: string; tasks: any[] }> {
-  for (const task of tasks) task.device = deviceId;
+  for (const task of tasks) {
+    delete task._id;
+    task.device = deviceId;
+  }
 
   tasks = await insertTasks(tasks);
   const statuses = tasks.map(t => {
