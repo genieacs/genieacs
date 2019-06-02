@@ -71,6 +71,15 @@ function rmDirSync(dirPath): void {
   fs.rmdirSync(dirPath);
 }
 
+function stripDevDeps(deps): void {
+  if (!deps["dependencies"]) return;
+  for (const [k, v] of Object.entries(deps["dependencies"])) {
+    if (v["dev"]) delete deps["dependencies"][k];
+    else stripDevDeps(v);
+  }
+  if (!Object.keys(deps["dependencies"]).length) delete deps["dependencies"];
+}
+
 async function init(): Promise<void> {
   // Delete any old output directory
   rmDirSync(OUTPUT_DIR);
@@ -94,7 +103,18 @@ async function init(): Promise<void> {
   packageJson["version"] = `${packageJson["version"]}+${BUILD_METADATA}`;
   fs.writeFileSync(
     path.resolve(OUTPUT_DIR, "package.json"),
-    JSON.stringify(packageJson, null, 4)
+    JSON.stringify(packageJson, null, 2)
+  );
+
+  // Create npm-shrinkwrap.json
+  const npmShrinkwrapJson = JSON.parse(
+    fs.readFileSync(path.resolve(INPUT_DIR, "npm-shrinkwrap.json")).toString()
+  );
+  npmShrinkwrapJson["version"] = packageJson["version"];
+  stripDevDeps(npmShrinkwrapJson);
+  fs.writeFileSync(
+    path.resolve(OUTPUT_DIR, "npm-shrinkwrap.json"),
+    JSON.stringify(npmShrinkwrapJson, null, 2)
   );
 }
 
@@ -103,7 +123,6 @@ async function copyStatic(): Promise<void> {
     "LICENSE",
     "README.md",
     "CHANGELOG.md",
-    "npm-shrinkwrap.json",
     "config/config-sample.json",
     "config/ext-sample.js",
     "public/logo.svg",
