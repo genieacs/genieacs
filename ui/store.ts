@@ -449,7 +449,7 @@ export function fulfill(accessTimestamp, _fulfillTimestamp): Promise<boolean> {
           if (combinedFilter == null) continue;
 
           updated = true;
-          let deleted = new Set();
+          let deleted = new Set<string>();
           if (!resources[resourceType].combinedFilter)
             deleted = new Set(resources[resourceType].objects.keys());
           let combinedFilterDiff = combinedFilter;

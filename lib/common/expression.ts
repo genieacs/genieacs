@@ -300,8 +300,8 @@ export function subset(exp1, exp2): boolean {
   return !naiveDpll(clauses, vars);
 }
 
-export function extractParams(exp): string[] {
-  const params = new Set();
+export function extractParams(exp): Expression[] {
+  const params = new Set<Expression>();
   map(exp, e => {
     if (isArray(e) && e[0] === "PARAM") params.add(e[1]);
     return e;

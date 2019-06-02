@@ -451,7 +451,7 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
 
     filteredPresets.push(preset);
     for (const k of extractParams(preset.precondition))
-      parameters[k] = Path.parse(k);
+      if (typeof k === "string") parameters[k] = Path.parse(k);
   }
 
   const declarations = Object.values(parameters).map(v => ({

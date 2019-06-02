@@ -208,7 +208,8 @@ for (const [resource, flags] of Object.entries(resources)) {
     for (const [k, v] of Object.entries(columns)) {
       const e = evaluate(parse(v as string), null, now);
       columns[k] = e;
-      for (const p of extractParams(e)) options.projection[p] = 1;
+      for (const p of extractParams(e))
+        if (typeof p === "string") options.projection[p] = 1;
     }
 
     // Exclude temporary tasks and faults

@@ -184,7 +184,7 @@ function renderTable(
 }
 
 const component: ClosureComponent = (): Component => {
-  let selected = new Set();
+  let selected = new Set<string>();
 
   return {
     view: vnode => {
@@ -199,7 +199,7 @@ const component: ClosureComponent = (): Component => {
       const actionsCallback = vnode.attrs["actionsCallback"];
       const recordActionsCallback = vnode.attrs["recordActionsCallback"];
 
-      const _selected = new Set();
+      const _selected = new Set<string>();
       for (const record of data) {
         const id = record["_id"] || record["DeviceID.ID"].value[0];
         if (selected.has(id)) _selected.add(id);

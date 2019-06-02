@@ -165,6 +165,9 @@ async function fetchPresets(): Promise<Preset[]> {
       precondition = mongoQueryToFilter(JSON.parse(preset["precondition"]));
     }
 
+    // Simplify expression
+    precondition = expression.evaluate(precondition);
+
     const _provisions = preset["provisions"] || [];
 
     // Generate provisions from the old configuration format
