@@ -1,80 +1,89 @@
 # GenieACS
 
-GenieACS is a fast and lightweight TR-069 auto configuration server (ACS). This
-is the core back end component. A GUI front end is available at
-https://github.com/genieacs/genieacs-gui.
-
-## Features
-
-- **Battle-tested at scale**: Can scale to manage hundreds of thousands and
-potentially millions of devices
-- **Powerful provisioning system**: Scriptable configuration to handle complex
-device provisioning scenarios and other automated operations such as firmware
-upgrade
-- **Extensive API**: A rich HTTP-based API allows easy integration with other
-systems
+GenieACS is a high performance Auto Configuration Server (ACS) for remote
+management of TR-069 enabled devices. It utilizes a declarative and fault
+tolerant configuration engine for automating complex provisioning scenarios at
+scale. It's battle-tested to handle hundreds of thousands and potentially
+millions of concurrent devices.
 
 ## Quick Start
+
+*Important: This is a pre-release branch. Use
+[v1.1](https://github.com/genieacs/genieacs/tree/v1.1) for production
+deployments.*
 
 Install [Node.js](http://nodejs.org/) and [MongoDB](http://www.mongodb.org/).
 Refer to their corresponding documentation for installation instructions. The
 supported versions are:
 
-- Node.js: 6.x and 8.x (8.x recommended)
-- MongoDB: 2.6 through 3.4
+- Node.js: 10.x through 12.x
+- MongoDB: 2.6 through 4.1
 
-Install build tools and libxml2 development files from your system's package
-manager.
+Clone this repo or download the source archive then *cd* into the source
+directory and install the required dependencies:
 
-Then install GenieACS using NPM:
-
-    npm install -g genieacs
-
-Alternatively, you can install from source by cloning the git repository:
-
-    git clone https://github.com/genieacs/genieacs.git
-    cd genieacs
-    git checkout $(git tag -l v1.1.* --sort=-v:refname | head -n 1)
     npm install
-    npm run compile
 
-Before proceeding, find and review the file "config.json" in "config" directory
-where GenieACS is downloaded.
+Now build:
 
-Finally, run the following (from bin directory if installing from source):
+    npm run build
 
-    genieacs-cwmp
+Finally, run the following services from the build that's generated under
+'dist' directory:
 
-This is the service that the CPEs will communicate with. It listens to port 7547
-by default (see config/config.json). Configure the ACS URL of your devices
-accordingly.
+### genieacs-cwmp
 
-    genieacs-nbi
+This is the service that the CPEs will communicate with. It listens on port
+7547 by default. Configure the ACS URL in your devices accordingly.
+
+    ./dist/bin/genieacs-cwmp
+
+You may optionally use [genieacs-sim](https://github.com/genieacs/genieacs-sim)
+as a dummy TR-069 simulator if you don't have a CPE at hand.
+
+### genieacs-nbi
 
 This is the northbound interface module. It exposes a REST API on port 7557 by
-default. This must be running for the GUI front end to work.
+default. This one is only required if you have an external system integrating
+with GenieACS using this API.
 
-    genieacs-fs
+    ./dist/bin/genieacs-nbi
+
+### genieacs-fs
 
 This is the file server from which the CPEs will download firmware images and
 such.
 
-Note: For production deployment make sure to run those as background services.
+    ./dist/bin/genieacs-fs
 
-For further details about installation and configuration, refer to the
-[wiki section](https://github.com/genieacs/genieacs/wiki).
+### genieacs-ui
+
+This serves the web based user interface. It listens on port 3000 by default.
+
+    ./dist/bin/genieacs-ui --ui-jwt-secret secret
+
+The argument *--ui-jwt-secret* supplies the key used for signing browser
+cookies.
+
+The UI has plenty of configuration options. To populate the an initial sample
+configuration, run:
+
+    ./dist/tools/configure-ui
+
+Use admin/admin credentials to log in.
 
 ## Support
 
-The [Users mailing list](http://lists.genieacs.com) is a good place to get
-guidance and help from the community. Head on over and join the conversation!
-In addition, the [wiki](https://github.com/genieacs/genieacs/wiki) provides useful
+The [forum](https://forum.genieacs.com) is a good place to get guidance and
+help from the community. Head on over and join the conversation! In addition,
+the [wiki](https://github.com/genieacs/genieacs/wiki) provides useful
 documentation and tips from GenieACS users.
 
 For commercial support options and professional services, please visit
-[genieacs.com](https://genieacs.com).
+[genieacs.com](https://genieacs.com/support/).
 
 ## License
 
-Copyright 2013-2018 GenieACS Inc. GenieACS is released under the
-[AGPLv3 license terms](https://raw.githubusercontent.com/genieacs/genieacs/master/LICENSE).
+Copyright 2013-2019 GenieACS Inc. GenieACS is released under the [AGPLv3
+license
+terms](https://raw.githubusercontent.com/genieacs/genieacs/master/LICENSE).
