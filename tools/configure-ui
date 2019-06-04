@@ -174,11 +174,11 @@ const configData = {
   "ui.overview.charts.online.slices.1_onlineNow.filter":
     "Events.Inform > NOW() - 5 * 60 * 1000",
   "ui.overview.charts.online.slices.1_onlineNow.label": "'Online now'",
-  "ui.overview.charts.online.slices.2_past24.color": "'#addd8e'",
+  "ui.overview.charts.online.slices.2_past24.color": "'#a1d99b'",
   "ui.overview.charts.online.slices.2_past24.filter":
     "Events.Inform > (NOW() - 5 * 60 * 1000) - (24 * 60 * 60 * 1000) AND Events.Inform < (NOW() - 5 * 60 * 1000)",
   "ui.overview.charts.online.slices.2_past24.label": "'Past 24 hours'",
-  "ui.overview.charts.online.slices.3_others.color": "'#f7fcb9'",
+  "ui.overview.charts.online.slices.3_others.color": "'#e5f5e0'",
   "ui.overview.charts.online.slices.3_others.filter":
     "Events.Inform < (NOW() - 5 * 60 * 1000) - (24 * 60 * 60 * 1000)",
   "ui.overview.charts.online.slices.3_others.label": "'Others'",
