@@ -1,5 +1,5 @@
 /**
- * Copyright 2013-2018  Zaid Abdulla
+ * Copyright 2013-2019  GenieACS Inc.
  *
  * This file is part of GenieACS.
  *
