@@ -66,13 +66,13 @@ For further details about installation and configuration, refer to the
 
 ## Support
 
-The [Users mailing list](http://lists.genieacs.com) is a good place to get
-guidance and help from the community. Head on over and join the conversation!
-In addition, the [wiki](https://github.com/genieacs/genieacs/wiki) provides useful
+The [forum](https://forum.genieacs.com) is a good place to get guidance and
+help from the community. Head on over and join the conversation! In addition,
+the [wiki](https://github.com/genieacs/genieacs/wiki) provides useful
 documentation and tips from GenieACS users.
 
 For commercial support options and professional services, please visit
-[genieacs.com](https://genieacs.com).
+[genieacs.com](https://genieacs.com/support/).
 
 ## License
 
