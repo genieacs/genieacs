@@ -1231,7 +1231,8 @@ async function listenerAsync(
   }
 
   if (!charset) {
-    const e = parseXmlDeclaration(body).find(s => s.localName === "encoding");
+    const parse = parseXmlDeclaration(body);
+    const e = parse ? parse.find(s => s.localName === "encoding") : null;
     charset = e ? e.value : "utf8";
   }
 
