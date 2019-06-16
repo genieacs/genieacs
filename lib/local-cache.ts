@@ -158,15 +158,17 @@ async function fetchPresets(): Promise<Preset[]> {
     }
 
     const events = preset["events"] || {};
-    let precondition;
-    try {
-      precondition = parse(preset["precondition"]);
-    } catch (error) {
-      precondition = mongoQueryToFilter(JSON.parse(preset["precondition"]));
-    }
+    let precondition = true as Expression;
+    if (preset["precondition"]) {
+      try {
+        precondition = parse(preset["precondition"]);
+      } catch (error) {
+        precondition = mongoQueryToFilter(JSON.parse(preset["precondition"]));
+      }
 
-    // Simplify expression
-    precondition = expression.evaluate(precondition);
+      // Simplify expression
+      precondition = expression.evaluate(precondition);
+    }
 
     const _provisions = preset["provisions"] || [];
 
