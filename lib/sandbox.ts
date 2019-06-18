@@ -310,12 +310,19 @@ function log(msg: string, meta: {}): void {
   }
 }
 
+function getRequestDetail(): any {
+  let detail = {};
+  detail["remoteAddress"] = state.sessionContext.httpRequest.connection.remoteAddress;
+  return detail;
+}
+
 Object.defineProperty(context, "Date", { value: SandboxDate });
 Object.defineProperty(context, "declare", { value: declare });
 Object.defineProperty(context, "clear", { value: clear });
 Object.defineProperty(context, "commit", { value: commit });
 Object.defineProperty(context, "ext", { value: ext });
 Object.defineProperty(context, "log", { value: log });
+Object.defineProperty(context, "getRequestDetail", { value: getRequestDetail});
 
 // Monkey-patch Math.random() to make it deterministic
 context.random = random;
