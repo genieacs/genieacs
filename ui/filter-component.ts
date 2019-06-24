@@ -29,7 +29,14 @@ const getAutocomplete = memoize(resource => {
   const labels = smartQuery.getLabels(resource);
   const autocomplete = new Autocomplete("autocomplete", (txt, cb) => {
     txt = txt.toLowerCase();
-    cb(labels.filter(s => s.toLowerCase().includes(txt)).map(s => `${s}: `));
+    cb(
+      labels
+        .filter(s => s.toLowerCase().includes(txt))
+        .map(s => ({
+          value: `${s}: `,
+          tip: smartQuery.getTip(resource, s)
+        }))
+    );
   });
   return autocomplete;
 });

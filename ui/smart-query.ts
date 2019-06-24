@@ -132,6 +132,38 @@ function queryMac(param, value): Expression {
   ];
 }
 
+export function getTip(resource, label): string {
+  let tip;
+  if (resources[resource] && resources[resource][label]) {
+    const param = resources[resource][label];
+    const types =
+      resource === "devices" ? param["type"] : param["type"].split(",");
+
+    const tips = [];
+    for (const type of types) {
+      switch (type.trim()) {
+        case "string":
+          tips.push("case insensitive string pattern");
+          break;
+        case "number":
+          tips.push("numeric value");
+          break;
+        case "timestamp":
+          tips.push(
+            "Unix timestamp or string in the form YYYY-MM-DDTHH:mm:ss.sssZ"
+          );
+          break;
+        case "mac":
+          tips.push("partial case insensitive MAC address");
+          break;
+      }
+    }
+
+    if (tips.length) tip = `${label}: ${tips.join(", ")}`;
+  }
+  return tip;
+}
+
 export function unpack(resource, label, value): Expression {
   if (!resources[resource]) return null;
   const type = resources[resource][label].type;

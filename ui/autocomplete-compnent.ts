@@ -20,7 +20,7 @@
 export default class Autocomplete {
   private callback: (
     value: string,
-    callback: (suggestions: string[]) => void
+    callback: (suggestions: { value: string; tip?: string }[]) => void
   ) => void;
   private element: HTMLInputElement;
   private hideTimeout: NodeJS.Timeout;
@@ -137,25 +137,26 @@ export default class Autocomplete {
         this.selection =
           ((this.selection % suggestions.length) + suggestions.length) %
           suggestions.length;
-        this.default = suggestions[this.selection];
+        this.default = suggestions[this.selection].value;
       } else {
-        this.default = suggestions[0];
+        this.default = suggestions[0].value;
       }
 
       let selectedElement;
       for (const [idx, suggestion] of suggestions.entries()) {
         const e = document.createElement("div");
+        if (suggestion.tip) e.title = suggestion.tip;
         e.classList.add("suggestion");
         if (idx === this.selection) {
           e.classList.add("selected");
           selectedElement = e;
         }
 
-        const t = document.createTextNode(suggestion);
+        const t = document.createTextNode(suggestion.value);
         e.appendChild(t);
         e.addEventListener("mousedown", ev => {
           ev.preventDefault();
-          el.value = suggestion;
+          el.value = suggestion.value;
           if (this.element === el) this.update();
         });
         this.container.appendChild(e);
