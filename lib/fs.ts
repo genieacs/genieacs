@@ -21,21 +21,27 @@ import * as url from "url";
 import * as querystring from "querystring";
 import { GridFSBucket } from "mongodb";
 import * as db from "./db";
+import * as logger from "./logger";
 
 export function listener(request, response): void {
   const urlParts = url.parse(request.url, true);
   if (request.method === "GET") {
     const filename = querystring.unescape(urlParts.pathname.substring(1));
+
+    const log = {
+      message: "Fetch file",
+      filename: filename,
+      remoteAddress: request.connection.remoteAddress
+    };
+
     db.filesCollection.findOne({ _id: filename }, (err, file) => {
-      if (err) {
-        response.writeHead(500, { Connection: "close" });
-        response.end(`${err.name}: ${err.message}`);
-        throw err;
-      }
+      if (err) throw err;
 
       if (!file) {
         response.writeHead(404);
         response.end();
+        log.message += " not found";
+        logger.accessError(log);
         return;
       }
 
@@ -47,6 +53,8 @@ export function listener(request, response): void {
       const bucket = new GridFSBucket(db.client.db());
       const downloadStream = bucket.openDownloadStreamByName(filename);
       downloadStream.pipe(response);
+
+      logger.accessInfo(log);
     });
   } else {
     response.writeHead(405, { Allow: "GET" });
