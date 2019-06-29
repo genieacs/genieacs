@@ -27,7 +27,6 @@ const component: ClosureComponent = (): Component => {
       const element = vnode.attrs["element"] || "span";
 
       function overflowed(_vnode): void {
-        if (_vnode.dom.classList.contains("long-text-overflowed")) return;
         _vnode.dom.classList.add("long-text-overflowed");
         _vnode.dom.onclick = e => {
           overlay.open(() => {
