@@ -47,7 +47,9 @@ const JWT_COOKIE = "genieacs-ui-jwt";
 
 function getPermissionSets(ctx): PermissionSet[] {
   const allPermissions = localCache.getPermissions(ctx.state.configSnapshot);
-  const permissionSets = ctx.state.user.roles.map(role =>
+  const users = localCache.getUsers(ctx.state.configSnapshot);
+  const user = users[ctx.state.user.username];
+  const permissionSets = user.roles.map(role =>
     Object.values(allPermissions[role] || {})
   );
   return permissionSets;
@@ -73,7 +75,7 @@ koa.use(
 );
 
 koa.use(async (ctx, next) => {
-  if (ctx.state.user && ctx.state.user.roles)
+  if (ctx.state.user && ctx.state.user.username)
     ctx.state.authorizer = new Authorizer(getPermissionSets(ctx));
   else ctx.state.authorizer = new Authorizer([]);
 
@@ -98,9 +100,9 @@ router.post("/login", async ctx => {
     method: null
   };
 
-  function success(roles, method): void {
+  function success(method): void {
     log.method = method;
-    const token = jwt.sign({ username, roles }, JWT_SECRET);
+    const token = jwt.sign({ username }, JWT_SECRET);
     ctx.cookies.set(JWT_COOKIE, token, { sameSite: "lax" });
     ctx.body = JSON.stringify(token);
     logger.accessInfo(log);
@@ -115,7 +117,7 @@ router.post("/login", async ctx => {
 
   const roles = await authSimple(ctx.state.configSnapshot, username, password);
 
-  if (roles) return void success(roles, "simple");
+  if (roles) return void success("simple");
 
   failure();
 });
@@ -142,7 +144,7 @@ router.use("/api", api.routes(), api.allowedMethods());
 
 router.get("/", async ctx => {
   let permissionSets = [];
-  if (ctx.state.user && ctx.state.user.roles)
+  if (ctx.state.user && ctx.state.user.username)
     permissionSets = getPermissionSets(ctx);
 
   ctx.body = `
