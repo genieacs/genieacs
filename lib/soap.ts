@@ -230,7 +230,7 @@ function SetParameterValues(methodRequest): string {
     }
     if (p[2] === "xsd:boolean" && typeof val === "boolean")
       if (methodRequest.BOOLEAN_LITERAL === false) val = +val;
-    `<ParameterValueStruct><Name>${p[0]}</Name><Value xsi:type="${
+    return `<ParameterValueStruct><Name>${p[0]}</Name><Value xsi:type="${
       p[2]
     }">${encodeEntities("" + val)}</Value></ParameterValueStruct>`;
   });
