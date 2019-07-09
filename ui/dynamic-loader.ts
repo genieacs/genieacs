@@ -17,8 +17,26 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import * as notifications from "./notifications";
+
 export let codeMirror;
 export let yaml;
+
+let note;
+
+function onError(): void {
+  if (!note) {
+    note = notifications.push(
+      "error",
+      "Error loading JS resource, please reload the page",
+      {
+        Reload: () => {
+          window.location.reload();
+        }
+      }
+    );
+  }
+}
 
 export function loadCodeMirror(): Promise<void> {
   if (codeMirror) return Promise.resolve();
@@ -36,7 +54,10 @@ export function loadCodeMirror(): Promise<void> {
         codeMirror = modules[0];
         resolve();
       })
-      .catch(reject);
+      .catch(err => {
+        onError();
+        reject(err);
+      });
   });
 }
 
@@ -49,6 +70,9 @@ export function loadYaml(): Promise<void> {
         yaml = module;
         resolve();
       })
-      .catch(reject);
+      .catch(err => {
+        onError();
+        reject(err);
+      });
   });
 }

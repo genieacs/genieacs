@@ -23,13 +23,13 @@ import { or, and, not, evaluate, subset } from "../lib/common/expression";
 import memoize from "../lib/common/memoize";
 import { QueryOptions, Expression } from "../lib/types";
 import * as notifications from "./notifications";
-import { configSnapshot } from "./config";
+import { configSnapshot, genieacsVersion } from "./config";
 
 const memoizedStringify = memoize(stringify);
 const memoizedEvaluate = memoize(evaluate);
 
 let fulfillTimestamp = 0;
-let refreshNotification;
+let connectionNotification, configNotification, versionNotification;
 
 const queries = {
   filter: new WeakMap(),
@@ -89,6 +89,71 @@ class QueryResponse {
   }
 }
 
+function checkConnection(): void {
+  m.request({
+    url: "/status",
+    method: "GET",
+    background: true,
+    extract: xhr => {
+      if (xhr.status !== 200) {
+        if (!connectionNotification) {
+          connectionNotification = notifications.push(
+            "warning",
+            "Server is unreachable",
+            {}
+          );
+        }
+      } else {
+        if (connectionNotification) {
+          notifications.dismiss(connectionNotification);
+          connectionNotification = null;
+        }
+
+        const configChanged =
+          xhr.getResponseHeader("x-config-snapshot") !== configSnapshot;
+        const versionChanged =
+          xhr.getResponseHeader("genieacs-version") !== genieacsVersion;
+
+        if (!configNotification !== !configChanged) {
+          if (configNotification) {
+            notifications.dismiss(configNotification);
+            configNotification = null;
+          } else {
+            configNotification = notifications.push(
+              "warning",
+              "Configuration has been modified, please reload the page",
+              {
+                Reload: () => {
+                  window.location.reload();
+                }
+              }
+            );
+          }
+        }
+
+        if (!versionNotification !== !versionChanged) {
+          if (versionNotification) {
+            notifications.dismiss(versionNotification);
+            versionNotification = null;
+          } else {
+            versionNotification = notifications.push(
+              "warning",
+              "Server has been updated, please reload the page",
+              {
+                Reload: () => {
+                  window.location.reload();
+                }
+              }
+            );
+          }
+        }
+      }
+    }
+  });
+}
+
+setInterval(checkConnection, 3000);
+
 export async function xhrRequest(
   options: { url: string } & m.RequestOptions<{}>
 ): Promise<any> {
@@ -99,21 +164,6 @@ export async function xhrRequest(
     xhr: XMLHttpRequest,
     _options?: { url: string } & m.RequestOptions<{}>
   ): any => {
-    if (
-      !refreshNotification &&
-      configSnapshot !== xhr.getResponseHeader("x-config-snapshot")
-    ) {
-      refreshNotification = notifications.push(
-        "warning",
-        "Configuration has been modified, please reload the page",
-        {
-          Reload: () => {
-            window.location.reload();
-          }
-        }
-      );
-    }
-
     if (typeof extract === "function") return extract(xhr, _options);
 
     let response: any;

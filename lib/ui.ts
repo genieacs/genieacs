@@ -33,6 +33,7 @@ import * as localCache from "./local-cache";
 import { PermissionSet } from "./types";
 import { authSimple } from "./ui/api-functions";
 import * as init from "./init";
+import { version as VERSION } from "../package.json";
 
 declare module "koa" {
   interface Request {
@@ -64,6 +65,7 @@ koa.use(async (ctx, next) => {
   const configSnapshot = await localCache.getCurrentSnapshot();
   ctx.state.configSnapshot = configSnapshot;
   ctx.set("X-Config-Snapshot", configSnapshot);
+  ctx.set("GenieACS-Version", VERSION);
   return next();
 });
 
@@ -143,6 +145,10 @@ koa.use(async (ctx, next) => {
 koa.use(koaBodyParser());
 router.use("/api", api.routes(), api.allowedMethods());
 
+router.get("/status", ctx => {
+  ctx.body = "OK";
+});
+
 router.get("/init", async ctx => {
   const status = await init.getStatus();
   if (Object.keys(localCache.getUsers(ctx.state.configSnapshot)).length) {
@@ -207,6 +213,7 @@ router.get("/", async ctx => {
           ui: localCache.getUiConfig(ctx.state.configSnapshot)
         })};
         window.configSnapshot = ${JSON.stringify(ctx.state.configSnapshot)};
+        window.genieacsVersion = ${JSON.stringify(VERSION)};
         window.username = ${JSON.stringify(
           ctx.state.user ? ctx.state.user.username : ""
         )};

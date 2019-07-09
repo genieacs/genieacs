@@ -45,6 +45,7 @@ declare global {
     username: string;
     clientConfig: any;
     configSnapshot: string;
+    genieacsVersion: string;
   }
 }
 
