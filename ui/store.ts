@@ -119,12 +119,16 @@ export async function xhrRequest(
     let response: any;
     if (typeof deserialize === "function") {
       response = deserialize(xhr.responseText);
-    } else {
+    } else if (
+      xhr.getResponseHeader("content-type").startsWith("application/json")
+    ) {
       try {
         response = xhr.responseText ? JSON.parse(xhr.responseText) : null;
       } catch (err) {
-        throw new Error("Invalid JSON: " + response);
+        throw new Error("Invalid JSON: " + xhr.responseText.slice(0, 80));
       }
+    } else {
+      response = xhr.responseText;
     }
 
     // https://mithril.js.org/request.html#error-handling
