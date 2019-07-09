@@ -110,8 +110,10 @@ function applyContext(vnode, parentContext): void {
     for (const c of vnode) applyContext(c, parentContext);
   } else if (vnode && typeof vnode === "object" && vnode.tag) {
     const vc = Object.assign({}, parentContext, vnodeContext.get(vnode));
-    vnodeContext.set(vnode, vc);
-    vnode.attrs = Object.assign({}, vc, vnode.attrs);
+    if (typeof vnode.tag !== "string") {
+      vnodeContext.set(vnode, vc);
+      vnode.attrs = Object.assign({}, vc, vnode.attrs);
+    }
     if (vnode.children && vnode.children.length)
       for (const c of vnode.children) applyContext(c, vc);
   }
