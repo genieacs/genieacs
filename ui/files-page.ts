@@ -104,13 +104,14 @@ function putActionHandler(action, _object): Promise<ValidationErrors> {
             object
           );
 
-          m.request({
-            method: "PUT",
-            headers: headers,
-            url: `/api/files/${encodeURIComponent(id)}`,
-            serialize: body => body, // Identity function to prevent JSON.parse on blob data
-            data: file
-          })
+          store
+            .xhrRequest({
+              method: "PUT",
+              headers: headers,
+              url: `/api/files/${encodeURIComponent(id)}`,
+              serialize: body => body, // Identity function to prevent JSON.parse on blob data
+              body: file
+            })
             .then(() => {
               notifications.push(
                 "success",

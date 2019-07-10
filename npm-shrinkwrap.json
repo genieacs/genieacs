@@ -599,9 +599,8 @@
       "dev": true
     },
     "@types/mithril": {
-      "version": "1.1.16",
-      "resolved": "https://registry.npmjs.org/@types/mithril/-/mithril-1.1.16.tgz",
-      "integrity": "sha512-+HlRvSpKwXP8RXh1hrIcgSHQ/Fh+5O9nYfG7fgNN7PGr2K03G+hLoiA+HXzmUJCsQfPEuNiBQ+TwRl6n7kerSw==",
+      "version": "github:MithrilJS/mithril.d.ts#fa4408680aec957d87140a5c4f25bd5902b58136",
+      "from": "github:MithrilJS/mithril.d.ts#next",
       "dev": true
     },
     "@types/mongodb": {
@@ -5775,9 +5774,9 @@
       }
     },
     "mithril": {
-      "version": "1.1.6",
-      "resolved": "https://registry.npmjs.org/mithril/-/mithril-1.1.6.tgz",
-      "integrity": "sha512-fWcUrQTCqu8M916rj1MFGlHaPh65rznPu6U/N2U9g81H89klDCIptSK5bnkNkC+jyi3sJIXjyGhSQjUnR8jzZA==",
+      "version": "2.0.0-rc.8",
+      "resolved": "https://registry.npmjs.org/mithril/-/mithril-2.0.0-rc.8.tgz",
+      "integrity": "sha512-7XvrXBW/b/NfSAP6VdMW+g9qq6tc2Pq+DPesVXsbo25W3EBfHFFDHIMk3mQV8UcBpA2qV4xXYplel4JClB7BXA==",
       "dev": true
     },
     "mixin-deep": {

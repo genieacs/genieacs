@@ -48,7 +48,9 @@ export const component: ClosureComponent = (): Component => {
               oncreate: vnode2 => {
                 (vnode2.dom as HTMLInputElement).focus();
               },
-              oninput: m.withAttr("value", v => (vnode.state["username"] = v))
+              oninput: e => {
+                vnode.state["username"] = e.target.value;
+              }
             })
           ),
           m(
@@ -58,7 +60,9 @@ export const component: ClosureComponent = (): Component => {
               name: "password",
               type: "password",
               value: vnode.state["password"],
-              oninput: m.withAttr("value", v => (vnode.state["password"] = v))
+              oninput: e => {
+                vnode.state["password"] = e.target.value;
+              }
             })
           ),
           m(

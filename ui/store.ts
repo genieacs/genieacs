@@ -555,7 +555,7 @@ export function postTasks(deviceId, tasks): Promise<string> {
   return xhrRequest({
     method: "POST",
     url: `/api/devices/${encodeURIComponent(deviceId)}/tasks`,
-    data: tasks,
+    body: tasks,
     extract: xhr => {
       if (xhr.status !== 200) throw new Error(xhr.response);
       const connectionRequestStatus = xhr.getResponseHeader(
@@ -576,7 +576,7 @@ export function updateTags(deviceId, tags): Promise<void> {
   return xhrRequest({
     method: "POST",
     url: `/api/devices/${encodeURIComponent(deviceId)}/tags`,
-    data: tags
+    body: tags
   });
 }
 
@@ -593,7 +593,7 @@ export function putResource(resourceType, id, object): Promise<void> {
   return xhrRequest({
     method: "PUT",
     url: `/api/${resourceType}/${encodeURIComponent(id)}`,
-    data: object
+    body: object
   });
 }
 
@@ -631,13 +631,13 @@ export function changePassword(
   newPassword,
   authPassword?
 ): Promise<void> {
-  const data = { newPassword };
-  if (authPassword) data["authPassword"] = authPassword;
+  const body = { newPassword };
+  if (authPassword) body["authPassword"] = authPassword;
   return xhrRequest({
     method: "PUT",
     url: `/api/users/${username}/password`,
     background: true,
-    data
+    body
   });
 }
 
@@ -646,7 +646,7 @@ export function logIn(username, password): Promise<void> {
     method: "POST",
     url: "/login",
     background: true,
-    data: { username, password }
+    body: { username, password }
   });
 }
 

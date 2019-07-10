@@ -40,7 +40,9 @@ const component: ClosureComponent = (): Component => {
             type: "text",
             value: vnode.state["username"],
             disabled: !!username,
-            oninput: m.withAttr("value", v => (vnode.state["username"] = v)),
+            oninput: e => {
+              vnode.state["username"] = e.target.value;
+            },
             oncreate: _vnode => {
               (_vnode.dom as HTMLSelectElement).focus();
             }
@@ -64,7 +66,9 @@ const component: ClosureComponent = (): Component => {
               name: f,
               type: "password",
               value: vnode.state[f],
-              oninput: m.withAttr("value", v => (vnode.state[f] = v))
+              oninput: e => {
+                vnode.state[f] = e.target.value;
+              }
             })
           )
         );
