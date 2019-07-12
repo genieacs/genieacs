@@ -169,7 +169,7 @@ async function generateCss(): Promise<void> {
 }
 
 async function generateToolsJs(): Promise<void> {
-  for (const bin of ["configure-ui", "dump-data-model"]) {
+  for (const bin of ["dump-data-model"]) {
     const inputFile = path.resolve(INPUT_DIR, `tools/${bin}`);
     const outputFile = path.resolve(OUTPUT_DIR, `tools/${bin}`);
     const bundle = await rollup({

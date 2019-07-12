@@ -340,7 +340,7 @@ async function fetchConfig(): Promise<[{}, {}]> {
     filters: {},
     device: {},
     index: {},
-    overview: { charts: {}, groups: {} }
+    overview: {}
   };
   const _config = {};
 
@@ -360,15 +360,6 @@ async function fetchConfig(): Promise<[{}, {}]> {
       }
       ref[keys[0]] = val;
     }
-  }
-
-  if (!Object.keys(ui["index"]).length) {
-    ui["index"] = {
-      "0": {
-        label: "ID",
-        parameter: ["PARAM", "DeviceID.ID"]
-      }
-    };
   }
 
   return [_config, ui];

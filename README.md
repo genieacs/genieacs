@@ -65,12 +65,9 @@ This serves the web based user interface. It listens on port 3000 by default.
 The argument *--ui-jwt-secret* supplies the key used for signing browser
 cookies.
 
-The UI has plenty of configuration options. To populate the an initial sample
-configuration, run:
-
-    ./dist/tools/configure-ui
-
-Use admin/admin credentials to log in.
+The UI has plenty of configuration options. When you open GenieACS's UI in a
+browser you'll be greeted with a database initialization wizard to help you
+populate some initial configuration.
 
 ## Support
 

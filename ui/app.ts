@@ -20,6 +20,7 @@
 import m, { RouteResolver } from "mithril";
 import layout from "./layout";
 import * as store from "./store";
+import * as wizardPage from "./wizard-page";
 import * as loginPage from "./login-page";
 import * as overviewPage from "./overview-page";
 import * as devicesPage from "./devices-page";
@@ -136,6 +137,7 @@ function redirectAdminPage(): RouteResolver {
 }
 
 m.route(document.body, "/overview", {
+  "/wizard": pagify("wizard", wizardPage),
   "/login": pagify("login", loginPage),
   "/overview": pagify("overview", overviewPage),
   "/devices": pagify("devices", devicesPage),

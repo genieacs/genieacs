@@ -69,6 +69,12 @@ export function init(args): Promise<{}> {
     const filter = args.hasOwnProperty("filter") ? "" + args["filter"] : "";
     const sort = args.hasOwnProperty("sort") ? "" + args["sort"] : "";
     const indexParameters = Object.values(config.ui.index);
+    if (!indexParameters.length) {
+      indexParameters.push({
+        label: "ID",
+        parameter: ["PARAM", "DeviceID.ID"]
+      });
+    }
     resolve({ filter, indexParameters, sort });
   });
 }

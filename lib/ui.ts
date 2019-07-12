@@ -32,6 +32,7 @@ import * as logger from "./logger";
 import * as localCache from "./local-cache";
 import { PermissionSet } from "./types";
 import { authSimple } from "./ui/api-functions";
+import * as init from "./init";
 
 declare module "koa" {
   interface Request {
@@ -142,10 +143,56 @@ koa.use(async (ctx, next) => {
 koa.use(koaBodyParser());
 router.use("/api", api.routes(), api.allowedMethods());
 
+router.get("/init", async ctx => {
+  const status = await init.getStatus();
+  if (Object.keys(localCache.getUsers(ctx.state.configSnapshot)).length) {
+    if (!ctx.state.authorizer.hasAccess("users", 3)) status["users"] = false;
+    if (!ctx.state.authorizer.hasAccess("permissions", 3))
+      status["users"] = false;
+    if (!ctx.state.authorizer.hasAccess("config", 3)) {
+      status["filters"] = false;
+      status["device"] = false;
+      status["index"] = false;
+      status["overview"] = false;
+    }
+    if (!ctx.state.authorizer.hasAccess("presets", 3))
+      status["presets"] = false;
+    if (!ctx.state.authorizer.hasAccess("provisions", 3))
+      status["presets"] = false;
+  }
+
+  ctx.body = status;
+});
+
+router.post("/init", async ctx => {
+  const status = ctx.request.body;
+  if (Object.keys(localCache.getUsers(ctx.state.configSnapshot)).length) {
+    if (!ctx.state.authorizer.hasAccess("users", 3)) status["users"] = false;
+    if (!ctx.state.authorizer.hasAccess("permissions", 3))
+      status["users"] = false;
+    if (!ctx.state.authorizer.hasAccess("config", 3)) {
+      status["filters"] = false;
+      status["device"] = false;
+      status["index"] = false;
+      status["overview"] = false;
+    }
+    if (!ctx.state.authorizer.hasAccess("presets", 3))
+      status["presets"] = false;
+    if (!ctx.state.authorizer.hasAccess("provisions", 3))
+      status["presets"] = false;
+  }
+  await init.seed(status);
+  ctx.body = "";
+});
+
 router.get("/", async ctx => {
   let permissionSets = [];
   if (ctx.state.user && ctx.state.user.username)
     permissionSets = getPermissionSets(ctx);
+
+  let wizard = "";
+  if (!Object.keys(localCache.getUsers(ctx.state.configSnapshot)).length)
+    wizard = '<script>window.location.hash = "#!/wizard";</script>';
 
   ctx.body = `
   <html>
@@ -165,7 +212,7 @@ router.get("/", async ctx => {
         )};
         window.permissionSets = ${JSON.stringify(permissionSets)};
       </script>
-      <script src="app.js"></script>
+      <script src="app.js"></script>${wizard} 
     </body>
   </html>
   `;

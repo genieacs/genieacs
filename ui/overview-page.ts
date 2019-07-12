@@ -23,7 +23,7 @@ import config from "./config";
 import * as store from "./store";
 import pieChartComponent from "./pie-chart-component";
 
-const GROUPS = config.ui.overview.groups;
+const GROUPS = config.ui.overview.groups || {};
 const CHARTS = {};
 for (const group of Object.values(GROUPS)) {
   for (const chartName of Object.values(group["charts"]) as string[])

@@ -716,3 +716,12 @@ span.parameter-value {
     color: #aaa;
   }
 }
+
+.wizard-dialog {
+  max-width: 720px;
+  margin: 10px auto;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid var(--color1);
+  box-shadow: 0 0 10px #ccc;
+}
