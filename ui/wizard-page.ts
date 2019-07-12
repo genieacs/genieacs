@@ -26,7 +26,7 @@ export async function init(): Promise<{}> {
 
 export const component: ClosureComponent = (vnode): Component => {
   let options = vnode.attrs;
-  const selected = new Set();
+  const selected = new Set<string>();
   for (const [k, v] of Object.entries(options)) if (v) selected.add(k);
 
   return {
