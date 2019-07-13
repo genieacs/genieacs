@@ -83,7 +83,7 @@ export const component: ClosureComponent = (vnode): Component => {
               m.request({
                 method: "POST",
                 url: "/init",
-                data: opts
+                body: opts
               })
                 .then(() => {
                   setTimeout(() => {
