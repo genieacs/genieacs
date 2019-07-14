@@ -151,9 +151,9 @@ function parameterValueList(
         }
       }
 
-      const valueType = getValueType(valueElement.attrs);
+      const valueType = valueElement&&valueElement.attrs?getValueType(valueElement.attrs):'xsd:string';
 
-      const value = decodeEntities(valueElement.text);
+      const value = valueElement&&valueElement.text?decodeEntities(valueElement.text):valueElement&&valueElement.text;
       let parsed: string | number | boolean = value;
       if (valueType === "xsd:boolean") {
         parsed = parseBool(value);

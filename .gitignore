@@ -15,3 +15,4 @@ config/fs.ca-bundle
 config/ext
 bin/.*.ts
 tools/.*.ts
+.idea
