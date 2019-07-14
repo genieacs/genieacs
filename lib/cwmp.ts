@@ -342,7 +342,17 @@ async function transferComplete(sessionContext, rpc): Promise<void> {
     cwmpVersion: sessionContext.cwmpVersion
   });
 
-  return writeResponse(sessionContext, res);
+  let closeSession = false;
+  // workarounds for MikroTik devices not closing session properly in certain cases
+  if (sessionContext.httpRequest.headers['user-agent'] == "MikroTik") {
+    if ((operation.args.fileType == "3 Vendor Configuration File") && !((operation.args.fileName).includes('.alter'))) {
+      closeSession = true;
+    } else if (operation.args.fileType == "1 Firmware Upgrade Image") {
+      closeSession = true;
+    }
+  }
+
+  return writeResponse(sessionContext, res, closeSession);
 }
 
 // Append provisions and remove duplicates
