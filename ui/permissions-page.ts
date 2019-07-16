@@ -47,6 +47,7 @@ const attributes = [
       "faults",
       "files",
       "permissions",
+      "users",
       "presets",
       "provisions",
       "virtualParameters"
