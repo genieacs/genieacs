@@ -78,7 +78,7 @@ i {
 
 @keyframes pending-blink {
   from {
-    background-color: color(var(--status-green) a(90%));
+    background-color: color-mod(var(--status-green) a(90%));
   }
   to {
     background-color: transparent;
@@ -141,10 +141,10 @@ body {
           }
         }
         & > .stale.active {
-          background-color: color(var(--status-gray) a(90%));
+          background-color: color-mod(var(--status-gray) a(90%));
         }
         & > .fault.active {
-          background-color: color(var(--status-red) a(90%));
+          background-color: color-mod(var(--status-red) a(90%));
         }
         & > .queued.active {
           font-weight: bold;
@@ -183,11 +183,11 @@ body {
           border-radius: 0.4em;
         }
         & > .stale {
-          background-color: color(var(--status-gray) a(90%));
+          background-color: color-mod(var(--status-gray) a(90%));
           border-radius: 0.4em;
         }
         & > .fault {
-          background-color: color(var(--status-red) a(90%));
+          background-color: color-mod(var(--status-red) a(90%));
           border-radius: 0.4em;
         }
         & .parameter {
@@ -227,15 +227,15 @@ body {
         transition: opacity var(--fade), top var(--fade);
 
         &.error {
-          background-color: color(var(--status-red) a(90%));
+          background-color: color-mod(var(--status-red) a(90%));
           border: 1px solid var(--status-red);
         }
         &.success {
-          background-color: color(var(--status-green) a(90%));
+          background-color: color-mod(var(--status-green) a(90%));
           border: 1px solid var(--status-green);
         }
         &.warning {
-          background-color: color(var(--status-yellow) a(90%));
+          background-color: color-mod(var(--status-yellow) a(90%));
           border: 1px solid var(--status-yellow);
         }
       }

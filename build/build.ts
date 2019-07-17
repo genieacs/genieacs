@@ -28,7 +28,7 @@ import { terser } from "rollup-plugin-terser";
 import webpack from "webpack";
 import postcss from "postcss";
 import postcssImport from "postcss-import";
-import postcssCssNext from "postcss-cssnext";
+import postcssPresetEnv from "postcss-preset-env";
 import cssnano from "cssnano";
 
 const MODE = process.env["NODE_ENV"] || "production";
@@ -162,7 +162,13 @@ async function generateCss(): Promise<void> {
   const cssIn = fs.readFileSync(cssInPath);
   const cssOut = await postcss([
     postcssImport,
-    postcssCssNext({ warnForDuplicates: false }),
+    postcssPresetEnv({
+      stage: 3,
+      features: {
+        "nesting-rules": true,
+        "color-mod-function": true
+      }
+    }),
     cssnano
   ]).process(cssIn, { from: cssInPath, to: cssOutPath });
   fs.writeFileSync(cssOutPath, cssOut.css);
