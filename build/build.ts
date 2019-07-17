@@ -19,13 +19,11 @@
 
 import * as path from "path";
 import * as fs from "fs";
-import { promisify } from "util";
 import { rollup, WarningHandler } from "rollup";
 import rollupReplace from "rollup-plugin-replace";
 import rollupJson from "rollup-plugin-json";
 import typescript from "rollup-plugin-typescript";
 import { terser } from "rollup-plugin-terser";
-import webpack from "webpack";
 import postcss from "postcss";
 import postcssImport from "postcss-import";
 import postcssCssNext from "postcss-cssnext";
@@ -56,7 +54,6 @@ const externals = [
   "libxmljs",
   "vm",
   "later",
-  "parsimmon",
   "seedrandom",
   "querystring",
   "child_process",
@@ -270,7 +267,8 @@ async function generateFrontendJs(): Promise<void> {
     external: externals,
     plugins: [
       rollupJson({ preferConst: true }),
-      typescript({ tsconfig: "./tsconfig.json" })
+      typescript({ tsconfig: "./tsconfig.json" }),
+      MODE === "production" ? terser() : null
     ],
     inlineDynamicImports: true,
     treeshake: {
@@ -285,24 +283,15 @@ async function generateFrontendJs(): Promise<void> {
 
   await bundle.write({
     preferConst: true,
-    format: "esm",
-    file: outputFile
+    format: "umd",
+    file: outputFile,
+    globals:{
+      parsimmon:'Parsimmon',
+      mithril:'m'
+    },
+    sourcemap:true
   });
 
-  const webpackConf = {
-    mode: MODE,
-    entry: outputFile,
-    resolve: {
-      aliasFields: ["module"]
-    },
-    output: {
-      path: path.resolve(OUTPUT_DIR, "public"),
-      filename: "app.js"
-    }
-  };
-
-  const stats = await promisify(webpack)(webpackConf);
-  process.stdout.write(stats.toString({ colors: true }) + "\n");
 }
 
 init()

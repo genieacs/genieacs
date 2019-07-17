@@ -11,7 +11,8 @@
     "alwaysStrict": true,
     "noImplicitReturns": true,
     "strictFunctionTypes": true,
-    "allowJs": true
+    "allowJs": true,
+    "sourceMap": true
   },
   "include": [
       "./bin/.*.ts",
@@ -19,6 +20,6 @@
       "./ui/**/*",
       "./test/**/*",
       "./build/**/*",
-      "./toos/.*.ts"
+      "./tools/.*.ts"
   ]
 }

@@ -212,6 +212,8 @@ router.get("/", async ctx => {
         )};
         window.permissionSets = ${JSON.stringify(permissionSets)};
       </script>
+      <script src="https://unpkg.com/mithril@2.0.0-rc.8/mithril.js"></script>
+      <script src="https://unpkg.com/parsimmon@1.12.1/build/parsimmon.umd.min.js"></script>
       <script src="app.js"></script>${wizard} 
     </body>
   </html>
