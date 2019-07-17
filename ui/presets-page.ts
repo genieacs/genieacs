@@ -286,6 +286,14 @@ export const component: ClosureComponent = (): Component => {
             {
               onclick: () => {
                 const cb = (): Children => {
+                  if (!preset.provision) {
+                    return m(
+                      "div",
+                      { style: "margin:20px" },
+                      "This UI only supports presets with a single 'provision' configuraiton. If this preset was originally created from the old UI (genieacs-gui), you must edit it there."
+                    );
+                  }
+
                   return m(
                     putFormComponent,
                     Object.assign(

@@ -560,16 +560,17 @@ export function flattenPreset(preset): {} {
 
   const provision = p.configurations[0];
   if (
-    p.configurations.length !== 1 ||
-    provision.type !== "provision" ||
-    !provision.name ||
-    !provision.name.length
-  )
-    throw new Error("Invalid preset provision");
-  p.provision = provision.name;
-  p.provisionArgs = provision.args
-    ? JSON.stringify(provision.args).slice(1, -1)
-    : "";
+    p.configurations.length === 1 &&
+    provision.type === "provision" &&
+    provision.name &&
+    provision.name.length
+  ) {
+    p.provision = provision.name;
+    p.provisionArgs = provision.args
+      ? JSON.stringify(provision.args).slice(1, -1)
+      : "";
+  }
+
   delete p.configurations;
   return p;
 }
