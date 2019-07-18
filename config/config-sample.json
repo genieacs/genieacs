@@ -9,5 +9,5 @@
   "FS_HOSTNAME" : "",
   "UI_INTERFACE" : "0.0.0.0",
   "UI_PORT" : 3000,
-  "UI_JWT_SECRET": ""
+  "UI_JWT_SECRET": "your_secret"
 }

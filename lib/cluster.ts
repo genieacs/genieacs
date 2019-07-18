@@ -92,4 +92,6 @@ export function stop(): void {
   for (const pid in cluster.workers) cluster.workers[pid].kill();
 }
 
-export const worker = process.env.NODE_ENV==='development'?{}:cluster.worker;
+const emptyWorker={}
+
+export const worker = process.env.NODE_ENV==='development'?emptyWorker:cluster.worker;

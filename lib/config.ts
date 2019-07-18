@@ -21,7 +21,7 @@ import { resolve } from "path";
 import { readFileSync, existsSync } from "fs";
 
 // Find project root directory
-export let ROOT_DIR = resolve(__dirname, "..");
+export let ROOT_DIR = process.env.NODE_ENV==='development'?resolve("./dist"):resolve(__dirname, "..");
 while (!existsSync(`${ROOT_DIR}/package.json`)) {
   const d = resolve(ROOT_DIR, "..");
   if (d === ROOT_DIR) {

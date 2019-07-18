@@ -141,6 +141,7 @@ async function copyStatic(): Promise<void> {
     "CHANGELOG.md",
     "config/config-sample.json",
     "config/ext-sample.js",
+    "config/config.json",
     "public/logo.svg",
     "public/favicon.png"
   ];
