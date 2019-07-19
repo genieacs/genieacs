@@ -22,6 +22,7 @@ import { m } from "../components";
 import * as taskQueue from "../task-queue";
 import * as store from "../store";
 import * as expressionParser from "../../lib/common/expression-parser";
+import { getIcon } from "../icons";
 
 const component: ClosureComponent = (): Component => {
   return {
@@ -104,7 +105,7 @@ const component: ClosureComponent = (): Component => {
                     });
                   }
                 },
-                "✕"
+                getIcon("delete-instance")
               )
             )
           );
@@ -137,7 +138,7 @@ const component: ClosureComponent = (): Component => {
                     });
                   }
                 },
-                "🞢"
+                getIcon("add-instance")
               )
             )
           )

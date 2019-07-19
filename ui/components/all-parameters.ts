@@ -22,6 +22,7 @@ import { m } from "../components";
 import * as taskQueue from "../task-queue";
 import { parse } from "../../lib/common/expression-parser";
 import memoize from "../../lib/common/memoize";
+import { getIcon } from "../icons";
 
 const memoizedParse = memoize(parse);
 
@@ -86,7 +87,7 @@ const component: ClosureComponent = (): Component => {
                       });
                     }
                   },
-                  "✕"
+                  getIcon("delete-instance")
                 )
               );
             } else {
@@ -103,7 +104,7 @@ const component: ClosureComponent = (): Component => {
                       });
                     }
                   },
-                  "🞢"
+                  getIcon("add-instance")
                 )
               );
             }
@@ -122,7 +123,7 @@ const component: ClosureComponent = (): Component => {
                   });
                 }
               },
-              "↺"
+              getIcon("refresh")
             )
           );
 

@@ -421,6 +421,9 @@ button {
   color: var(--color4);
   border-radius: 4px;
   transition: background-color var(--fade), color var(--fade);
+  display: inline-block;
+  vertical-align: middle;
+
   &.primary {
     border: 1px solid var(--color1);
     background-color: var(--color3);
@@ -724,4 +727,19 @@ span.parameter-value {
   border-radius: 6px;
   border: 1px solid var(--color1);
   box-shadow: 0 0 10px #ccc;
+}
+
+.icon {
+  display: inline-block;
+  vertical-align: middle;
+  width: 1em;
+  height: 1em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  &.icon-unsorted {
+    opacity: 0.3;
+  }
 }

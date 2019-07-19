@@ -21,6 +21,7 @@ import { ClosureComponent, Component } from "mithril";
 import { m } from "../components";
 import * as notifications from "../notifications";
 import * as store from "../store";
+import { getIcon } from "../icons";
 
 const component: ClosureComponent = (): Component => {
   return {
@@ -68,12 +69,13 @@ const component: ClosureComponent = (): Component => {
                     });
                 }
               },
-              "✕"
+              getIcon("remove")
             )
           )
         ),
         m(
           "span.tag.writable",
+          m.trust("&nbsp;"),
           m(
             "button",
             {
@@ -99,7 +101,7 @@ const component: ClosureComponent = (): Component => {
                   });
               }
             },
-            "🞢"
+            getIcon("add")
           )
         )
       );

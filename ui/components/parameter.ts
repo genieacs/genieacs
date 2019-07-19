@@ -24,6 +24,7 @@ import * as store from "../store";
 import * as expression from "../../lib/common/expression";
 import memoize from "../../lib/common/memoize";
 import timeAgo from "../timeago";
+import { getIcon } from "../icons";
 
 const evaluateParam = memoize((exp, obj, now: number) => {
   let timestamp = now;
@@ -82,7 +83,7 @@ const component: ClosureComponent = (): Component => {
               });
             }
           },
-          "✎"
+          getIcon("edit")
         );
       }
 

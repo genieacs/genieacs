@@ -19,6 +19,7 @@
 
 import { ClosureComponent, Component, Children } from "mithril";
 import { m } from "./components";
+import { getIcon } from "./icons";
 
 interface Attribute {
   id?: string;
@@ -78,9 +79,9 @@ function renderTable(
 
     let direction = 1;
 
-    let symbol = "\u2981";
-    if (sortAttributes[i] > 0) symbol = "\u2bc6";
-    else if (sortAttributes[i] < 0) symbol = "\u2bc5";
+    let symbol = getIcon("unsorted");
+    if (sortAttributes[i] > 0) symbol = getIcon("sorted-dsc");
+    else if (sortAttributes[i] < 0) symbol = getIcon("sorted-asc");
 
     const sortable = m(
       "button",

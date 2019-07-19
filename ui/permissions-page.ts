@@ -29,6 +29,7 @@ import * as smartQuery from "./smart-query";
 import { map, parse, stringify } from "../lib/common/expression-parser";
 import filterComponent from "./filter-component";
 import { Children, ClosureComponent, Component } from "mithril";
+import { getIcon } from "./icons";
 
 const PAGE_SIZE = config.ui.pageSize || 10;
 
@@ -270,7 +271,7 @@ export const component: ClosureComponent = (): Component => {
                   });
                 }
               },
-              "✕"
+              getIcon("remove")
             )
           ];
         };

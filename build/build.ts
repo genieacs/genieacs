@@ -30,6 +30,8 @@ import postcss from "postcss";
 import postcssImport from "postcss-import";
 import postcssPresetEnv from "postcss-preset-env";
 import cssnano from "cssnano";
+import SVGO from "svgo";
+import * as xmlParser from "../lib/xml-parser";
 
 const MODE = process.env["NODE_ENV"] || "production";
 
@@ -97,6 +99,34 @@ function stripDevDeps(deps): void {
     else stripDevDeps(v);
   }
   if (!Object.keys(deps["dependencies"]).length) delete deps["dependencies"];
+}
+
+function xmlTostring(xml): string {
+  const children = [];
+  for (const c of xml.children || []) children.push(xmlTostring(c));
+
+  return xml.name === "root" && xml.bodyIndex === 0
+    ? children.join("")
+    : `<${xml.name} ${xml.attrs}>${children.join("")}</${xml.name}>`;
+}
+
+function generateSymbol(id: string, svgStr: string): string {
+  const xml = xmlParser.parseXml(svgStr);
+  const svg = xml.children[0];
+  const svgAttrs = xmlParser.parseAttrs(svg.attrs);
+  let viewBox = "";
+  for (const a of svgAttrs) {
+    if (a.name === "viewBox") {
+      viewBox = `viewBox="${a.value}"`;
+      break;
+    }
+  }
+  const symbolBody = xml.children[0].children
+    .map(c => {
+      return xmlTostring(c);
+    })
+    .join("");
+  return `<symbol id="icon-${id}" ${viewBox}>${symbolBody}</symbol>`;
 }
 
 async function init(): Promise<void> {
@@ -311,11 +341,28 @@ async function generateFrontendJs(): Promise<void> {
   process.stdout.write(stats.toString({ colors: true }) + "\n");
 }
 
+async function generateIconsSprite(): Promise<void> {
+  const svgo = new SVGO({ plugins: [{ removeViewBox: false }] });
+  const symbols = [];
+  const iconsDir = path.resolve(INPUT_DIR, "ui/icons");
+  for (const file of fs.readdirSync(iconsDir)) {
+    const id = path.parse(file).name;
+    const filePath = path.join(iconsDir, file);
+    const { data } = await svgo.optimize(fs.readFileSync(filePath).toString());
+    symbols.push(generateSymbol(id, data));
+  }
+  fs.writeFileSync(
+    path.resolve(OUTPUT_DIR, "public/icons.svg"),
+    `<svg xmlns="http://www.w3.org/2000/svg">${symbols.join("")}</svg>`
+  );
+}
+
 init()
   .then(() => {
     Promise.all([
       copyStatic(),
       generateCss(),
+      generateIconsSprite(),
       generateToolsJs(),
       generateBackendJs(),
       generateFrontendJs()

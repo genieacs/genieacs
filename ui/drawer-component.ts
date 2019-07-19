@@ -27,6 +27,7 @@ import m, {
 import * as taskQueue from "./task-queue";
 import * as store from "./store";
 import * as notifications from "./notifications";
+import { getIcon } from "./icons";
 
 function mparam(param): Children {
   return m("span.parameter", { title: param }, `${param}`);
@@ -217,7 +218,7 @@ function renderQueue(queue): Child[] {
                 taskQueue.queueTask(t);
               }
             },
-            "↺"
+            getIcon("retry")
           )
         );
       }
@@ -231,7 +232,7 @@ function renderQueue(queue): Child[] {
               taskQueue.deleteTask(t);
             }
           },
-          "✕"
+          getIcon("remove")
         )
       );
 

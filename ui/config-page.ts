@@ -26,6 +26,7 @@ import * as overlay from "./overlay";
 import { parse, stringify } from "../lib/common/expression-parser";
 import { loadCodeMirror, loadYaml } from "./dynamic-loader";
 import { ClosureComponent, Component, Children } from "mithril";
+import { getIcon } from "./icons";
 
 const attributes = [
   { id: "_id", label: "Key" },
@@ -179,7 +180,7 @@ function renderTable(confsResponse, searchString): Children {
           overlay.open(cb);
         }
       },
-      "✎"
+      getIcon("edit")
     );
 
     const del = m(
@@ -194,7 +195,7 @@ function renderTable(confsResponse, searchString): Children {
           });
         }
       },
-      "✕"
+      getIcon("remove")
     );
 
     rows.push(
