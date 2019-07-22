@@ -164,7 +164,7 @@ export const component: ClosureComponent = (): Component => {
       function onFilterChanged(filter): void {
         const ops = { filter };
         if (vnode.attrs["sort"]) ops["sort"] = vnode.attrs["sort"];
-        m.route.set(m.route.get(), ops);
+        m.route.set("/admin/files", ops);
       }
 
       const sort = vnode.attrs["sort"]
@@ -185,7 +185,7 @@ export const component: ClosureComponent = (): Component => {
 
         const ops = { sort: JSON.stringify(_sort) };
         if (vnode.attrs["filter"]) ops["filter"] = vnode.attrs["filter"];
-        m.route.set(m.route.get(), ops);
+        m.route.set("/admin/files", ops);
       }
 
       let filter = vnode.attrs["filter"]
