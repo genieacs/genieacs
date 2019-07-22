@@ -208,6 +208,7 @@ router.get("/", async ctx => {
       <link rel="stylesheet" href="app.css">
     </head>
     <body>
+    <noscript>GenieACS UI requires JavaScript to work. Please enable JavaScript in your browser.</noscript>
       <script>
         window.clientConfig = ${JSON.stringify({
           ui: localCache.getUiConfig(ctx.state.configSnapshot)
