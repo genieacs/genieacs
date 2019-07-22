@@ -212,29 +212,29 @@ export const component: ClosureComponent = (): Component => {
       const count = store.count("presets", filter);
 
       const userDefinedProvisions: Set<string> = new Set();
+
+      const provisionIds = new Set([
+        "refresh",
+        "value",
+        "tag",
+        "reboot",
+        "reset",
+        "download",
+        "instances"
+      ]);
+
       const provisions = store.fetch("provisions", true);
       if (provisions.fulfilled) {
-        const provisionAttr = attributes.find(attr => {
-          return attr.id === "provision";
-        });
-
-        const provisionIds = new Set([
-          "refresh",
-          "value",
-          "tag",
-          "reboot",
-          "reset",
-          "download",
-          "instances"
-        ]);
-
         for (const p of provisions.value) {
           userDefinedProvisions.add(p["_id"]);
           provisionIds.add(p["_id"]);
         }
-
-        provisionAttr["options"] = Array.from(provisionIds);
       }
+
+      const provisionAttr = attributes.find(attr => {
+        return attr.id === "provision";
+      });
+      provisionAttr["options"] = Array.from(provisionIds);
 
       const downloadUrl = getDownloadUrl(filter);
 

@@ -32,12 +32,18 @@ const singular = {
 
 function createField(current, attr, focus): Children {
   if (attr.type === "combo") {
-    const options = [m("option", { value: "" }, "--Please choose--")];
-    for (const op of attr.options) options.push(m("option", { value: op }, op));
-
     let selected = "";
-    if (attr.options.includes(current.object[attr.id]))
+    let optionsValues = attr.options;
+    if (current.object[attr.id] != null) {
+      if (!optionsValues.includes(current.object[attr.id]))
+        optionsValues = optionsValues.concat([current.object[attr.id]]);
       selected = current.object[attr.id];
+    }
+
+    const options = [m("option", { value: "" }, "")];
+    for (const op of optionsValues)
+      options.push(m("option", { value: op }, op));
+
     return m(
       "select",
       {
@@ -56,8 +62,11 @@ function createField(current, attr, focus): Children {
       options
     );
   } else if (attr.type === "multi") {
+    const optionsValues = Array.from(
+      new Set(attr.options.concat(current.object[attr.id] || []))
+    );
     const currentSelected = new Set(current.object[attr.id]);
-    const options = attr.options.map(op => {
+    const options = optionsValues.map(op => {
       const id = `${attr.id}-${op}`;
       const opts = {
         type: "checkbox",
