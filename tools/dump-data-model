@@ -28,9 +28,7 @@ process.chdir(path.resolve(path.dirname(fs.realpathSync(__filename)), ".."));
 
 const dataModel = {};
 
-function recursive(object, p): void {
-  if (!p) p = "";
-
+function recursive(object, p = ""): void {
   for (const key in object) {
     if (key[0] === "_" || !object[key]) continue;
 
@@ -58,27 +56,29 @@ function recursive(object, p): void {
   }
 }
 
-connect(err => {
-  if (err) throw err;
-
-  return devicesCollection.findOne(
-    {
-      _id: process.argv[2]
-    },
-    {},
-    (err, device) => {
-      if (err) throw err;
-
-      if (!device) throw new Error("Device not found");
-
-      recursive(device);
-
-      fs.writeFile(outputFilename, JSON.stringify(dataModel, null, 2), () => {
+connect()
+  .then(() => {
+    devicesCollection.findOne(
+      {
+        _id: process.argv[2]
+      },
+      {},
+      (err, device) => {
         if (err) throw err;
 
-        process.stdout.write(`${outputFilename} saved\n`);
-        process.exit(0);
-      });
-    }
-  );
-});
+        if (!device) throw new Error("Device not found");
+
+        recursive(device);
+
+        fs.writeFile(outputFilename, JSON.stringify(dataModel, null, 2), () => {
+          if (err) throw err;
+
+          process.stdout.write(`${outputFilename} saved\n`);
+          process.exit(0);
+        });
+      }
+    );
+  })
+  .catch(err => {
+    throw err;
+  });
