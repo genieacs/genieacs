@@ -80,8 +80,8 @@ function renderTable(
     let direction = 1;
 
     let symbol = getIcon("unsorted");
-    if (sortAttributes[i] > 0) symbol = getIcon("sorted-dsc");
-    else if (sortAttributes[i] < 0) symbol = getIcon("sorted-asc");
+    if (sortAttributes[i] > 0) symbol = getIcon("sorted-asc");
+    else if (sortAttributes[i] < 0) symbol = getIcon("sorted-dsc");
 
     const sortable = m(
       "button",
