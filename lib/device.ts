@@ -140,7 +140,7 @@ export function unpack(
       if (deviceData.attributes.has(p, revision)) allMatches.push(p);
 
     for (let i = path.length - 1; i >= 0; --i) {
-      if (path.alias & (i << i)) {
+      if (path.alias & (1 << i)) {
         for (const [param, val] of path.segments[i] as [Path, string][]) {
           const p = wildcardPath.slice(0, i + 1).concat(param);
           const unpacked = unpack(deviceData, p, revision);
@@ -156,11 +156,13 @@ export function unpack(
             ) {
               for (let m = 0; m < allMatches.length; ++m) {
                 let k;
+                const match = allMatches[m];
+                if (!match) continue;
                 for (k = i; k >= 0; --k)
-                  if (allMatches[m].segments[k] !== up.segments[k]) break;
+                  if (match.segments[k] !== up.segments[k]) break;
 
                 if (k < 0) {
-                  filtered.push(allMatches[m]);
+                  filtered.push(match);
                   allMatches[m] = null;
                 }
               }

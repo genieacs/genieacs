@@ -2139,7 +2139,7 @@ function processInstances(
   defer: boolean
 ): void {
   parent = sessionContext.deviceData.paths.add(parent);
-  let instancesToCreate, instancesToDelete;
+  let instancesToCreate: InstanceSet, instancesToDelete: Set<Path>;
   if (parent.segments[0] === "Downloads") {
     if (parent.length !== 1) return;
     instancesToDelete = sessionContext.syncState.downloadsToDelete;
