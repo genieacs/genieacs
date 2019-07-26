@@ -230,6 +230,8 @@ async function generateToolsJs(): Promise<void> {
     await bundle.write({
       format: "cjs",
       preferConst: true,
+      sourcemap: "inline",
+      sourcemapExcludeSources: true,
       banner: "#!/usr/bin/env node",
       file: outputFile
     });
@@ -287,6 +289,8 @@ async function generateBackendJs(): Promise<void> {
     await bundle.write({
       format: "cjs",
       preferConst: true,
+      sourcemap: "inline",
+      sourcemapExcludeSources: true,
       banner: "#!/usr/bin/env node",
       file: outputFile
     });
@@ -322,6 +326,8 @@ async function generateFrontendJs(): Promise<void> {
   await bundle.write({
     preferConst: true,
     format: "esm",
+    sourcemap: "inline",
+    sourcemapExcludeSources: true,
     file: outputFile
   });
 
@@ -330,6 +336,16 @@ async function generateFrontendJs(): Promise<void> {
     entry: outputFile,
     resolve: {
       aliasFields: ["module"]
+    },
+    devtool: "nosources-source-map",
+    module: {
+      rules: [
+        {
+          test: /\.js$/,
+          use: ["source-map-loader"],
+          enforce: "pre"
+        }
+      ]
     },
     output: {
       path: path.resolve(OUTPUT_DIR, "public"),
