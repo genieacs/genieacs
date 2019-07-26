@@ -1,17 +1,5 @@
 *~
 node_modules
 dist
-config/config.json
-config/config-ui.json
-config/cwmp.key
-config/cwmp.crt
-config/cwmp.ca-bundle
-config/nbi.key
-config/nbi.crt
-config/nbi.ca-bundle
-config/fs.key
-config/fs.crt
-config/fs.ca-bundle
-config/ext
 bin/.*.ts
 tools/.*.ts

@@ -136,7 +136,6 @@ async function init(): Promise<void> {
   // Create output directory layout
   fs.mkdirSync(OUTPUT_DIR);
   fs.mkdirSync(OUTPUT_DIR + "/bin");
-  fs.mkdirSync(OUTPUT_DIR + "/config");
   fs.mkdirSync(OUTPUT_DIR + "/public");
   fs.mkdirSync(OUTPUT_DIR + "/tools");
 
@@ -172,8 +171,6 @@ async function copyStatic(): Promise<void> {
     "LICENSE",
     "README.md",
     "CHANGELOG.md",
-    "config/config-sample.json",
-    "config/ext-sample.js",
     "public/logo.svg",
     "public/favicon.png"
   ];
