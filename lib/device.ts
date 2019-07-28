@@ -75,12 +75,6 @@ export function sanitizeParameterValue(
         }
         break;
       default:
-        if (parameterValue[1] != null) {
-          throw new Error(
-            `Parameter value type "${parameterValue[1]}" not recognized.`
-          );
-        }
-
         parameterValue[0] = JSON.parse(JSON.stringify(parameterValue[0]));
         break;
     }
