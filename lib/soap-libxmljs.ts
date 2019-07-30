@@ -246,9 +246,7 @@ function SetParameterValues(xml, methodRequest): void {
   const el = xml.node("cwmp:SetParameterValues");
   const paramList = el.node("ParameterList");
   paramList.attr({
-    "soap-enc:arrayType": `cwmp:ParameterValueStruct[${
-      methodRequest.parameterList.length
-    }]`
+    "soap-enc:arrayType": `cwmp:ParameterValueStruct[${methodRequest.parameterList.length}]`
   });
 
   for (const p of methodRequest.parameterList) {

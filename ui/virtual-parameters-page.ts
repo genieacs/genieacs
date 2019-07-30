@@ -297,9 +297,7 @@ export const component: ClosureComponent = (): Component => {
                 onclick: e => {
                   if (
                     !confirm(
-                      `Deleting ${
-                        selected.size
-                      } virtual parameters. Are you sure?`
+                      `Deleting ${selected.size} virtual parameters. Are you sure?`
                     )
                   )
                     return;

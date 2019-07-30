@@ -635,9 +635,7 @@ async function runVirtualParameters(
         ) {
           r.fault = {
             code: "script",
-            message: `Virtual parameter '${
-              provision[0]
-            }' must provide 'writable' attribute`
+            message: `Virtual parameter '${provision[0]}' must provide 'writable' attribute`
           };
           return r;
         }
@@ -668,9 +666,7 @@ async function runVirtualParameters(
         } else if (provision[1].value != null || provision[2].value != null) {
           r.fault = {
             code: "script",
-            message: `Virtual parameter '${
-              provision[0]
-            }' must provide 'value' attribute`
+            message: `Virtual parameter '${provision[0]}' must provide 'value' attribute`
           };
           return r;
         }
@@ -1858,9 +1854,8 @@ function processDeclarations(
 
   const root = sessionContext.deviceData.paths.add(Path.parse(""));
   const paths = deviceData.paths.find(root, false, true, 99);
-  paths.sort(
-    (a, b): number =>
-      a.wildcard === b.wildcard ? a.length - b.length : a.wildcard - b.wildcard
+  paths.sort((a, b): number =>
+    a.wildcard === b.wildcard ? a.length - b.length : a.wildcard - b.wildcard
   );
 
   const virtualParameterDeclarations = [] as VirtualParameterDeclaration[];

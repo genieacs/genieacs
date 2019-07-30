@@ -53,9 +53,7 @@ ava("generateDeviceId", t => {
         OUI: `TestOUIWith${space[0]}_${special[0]}2912`,
         SerialNumber: `TestSerialNumberWith${space[0]}_${special[0]}2912`
       },
-      `TestOUIWith${space[1]}_${special[1]}2912-TestSerialNumberWith${
-        space[1]
-      }_${special[1]}2912`
+      `TestOUIWith${space[1]}_${special[1]}2912-TestSerialNumberWith${space[1]}_${special[1]}2912`
     ]
   ];
   t.plan(cases.length);

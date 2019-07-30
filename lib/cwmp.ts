@@ -302,9 +302,9 @@ async function inform(sessionContext: SessionContext, rpc): Promise<void> {
   );
 
   if (cookiesPath) {
-    res.headers["Set-Cookie"] = `session=${
-      sessionContext.sessionId
-    }; Path=${cookiesPath}`;
+    res.headers[
+      "Set-Cookie"
+    ] = `session=${sessionContext.sessionId}; Path=${cookiesPath}`;
   } else {
     res.headers["Set-Cookie"] = `session=${sessionContext.sessionId}`;
   }

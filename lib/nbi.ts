@@ -55,13 +55,10 @@ export function listener(request, response): void {
   let bytes = 0;
   response.setHeader("GenieACS-Version", VERSION);
 
-  request.addListener(
-    "data",
-    (chunk): void => {
-      chunks.push(chunk);
-      bytes += chunk.length;
-    }
-  );
+  request.addListener("data", (chunk): void => {
+    chunks.push(chunk);
+    bytes += chunk.length;
+  });
 
   function getBody(): Buffer {
     // Write all chunks into a Buffer
