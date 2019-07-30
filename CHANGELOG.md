@@ -1,5 +1,39 @@
 # Change Log
 
+## 1.2.0-beta.0 (2019-07-30)
+
+- A brand new UI superseding genieacs-gui.
+- New initialization wizard on first run.
+- New expression/query language used in search filters and preset
+preconditions.
+- CPE -> ACS authentication is now supported.
+- New config option (CWMP_KEEP_ALIVE_TIMEOUT) to specify how long to wait for a
+reply from the CPE before closing the TCP connection.
+- Debug logging has been reimplemented utilizing YAML format for logs.
+- Handle 9005 faults (Invalid Parameter Name) gracefully by attempting to
+rediscover the path of the missing parameter recursively.
+- declare() statements not followed by an explicit commit() are now deferred
+until all currently active scripts have been executed.
+- FS_HOSTNAME now defaults to the server's hostname or IP.
+- The API now validates the structure of task objects before saving.
+- New XML parser implementation for better performance. You can revert to the
+old parser by enabling the config option XML_LIBXMLJS. Requires Node.js v11 or
+v10.
+- Performance optimizations. While performance has improved for the majority of
+use cases, there may be situations where performance has degraded. It's
+recommended to revisit your hardware requirements.
+- Connection request authentication no longer uses 'auth.js' file. Instead, the
+connection request authentication behavior can now be customized using an
+'expression'.
+- The config file (config.json) has been deprecated. System configuration (e.g.
+listen ports, worker count) are now recommended to be passed as environment.
+variables. Other general configuration options are stored in the database so as
+to not require service restart for changes to take effect.
+- Optional redis dependency has been removed completely.
+- Tags now allow only alphanumeric characters and underscore.
+- Supported versions of NodeJs and MongoDB are 10.x and up and 2.6 and up
+respectively.
+
 ## 1.1.3 (2018-10-23)
 
 - New config option (MAX_COMMIT_ITERATIONS) to avoid max commit iterations
