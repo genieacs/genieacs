@@ -34,7 +34,7 @@ Install GenieACS
 
   .. parsed-literal::
 
-    sudo npm install -g genieacs@\ |release|
+    sudo npm install -g --unsafe-perm genieacs@\ |release|
 
 .. topic:: Installing from source
 
@@ -117,7 +117,7 @@ Configure systemd
       [Service]
       User=genieacs
       EnvironmentFile=/opt/genieacs/genieacs.env
-      ExecStart=genieacs-cwmp
+      ExecStart=/usr/bin/genieacs-cwmp
       KillMode=process
 
       [Install]
@@ -140,7 +140,7 @@ Configure systemd
       [Service]
       User=genieacs
       EnvironmentFile=/opt/genieacs/genieacs.env
-      ExecStart=genieacs-nbi
+      ExecStart=/usr/bin/genieacs-nbi
       KillMode=process
 
       [Install]
@@ -163,7 +163,7 @@ Configure systemd
       [Service]
       User=genieacs
       EnvironmentFile=/opt/genieacs/genieacs.env
-      ExecStart=genieacs-fs
+      ExecStart=/usr/bin/genieacs-fs
       KillMode=process
 
       [Install]
@@ -186,7 +186,7 @@ Configure systemd
       [Service]
       User=genieacs
       EnvironmentFile=/opt/genieacs/genieacs.env
-      ExecStart=genieacs-ui
+      ExecStart=/usr/bin/genieacs-ui
       KillMode=process
 
       [Install]
