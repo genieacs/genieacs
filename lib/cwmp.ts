@@ -50,6 +50,7 @@ import { IncomingMessage, ServerResponse } from "http";
 import { Readable } from "stream";
 import { promisify } from "util";
 import { TLSSocket } from "tls";
+import { decode, encodingExists } from "iconv-lite";
 import { dependencies as DEPENDENCIES } from "../package.json";
 import { parseXmlDeclaration } from "./xml-parser";
 import * as debug from "./debug";
@@ -1106,6 +1107,15 @@ export function listener(
     });
 }
 
+function decodeString(buffer: Buffer, charset: string): string {
+  try {
+    return buffer.toString(charset);
+  } catch (err) {
+    if (encodingExists(charset)) return decode(buffer, charset);
+  }
+  return null;
+}
+
 async function listenerAsync(
   httpRequest: IncomingMessage,
   httpResponse: ServerResponse
@@ -1233,10 +1243,36 @@ async function listenerAsync(
   if (!charset) {
     const parse = parseXmlDeclaration(body);
     const e = parse ? parse.find(s => s.localName === "encoding") : null;
-    charset = e ? e.value : "utf8";
+    charset = e ? e.value.toLowerCase() : "utf8";
   }
 
-  const bodyStr = body.toString(charset);
+  const bodyStr = decodeString(body, charset);
+
+  if (bodyStr == null) {
+    const msg = `Unknown encoding '${charset}'`;
+    logger.accessError({
+      message: "XML parse error",
+      parseError: msg,
+      sessionContext: sessionContext || {
+        httpRequest: httpRequest,
+        httpResponse: httpResponse
+      }
+    });
+    httpResponse.setHeader("Content-Length", Buffer.byteLength(msg));
+    httpResponse.writeHead(400, { Connection: "close" });
+    if (sessionContext) {
+      if (sessionContext.debug)
+        debug.outgoingHttpResponse(httpResponse, sessionContext.deviceId, msg);
+    } else {
+      const cacheSnapshot = await localCache.getCurrentSnapshot();
+      const d = !!localCache.getConfig(cacheSnapshot, "cwmp.debug", {
+        remoteAddress: httpResponse.connection.remoteAddress
+      });
+      if (d) debug.outgoingHttpResponse(httpResponse, null, msg);
+    }
+    httpResponse.end(msg);
+    return;
+  }
 
   async function parsedRpc(_sessionContext, rpc, parseWarnings): Promise<void> {
     for (const w of parseWarnings) {
@@ -1283,9 +1319,7 @@ async function listenerAsync(
       const d = !!localCache.getConfig(cacheSnapshot, "cwmp.debug", {
         remoteAddress: httpResponse.connection.remoteAddress
       });
-      if (d) {
-        debug.outgoingHttpResponse(httpResponse, null, error.message);
-      }
+      if (d) debug.outgoingHttpResponse(httpResponse, null, error.message);
     }
     httpResponse.end(error.message);
     return;
