@@ -21,6 +21,7 @@ import { spawn, ChildProcess } from "child_process";
 import * as crypto from "crypto";
 import * as config from "./config";
 import { Fault } from "./types";
+import { ROOT_DIR } from "./config";
 
 const TIMEOUT = +config.get("EXT_TIMEOUT");
 
@@ -43,7 +44,7 @@ export function run(args): Promise<{ fault: Fault; value: any }> {
     jobs.set(id, resolve);
 
     if (!processes[scriptName]) {
-      const p = spawn("bin/genieacs-ext", [scriptName], {
+      const p = spawn(ROOT_DIR + "bin/genieacs-ext", [scriptName], {
         stdio: ["inherit", "inherit", "inherit", "ipc"]
       });
       processes[scriptName] = p;
