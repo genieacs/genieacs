@@ -415,6 +415,15 @@ parameterValues key. For example:
   -X POST \
   --data '{"name":"addObject","objectName":"InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection"}'
 
+``deleteObject``
+~~~~~~~~~~~~~~~~
+
+.. code:: bash
+
+  curl -i 'http://localhost:7557/devices/00236a-SR552n-SR552NA084%252D0003269/tasks?timeout=3000&connection_request' \
+  -X POST \
+  --data '{"name":"deleteObject","objectName":"InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1"}'
+
 ``reboot``
 ~~~~~~~~~~
 
