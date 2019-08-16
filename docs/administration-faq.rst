@@ -3,7 +3,7 @@
 Administration FAQ
 ==================
 
-.. topic:: Duplicate log entries when using log() function
+.. topic:: Duplicate log entries when using :func:`log()` function
 
   Because GenieACS uses a full fledged scripting language for device
   configuration, the only way to guarantee that it has satisfied the 'desired
@@ -14,7 +14,7 @@ Administration FAQ
   scripts themselves are pure functions in the context of a session (e.g.
   Date.now() always returns the same value within the session).
 
-  To illustrate further, consider following script:
+  To illustrate with an example, consider the following script:
 
   .. code:: javascript
 
@@ -25,4 +25,7 @@ Administration FAQ
   This will set the value of the 'Device.param' to 1, then to 2. Then as the
   script is run again the value is set back to 1 and so on. A stable state will
   never be reached so GenieACS will execute the script a few times until it
-  gives up and throws a fault.
+  gives up and throws a fault. This is an edge case that should be avoided. A
+  more typical case is where the script is run once or twice. Essentially if an
+  execution doesn't result in any request to the CPE or a change in the data
+  model then a stable state is deemed to have been reached.
