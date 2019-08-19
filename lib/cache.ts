@@ -62,7 +62,7 @@ export async function get(key): Promise<any> {
   } else {
     const res = await mongoCollection.findOne({ _id: { $in: [key] } });
     if (res && res["expire"] > expire) return res["value"];
-    return res;
+    return null;
   }
 }
 
