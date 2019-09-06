@@ -48,7 +48,6 @@ const options = {
   CWMP_SSL_KEY: { type: "string", default: "" },
   CWMP_LOG_FILE: { type: "path", default: "" },
   CWMP_ACCESS_LOG_FILE: { type: "path", default: "" },
-  CWMP_KEEP_ALIVE_TIMEOUT: { type: "int", default: 0 },
 
   NBI_WORKER_PROCESSES: { type: "int", default: 0 },
   NBI_PORT: { type: "int", default: 7557 },

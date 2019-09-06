@@ -56,7 +56,7 @@ export function start(
   ssl,
   _listener,
   onConnection?,
-  keepAliveTimeout: number = 0
+  keepAliveTimeout: number = -1
 ): void {
   listener = _listener;
 
@@ -77,7 +77,7 @@ export function start(
     if (onConnection != null) server.on("connection", onConnection);
   }
 
-  if (keepAliveTimeout) server.keepAliveTimeout = keepAliveTimeout;
+  if (keepAliveTimeout >= 0) server.keepAliveTimeout = keepAliveTimeout;
   server.listen(port, networkInterface);
 }
 

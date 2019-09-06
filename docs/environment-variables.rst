@@ -88,16 +88,6 @@ CWMP_ACCESS_LOG_FILE
 
   Default: unest
 
-CWMP_KEEP_ALIVE_TIMEOUT
-  How long (in milliseconds) to maintain an open TCP connection while waiting
-  for the CPE to send the next HTTP request. If a CPE takes longer to respond
-  the server will terminate the TCP connection and store the session details
-  temporarily in the DB cache. This results in a performance hit. Adjust this
-  for better performance if your devices often take longer than 5 seconds to
-  respond.
-
-  Default: ``5000`` (Node's default)
-
 NBI_WORKER_PROCESSES
   The number of worker processes to spawn for genieacs-nbi. A value of 0 means
   as many as there are CPU cores available.

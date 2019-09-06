@@ -81,8 +81,6 @@ if (!cluster.worker) {
     cert: config.get("CWMP_SSL_CERT")
   };
 
-  const keepAliveTimeout = config.get("CWMP_KEEP_ALIVE_TIMEOUT") as number;
-
   process.on("uncaughtException", err => {
     if ((err as NodeJS.ErrnoException).code === "ERR_IPC_DISCONNECTED") return;
     logger.error({
@@ -118,7 +116,7 @@ if (!cluster.worker) {
         ssl,
         cwmp.listener,
         cwmp.onConnection,
-        keepAliveTimeout
+        0
       );
     })
     .catch(err => {
