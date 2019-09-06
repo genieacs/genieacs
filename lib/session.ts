@@ -771,6 +771,9 @@ function runDeclarations(
     let path = declaration.path;
     let unpacked: Path[];
 
+    // Can't run declarations on root
+    if (!path.length) continue;
+
     if (
       (path.alias | path.wildcard) & 1 ||
       path.segments[0] === "VirtualParameters"
@@ -2621,8 +2624,13 @@ export async function serialize(
     deviceData.push(e);
   }
 
+  const declarations = sessionContext.declarations.map(decs => {
+    return decs.map(d => Object.assign({}, d, { path: d.path.toString() }));
+  });
+
   const jsonSessionContext = Object.assign({}, sessionContext, {
     deviceData: deviceData,
+    declarations: declarations,
     syncState: null,
     toLoad: null,
     httpRequest: null,
