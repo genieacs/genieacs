@@ -99,28 +99,12 @@ if (!cluster.worker) {
       .catch(exitWorkerUngracefully);
   });
 
-  process.on("SIGINT", () => {
-    stopping = true;
-    server
-      .stop()
-      .then(exitWorkerGracefully)
-      .catch(exitWorkerUngracefully);
-  });
-
-  process.on("SIGTERM", () => {
-    stopping = true;
-    server
-      .stop()
-      .then(exitWorkerGracefully)
-      .catch(exitWorkerUngracefully);
-  });
-
   const _listener = (req, res): void => {
     if (stopping) res.setHeader("Connection", "close");
     listener(req, res);
   };
 
-  Promise.all([db2.connect(), cache.connect()])
+  const initPromise = Promise.all([db2.connect(), cache.connect()])
     .then(() => {
       server.start(SERVICE_PORT, SERVICE_ADDRESS, ssl, _listener);
     })
@@ -129,4 +113,24 @@ if (!cluster.worker) {
         throw err;
       });
     });
+
+  process.on("SIGINT", () => {
+    stopping = true;
+    initPromise.finally(() => {
+      server
+        .stop()
+        .then(exitWorkerGracefully)
+        .catch(exitWorkerUngracefully);
+    });
+  });
+
+  process.on("SIGTERM", () => {
+    stopping = true;
+    initPromise.finally(() => {
+      server
+        .stop()
+        .then(exitWorkerGracefully)
+        .catch(exitWorkerUngracefully);
+    });
+  });
 }

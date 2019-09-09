@@ -24,6 +24,18 @@ import * as logger from "./logger";
 let respawnTimestamp = 0;
 let tooManyCrashesTimestamp = 0;
 
+function fork(): cluster.Worker {
+  const w = cluster.fork();
+  w.on("error", (err: NodeJS.ErrnoException) => {
+    // Avoid exception when attempting to kill the process just as it's exiting
+    if (err.code !== "EPIPE") throw err;
+    setTimeout(() => {
+      if (!w.isDead()) throw err;
+    }, 50);
+  });
+  return w;
+}
+
 function restartWorker(worker, code, signal): void {
   const msg = {
     message: "Worker died",
@@ -42,7 +54,7 @@ function restartWorker(worker, code, signal): void {
   respawnTimestamp = Math.max(now, respawnTimestamp + 2000);
   if (respawnTimestamp === now) {
     tooManyCrashesTimestamp = now;
-    cluster.fork();
+    fork();
     return;
   }
 
@@ -60,7 +72,7 @@ function restartWorker(worker, code, signal): void {
 
   setTimeout(() => {
     if (process.exitCode) return;
-    cluster.fork();
+    fork();
   }, respawnTimestamp - now);
 }
 
@@ -84,7 +96,7 @@ export function start(workerCount, servicePort, serviceAddress): void {
 
   if (!workerCount) workerCount = Math.max(2, cpus().length);
 
-  for (let i = 0; i < workerCount; ++i) cluster.fork();
+  for (let i = 0; i < workerCount; ++i) fork();
 }
 
 export function stop(): void {

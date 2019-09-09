@@ -94,21 +94,7 @@ if (!cluster.worker) {
       .catch(exitWorkerUngracefully);
   });
 
-  process.on("SIGINT", () => {
-    server
-      .stop()
-      .then(exitWorkerGracefully)
-      .catch(exitWorkerUngracefully);
-  });
-
-  process.on("SIGTERM", () => {
-    server
-      .stop()
-      .then(exitWorkerGracefully)
-      .catch(exitWorkerUngracefully);
-  });
-
-  Promise.all([db.connect(), cache.connect()])
+  const initPromise = Promise.all([db.connect(), cache.connect()])
     .then(() => {
       server.start(
         SERVICE_PORT,
@@ -124,4 +110,22 @@ if (!cluster.worker) {
         throw err;
       });
     });
+
+  process.on("SIGINT", () => {
+    initPromise.finally(() => {
+      server
+        .stop()
+        .then(exitWorkerGracefully)
+        .catch(exitWorkerUngracefully);
+    });
+  });
+
+  process.on("SIGTERM", () => {
+    initPromise.finally(() => {
+      server
+        .stop()
+        .then(exitWorkerGracefully)
+        .catch(exitWorkerUngracefully);
+    });
+  });
 }

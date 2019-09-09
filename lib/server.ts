@@ -46,7 +46,8 @@ function closeServer(timeout, callback): void {
 
     const cb = callback;
     callback = null;
-    cb();
+    // Allow some time for connection close events to fire
+    setTimeout(cb, 50);
   });
 }
 
