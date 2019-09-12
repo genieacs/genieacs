@@ -1525,7 +1525,7 @@ function generateGetRpcRequest(sessionContext: SessionContext): GetAcsRequest {
       let nextLevel;
       let est = 0;
       if (path.length >= GPN_NEXT_LEVEL) {
-        const patterns = [[path, 0]];
+        const patterns: [Path, number][] = [[path, 0]];
         for (const p of sessionContext.deviceData.paths.find(
           path,
           true,
