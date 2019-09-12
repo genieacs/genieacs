@@ -378,6 +378,7 @@ export async function seed(options): Promise<void> {
         _id: "bootstrap",
         weight: 0,
         channel: "bootstrap",
+        events: "0 BOOTSTRAP",
         provision: "bootstrap"
       },
       { _id: "default", weight: 0, channel: "default", provision: "default" },
