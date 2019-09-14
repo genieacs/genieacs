@@ -83,7 +83,8 @@ const component: ClosureComponent = (): Component => {
               p.type || "parameter",
               Object.assign({}, p, {
                 device: device,
-                parameter: param
+                parameter: param,
+                label: null
               })
             )
           );
