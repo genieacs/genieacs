@@ -26,7 +26,7 @@ import { QueryOptions } from "../types";
 
 const CACHE_TTL = 300000;
 
-let _clientPromise = null;
+let clientPromise: Promise<MongoClient>;
 
 const RESOURCE_COLLECTION = {
   files: "fs.files"
@@ -40,8 +40,8 @@ function ensureIndexes(client): void {
 }
 
 function getClient(): Promise<MongoClient> {
-  if (!_clientPromise) {
-    _clientPromise = new Promise((resolve, reject) => {
+  if (!clientPromise) {
+    clientPromise = new Promise((resolve, reject) => {
       const CONNECTION_URL = "" + config.get("MONGODB_CONNECTION_URL");
       MongoClient.connect(
         CONNECTION_URL,
@@ -55,7 +55,7 @@ function getClient(): Promise<MongoClient> {
     });
   }
 
-  return _clientPromise;
+  return clientPromise;
 }
 
 export function cache<T>(key, valueGetter: () => Promise<T>, ttl): Promise<T> {
@@ -405,10 +405,6 @@ export function deleteTask(id): Promise<void> {
   return deleteResource("tasks", id);
 }
 
-export function disconnect(): void {
-  if (_clientPromise) {
-    _clientPromise.then(client => {
-      client.close();
-    });
-  }
+export async function disconnect(): Promise<void> {
+  if (clientPromise) await (await clientPromise).close();
 }

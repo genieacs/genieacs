@@ -119,7 +119,6 @@ Configure systemd
       User=genieacs
       EnvironmentFile=/opt/genieacs/genieacs.env
       ExecStart=/usr/bin/genieacs-cwmp
-      KillMode=process
 
       [Install]
       WantedBy=default.target
@@ -142,7 +141,6 @@ Configure systemd
       User=genieacs
       EnvironmentFile=/opt/genieacs/genieacs.env
       ExecStart=/usr/bin/genieacs-nbi
-      KillMode=process
 
       [Install]
       WantedBy=default.target
@@ -165,7 +163,6 @@ Configure systemd
       User=genieacs
       EnvironmentFile=/opt/genieacs/genieacs.env
       ExecStart=/usr/bin/genieacs-fs
-      KillMode=process
 
       [Install]
       WantedBy=default.target
@@ -188,7 +185,6 @@ Configure systemd
       User=genieacs
       EnvironmentFile=/opt/genieacs/genieacs.env
       ExecStart=/usr/bin/genieacs-ui
-      KillMode=process
 
       [Install]
       WantedBy=default.target

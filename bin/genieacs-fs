@@ -34,9 +34,12 @@ const SERVICE_ADDRESS = config.get("FS_INTERFACE");
 const SERVICE_PORT = config.get("FS_PORT");
 
 function exitWorkerGracefully(): void {
-  db.disconnect();
-  cache.disconnect();
-  cluster.worker.disconnect();
+  setTimeout(exitWorkerUngracefully, 5000).unref();
+  Promise.all([
+    db.disconnect(),
+    cache.disconnect(),
+    cluster.worker.disconnect()
+  ]).catch(exitWorkerUngracefully);
 }
 
 function exitWorkerUngracefully(): void {

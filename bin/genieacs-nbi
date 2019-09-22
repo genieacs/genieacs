@@ -35,10 +35,13 @@ const SERVICE_ADDRESS = config.get("NBI_INTERFACE");
 const SERVICE_PORT = config.get("NBI_PORT");
 
 function exitWorkerGracefully(): void {
-  db.disconnect();
-  cache.disconnect();
-  extensions.killAll();
-  cluster.worker.disconnect();
+  setTimeout(exitWorkerUngracefully, 5000).unref();
+  Promise.all([
+    db.disconnect(),
+    cache.disconnect(),
+    extensions.killAll(),
+    cluster.worker.disconnect()
+  ]).catch(exitWorkerUngracefully);
 }
 
 function exitWorkerUngracefully(): void {
