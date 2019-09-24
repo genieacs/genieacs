@@ -132,6 +132,11 @@ function queryMac(param, value): Expression {
   ];
 }
 
+function queryTag(tag: string): Expression {
+  const t = tag.replace(/[^a-zA-Z0-9-]+/g, "_");
+  return ["IS NOT NULL", ["PARAM", `Tags.${t}`]];
+}
+
 export function getTip(resource, label): string {
   let tip;
   if (resources[resource] && resources[resource][label]) {
@@ -155,6 +160,9 @@ export function getTip(resource, label): string {
           break;
         case "mac":
           tips.push("partial case insensitive MAC address");
+          break;
+        case "tag":
+          tips.push("case sensitive string");
           break;
       }
     }
@@ -187,6 +195,11 @@ export function unpack(resource, label, value): Expression {
 
   if (type.includes("mac")) {
     const q = queryMac(resources[resource][label].parameter, value);
+    if (q) res.push(q);
+  }
+
+  if (type.includes("tag")) {
+    const q = queryTag(value);
     if (q) res.push(q);
   }
 

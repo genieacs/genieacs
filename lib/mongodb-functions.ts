@@ -34,8 +34,6 @@ export function processDeviceFilter(filter): Expression {
       else if (p === "DeviceID") return ["PARAM", "_deviceId"];
       else if (p.startsWith("DeviceID."))
         return ["PARAM", "_deviceId._" + p.slice(9)];
-      else if (p === "Tags") return ["PARAM", "_tags"];
-      else if (p === "tag") return ["PARAM", "_tags"];
       else if (p === "Events.Inform") return ["PARAM", "_lastInform"];
       else if (p === "Events.Registered") return ["PARAM", "_registered"];
       else if (p === "Events.0_BOOTSTRAP") return ["PARAM", "_lastBootstrap"];
@@ -49,6 +47,8 @@ export function processDeviceFilter(filter): Expression {
       if (exp[0] === "IS NULL") return ["<>", ["PARAM", "_tags"], t];
       else if (exp[0] === "IS NOT NULL") return ["=", ["PARAM", "_tags"], t];
       else if (exp[0] === "=" && exp[2] === true)
+        return ["=", ["PARAM", "_tags"], t];
+      else if (exp[0] === "<>" && exp[2] !== true)
         return ["=", ["PARAM", "_tags"], t];
     } else if (
       ["=", "<>", ">", ">=", "<", "<=", "LIKE", "NOT LIKE"].includes(exp[0])
