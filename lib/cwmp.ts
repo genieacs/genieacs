@@ -824,11 +824,15 @@ async function getSession(connection, sessionId): Promise<SessionContext> {
   return session.deserialize(sessionContextString);
 }
 
+// Only needed to prevent tree shaking from removing the remoteAddress
+// workaround in onConnection function.
+const remoteAddressWorkaround = new WeakMap<Socket, string>();
+
 // When socket closes, store active sessions in cache
-export function onConnection(socket): void {
+export function onConnection(socket: Socket): void {
   // The property remoteAddress may be undefined after the connection is
   // closed, unless we read it at least once (caching?)
-  socket.remoteAddress;
+  remoteAddressWorkaround.set(socket, socket.remoteAddress);
 
   socket.on("close", async () => {
     const sessionContext = currentSessions.get(socket);
