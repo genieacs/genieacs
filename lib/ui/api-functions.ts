@@ -29,6 +29,14 @@ import {
   connectionRequest,
   deleteDevice
 } from "../api-functions";
+import * as os from 'os';
+
+const pingVariant = () =>
+	os.platform() === "freebsd" ? "-t 1 -c 3" : "-w 1 -i 0.2 -c 3";
+
+const pingOutRegex = () =>
+	os.platform() === "freebsd" ?
+		/(\d) packets transmitted, (\d) packets received, ([\d.%]+) packet loss\nround-trip min\/avg\/max\/stddev = ([\d.]+)\/([\d.]+)\/([\d.]+)\/([\d.]+) ms/ : /(\d) packets transmitted, (\d) received, ([\d.%]+) packet loss[^]*([\d.]+)\/([\d.]+)\/([\d.]+)\/([\d.]+)/;
 
 async function deleteFault(id): Promise<void> {
   const deviceId = id.split(":", 1)[0];
@@ -151,12 +159,11 @@ interface PingResponse {
 
 export function ping(host): Promise<PingResponse> {
   return new Promise((resolve, reject) => {
-    exec(`ping -w 1 -i 0.2 -c 3 ${host}`, (err, stdout) => {
+    const pingArgs = pingVariant();
+    exec(`ping ${pingArgs} ${host}`, (err, stdout) => {
       if (err) return void reject(err);
 
-      const m = stdout.match(
-        /(\d) packets transmitted, (\d) received, ([\d.%]+) packet loss[^]*([\d.]+)\/([\d.]+)\/([\d.]+)\/([\d.]+)/
-      );
+      const m = stdout.match( pingOutRegex());
       if (!m) return void reject(new Error("Could not parse ping response"));
 
       resolve({

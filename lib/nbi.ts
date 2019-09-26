@@ -28,6 +28,7 @@ import * as query from "./query";
 import * as apiFunctions from "./api-functions";
 import * as cache from "./cache";
 import { version as VERSION } from "../package.json";
+import * as os from 'os';
 
 const DEVICE_TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-_%]+)\/tasks\/?$/;
 const TASKS_REGEX = /^\/tasks\/([a-zA-Z0-9\-_%]+)(\/[a-zA-Z_]*)?$/;
@@ -41,6 +42,9 @@ const DELETE_DEVICE_REGEX = /^\/devices\/([a-zA-Z0-9\-_%]+)\/?$/;
 const PROVISIONS_REGEX = /^\/provisions\/([a-zA-Z0-9\-_%]+)\/?$/;
 const VIRTUAL_PARAMETERS_REGEX = /^\/virtual_parameters\/([a-zA-Z0-9\-_%]+)\/?$/;
 const FAULTS_REGEX = /^\/faults\/([a-zA-Z0-9\-_%:]+)\/?$/;
+
+const pingVariant = () =>
+	os.platform() === "freebsd" ? "-t 1 -c 3" : "-w 1 -i 0.2 -c 3";
 
 function throwError(err, httpResponse?): never {
   if (httpResponse) {
@@ -591,7 +595,8 @@ export function listener(request, response): void {
       }
     } else if (PING_REGEX.test(urlParts.pathname)) {
       const host = querystring.unescape(PING_REGEX.exec(urlParts.pathname)[1]);
-      exec(`ping -w 1 -i 0.2 -c 3 ${host}`, (err, stdout) => {
+      const pingArgs = pingVariant();
+      exec(`ping ${pingArgs} ${host}`, (err, stdout) => {
         if (err) {
           response.writeHead(404, { "Cache-Control": "no-cache" });
           response.end(`${err.name}: ${err.message}`);
