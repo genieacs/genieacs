@@ -771,6 +771,9 @@ function runDeclarations(
     let path = declaration.path;
     let unpacked: Path[];
 
+    // Can't run declarations on root
+    if (!path.length) continue;
+
     if (
       (path.alias | path.wildcard) & 1 ||
       path.segments[0] === "VirtualParameters"
@@ -1522,7 +1525,7 @@ function generateGetRpcRequest(sessionContext: SessionContext): GetAcsRequest {
       let nextLevel;
       let est = 0;
       if (path.length >= GPN_NEXT_LEVEL) {
-        const patterns = [[path, 0]];
+        const patterns: [Path, number][] = [[path, 0]];
         for (const p of sessionContext.deviceData.paths.find(
           path,
           true,
@@ -2621,8 +2624,13 @@ export async function serialize(
     deviceData.push(e);
   }
 
+  const declarations = sessionContext.declarations.map(decs => {
+    return decs.map(d => Object.assign({}, d, { path: d.path.toString() }));
+  });
+
   const jsonSessionContext = Object.assign({}, sessionContext, {
     deviceData: deviceData,
+    declarations: declarations,
     syncState: null,
     toLoad: null,
     httpRequest: null,

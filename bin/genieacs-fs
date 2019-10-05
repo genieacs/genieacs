@@ -34,9 +34,12 @@ const SERVICE_ADDRESS = config.get("FS_INTERFACE");
 const SERVICE_PORT = config.get("FS_PORT");
 
 function exitWorkerGracefully(): void {
-  db.disconnect();
-  cache.disconnect();
-  cluster.worker.disconnect();
+  setTimeout(exitWorkerUngracefully, 5000).unref();
+  Promise.all([
+    db.disconnect(),
+    cache.disconnect(),
+    cluster.worker.disconnect()
+  ]).catch(exitWorkerUngracefully);
 }
 
 function exitWorkerUngracefully(): void {
@@ -90,21 +93,7 @@ if (!cluster.worker) {
       .catch(exitWorkerUngracefully);
   });
 
-  process.on("SIGINT", () => {
-    server
-      .stop()
-      .then(exitWorkerGracefully)
-      .catch(exitWorkerUngracefully);
-  });
-
-  process.on("SIGTERM", () => {
-    server
-      .stop()
-      .then(exitWorkerGracefully)
-      .catch(exitWorkerUngracefully);
-  });
-
-  Promise.all([db.connect(), cache.connect()])
+  const initPromise = Promise.all([db.connect(), cache.connect()])
     .then(() => {
       server.start(SERVICE_PORT, SERVICE_ADDRESS, ssl, listener);
     })
@@ -113,4 +102,22 @@ if (!cluster.worker) {
         throw err;
       });
     });
+
+  process.on("SIGINT", () => {
+    initPromise.finally(() => {
+      server
+        .stop()
+        .then(exitWorkerGracefully)
+        .catch(exitWorkerUngracefully);
+    });
+  });
+
+  process.on("SIGTERM", () => {
+    initPromise.finally(() => {
+      server
+        .stop()
+        .then(exitWorkerGracefully)
+        .catch(exitWorkerUngracefully);
+    });
+  });
 }

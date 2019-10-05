@@ -135,8 +135,7 @@ export async function seed(options): Promise<void> {
       { _id: "ui.filters.1.parameter", value: "DeviceID.ProductClass" },
       { _id: "ui.filters.1.type", value: "'string'" },
       { _id: "ui.filters.2.label", value: "'Tag'" },
-      { _id: "ui.filters.2.parameter", value: "tag" },
-      { _id: "ui.filters.2.type", value: "'string'" }
+      { _id: "ui.filters.2.type", value: "'tag'" }
     ]);
   }
 
@@ -378,6 +377,7 @@ export async function seed(options): Promise<void> {
         _id: "bootstrap",
         weight: 0,
         channel: "bootstrap",
+        events: "0 BOOTSTRAP",
         provision: "bootstrap"
       },
       { _id: "default", weight: 0, channel: "default", provision: "default" },

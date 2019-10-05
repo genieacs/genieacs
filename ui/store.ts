@@ -18,7 +18,7 @@
  */
 
 import m from "mithril";
-import { map, stringify } from "../lib/common/expression-parser";
+import { stringify } from "../lib/common/expression-parser";
 import { or, and, not, evaluate, subset } from "../lib/common/expression";
 import memoize from "../lib/common/memoize";
 import { QueryOptions, Expression } from "../lib/types";
@@ -299,22 +299,6 @@ function compareFunction(sort: {
 }
 
 function findMatches(resourceType, filter, sort, limit): any[] {
-  // Handle "tag =" and "tag <>" special cases
-  if (resourceType === "devices") {
-    filter = map(filter, e => {
-      if (
-        Array.isArray(e) &&
-        Array.isArray(e[1]) &&
-        e[1][0] === "PARAM" &&
-        e[1][1] === "tag"
-      ) {
-        if (e[0] === "=") return ["IS NOT NULL", ["PARAM", `Tags.${e[2]}`]];
-        else if (e[0] === "<>") return ["IS NULL", ["PARAM", `Tags.${e[2]}`]];
-      }
-      return e;
-    });
-  }
-
   let value = [];
   for (const obj of resources[resourceType].objects.values())
     if (evaluate(filter, obj, fulfillTimestamp)) value.push(obj);

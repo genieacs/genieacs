@@ -88,7 +88,7 @@ export async function connectionRequest(deviceId): Promise<void> {
   const now = Date.now();
   const UDP_CONNECTION_REQUEST_PORT = +getConfig(
     snapshot,
-    "cwmp.udpConnectionRequestAuth",
+    "cwmp.udpConnectionRequestPort",
     context,
     now
   );

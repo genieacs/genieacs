@@ -22,16 +22,16 @@ import * as config from "./config";
 
 const MAX_CACHE_TTL = +config.get("MAX_CACHE_TTL");
 
-let mongoClient: MongoClient;
+let clientPromise: Promise<MongoClient>;
 let mongoCollection: Collection;
 let mongoTimeOffset = 0;
 
 export async function connect(): Promise<void> {
   const MONGODB_CONNECTION_URL = "" + config.get("MONGODB_CONNECTION_URL");
-  mongoClient = await MongoClient.connect(MONGODB_CONNECTION_URL, {
+  clientPromise = MongoClient.connect(MONGODB_CONNECTION_URL, {
     useNewUrlParser: true
   });
-  const db = mongoClient.db();
+  const db = (await clientPromise).db();
   mongoCollection = db.collection("cache");
   await mongoCollection.createIndex({ expire: 1 }, { expireAfterSeconds: 0 });
   const now = Date.now();
@@ -40,7 +40,7 @@ export async function connect(): Promise<void> {
 }
 
 export async function disconnect(): Promise<void> {
-  if (mongoClient) await mongoClient.close();
+  if (clientPromise) await (await clientPromise).close();
 }
 
 export async function get(key): Promise<any> {
@@ -62,7 +62,7 @@ export async function get(key): Promise<any> {
   } else {
     const res = await mongoCollection.findOne({ _id: { $in: [key] } });
     if (res && res["expire"] > expire) return res["value"];
-    return res;
+    return null;
   }
 }
 

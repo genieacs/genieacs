@@ -73,6 +73,7 @@ Configure systemd
     GENIEACS_FS_ACCESS_LOG_FILE=/var/log/genieacs/genieacs-fs-access.log
     GENIEACS_UI_ACCESS_LOG_FILE=/var/log/genieacs/genieacs-ui-access.log
     GENIEACS_DEBUG_FILE=/var/log/genieacs/genieacs-debug.yaml
+    GENIEACS_EXT_DIR=/opt/genieacs/ext
     GENIEACS_UI_JWT_SECRET=secret
   
   Set file ownership and permissions:
@@ -82,7 +83,7 @@ Configure systemd
     sudo chown genieacs:genieacs /opt/genieacs/genieacs.env
     sudo chmod 600 /opt/genieacs/genieacs.env
 
-.. topic:: Create logs directory  
+.. topic:: Create logs directory
 
   .. code:: bash
     
@@ -118,7 +119,6 @@ Configure systemd
       User=genieacs
       EnvironmentFile=/opt/genieacs/genieacs.env
       ExecStart=/usr/bin/genieacs-cwmp
-      KillMode=process
 
       [Install]
       WantedBy=default.target
@@ -141,7 +141,6 @@ Configure systemd
       User=genieacs
       EnvironmentFile=/opt/genieacs/genieacs.env
       ExecStart=/usr/bin/genieacs-nbi
-      KillMode=process
 
       [Install]
       WantedBy=default.target
@@ -164,7 +163,6 @@ Configure systemd
       User=genieacs
       EnvironmentFile=/opt/genieacs/genieacs.env
       ExecStart=/usr/bin/genieacs-fs
-      KillMode=process
 
       [Install]
       WantedBy=default.target
@@ -187,7 +185,6 @@ Configure systemd
       User=genieacs
       EnvironmentFile=/opt/genieacs/genieacs.env
       ExecStart=/usr/bin/genieacs-ui
-      KillMode=process
 
       [Install]
       WantedBy=default.target

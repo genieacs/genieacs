@@ -44,13 +44,15 @@ export let tasksCollection: Collection,
   usersCollection: Collection,
   configCollection: Collection;
 
+let clientPromise: Promise<MongoClient>;
 export let client: MongoClient;
 
 export async function connect(): Promise<void> {
-  client = await MongoClient.connect("" + get("MONGODB_CONNECTION_URL"), {
+  clientPromise = MongoClient.connect("" + get("MONGODB_CONNECTION_URL"), {
     useNewUrlParser: true
   });
 
+  client = await clientPromise;
   const db = client.db();
 
   tasksCollection = db.collection("tasks");
@@ -70,7 +72,7 @@ export async function connect(): Promise<void> {
 }
 
 export async function disconnect(): Promise<void> {
-  if (client) await client.close();
+  if (clientPromise) await (await clientPromise).close();
 }
 
 // Optimize projection by removing overlaps

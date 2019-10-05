@@ -30,6 +30,7 @@ Welcome to GenieACS's documentation!
 
   provisions
   virtual-parameters
+  administration-faq
 
 .. raw:: latex
 

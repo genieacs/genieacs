@@ -1,3 +1,5 @@
+import Path from "./common/path";
+
 /**
  * Copyright 2013-2019  GenieACS Inc.
  *
@@ -27,9 +29,12 @@ const UNDISCOVERED_DEPTH = 7;
 // flags is an int where its bits mark the segments in the pattern that
 // need refreshing. Leading 0s indicate that the pattern up to that
 // point has been discovered.
-export function estimateGpnCount(gpnPatterns, depth = 0): number {
-  const children = {};
-  const wildcardChildren = [];
+export function estimateGpnCount(
+  gpnPatterns: [Path, number][],
+  depth: number = 0
+): number {
+  const children: { [segment: string]: [Path, number][] } = {};
+  const wildcardChildren: [Path, number][] = [];
   let wildcardDiscovered = false;
   let gpnCount = 0;
 
@@ -37,7 +42,7 @@ export function estimateGpnCount(gpnPatterns, depth = 0): number {
     const path = pattern[0];
     const flags = pattern[1] >> depth;
 
-    const k = path[depth];
+    const k = path.segments[depth] as string;
 
     if (!k) {
       if (flags & 1) gpnCount = 1;
