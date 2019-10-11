@@ -68,7 +68,7 @@ Configure systemd
 
   .. code:: bash
 
-    GENIEACS_CWMP_ACCESS_LOG_FILE=/var/log/genieacs/genieacs-cmwp-access.log
+    GENIEACS_CWMP_ACCESS_LOG_FILE=/var/log/genieacs/genieacs-cwmp-access.log
     GENIEACS_NBI_ACCESS_LOG_FILE=/var/log/genieacs/genieacs-nbi-access.log
     GENIEACS_FS_ACCESS_LOG_FILE=/var/log/genieacs/genieacs-fs-access.log
     GENIEACS_UI_ACCESS_LOG_FILE=/var/log/genieacs/genieacs-ui-access.log
@@ -101,11 +101,16 @@ Configure systemd
   :file:`/var/log/genieacs/` while process logs go to *journald*. Use
   ``journalctl`` command to view process logs.
 
+  .. attention::
+
+    If the command :command:`systemctl edit --force --full` fails, you can
+    create the unit file manually.
+
   1. Run the following command to create ``genieacs-cwmp`` service:
   
     .. code:: bash
 
-      sudo systemctl edit --force genieacs-cwmp
+      sudo systemctl edit --force --full genieacs-cwmp
     
     Then paste the following in the editor and save:
 
@@ -127,7 +132,7 @@ Configure systemd
   
     .. code:: bash
 
-      sudo systemctl edit --force genieacs-nbi
+      sudo systemctl edit --force --full genieacs-nbi
     
     Then paste the following in the editor and save:
 
@@ -149,7 +154,7 @@ Configure systemd
   
     .. code:: bash
 
-      sudo systemctl edit --force genieacs-fs
+      sudo systemctl edit --force --full genieacs-fs
     
     Then paste the following in the editor and save:
 
@@ -171,7 +176,7 @@ Configure systemd
   
     .. code:: bash
 
-      sudo systemctl edit --force genieacs-ui
+      sudo systemctl edit --force --full genieacs-ui
     
     Then paste the following in the editor and save:
 
@@ -191,11 +196,11 @@ Configure systemd
 
 .. topic:: Configure log file rotation using logrotate
 
-  Save the following under :file:`/etc/logrotate.d/genieacs`
+  Save the following as :file:`/etc/logrotate.d/genieacs`
 
   .. code::
   
-    /var/log/genieacs/*.{log,yaml} {
+    /var/log/genieacs/*.log /var/log/genieacs/*.yaml {
         daily
         rotate 30
         compress

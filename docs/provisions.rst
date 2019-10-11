@@ -128,6 +128,14 @@ script filename while second argument is the function name within that script.
 Any remaining arguments will be passed to that function. See :ref:`extensions`
 for more details.
 
+``log(message)``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Prints out a string in genieacs-cwmp's access log. It's meant to be used for
+debugging. Note that you may see multiple log entries as the script can be
+executed multiple times in a session. See :ref:`this FAQ
+<administration-faq-duplicate-log-entries>`.
+
 .. _path-format:
 
 Path format
