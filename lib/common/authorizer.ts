@@ -18,7 +18,7 @@
  */
 
 import { PermissionSet, Expression } from "../types";
-import { evaluate } from "./expression";
+import { evaluate, or } from "./expression";
 
 export default class Authorizer {
   private permissionSets: PermissionSet[];
@@ -27,14 +27,16 @@ export default class Authorizer {
     (mutationType, mutation, any) => boolean
   >;
   private hasAccessCache: Map<string, boolean>;
+  private getFilterCache: Map<string, Expression>;
 
   public constructor(permissionSets) {
     this.permissionSets = permissionSets;
     this.validatorCache = new WeakMap();
     this.hasAccessCache = new Map();
+    this.getFilterCache = new Map();
   }
 
-  public hasAccess(resourceType, access): boolean {
+  public hasAccess(resourceType: string, access: number): boolean {
     const cacheKey = `${resourceType}-${access}`;
     if (this.hasAccessCache.has(cacheKey))
       return this.hasAccessCache.get(cacheKey);
@@ -55,10 +57,29 @@ export default class Authorizer {
     return has;
   }
 
+  public getFilter(resourceType: string, access: number): Expression {
+    const cacheKey = `${resourceType}-${access}`;
+    if (this.getFilterCache.has(cacheKey))
+      return this.getFilterCache.get(cacheKey);
+
+    let filter: Expression = null;
+    for (const permissionSet of this.permissionSets) {
+      for (const perm of permissionSet) {
+        if (perm[resourceType]) {
+          if (perm[resourceType].access >= access)
+            filter = or(filter, perm[resourceType].filter);
+        }
+      }
+    }
+
+    this.getFilterCache.set(cacheKey, filter);
+    return filter;
+  }
+
   public getValidator(
     resourceType,
     resource
-  ): (mutationType: string, mutation: any, args: any) => boolean {
+  ): (mutationType: string, mutation?: any, args?: any) => boolean {
     if (this.validatorCache.has(resource))
       return this.validatorCache.get(resource);
 

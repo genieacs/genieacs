@@ -277,7 +277,7 @@ export async function evaluateAsync(
   });
 }
 
-export function and(exp1, exp2): Expression {
+export function and(exp1: Expression, exp2: Expression): Expression {
   if (!isArray(exp1)) return exp1 ? exp2 : exp1;
   if (!isArray(exp2)) return exp2 ? exp1 : exp2;
 
@@ -292,7 +292,7 @@ export function and(exp1, exp2): Expression {
   return res;
 }
 
-export function or(exp1, exp2): Expression {
+export function or(exp1: Expression, exp2: Expression): Expression {
   if (!isArray(exp1)) return exp1 ? exp1 : exp2;
   if (!isArray(exp2)) return exp2 ? exp2 : exp1;
 

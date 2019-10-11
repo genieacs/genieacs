@@ -28,6 +28,7 @@ import { getConfig } from "../local-cache";
 import { QueryOptions, Expression } from "../types";
 import { generateSalt, hashPassword } from "../auth";
 import { del } from "../cache";
+import Authorizer from "../common/authorizer";
 
 const router = new Router();
 export default router;
@@ -67,15 +68,20 @@ const resources = {
 };
 
 router.get(`/devices/:id.csv`, async ctx => {
+  const authorizer: Authorizer = ctx.state.authorizer;
   const log = {
     message: "Query device (CSV)",
     context: ctx,
     id: ctx.params.id
   };
 
-  const filter = ["=", ["PARAM", RESOURCE_IDS.devices], ctx.params.id];
+  const filter = and(authorizer.getFilter("devices", 2), [
+    "=",
+    ["PARAM", RESOURCE_IDS.devices],
+    ctx.params.id
+  ]);
 
-  if (!ctx.state.authorizer.hasAccess("devices", 2)) {
+  if (!authorizer.hasAccess("devices", 2)) {
     logUnauthorizedWarning(log);
     return void (ctx.status = 404);
   }
@@ -115,8 +121,10 @@ router.get(`/devices/:id.csv`, async ctx => {
 
 for (const [resource, flags] of Object.entries(resources)) {
   router.head(`/${resource}`, async (ctx, next) => {
-    let filter: Expression = true;
-    if (ctx.request.query.filter) filter = parse(ctx.request.query.filter);
+    const authorizer: Authorizer = ctx.state.authorizer;
+    let filter: Expression = authorizer.getFilter(resource, 1);
+    if (ctx.request.query.filter)
+      filter = and(filter, parse(ctx.request.query.filter));
 
     const log = {
       message: `Count ${resource}`,
@@ -125,7 +133,7 @@ for (const [resource, flags] of Object.entries(resources)) {
       count: null
     };
 
-    if (!ctx.state.authorizer.hasAccess(resource, 1)) {
+    if (!authorizer.hasAccess(resource, 1)) {
       logUnauthorizedWarning(log);
       return void next();
     }
@@ -148,9 +156,11 @@ for (const [resource, flags] of Object.entries(resources)) {
   });
 
   router.get(`/${resource}`, async (ctx, next) => {
+    const authorizer: Authorizer = ctx.state.authorizer;
     const options: QueryOptions = {};
-    let filter: Expression = true;
-    if (ctx.request.query.filter) filter = parse(ctx.request.query.filter);
+    let filter: Expression = authorizer.getFilter(resource, 2);
+    if (ctx.request.query.filter)
+      filter = and(filter, parse(ctx.request.query.filter));
     if (ctx.request.query.limit) options.limit = +ctx.request.query.limit;
     if (ctx.request.query.skip) options.skip = +ctx.request.query.skip;
     if (ctx.request.query.sort)
@@ -171,7 +181,7 @@ for (const [resource, flags] of Object.entries(resources)) {
       projection: options.projection
     };
 
-    if (!ctx.state.authorizer.hasAccess(resource, 2)) {
+    if (!authorizer.hasAccess(resource, 2)) {
       logUnauthorizedWarning(log);
       return void next();
     }
@@ -199,9 +209,11 @@ for (const [resource, flags] of Object.entries(resources)) {
 
   // CSV download
   router.get(`/${resource}.csv`, async (ctx, next) => {
+    const authorizer: Authorizer = ctx.state.authorizer;
     const options: QueryOptions = { projection: {} };
-    let filter: Expression = true;
-    if (ctx.request.query.filter) filter = parse(ctx.request.query.filter);
+    let filter: Expression = authorizer.getFilter(resource, 2);
+    if (ctx.request.query.filter)
+      filter = and(filter, parse(ctx.request.query.filter));
     if (ctx.request.query.limit) options.limit = +ctx.request.query.limit;
     if (ctx.request.query.skip) options.skip = +ctx.request.query.skip;
     if (ctx.request.query.sort)
@@ -216,7 +228,7 @@ for (const [resource, flags] of Object.entries(resources)) {
       sort: options.sort
     };
 
-    if (!ctx.state.authorizer.hasAccess(resource, 2)) {
+    if (!authorizer.hasAccess(resource, 2)) {
       logUnauthorizedWarning(log);
       return void next();
     }
@@ -285,14 +297,19 @@ for (const [resource, flags] of Object.entries(resources)) {
   });
 
   router.head(`/${resource}/:id`, async (ctx, next) => {
+    const authorizer: Authorizer = ctx.state.authorizer;
     const log = {
       message: `Count ${resource}`,
       context: ctx,
       filter: `${RESOURCE_IDS[resource]} = "${ctx.params.id}"`
     };
 
-    const filter = ["=", ["PARAM", RESOURCE_IDS[resource]], ctx.params.id];
-    if (!ctx.state.authorizer.hasAccess(resource, 2)) {
+    const filter = and(authorizer.getFilter(resource, 2), [
+      "=",
+      ["PARAM", RESOURCE_IDS[resource]],
+      ctx.params.id
+    ]);
+    if (!authorizer.hasAccess(resource, 2)) {
       logUnauthorizedWarning(log);
       return void next();
     }
@@ -306,14 +323,19 @@ for (const [resource, flags] of Object.entries(resources)) {
   });
 
   router.get(`/${resource}/:id`, async (ctx, next) => {
+    const authorizer: Authorizer = ctx.state.authorizer;
     const log = {
       message: `Query ${resource}`,
       context: ctx,
       filter: `${RESOURCE_IDS[resource]} = "${ctx.params.id}"`
     };
 
-    const filter = ["=", ["PARAM", RESOURCE_IDS[resource]], ctx.params.id];
-    if (!ctx.state.authorizer.hasAccess(resource, 2)) {
+    const filter = and(authorizer.getFilter(resource, 2), [
+      "=",
+      ["PARAM", RESOURCE_IDS[resource]],
+      ctx.params.id
+    ]);
+    if (!authorizer.hasAccess(resource, 2)) {
       logUnauthorizedWarning(log);
       return void next();
     }
@@ -326,17 +348,20 @@ for (const [resource, flags] of Object.entries(resources)) {
     ctx.body = res[0];
   });
 
-  // TODO add PUT, PATCH routes
   if (flags & RESOURCE_DELETE) {
     router.delete(`/${resource}/:id`, async (ctx, next) => {
+      const authorizer: Authorizer = ctx.state.authorizer;
       const log = {
         message: `Delete ${resource}`,
         context: ctx,
         id: ctx.params.id
       };
 
-      const authorizer = ctx.state.authorizer;
-      const filter = ["=", ["PARAM", RESOURCE_IDS[resource]], ctx.params.id];
+      const filter = and(authorizer.getFilter(resource, 3), [
+        "=",
+        ["PARAM", RESOURCE_IDS[resource]],
+        ctx.params.id
+      ]);
       if (!authorizer.hasAccess(resource, 3)) {
         logUnauthorizedWarning(log);
         return void next();
@@ -360,6 +385,7 @@ for (const [resource, flags] of Object.entries(resources)) {
 
   if (flags & RESOURCE_PUT) {
     router.put(`/${resource}/:id`, async (ctx, next) => {
+      const authorizer: Authorizer = ctx.state.authorizer;
       const id = ctx.params.id;
 
       const log = {
@@ -368,7 +394,6 @@ for (const [resource, flags] of Object.entries(resources)) {
         id: id
       };
 
-      const authorizer = ctx.state.authorizer;
       if (!authorizer.hasAccess(resource, 3)) {
         logUnauthorizedWarning(log);
         return void next();
@@ -399,6 +424,7 @@ for (const [resource, flags] of Object.entries(resources)) {
 }
 
 router.put("/files/:id", async (ctx, next) => {
+  const authorizer: Authorizer = ctx.state.authorizer;
   const resource = "files";
   const id = ctx.params.id;
 
@@ -409,7 +435,6 @@ router.put("/files/:id", async (ctx, next) => {
     metadata: null
   };
 
-  const authorizer = ctx.state.authorizer;
   if (!authorizer.hasAccess(resource, 3)) {
     logUnauthorizedWarning(log);
     return void next();
@@ -436,6 +461,7 @@ router.put("/files/:id", async (ctx, next) => {
 });
 
 router.post("/devices/:id/tasks", async (ctx, next) => {
+  const authorizer: Authorizer = ctx.state.authorizer;
   const log = {
     message: "Commit tasks",
     context: ctx,
@@ -443,8 +469,11 @@ router.post("/devices/:id/tasks", async (ctx, next) => {
     tasks: null
   };
 
-  const authorizer = ctx.state.authorizer;
-  const filter = ["=", ["PARAM", "DeviceID.ID"], ctx.params.id];
+  const filter = and(authorizer.getFilter("devices", 3), [
+    "=",
+    ["PARAM", "DeviceID.ID"],
+    ctx.params.id
+  ]);
   if (!authorizer.hasAccess("devices", 3)) {
     logUnauthorizedWarning(log);
     return void next();
@@ -481,6 +510,7 @@ router.post("/devices/:id/tasks", async (ctx, next) => {
 });
 
 router.post("/devices/:id/tags", async (ctx, next) => {
+  const authorizer: Authorizer = ctx.state.authorizer;
   const log = {
     message: "Update tags",
     context: ctx,
@@ -488,8 +518,11 @@ router.post("/devices/:id/tags", async (ctx, next) => {
     tags: ctx.request.body
   };
 
-  const authorizer = ctx.state.authorizer;
-  const filter = ["=", ["PARAM", "DeviceID.ID"], ctx.params.id];
+  const filter = and(authorizer.getFilter("devices", 3), [
+    "=",
+    ["PARAM", "DeviceID.ID"],
+    ctx.params.id
+  ]);
   if (!authorizer.hasAccess("devices", 3)) {
     logUnauthorizedWarning(log);
     return void next();
@@ -528,14 +561,13 @@ router.get("/ping/:host", async ctx => {
 });
 
 router.put("/users/:id/password", async (ctx, next) => {
+  const authorizer: Authorizer = ctx.state.authorizer;
   const username = ctx.params.id;
   const log = {
     message: "Change password",
     context: ctx,
     username: username
   };
-
-  const authorizer = ctx.state.authorizer;
 
   if (!ctx.state.user) {
     // User not logged in
@@ -556,7 +588,11 @@ router.put("/users/:id/password", async (ctx, next) => {
     return void next();
   }
 
-  const filter = ["=", ["PARAM", RESOURCE_IDS.users], username];
+  const filter = and(authorizer.getFilter("users", 3), [
+    "=",
+    ["PARAM", RESOURCE_IDS.users],
+    username
+  ]);
   const res = await db.query("users", filter);
   if (!res.length) return void next();
 
