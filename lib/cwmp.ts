@@ -774,7 +774,7 @@ async function sendAcsRequest(
     downloadRequest.fileSize = 0;
     if (!downloadRequest.url) {
       const FS_PORT = config.get("FS_PORT");
-      const FS_SSL = config.get("FS_SSL");
+      const FS_SSL = config.get("FS_SSL_CERT");
       let hostname = config.get("FS_HOSTNAME");
       if (!hostname) {
         if (sessionContext.httpRequest.headers["host"])
