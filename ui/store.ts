@@ -693,6 +693,7 @@ export function logOut(): Promise<void> {
 
 export function ping(host): Promise<{}> {
   return xhrRequest({
-    url: `/api/ping/${encodeURIComponent(host)}`
+    url: `/api/ping/${encodeURIComponent(host)}`,
+    background: true
   });
 }
