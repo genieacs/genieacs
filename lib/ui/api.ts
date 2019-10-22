@@ -29,6 +29,7 @@ import { QueryOptions, Expression } from "../types";
 import { generateSalt, hashPassword } from "../auth";
 import { del } from "../cache";
 import Authorizer from "../common/authorizer";
+import { ping } from "../ping";
 
 const router = new Router();
 export default router;
@@ -551,13 +552,17 @@ router.post("/devices/:id/tags", async (ctx, next) => {
 });
 
 router.get("/ping/:host", async ctx => {
-  try {
-    ctx.body = await apiFunctions.ping(ctx.params.host);
-  } catch (err) {
-    ctx.status = 404;
-    ctx.response.headers["Cache-Control"] = "no-cache";
-    ctx.body = `${err.name}: ${err.message}`;
-  }
+  return new Promise(resolve => {
+    ping(ctx.params.host, (err, parsed) => {
+      if (parsed) {
+        ctx.body = parsed;
+      } else {
+        ctx.status = 500;
+        ctx.body = `${err.name}: ${err.message}`;
+      }
+      resolve();
+    });
+  });
 });
 
 router.put("/users/:id/password", async (ctx, next) => {

@@ -17,7 +17,6 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { exec } from "child_process";
 import { ObjectID } from "mongodb";
 import * as db from "./db";
 import { del } from "../cache";
@@ -29,17 +28,6 @@ import {
   connectionRequest,
   deleteDevice
 } from "../api-functions";
-import * as os from "os";
-
-function pingVariant(): string {
-  return os.platform() === "freebsd" ? "-t 1 -c 3" : "-w 1 -i 0.2 -c 3";
-}
-
-function pingOutRegex(): RegExp {
-  return os.platform() === "freebsd"
-    ? /(\d) packets transmitted, (\d) packets received, ([\d.%]+) packet loss\nround-trip min\/avg\/max\/stddev = ([\d.]+)\/([\d.]+)\/([\d.]+)\/([\d.]+) ms/
-    : /(\d) packets transmitted, (\d) received, ([\d.%]+) packet loss[^]*([\d.]+)\/([\d.]+)\/([\d.]+)\/([\d.]+)/;
-}
 
 async function deleteFault(id): Promise<void> {
   const deviceId = id.split(":", 1)[0];
@@ -158,28 +146,6 @@ interface PingResponse {
   avg: number;
   max: number;
   mdev: number;
-}
-
-export function ping(host): Promise<PingResponse> {
-  return new Promise((resolve, reject) => {
-    const pingArgs = pingVariant();
-    exec(`ping ${pingArgs} ${host}`, (err, stdout) => {
-      if (err) return void reject(err);
-
-      const m = stdout.match(pingOutRegex());
-      if (!m) return void reject(new Error("Could not parse ping response"));
-
-      resolve({
-        packetsTransmitted: +m[1],
-        packetsReceived: +m[2],
-        packetLoss: m[3],
-        min: +m[4],
-        avg: +m[5],
-        max: +m[6],
-        mdev: +m[7]
-      });
-    });
-  });
 }
 
 export async function putResource(resource, id, data): Promise<void> {
