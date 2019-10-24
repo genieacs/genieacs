@@ -141,4 +141,8 @@ export default class Authorizer {
     this.validatorCache.set(resource, validator);
     return validator;
   }
+
+  public getPermissionSets(): PermissionSet[] {
+    return this.permissionSets;
+  }
 }

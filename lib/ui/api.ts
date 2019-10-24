@@ -577,7 +577,7 @@ router.put("/users/:id/password", async (ctx, next) => {
   if (!ctx.state.user) {
     // User not logged in
     if (
-      !(await apiFunctions.authSimple(
+      !(await apiFunctions.authLocal(
         ctx.state.configSnapshot,
         username,
         ctx.request.body.authPassword

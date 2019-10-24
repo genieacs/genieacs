@@ -168,15 +168,15 @@ export async function putResource(resource, id, data): Promise<void> {
   await del("presets_hash");
 }
 
-export function authSimple(snapshot, username, password): Promise<string[]> {
+export function authLocal(snapshot, username, password): Promise<boolean> {
   return new Promise((resolve, reject) => {
     const users = getUsers(snapshot);
     const user = users[username];
     if (!user || !user.password) return void resolve(null);
     hashPassword(password, user.salt)
       .then(hash => {
-        if (hash === user.password) resolve(user.roles);
-        else resolve(null);
+        if (hash === user.password) resolve(true);
+        else resolve(false);
       })
       .catch(reject);
   });

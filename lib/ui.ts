@@ -31,7 +31,7 @@ import Authorizer from "./common/authorizer";
 import * as logger from "./logger";
 import * as localCache from "./local-cache";
 import { PermissionSet } from "./types";
-import { authSimple } from "./ui/api-functions";
+import { authLocal } from "./ui/api-functions";
 import * as init from "./init";
 import { version as VERSION } from "../package.json";
 
@@ -46,16 +46,6 @@ const router = new Router();
 
 const JWT_SECRET = "" + config.get("UI_JWT_SECRET");
 const JWT_COOKIE = "genieacs-ui-jwt";
-
-function getPermissionSets(ctx): PermissionSet[] {
-  const allPermissions = localCache.getPermissions(ctx.state.configSnapshot);
-  const users = localCache.getUsers(ctx.state.configSnapshot);
-  const user = users[ctx.state.user.username];
-  const permissionSets = user.roles.map(role =>
-    Object.values(allPermissions[role] || {})
-  );
-  return permissionSets;
-}
 
 koa.on("error", async err => {
   throw err;
@@ -73,14 +63,39 @@ koa.use(
   koaJwt({
     secret: JWT_SECRET,
     passthrough: true,
-    cookie: JWT_COOKIE
+    cookie: JWT_COOKIE,
+    isRevoked: async (ctx, token) => {
+      if (token["authMethod"] === "local") {
+        return !localCache.getUsers(ctx.state.configSnapshot)[
+          token["username"]
+        ];
+      }
+
+      return true;
+    }
   })
 );
 
 koa.use(async (ctx, next) => {
-  if (ctx.state.user && ctx.state.user.username)
-    ctx.state.authorizer = new Authorizer(getPermissionSets(ctx));
-  else ctx.state.authorizer = new Authorizer([]);
+  const permissionSets: PermissionSet[] = [];
+
+  if (ctx.state.user && ctx.state.user.username) {
+    const allPermissions = localCache.getPermissions(ctx.state.configSnapshot);
+
+    let user;
+    if (ctx.state.user.authMethod === "local") {
+      user = localCache.getUsers(ctx.state.configSnapshot)[
+        ctx.state.user.username
+      ];
+    } else {
+      throw new Error("Invalid auth method");
+    }
+
+    for (const role of (user.roles || []).sort())
+      permissionSets.push(Object.values(allPermissions[role] || {}));
+  }
+
+  ctx.state.authorizer = new Authorizer(permissionSets);
 
   return next();
 });
@@ -103,9 +118,9 @@ router.post("/login", async ctx => {
     method: null
   };
 
-  function success(method): void {
-    log.method = method;
-    const token = jwt.sign({ username }, JWT_SECRET);
+  function success(authMethod): void {
+    log.method = authMethod;
+    const token = jwt.sign({ username, authMethod }, JWT_SECRET);
     ctx.cookies.set(JWT_COOKIE, token, { sameSite: "lax" });
     ctx.body = JSON.stringify(token);
     logger.accessInfo(log);
@@ -118,9 +133,8 @@ router.post("/login", async ctx => {
     logger.accessWarn(log);
   }
 
-  const roles = await authSimple(ctx.state.configSnapshot, username, password);
-
-  if (roles) return void success("simple");
+  if (await authLocal(ctx.state.configSnapshot, username, password))
+    return void success("local");
 
   failure();
 });
@@ -192,9 +206,7 @@ router.post("/init", async ctx => {
 });
 
 router.get("/", async ctx => {
-  let permissionSets = [];
-  if (ctx.state.user && ctx.state.user.username)
-    permissionSets = getPermissionSets(ctx);
+  const permissionSets = ctx.state.authorizer.getPermissionSets();
 
   let wizard = "";
   if (!Object.keys(localCache.getUsers(ctx.state.configSnapshot)).length)
