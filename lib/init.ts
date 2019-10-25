@@ -60,7 +60,7 @@ const INFORM_SCRIPT = `
 const username = declare("DeviceID.ID", {value: 1}).value[0]
 
 // Password will be fixed a given device because Math.random() is seeded with devcie ID by default.
-const password = "" + Math.random();
+const password = Math.trunc(Math.random() * Number.MAX_SAFE_INTEGER).toString(36);
 
 const informInterval = 300;
 
