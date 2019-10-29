@@ -537,15 +537,29 @@ async function runProvisions(
       if (!allProvisions[provision[0]]) {
         if (defaultProvisions[provision[0]]) {
           const dec = [];
-          const done = defaultProvisions[provision[0]](
-            sessionContext,
-            provision,
-            dec,
-            startRevision,
-            endRevision
-          );
+          let done = true;
+          let fault = null;
+          try {
+            done = defaultProvisions[provision[0]](
+              sessionContext,
+              provision,
+              dec,
+              startRevision,
+              endRevision
+            );
+          } catch (err) {
+            fault = {
+              code: `script.${err.name}`,
+              message: err.message,
+              detail: {
+                name: err.name,
+                message: err.message,
+                stack: `${err.name}: ${err.message}\n    at ${provision[0]}`
+              }
+            };
+          }
           return {
-            fault: null,
+            fault: fault,
             clear: null,
             declare: dec,
             done: done,

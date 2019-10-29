@@ -25,6 +25,13 @@ import * as scheduling from "./scheduling";
 const MAX_DEPTH = +config.get("MAX_DEPTH");
 
 export function refresh(sessionContext, provision, declarations): boolean {
+  if (
+    provision.length !== 3 ||
+    typeof provision[1] !== "string" ||
+    typeof provision[2] !== "number"
+  )
+    throw new Error("Invalid arguments");
+
   const segments = Path.parse(provision[1]).segments.slice();
   const l = segments.length;
   segments.length = MAX_DEPTH;
@@ -49,6 +56,9 @@ export function refresh(sessionContext, provision, declarations): boolean {
 }
 
 export function value(sessionContext, provision, declarations): boolean {
+  if (provision.length !== 3 || typeof provision[1] !== "string")
+    throw new Error("Invalid arguments");
+
   declarations.push({
     path: Path.parse(provision[1]),
     pathGet: 1,
@@ -62,6 +72,13 @@ export function value(sessionContext, provision, declarations): boolean {
 }
 
 export function tag(sessionContext, provision, declarations): boolean {
+  if (
+    provision.length !== 3 ||
+    typeof provision[1] !== "string" ||
+    typeof provision[2] !== "boolean"
+  )
+    throw new Error("Invalid arguments");
+
   declarations.push({
     path: Path.parse(`Tags.${provision[1]}`),
     pathGet: 1,
@@ -75,6 +92,8 @@ export function tag(sessionContext, provision, declarations): boolean {
 }
 
 export function reboot(sessionContext, provision, declarations): boolean {
+  if (provision.length !== 1) throw new Error("Invalid arguments");
+
   declarations.push({
     path: Path.parse("Reboot"),
     pathGet: 1,
@@ -88,6 +107,8 @@ export function reboot(sessionContext, provision, declarations): boolean {
 }
 
 export function reset(sessionContext, provision, declarations): boolean {
+  if (provision.length !== 1) throw new Error("Invalid arguments");
+
   declarations.push({
     path: Path.parse("FactoryReset"),
     pathGet: 1,
@@ -101,6 +122,17 @@ export function reset(sessionContext, provision, declarations): boolean {
 }
 
 export function download(sessionContext, provision, declarations): boolean {
+  if (
+    (provision.length !== 3 ||
+      typeof provision[1] !== "string" ||
+      typeof provision[2] !== "string") &&
+    (provision.length !== 4 ||
+      typeof provision[1] !== "string" ||
+      typeof provision[2] !== "string" ||
+      typeof provision[3] !== "string")
+  )
+    throw new Error("Invalid arguments");
+
   const alias = [
     `FileType:${JSON.stringify(provision[1] || "")}`,
     `FileName:${JSON.stringify(provision[2] || "")}`,
@@ -135,9 +167,12 @@ export function instances(
   startRevision,
   endRevision
 ): boolean {
+  if (provision.length !== 3 || typeof provision[1] !== "string")
+    throw new Error("Invalid arguments");
+
   let count = Number(provision[2]);
 
-  if (Number.isNaN(count)) return true;
+  if (Number.isNaN(count)) throw new Error("Invalid arguments");
 
   const path = Path.parse(provision[1]);
 
