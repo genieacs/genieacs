@@ -522,9 +522,12 @@ export function mongoQueryToFilter(query): Expression {
           }
           exps.push([op, ["PARAM", k], vv]);
         }
-        if (exps.length === 1) return exps[0];
-        const and: Expression = ["AND"];
-        expressions.push(and.concat(exps));
+        if (exps.length === 1) {
+          expressions.push(exps[0]);
+        } else {
+          const and: Expression = ["AND"];
+          expressions.push(and.concat(exps));
+        }
       } else {
         expressions.push(["=", ["PARAM", k], v]);
       }

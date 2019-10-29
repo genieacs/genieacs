@@ -32,6 +32,10 @@ ava("mongoQueryToFilter", t => {
     [
       { test: { $gte: "test1", $ne: "test2" } },
       'test >= "test1" AND test <> "test2"'
+    ],
+    [
+      { test: "test", test2: { $ne: "test2" } },
+      'test = "test" AND test2 <> "test2"'
     ]
   ];
 
