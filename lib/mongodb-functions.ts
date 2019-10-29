@@ -380,7 +380,7 @@ export function flattenDevice(device): FlatDevice {
           };
         } else if (name === "_tags") {
           output["Tags"] = {
-            writable: true,
+            writable: false,
             writableTimestamp: timestamp,
             object: true,
             objectTimestamp: timestamp
@@ -390,7 +390,7 @@ export function flattenDevice(device): FlatDevice {
             output[`Tags.${t}`] = {
               value: [true, "xsd:boolean"],
               valueTimestamp: timestamp,
-              writable: false,
+              writable: true,
               writableTimestamp: timestamp,
               object: false,
               objectTimestamp: timestamp
