@@ -26,9 +26,10 @@ const MAX_DEPTH = +config.get("MAX_DEPTH");
 
 export function refresh(sessionContext, provision, declarations): boolean {
   if (
-    provision.length !== 3 ||
-    typeof provision[1] !== "string" ||
-    typeof provision[2] !== "number"
+    (provision.length !== 2 || typeof provision[1] !== "string") &&
+    (provision.length !== 3 ||
+      typeof provision[1] !== "string" ||
+      typeof provision[2] !== "number")
   )
     throw new Error("Invalid arguments");
 
