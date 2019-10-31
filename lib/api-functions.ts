@@ -226,11 +226,14 @@ function sanitizeTask(task): void {
       break;
 
     case "download":
-      if (typeof task.fileType !== "string" || !task.fileType.length)
-        throw new Error("Missing 'fileType' property");
+      // genieacs-gui sends file ID instead of fileName and fileType
+      if (!task.file) {
+        if (typeof task.fileType !== "string" || !task.fileType.length)
+          throw new Error("Missing 'fileType' property");
 
-      if (typeof task.fileName !== "string" || !task.fileName.length)
-        throw new Error("Missing 'fileName' property");
+        if (typeof task.fileName !== "string" || !task.fileName.length)
+          throw new Error("Missing 'fileName' property");
+      }
 
       if (
         task.targetFileName != null &&

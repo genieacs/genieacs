@@ -670,7 +670,7 @@ async function nextRpc(sessionContext: SessionContext): Promise<void> {
       break;
     case "download":
       session.addProvisions(sessionContext, `task_${task._id}`, [
-        ["download", task.fileType, task.fileName, task.targetFileName]
+        ["download", task.fileType, task.fileName, task.targetFileName || ""]
       ]);
       break;
     case "addObject":
