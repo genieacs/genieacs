@@ -23,7 +23,9 @@ import { DeviceData, Declaration, Clear } from "./types";
 const CHANGE_FLAGS = {
   object: 2,
   writable: 4,
-  value: 8
+  value: 8,
+  notification: 16,
+  accessList: 32
 };
 
 function parseBool(v): boolean {

@@ -47,6 +47,12 @@ export let tasksCollection: Collection,
 let clientPromise: Promise<MongoClient>;
 export let client: MongoClient;
 
+function compareAccessLists(list1: string[], list2: string[]): boolean {
+  if (list1.length !== list2.length) return false;
+  for (const [i, v] of list1.entries()) if (v !== list2[i]) return false;
+  return true;
+}
+
 export async function connect(): Promise<void> {
   clientPromise = MongoClient.connect("" + get("MONGODB_CONNECTION_URL"), {
     useNewUrlParser: true
@@ -118,6 +124,8 @@ export async function fetchDevice(
 
   function storeParams(obj, path: string, pathLength: number, ts): void {
     if (obj["_timestamp"]) obj["_timestamp"] = +obj["_timestamp"];
+    if (obj["_attributesTimestamp"])
+      obj["_attributesTimestamp"] = +obj["_attributesTimestamp"];
 
     const attrs: Attributes = {};
     let t = obj["_timestamp"] || 1;
@@ -134,6 +142,16 @@ export async function fetchDevice(
       attrs.writable = [ts || 1, obj["_writable"] ? 1 : 0];
 
     if (obj["_object"] != null) attrs.object = [t, obj["_object"] ? 1 : 0];
+
+    if (obj["_notification"] != null) {
+      attrs.notification = [
+        obj["_attributesTimestamp"] || 1,
+        obj["_notification"]
+      ];
+    }
+
+    if (obj["_accessList"] != null)
+      attrs.accessList = [obj["_attributesTimestamp"] || 1, obj["_accessList"]];
 
     res.push([Path.parse(path.slice(0, -1)), t, attrs]);
 
@@ -331,6 +349,12 @@ export async function saveDevice(
     const object2 = ((diff[2] || {}).object || [])[1];
     const writable2 = ((diff[2] || {}).writable || [])[1];
     const writable1 = ((diff[1] || {}).writable || [])[1];
+    const attributesTimestamp1 = ((diff[1] || {}).notification || [])[0];
+    const attributesTimestamp2 = ((diff[2] || {}).notification || [])[0];
+    const notification1 = ((diff[1] || {}).notification || [])[1];
+    const notification2 = ((diff[2] || {}).notification || [])[1];
+    const accessList1 = ((diff[1] || {}).accessList || [])[1];
+    const accessList2 = ((diff[2] || {}).accessList || [])[1];
 
     switch (path.segments[0]) {
       case "Events":
@@ -457,6 +481,46 @@ export async function saveDevice(
                     path.length ? path.toString() + "._writable" : "_writable"
                   ] = !!writable2;
                 }
+
+                break;
+              case "notification":
+                if (
+                  !diff[1] ||
+                  !diff[1].notification ||
+                  notification2 !== notification1
+                ) {
+                  update["$set"][
+                    path.length
+                      ? path.toString() + "._notification"
+                      : "_notification"
+                  ] = notification2;
+                }
+
+                if (attributesTimestamp2 !== attributesTimestamp1) {
+                  update["$set"][
+                    path.toString() + "._attributesTimestamp"
+                  ] = new Date(attributesTimestamp2);
+                }
+
+                break;
+              case "accessList":
+                if (
+                  !diff[1] ||
+                  !diff[1].accessList ||
+                  !compareAccessLists(accessList2, accessList1)
+                ) {
+                  update["$set"][
+                    path.length
+                      ? path.toString() + "._accessList"
+                      : "_accessList"
+                  ] = accessList2;
+                }
+
+                if (attributesTimestamp2 !== attributesTimestamp1) {
+                  update["$set"][
+                    path.toString() + "._attributesTimestamp"
+                  ] = new Date(attributesTimestamp2);
+                }
             }
           }
         }
@@ -472,6 +536,12 @@ export async function saveDevice(
               if (attrName === "value") {
                 update["$unset"][p + "_type"] = 1;
                 update["$unset"][p + "_timestamp"] = 1;
+              } else if (attrName === "notification") {
+                if (accessList2 == null)
+                  update["$unset"][`${p}_attributesTimestamp`] = 1;
+              } else if (attrName === "accessList") {
+                if (notification2 == null)
+                  update["$unset"][`${p}_attributesTimestamp`] = 1;
               }
             }
           }

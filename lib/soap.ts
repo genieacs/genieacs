@@ -188,6 +188,45 @@ function parameterValueList(
     });
 }
 
+function parameterAttributeList(xml: Element): [string, number, string[]][] {
+  return xml.children
+    .filter(e => e.localName === "ParameterAttributeStruct")
+    .map<[string, number, string[]]>(e => {
+      let notificationElement: Element,
+        accessListElement: Element,
+        param: string;
+      for (const c of e.children) {
+        switch (c.localName) {
+          case "Name":
+            param = c.text;
+            break;
+          case "Notification":
+            notificationElement = c;
+            break;
+          case "AccessList":
+            accessListElement = c;
+            break;
+        }
+      }
+
+      const notification = decodeEntities(notificationElement.text);
+      const notif = +notification;
+
+      if (notif !== parseInt(notification)) {
+        warnings.push({
+          message: "Invalid notification attribute",
+          parameter: param
+        });
+      }
+
+      const accessList = accessListElement.children
+        .filter(c => c.localName === "string")
+        .map(c => decodeEntities(c.text));
+
+      return [param, notif, accessList];
+    });
+}
+
 function GetParameterNames(methodRequest): string {
   return `<cwmp:GetParameterNames><ParameterPath>${
     methodRequest.parameterPath
@@ -220,6 +259,23 @@ function GetParameterValuesResponse(xml: Element): CpeGetResponse {
   };
 }
 
+function GetParameterAttributes(methodRequest): string {
+  return `<cwmp:GetParameterAttributes><ParameterNames soap-enc:arrayType="xsd:string[${
+    methodRequest.parameterNames.length
+  }]">${methodRequest.parameterNames
+    .map(p => `<string>${p}</string>`)
+    .join("")}</ParameterNames></cwmp:GetParameterAttributes>`;
+}
+
+function GetParameterAttributesResponse(xml: Element): CpeGetResponse {
+  return {
+    name: "GetParameterAttributesResponse",
+    parameterList: parameterAttributeList(
+      xml.children.find(n => n.localName === "ParameterList")
+    )
+  };
+}
+
 function SetParameterValues(methodRequest): string {
   const params = methodRequest.parameterList.map(p => {
     let val = p[1];
@@ -247,6 +303,34 @@ function SetParameterValuesResponse(xml: Element): CpeSetResponse {
   return {
     name: "SetParameterValuesResponse",
     status: parseInt(xml.children.find(n => n.localName === "Status").text)
+  };
+}
+
+function SetParameterAttributes(methodRequest): string {
+  const params = methodRequest.parameterList.map(p => {
+    return `<SetParameterAttributesStruct><Name>${
+      p[0]
+    }</Name><NotificationChange>${
+      p[1] == null ? "false" : "true"
+    }</NotificationChange><Notification>${
+      p[1] == null ? "" : p[1]
+    }</Notification><AccessListChange>${
+      p[2] == null ? "false" : "true"
+    }</AccessListChange><AccessList>${
+      p[2] == null
+        ? ""
+        : p[2].map(s => `<string>${encodeEntities(s)}</string>`).join("")
+    }</AccessList></SetParameterAttributesStruct>`;
+  });
+
+  return `<cwmp:SetParameterAttributes><ParameterList soap-enc:arrayType="cwmp:SetParameterAttributesStruct[${
+    methodRequest.parameterList.length
+  }]">${params.join("")}</ParameterList></cwmp:SetParameterAttributes>`;
+}
+
+function SetParameterAttributesResponse(): CpeSetResponse {
+  return {
+    name: "SetParameterAttributesResponse"
   };
 }
 
@@ -610,8 +694,14 @@ export function request(body: string, cwmpVersion, warn): SoapMessage {
     case "GetParameterValuesResponse":
       rpc.cpeResponse = GetParameterValuesResponse(methodElement);
       break;
+    case "GetParameterAttributesResponse":
+      rpc.cpeResponse = GetParameterAttributesResponse(methodElement);
+      break;
     case "SetParameterValuesResponse":
       rpc.cpeResponse = SetParameterValuesResponse(methodElement);
+      break;
+    case "SetParameterAttributesResponse":
+      rpc.cpeResponse = SetParameterAttributesResponse();
       break;
     case "AddObjectResponse":
       rpc.cpeResponse = AddObjectResponse(methodElement);
@@ -690,8 +780,14 @@ export function response(rpc): { code: number; headers: {}; data: string } {
       case "GetParameterValues":
         body = GetParameterValues(rpc.acsRequest);
         break;
+      case "GetParameterAttributes":
+        body = GetParameterAttributes(rpc.acsRequest);
+        break;
       case "SetParameterValues":
         body = SetParameterValues(rpc.acsRequest);
+        break;
+      case "SetParameterAttributes":
+        body = SetParameterAttributes(rpc.acsRequest);
         break;
       case "AddObject":
         body = AddObject(rpc.acsRequest);

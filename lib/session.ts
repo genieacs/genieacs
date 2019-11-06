@@ -729,9 +729,12 @@ function runDeclarations(
         exist: new Set(),
         object: new Set(),
         writable: new Set(),
-        value: new Set()
+        value: new Set(),
+        notification: new Set(),
+        accessList: new Set()
       },
       spv: new Map(),
+      spa: new Map(),
       gpn: new Set<Path>(),
       gpnPatterns: new Map(),
       tags: new Map(),
@@ -1463,6 +1466,8 @@ function generateGetRpcRequest(sessionContext: SessionContext): GetAcsRequest {
         syncState.refreshAttributes.value.has(p) ||
         syncState.refreshAttributes.object.has(p) ||
         syncState.refreshAttributes.writable.has(p) ||
+        syncState.refreshAttributes.notification.has(p) ||
+        syncState.refreshAttributes.accessList.has(p) ||
         syncState.gpn.has(p)
       ) {
         found = true;
@@ -1491,7 +1496,9 @@ function generateGetRpcRequest(sessionContext: SessionContext): GetAcsRequest {
         syncState.refreshAttributes.value.has(p) ||
         (p.length > path.length &&
           (syncState.refreshAttributes.object.has(p) ||
-            syncState.refreshAttributes.writable.has(p)))
+            syncState.refreshAttributes.writable.has(p) ||
+            syncState.refreshAttributes.notification.has(p) ||
+            syncState.refreshAttributes.accessList.has(p)))
       ) {
         found = true;
         break;
@@ -1599,7 +1606,55 @@ function generateGetRpcRequest(sessionContext: SessionContext): GetAcsRequest {
       };
     }
   }
+
+  if (
+    syncState.refreshAttributes.notification.size ||
+    syncState.refreshAttributes.accessList.size
+  ) {
+    const GPV_BATCH_SIZE = localCache.getConfig(
+      sessionContext.cacheSnapshot,
+      "cwmp.gpvBatchSize",
+      sessionContext.configContext
+    );
+
+    const parameterNames: string[] = [];
+    for (const path of syncState.refreshAttributes.notification) {
+      syncState.refreshAttributes.notification.delete(path);
+      syncState.refreshAttributes.accessList.delete(path);
+      // Need to check in case param is deleted
+      const attrs = sessionContext.deviceData.attributes.get(path);
+      if (attrs) {
+        parameterNames.push(path.toString());
+        if (parameterNames.length >= GPV_BATCH_SIZE) break;
+      }
+    }
+
+    if (parameterNames.length < GPV_BATCH_SIZE) {
+      for (const path of syncState.refreshAttributes.accessList) {
+        syncState.refreshAttributes.accessList.delete(path);
+        const attrs = sessionContext.deviceData.attributes.get(path);
+        if (attrs) {
+          parameterNames.push(path.toString());
+          if (parameterNames.length >= GPV_BATCH_SIZE) break;
+        }
+      }
+    }
+
+    if (parameterNames.length) {
+      return {
+        name: "GetParameterAttributes",
+        parameterNames: parameterNames
+      };
+    }
+  }
+
   return null;
+}
+
+function compareAccessLists(list1: string[], list2: string[]): boolean {
+  if (list1.length !== list2.length) return false;
+  for (const [i, v] of list1.entries()) if (v !== list2[i]) return false;
+  return true;
 }
 
 function generateSetRpcRequest(sessionContext: SessionContext): SetAcsRequest {
@@ -1654,7 +1709,7 @@ function generateSetRpcRequest(sessionContext: SessionContext): SetAcsRequest {
     sessionContext.configContext
   );
 
-  const parameterValues: [Path, string | number | boolean, string][] = [];
+  const parameterValues: [string, string | number | boolean, string][] = [];
   for (const [k, v] of syncState.spv) {
     syncState.spv.delete(k);
     const attrs = sessionContext.deviceData.attributes.get(k);
@@ -1673,7 +1728,7 @@ function generateSetRpcRequest(sessionContext: SessionContext): SetAcsRequest {
         val[0] -= val[0] % 1000;
 
       if (val[0] !== curVal[0] || val[1] !== curVal[1])
-        parameterValues.push([k, val[0], val[1]]);
+        parameterValues.push([k.toString(), val[0], val[1]]);
 
       if (parameterValues.length >= GPV_BATCH_SIZE) break;
     }
@@ -1682,16 +1737,41 @@ function generateSetRpcRequest(sessionContext: SessionContext): SetAcsRequest {
   if (parameterValues.length) {
     return {
       name: "SetParameterValues",
-      parameterList: parameterValues.map(
-        p =>
-          [p[0].toString(), p[1], p[2]] as [
-            string,
-            string | number | boolean,
-            string
-          ]
-      ),
+      parameterList: parameterValues,
       DATETIME_MILLISECONDS: DATETIME_MILLISECONDS,
       BOOLEAN_LITERAL: BOOLEAN_LITERAL
+    };
+  }
+
+  // Set attributes
+  const parameterAttributes: [string, number, string[]][] = [];
+  for (const [k, v] of syncState.spa) {
+    syncState.spa.delete(k);
+    const attrs = sessionContext.deviceData.attributes.get(k);
+
+    if (
+      v.notification != null &&
+      (!attrs.notification || v.notification === attrs.notification[1])
+    )
+      v.notification = null;
+
+    if (
+      v.accessList != null &&
+      (!attrs.accessList ||
+        compareAccessLists(v.accessList, attrs.accessList[1]))
+    )
+      v.accessList = null;
+
+    if (v.notification != null || v.accessList != null)
+      parameterAttributes.push([k.toString(), v.notification, v.accessList]);
+
+    if (parameterAttributes.length >= GPV_BATCH_SIZE) break;
+  }
+
+  if (parameterAttributes.length) {
+    return {
+      name: "SetParameterAttributes",
+      parameterList: parameterAttributes
     };
   }
 
@@ -2109,8 +2189,34 @@ function processDeclarations(
               }
             }
           }
-          if (declareAttributeValues && declareAttributeValues.value != null)
-            syncState.spv.set(currentPath, declareAttributeValues.value);
+          if (declareAttributeValues) {
+            if (declareAttributeValues.value != null)
+              syncState.spv.set(currentPath, declareAttributeValues.value);
+
+            if (declareAttributeValues.notification != null) {
+              const spa = syncState.spa.get(currentPath);
+              if (spa) {
+                spa.notification = declareAttributeValues.notification;
+              } else {
+                syncState.spa.set(currentPath, {
+                  notification: declareAttributeValues.notification,
+                  accessList: null
+                });
+              }
+            }
+
+            if (declareAttributeValues.accessList != null) {
+              const spa = syncState.spa.get(currentPath);
+              if (spa) {
+                spa.accessList = declareAttributeValues.accessList;
+              } else {
+                syncState.spa.set(currentPath, {
+                  notification: null,
+                  accessList: declareAttributeValues.accessList
+                });
+              }
+            }
+          }
         }
     }
 
@@ -2243,7 +2349,7 @@ export async function rpcResponse(
       if (p[1] !== rpcReq.instanceValues[p[0]]) {
         const v = device.sanitizeParameterValue([
           rpcReq.instanceValues[p[0]],
-          p[2]
+          p[2] as string
         ]);
         parameterList.push([p[0], v[0], v[1]]);
       }
@@ -2284,6 +2390,21 @@ export async function rpcResponse(
           Path.parse(p[0]),
           timestamp,
           { object: [timestamp, 0], value: [timestamp, p.slice(1)] },
+          toClear
+        );
+      }
+
+      break;
+    case "GetParameterAttributesResponse":
+      if (rpcReq.name !== "GetParameterAttributes")
+        throw new Error("Response name does not match request name");
+
+      for (const p of rpcRes.parameterList) {
+        toClear = device.set(
+          sessionContext.deviceData,
+          Path.parse(p[0]),
+          timestamp,
+          { notification: [timestamp, p[1]], accessList: [timestamp, p[2]] },
           toClear
         );
       }
@@ -2400,6 +2521,38 @@ export async function rpcResponse(
             writable: [timestamp + 1, 1],
             value: [timestamp + 1, p.slice(1)]
           },
+          toClear
+        );
+      }
+
+      break;
+    case "SetParameterAttributesResponse":
+      if (rpcReq.name !== "SetParameterAttributes")
+        throw new Error("Response name does not match request name");
+
+      for (const p of rpcReq.parameterList) {
+        let attrs;
+
+        if (p[1] != null && p[2] != null) {
+          attrs = {
+            notification: [timestamp + 1, p[1]],
+            accessList: [timestamp + 1, p[2]]
+          };
+        } else if (p[1] != null) {
+          attrs = {
+            notification: [timestamp + 1, p[1]]
+          };
+        } else if (p[2] != null) {
+          attrs = {
+            accessList: [timestamp + 1, p[2]]
+          };
+        }
+
+        toClear = device.set(
+          sessionContext.deviceData,
+          Path.parse(p[0]),
+          timestamp + 1,
+          attrs,
           toClear
         );
       }
@@ -2566,9 +2719,11 @@ export async function rpcFault(
         p => [Path.parse(p.replace(/\.$/, "")), timestamp] as Clear
       );
     } else if (rpcReq.name === "SetParameterValues") {
-      toClear = rpcReq.parameterList.map(
-        p => [Path.parse(p[0].replace(/\.$/, "")), timestamp] as Clear
-      );
+      toClear = (rpcReq.parameterList as [
+        string,
+        string | number | boolean,
+        string
+      ][]).map(p => [Path.parse(p[0].replace(/\.$/, "")), timestamp] as Clear);
     } else if (rpcReq.name === "AddObject") {
       toClear = [[Path.parse(rpcReq.objectName.replace(/\.$/, "")), timestamp]];
     } else if (rpcReq.name === "DeleteObject") {
