@@ -23,8 +23,7 @@ import { Socket } from "net";
 import * as auth from "./auth";
 import * as config from "./config";
 import * as common from "./common";
-import * as soapCustom from "./soap";
-import * as soapLibxmljs from "./soap-libxmljs";
+import * as soap from "./soap";
 import * as session from "./session";
 import { evaluateAsync, evaluate, extractParams } from "./common/expression";
 import * as device from "./device";
@@ -51,14 +50,9 @@ import { Readable } from "stream";
 import { promisify } from "util";
 import { TLSSocket } from "tls";
 import { decode, encodingExists } from "iconv-lite";
-import { dependencies as DEPENDENCIES } from "../package.json";
 import { parseXmlDeclaration } from "./xml-parser";
 import * as debug from "./debug";
 
-const soap =
-  DEPENDENCIES["libxmljs"] && config.get("XML_LIBXMLJS")
-    ? soapLibxmljs
-    : soapCustom;
 const gzipPromisified = promisify(zlib.gzip);
 const deflatePromisified = promisify(zlib.deflate);
 

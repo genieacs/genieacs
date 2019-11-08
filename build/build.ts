@@ -55,7 +55,6 @@ const externals = [
   "crypto",
   "util",
   "mongodb",
-  "libxmljs",
   "vm",
   "later",
   "parsimmon",

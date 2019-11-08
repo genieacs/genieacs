@@ -98,14 +98,6 @@ const options = {
   CONNECTION_REQUEST_ALLOW_BASIC_AUTH: { type: "bool", default: false },
   MAX_COMMIT_ITERATIONS: { type: "int", default: 32 },
 
-  // XML configuration
-  XML_RECOVER: { type: "bool", default: false },
-  XML_IGNORE_ENC: { type: "bool", default: false },
-  XML_FORMAT: { type: "bool", default: false },
-  XML_NO_DECL: { type: "bool", default: false },
-  XML_NO_EMPTY: { type: "bool", default: false },
-  XML_LIBXMLJS: { type: "bool", default: false },
-
   // Should probably never be changed
   DEVICE_ONLINE_THRESHOLD: { type: "int", default: 4000 }
 };
@@ -166,12 +158,6 @@ function setConfig(name, value, commandLineArgument = false): boolean {
     name === "task-parameters-batch-size"
   )
     setConfig("GPV_BATCH_SIZE", value);
-
-  if (name === "XML_PARSE_IGNORE_ENC" || name === "xml-parse-ignore-enc")
-    setConfig("XML_IGNORE_ENC", value);
-
-  if (name === "XML_PARSE_RECOVER" || name === "xml-parse-recover")
-    setConfig("XML_RECOVER", value);
 
   if (name === "FS_IP" || name === "fs-ip") setConfig("FS_HOSTNAME", value);
 
