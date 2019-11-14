@@ -51,7 +51,18 @@ export function processDeviceFilter(filter): Expression {
       else if (exp[0] === "<>" && exp[2] !== true)
         return ["=", ["PARAM", "_tags"], t];
     } else if (
-      ["=", "<>", ">", ">=", "<", "<=", "LIKE", "NOT LIKE"].includes(exp[0])
+      [
+        "=",
+        "<>",
+        ">",
+        ">=",
+        "<",
+        "<=",
+        "LIKE",
+        "NOT LIKE",
+        "IS NULL",
+        "IS NOT NULL"
+      ].includes(exp[0])
     ) {
       let e = map(exp, ee => {
         if (
