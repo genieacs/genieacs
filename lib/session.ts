@@ -403,7 +403,9 @@ export async function timeoutOperations(
   const faults = [];
   const operations = [];
 
-  for (const [commandKey, operation] of Object.entries(operations)) {
+  for (const [commandKey, operation] of Object.entries(
+    sessionContext.operations
+  )) {
     if (operation.name !== "Download")
       throw new Error(`Unknown operation name ${operation.name}`);
 
