@@ -593,7 +593,11 @@ export function listener(request, response): void {
       const host = querystring.unescape(PING_REGEX.exec(urlParts.pathname)[1]);
       ping(host, (err, res, stdout) => {
         if (err) {
-          if (!res) throwError(err, response);
+          if (!res) {
+            response.writeHead(500, { Connection: "close" });
+            response.end(`${err.name}: ${err.message}`);
+            return;
+          }
           response.writeHead(404, { "Cache-Control": "no-cache" });
           response.end(`${err.name}: ${err.message}`);
           return;
