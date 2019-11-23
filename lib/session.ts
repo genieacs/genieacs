@@ -2701,7 +2701,7 @@ export async function rpcFault(
 
   // Recover from invalid parameter name faults
   if (faultResponse.detail.faultCode === "9005") {
-    const timestamp = sessionContext.timestamp + sessionContext.iteration;
+    const timestamp = sessionContext.timestamp + sessionContext.iteration + 1;
     const revision =
       (sessionContext.revisions[sessionContext.revisions.length - 1] || 0) + 1;
     sessionContext.deviceData.timestamps.revision = revision;
@@ -2728,6 +2728,14 @@ export async function rpcFault(
       toClear = [[Path.parse(rpcReq.objectName.replace(/\.$/, "")), timestamp]];
     } else if (rpcReq.name === "DeleteObject") {
       toClear = [[Path.parse(rpcReq.objectName.replace(/\.$/, "")), timestamp]];
+    } else if (rpcReq.name === "GetParameterAttributes") {
+      toClear = rpcReq.parameterNames.map(
+        p => [Path.parse(p.replace(/\.$/, "")), timestamp] as Clear
+      );
+    } else if (rpcReq.name === "SetParameterAttributes") {
+      toClear = (rpcReq.parameterList as [string, number, string[]][]).map(
+        p => [Path.parse(p[0].replace(/\.$/, "")), timestamp] as Clear
+      );
     }
 
     if (toClear) {
