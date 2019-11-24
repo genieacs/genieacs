@@ -712,6 +712,8 @@ async function runVirtualParameters(
     fault = r.fault || fault;
   }
 
+  if (done) for (const d of allDeclarations) d.defer = false;
+
   return {
     fault: fault,
     clear: allClear,
