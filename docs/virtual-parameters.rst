@@ -69,9 +69,9 @@ Expose an external value as a virtual parameter
 
   // Example: Expose an external value as a virtual parameter
   let serial = declare("DeviceID.SerialNumber", {value: 1});
-  if (values.value) {
-    ext("example-ext", "set", serial.value[0], values.value[0]);
-    return {writable: true, value: [values.value[0], "xsd:string"]};
+  if (args[1].value) {
+    ext("example-ext", "set", serial.value[0], args[1].value[0]);
+    return {writable: true, value: [args[1].value[0], "xsd:string"]};
   }
   else {
     let v = ext("example-ext", "get", serial.value[0]);
@@ -85,8 +85,8 @@ Create an editable virtual parameter for WPA passphrase
 
   // Example: Create an editable virtual parameter for WPA passphrase
   let m = "";
-  if (VALUES && VALUES.value) {
-    m = VALUES.value[0];
+  if (args[1].value) {
+    m = args[1].value[0];
     declare("Device.WiFi.AccessPoint.1.Security.KeyPassphrase", null, {value: m});
     declare("InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.KeyPassphrase", null, {value: m});
   }
