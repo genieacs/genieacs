@@ -131,7 +131,6 @@ export interface SessionContext {
   faults?: { [channel: string]: SessionFault };
   retries?: { [channel: string]: number };
   cacheSnapshot?: string;
-  configContext?: { [name: string]: any };
   httpResponse?: ServerResponse;
   httpRequest?: IncomingMessage;
   faultsTouched?: { [channel: string]: boolean };

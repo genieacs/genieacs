@@ -29,15 +29,13 @@ import * as debug from "./debug";
 
 async function extractAuth(
   exp: Expression,
-  context: {},
-  now: number,
   dflt: any
 ): Promise<[string, string, Expression]> {
   let username, password;
   const _exp = await evaluateAsync(
     exp,
-    context,
-    now,
+    {},
+    0,
     async (e: Expression): Promise<Expression> => {
       if (!username && Array.isArray(e) && e[0] === "FUNC") {
         if (e[1] === "EXT") {
@@ -50,8 +48,8 @@ async function extractAuth(
           return fault ? null : value;
         } else if (e[1] === "AUTH") {
           if (!Array.isArray(e[2]) && !Array.isArray(e[3])) {
-            username = e[2];
-            password = e[3];
+            username = e[2] || "";
+            password = e[3] || "";
           }
           return dflt;
         }
@@ -95,13 +93,11 @@ function httpGet(
 export async function httpConnectionRequest(
   address: string,
   authExp: Expression,
-  context: {},
   allowBasicAuth: boolean,
   timeout: number,
   _debug: boolean,
   deviceId: string
 ): Promise<void> {
-  const now = Date.now();
   const options: http.RequestOptions = parse(address);
   if (options.protocol !== "http:")
     throw new Error("Invalid connection request URL or protocol");
@@ -163,12 +159,7 @@ export async function httpConnectionRequest(
       authHeader = auth.parseWwwAuthenticateHeader(
         res.headers["www-authenticate"]
       );
-      [username, password, authExp] = await extractAuth(
-        authExp,
-        context,
-        now,
-        false
-      );
+      [username, password, authExp] = await extractAuth(authExp, false);
     } else {
       throw new Error(
         `Unexpected response code from device: ${res.statusCode}`
@@ -181,7 +172,6 @@ export async function httpConnectionRequest(
 export async function udpConnectionRequest(
   address: string,
   authExp: Expression,
-  context: {},
   sourcePort: number = 0,
   _debug: boolean,
   deviceId: string
@@ -202,12 +192,7 @@ export async function udpConnectionRequest(
   let username: string;
   let password: string;
 
-  [username, password, authExp] = await extractAuth(
-    authExp,
-    context,
-    now,
-    null
-  );
+  [username, password, authExp] = await extractAuth(authExp, null);
 
   if (username == null) username = "";
   if (password == null) password = "";
@@ -233,12 +218,7 @@ export async function udpConnectionRequest(
       });
     }
 
-    [username, password, authExp] = await extractAuth(
-      authExp,
-      context,
-      now,
-      null
-    );
+    [username, password, authExp] = await extractAuth(authExp, null);
   }
   client.close();
 }

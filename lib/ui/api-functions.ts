@@ -88,7 +88,8 @@ export async function deleteResource(resource, id): Promise<void> {
 export async function postTasks(
   deviceId,
   tasks,
-  timeout
+  timeout,
+  device
 ): Promise<{ connectionRequest: string; tasks: any[] }> {
   for (const task of tasks) {
     delete task._id;
@@ -103,7 +104,7 @@ export async function postTasks(
   await del(`${deviceId}_tasks_faults_operations`);
 
   try {
-    await connectionRequest(deviceId);
+    await connectionRequest(deviceId, device);
   } catch (err) {
     return {
       connectionRequest: err.message,

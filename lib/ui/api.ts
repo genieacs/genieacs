@@ -30,6 +30,7 @@ import { generateSalt, hashPassword } from "../auth";
 import { del } from "../cache";
 import Authorizer from "../common/authorizer";
 import { ping } from "../ping";
+import * as url from "url";
 
 const router = new Router();
 export default router;
@@ -481,8 +482,9 @@ router.post("/devices/:id/tasks", async (ctx, next) => {
   }
   const devices = await db.query("devices", filter);
   if (!devices.length) return void next();
+  const device = devices[0];
 
-  const validate = authorizer.getValidator("devices", devices[0]);
+  const validate = authorizer.getValidator("devices", device);
   for (const t of ctx.request.body) {
     if (!validate("task", t)) {
       logUnauthorizedWarning(log);
@@ -490,16 +492,34 @@ router.post("/devices/:id/tasks", async (ctx, next) => {
     }
   }
 
-  // TODO Pass context and timestamp
   const onlineThreshold = getConfig(
     ctx.state.configSnapshot,
-    "cwmp.deviceOnlineThreshold"
+    "cwmp.deviceOnlineThreshold",
+    {},
+    Date.now(),
+    exp => {
+      if (!Array.isArray(exp)) return exp;
+      if (exp[0] === "PARAM") {
+        const p = device[exp[1]];
+        if (p && p.value) return p.value[0];
+      } else if (exp[0] === "FUNC") {
+        if (exp[1] === "REMOTE_ADDRESS") {
+          for (const root of ["InternetGatewayDevice", "Device"]) {
+            const p = device[`${root}.ManagementServer.ConnectionRequestURL`];
+            if (p && p.value) return url.parse(p.value[0]).host;
+          }
+          return null;
+        }
+      }
+      return exp;
+    }
   );
 
   const res = await apiFunctions.postTasks(
     ctx.params.id,
     ctx.request.body,
-    onlineThreshold
+    onlineThreshold,
+    device
   );
 
   log.tasks = res.tasks.map(t => t._id).join(",");

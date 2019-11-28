@@ -461,10 +461,11 @@ export function getFiles(
 }
 
 export function getConfig(
-  snapshotKey,
-  key,
-  context?,
-  now?
+  snapshotKey: string,
+  key: string,
+  context: {},
+  now: number,
+  cb?: (Expression) => Expression
 ): string | number | boolean | null {
   const snapshot = snapshots.get(snapshotKey);
   if (!snapshot) throw new Error("Cache snapshot does not exist");
@@ -488,11 +489,21 @@ export function getConfig(
   };
 
   if (!(key in snapshot.config)) {
-    if (key in oldOpts)
-      return config.get(oldOpts[key], context ? context.id : null);
-    else return null;
+    if (key in oldOpts) {
+      let id;
+      if (context && context["id"]) {
+        id = context["id"];
+      } else if (cb) {
+        id = cb(["PARAM", "DeviceID.ID"]);
+        if (Array.isArray(id)) id = null;
+      }
+      return config.get(oldOpts[key], id);
+    }
+    return null;
   }
-  return expression.evaluate(snapshot.config[key], context, now || Date.now());
+
+  const v = expression.evaluate(snapshot.config[key], context, now, cb);
+  return Array.isArray(v) ? null : v;
 }
 
 export function getConfigExpression(snapshotKey, key): Expression {

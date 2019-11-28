@@ -103,12 +103,12 @@ async function authenticate(
     authentication["body"] = body;
   }
 
-  const now = Date.now();
   const res = await evaluateAsync(
     authExpression,
-    sessionContext.configContext,
-    now,
+    {},
+    sessionContext.timestamp,
     async (e: Expression): Promise<Expression> => {
+      e = session.configContextCallback(sessionContext, e);
       if (Array.isArray(e) && e[0] === "FUNC") {
         if (e[1] === "EXT") {
           if (typeof e[2] !== "string" || typeof e[3] !== "string") return null;
@@ -294,7 +294,9 @@ async function inform(sessionContext: SessionContext, rpc): Promise<void> {
   const cookiesPath = localCache.getConfig(
     sessionContext.cacheSnapshot,
     "cwmp.cookiesPath",
-    sessionContext.configContext
+    {},
+    sessionContext.timestamp,
+    e => session.configContextCallback(sessionContext, e)
   );
 
   if (cookiesPath) {
@@ -384,7 +386,9 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
   const RETRY_DELAY = +localCache.getConfig(
     sessionContext.cacheSnapshot,
     "cwmp.retryDelay",
-    sessionContext.configContext
+    {},
+    sessionContext.timestamp,
+    e => session.configContextCallback(sessionContext, e)
   );
 
   if (sessionContext.faults) {
@@ -1263,9 +1267,19 @@ async function listenerAsync(
         debug.outgoingHttpResponse(httpResponse, sessionContext.deviceId, msg);
     } else {
       const cacheSnapshot = await localCache.getCurrentSnapshot();
-      const d = !!localCache.getConfig(cacheSnapshot, "cwmp.debug", {
-        remoteAddress: httpResponse.connection.remoteAddress
-      });
+      const d = !!localCache.getConfig(
+        cacheSnapshot,
+        "cwmp.debug",
+        {
+          remoteAddress: httpResponse.connection.remoteAddress
+        },
+        Date.now(),
+        e => {
+          if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "REMOTE_ADDRESS")
+            return httpResponse.connection.remoteAddress;
+          return e;
+        }
+      );
       if (d) debug.outgoingHttpResponse(httpResponse, null, msg);
     }
     httpResponse.end(msg);
@@ -1314,9 +1328,19 @@ async function listenerAsync(
       }
     } else {
       const cacheSnapshot = await localCache.getCurrentSnapshot();
-      const d = !!localCache.getConfig(cacheSnapshot, "cwmp.debug", {
-        remoteAddress: httpResponse.connection.remoteAddress
-      });
+      const d = !!localCache.getConfig(
+        cacheSnapshot,
+        "cwmp.debug",
+        {
+          remoteAddress: httpResponse.connection.remoteAddress
+        },
+        Date.now(),
+        e => {
+          if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "REMOTE_ADDRESS")
+            return httpResponse.connection.remoteAddress;
+          return e;
+        }
+      );
       if (d) debug.outgoingHttpResponse(httpResponse, null, error.message);
     }
     httpResponse.end(error.message);
@@ -1347,9 +1371,19 @@ async function listenerAsync(
     httpResponse.setHeader("Content-Length", Buffer.byteLength(_body));
     httpResponse.writeHead(400, { Connection: "close" });
     const cacheSnapshot = await localCache.getCurrentSnapshot();
-    const d = !!localCache.getConfig(cacheSnapshot, "cwmp.debug", {
-      remoteAddress: httpResponse.connection.remoteAddress
-    });
+    const d = !!localCache.getConfig(
+      cacheSnapshot,
+      "cwmp.debug",
+      {
+        remoteAddress: httpResponse.connection.remoteAddress
+      },
+      Date.now(),
+      e => {
+        if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "REMOTE_ADDRESS")
+          return httpResponse.connection.remoteAddress;
+        return e;
+      }
+    );
     if (d)
       debug.outgoingHttpResponse(httpResponse, sessionContext.deviceId, _body);
     httpResponse.end(_body);
@@ -1361,31 +1395,13 @@ async function listenerAsync(
 
   const cacheSnapshot = await localCache.getCurrentSnapshot();
 
-  const configContext = {
-    id: deviceId,
-    serialNumber: rpc.cpeRequest.deviceId["SerialNumber"],
-    productClass: rpc.cpeRequest.deviceId["ProductClass"],
-    oui: rpc.cpeRequest.deviceId["OUI"],
-    remoteAddress: httpRequest.connection.remoteAddress
-  };
-
-  const sessionTimeout =
-    rpc.sessionTimeout ||
-    localCache.getConfig(cacheSnapshot, "cwmp.sessionTimeout", configContext);
-
   const _sessionContext = session.init(
     deviceId,
     rpc.cwmpVersion,
-    sessionTimeout
+    rpc.sessionTimeout
   );
 
   _sessionContext.cacheSnapshot = cacheSnapshot;
-  _sessionContext.configContext = configContext;
-  _sessionContext.debug = !!localCache.getConfig(
-    cacheSnapshot,
-    "cwmp.debug",
-    configContext
-  );
 
   _sessionContext.httpRequest = httpRequest;
   _sessionContext.httpResponse = httpResponse;
@@ -1433,6 +1449,24 @@ async function listenerAsync(
     // Device not available in database, mark as new
     _sessionContext.new = true;
   }
+
+  if (!_sessionContext.timeout) {
+    _sessionContext.timeout = +localCache.getConfig(
+      cacheSnapshot,
+      "cwmp.sessionTimeout",
+      {},
+      _sessionContext.timestamp,
+      e => session.configContextCallback(_sessionContext, e)
+    );
+  }
+
+  _sessionContext.debug = !!localCache.getConfig(
+    cacheSnapshot,
+    "cwmp.debug",
+    {},
+    _sessionContext.timestamp,
+    e => session.configContextCallback(_sessionContext, e)
+  );
 
   const authenticated = await authenticate(_sessionContext, bodyStr);
   if (!authenticated) return responseUnauthorized(_sessionContext);

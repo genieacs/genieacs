@@ -31,57 +31,77 @@ import {
   udpConnectionRequest
 } from "./connection-request";
 import { Expression, Task } from "./types";
+import { flattenDevice } from "./mongodb-functions";
+import { evaluate } from "./common/expression";
 
-export async function connectionRequest(deviceId): Promise<void> {
-  const options = {
-    projection: {
-      _deviceId: 1,
-      "Device.ManagementServer.ConnectionRequestURL._value": 1,
-      "Device.ManagementServer.UDPConnectionRequestAddress._value": 1,
-      "Device.ManagementServer.ConnectionRequestUsername._value": 1,
-      "Device.ManagementServer.ConnectionRequestPassword._value": 1,
-      "InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value": 1,
-      "InternetGatewayDevice.ManagementServer.UDPConnectionRequestAddress._value": 1,
-      "InternetGatewayDevice.ManagementServer.ConnectionRequestUsername._value": 1,
-      "InternetGatewayDevice.ManagementServer.ConnectionRequestPassword._value": 1
-    }
-  };
-
-  const device = await db.devicesCollection.findOne({ _id: deviceId }, options);
-  if (!device) throw new Error("No such device");
-
-  let managementServer,
-    connectionRequestUrl,
-    udpConnectionRequestAddress,
-    username,
-    password;
-  if (device.Device)
-    // TR-181 data model
-    managementServer = device.Device.ManagementServer;
-  // TR-098 data model
-  else managementServer = device.InternetGatewayDevice.ManagementServer;
-
-  if (managementServer.ConnectionRequestURL)
-    connectionRequestUrl = managementServer.ConnectionRequestURL._value;
-  if (managementServer.UDPConnectionRequestAddress) {
-    udpConnectionRequestAddress =
-      managementServer.UDPConnectionRequestAddress._value;
+export async function connectionRequest(
+  deviceId: string,
+  device?: {}
+): Promise<void> {
+  if (!device) {
+    const res = await db.devicesCollection.findOne({ _id: deviceId });
+    if (!res) throw new Error("No such device");
+    device = flattenDevice(res);
   }
-  if (managementServer.ConnectionRequestUsername)
-    username = managementServer.ConnectionRequestUsername._value;
-  if (managementServer.ConnectionRequestPassword)
-    password = managementServer.ConnectionRequestPassword._value;
 
-  const context = {
-    id: device["_id"],
-    serialNumber: device["_deviceId"]["SerialNumber"],
-    productClass: device["_deviceId"]["ProductClass"],
-    oui: device["_deviceId"]["OUI"],
-    remoteAddress: connectionRequestUrl
-      ? parse(connectionRequestUrl).host
-      : null,
-    username: username || "",
-    password: password || ""
+  let connectionRequestUrl, udpConnectionRequestAddress, username, password;
+
+  if (device["InternetGatewayDevice.ManagementServer.ConnectionRequestURL"]) {
+    connectionRequestUrl = (device[
+      "InternetGatewayDevice.ManagementServer.ConnectionRequestURL"
+    ].value || [""])[0];
+    udpConnectionRequestAddress = ((
+      device[
+        "InternetGatewayDevice.ManagementServer.UDPConnectionRequestAddress"
+      ] || {}
+    ).value || [""])[0];
+    username = ((
+      device[
+        "InternetGatewayDevice.ManagementServer.ConnectionRequestUsername"
+      ] || {}
+    ).value || [""])[0];
+    password = ((
+      device[
+        "InternetGatewayDevice.ManagementServer.ConnectionRequestPassword"
+      ] || {}
+    ).value || [""])[0];
+  } else {
+    connectionRequestUrl = (device[
+      "Device.ManagementServer.ConnectionRequestURL"
+    ].value || [""])[0];
+    udpConnectionRequestAddress = ((
+      device["Device.ManagementServer.UDPConnectionRequestAddress"] || {}
+    ).value || [""])[0];
+    udpConnectionRequestAddress = ((
+      device["Device.ManagementServer.ConnectionRequestUsername"] || {}
+    ).value || [""])[0];
+    password = ((
+      device["Device.ManagementServer.ConnectionRequestPassword"] || {}
+    ).value || [""])[0];
+  }
+
+  const remoteAddress = parse(connectionRequestUrl).host;
+
+  const evalCallback = (exp): Expression => {
+    if (!Array.isArray(exp)) return exp;
+    if (exp[0] === "PARAM") {
+      let name = exp[1];
+      if (name === "id") name = "DeviceID.ID";
+      else if (name === "serialNumber") name = "DeviceID.SerialNumber";
+      else if (name === "productClass") name = "DeviceID.ProductClass";
+      else if (name === "oui") name = "DeviceID.OUI";
+      else if (name === "remoteAddress") return remoteAddress;
+      else if (name === "username") return username;
+      else if (name === "password") return password;
+
+      const p = device[name];
+      if (p && p.value) return p.value[0];
+    } else if (exp[0] === "FUNC") {
+      if (exp[1] === "REMOTE_ADDRESS") return remoteAddress;
+      else if (exp[1] === "USERNAME") return username;
+      else if (exp[1] === "PASSWORD") return password;
+    }
+    return exp;
   };
 
   const snapshot = await getCurrentSnapshot();
@@ -89,20 +109,23 @@ export async function connectionRequest(deviceId): Promise<void> {
   const UDP_CONNECTION_REQUEST_PORT = +getConfig(
     snapshot,
     "cwmp.udpConnectionRequestPort",
-    context,
-    now
+    {},
+    now,
+    evalCallback
   );
   const CONNECTION_REQUEST_TIMEOUT = +getConfig(
     snapshot,
     "cwmp.connectionRequestTimeout",
-    context,
-    now
+    {},
+    now,
+    evalCallback
   );
   const CONNECTION_REQUEST_ALLOW_BASIC_AUTH = !!getConfig(
     snapshot,
     "cwmp.connectionRequestAllowBasicAuth",
-    context,
-    now
+    {},
+    now,
+    evalCallback
   );
   let authExp: Expression = getConfigExpression(
     snapshot,
@@ -118,14 +141,15 @@ export async function connectionRequest(deviceId): Promise<void> {
     ] as Expression;
   }
 
-  const debug = !!getConfig(snapshot, "cwmp.debug", context, now);
+  authExp = evaluate(authExp, {}, now, evalCallback);
+
+  const debug = !!getConfig(snapshot, "cwmp.debug", {}, now, evalCallback);
 
   let udpProm;
   if (udpConnectionRequestAddress) {
     udpProm = udpConnectionRequest(
       udpConnectionRequestAddress,
       authExp,
-      context,
       UDP_CONNECTION_REQUEST_PORT,
       debug,
       deviceId
@@ -136,7 +160,6 @@ export async function connectionRequest(deviceId): Promise<void> {
     await httpConnectionRequest(
       connectionRequestUrl,
       authExp,
-      context,
       CONNECTION_REQUEST_ALLOW_BASIC_AUTH,
       CONNECTION_REQUEST_TIMEOUT,
       debug,

@@ -47,7 +47,8 @@ import {
   InformRequest,
   TransferCompleteRequest,
   Operation,
-  ScriptResult
+  ScriptResult,
+  Expression
 } from "./types";
 
 const VALID_PARAM_TYPES = new Set([
@@ -103,6 +104,34 @@ function generateRpcId(sessionContext: SessionContext): string {
     ("0" + sessionContext.cycle.toString(16)).slice(-2) +
     ("0" + sessionContext.rpcCount.toString(16)).slice(-2)
   );
+}
+
+export function configContextCallback(
+  sessionContext: SessionContext,
+  exp: Expression
+): Expression {
+  if (!Array.isArray(exp)) return exp;
+  if (exp[0] === "PARAM") {
+    let name = exp[1];
+    if (name === "id") name = "DeviceID.ID";
+    else if (name === "serialNumber") name = "DeviceID.SerialNumber";
+    else if (name === "productClass") name = "DeviceID.ProductClass";
+    else if (name === "oui") name = "DeviceID.OUI";
+    else if (name === "remoteAddress")
+      return sessionContext.httpRequest.connection.remoteAddress;
+
+    const deviceData = sessionContext.deviceData;
+    const paths = deviceData.paths;
+    const path = paths.get(Path.parse(name));
+    if (path) {
+      const attrs = deviceData.attributes.get(path, 1);
+      if (attrs && attrs.value && attrs.value[1]) return attrs.value[1][0];
+    }
+  } else if (exp[0] === "FUNC") {
+    if (exp[1] === "REMOTE_ADDRESS")
+      return sessionContext.httpRequest.connection.remoteAddress;
+  }
+  return exp;
 }
 
 export async function inform(
@@ -413,7 +442,9 @@ export async function timeoutOperations(
       +localCache.getConfig(
         sessionContext.cacheSnapshot,
         "cwmp.downloadTimeout",
-        sessionContext.configContext
+        {},
+        sessionContext.timestamp,
+        e => configContextCallback(sessionContext, e)
       ) * 1000;
 
     if (sessionContext.timestamp > operation.timestamp + DOWNLOAD_TIMEOUT) {
@@ -448,7 +479,9 @@ export function addProvisions(
     +localCache.getConfig(
       sessionContext.cacheSnapshot,
       "cwmp.maxCommitIterations",
-      sessionContext.configContext
+      {},
+      sessionContext.timestamp,
+      e => configContextCallback(sessionContext, e)
     ) * 2;
 
   delete sessionContext.syncState;
@@ -501,7 +534,9 @@ export function clearProvisions(sessionContext: SessionContext): void {
     +localCache.getConfig(
       sessionContext.cacheSnapshot,
       "cwmp.maxCommitIterations",
-      sessionContext.configContext
+      {},
+      sessionContext.timestamp,
+      e => configContextCallback(sessionContext, e)
     ) * 2;
 
   if (sessionContext.revisions[sessionContext.revisions.length - 1] > 0) {
@@ -1080,7 +1115,9 @@ export async function rpcRequest(
     +localCache.getConfig(
       sessionContext.cacheSnapshot,
       "cwmp.maxCommitIterations",
-      sessionContext.configContext
+      {},
+      sessionContext.timestamp,
+      e => configContextCallback(sessionContext, e)
     ) * 2;
 
   if (sessionContext.iteration >= MAX_ITERATIONS * (sessionContext.cycle + 1)) {
@@ -1523,7 +1560,9 @@ function generateGetRpcRequest(sessionContext: SessionContext): GetAcsRequest {
     const GPN_NEXT_LEVEL = localCache.getConfig(
       sessionContext.cacheSnapshot,
       "cwmp.gpnNextLevel",
-      sessionContext.configContext
+      {},
+      sessionContext.timestamp,
+      e => configContextCallback(sessionContext, e)
     );
 
     const paths = Array.from(syncState.gpn.keys()).sort(
@@ -1582,7 +1621,9 @@ function generateGetRpcRequest(sessionContext: SessionContext): GetAcsRequest {
     const GPV_BATCH_SIZE = localCache.getConfig(
       sessionContext.cacheSnapshot,
       "cwmp.gpvBatchSize",
-      sessionContext.configContext
+      {},
+      sessionContext.timestamp,
+      e => configContextCallback(sessionContext, e)
     );
 
     const parameterNames: string[] = [];
@@ -1643,19 +1684,25 @@ function generateSetRpcRequest(sessionContext: SessionContext): SetAcsRequest {
   const GPV_BATCH_SIZE = localCache.getConfig(
     sessionContext.cacheSnapshot,
     "cwmp.gpvBatchSize",
-    sessionContext.configContext
+    {},
+    sessionContext.timestamp,
+    e => configContextCallback(sessionContext, e)
   );
 
   const DATETIME_MILLISECONDS = !!localCache.getConfig(
     sessionContext.cacheSnapshot,
     "cwmp.datetimeMilliseconds",
-    sessionContext.configContext
+    {},
+    sessionContext.timestamp,
+    e => configContextCallback(sessionContext, e)
   );
 
   const BOOLEAN_LITERAL = !!localCache.getConfig(
     sessionContext.cacheSnapshot,
     "cwmp.booleanLiteral",
-    sessionContext.configContext
+    {},
+    sessionContext.timestamp,
+    e => configContextCallback(sessionContext, e)
   );
 
   const parameterValues: [Path, string | number | boolean, string][] = [];

@@ -26,8 +26,10 @@ function parseHeaderFeilds(str: string): {} {
   let part;
   while ((part = parts.shift()) != null) {
     const name = part.split("=", 1)[0];
-    if (name.length === part.length)
+    if (name.length === part.length) {
+      if (!part.trim()) continue;
       throw new Error("Unable to parse auth header");
+    }
 
     let value = part.slice(name.length + 1);
     if (!/^\s*"/.test(value)) {
