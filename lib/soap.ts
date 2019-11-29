@@ -316,7 +316,9 @@ function SetParameterAttributes(methodRequest): string {
       p[1] == null ? "" : p[1]
     }</Notification><AccessListChange>${
       p[2] == null ? "false" : "true"
-    }</AccessListChange><AccessList>${
+    }</AccessListChange><AccessList soap-enc:arrayType="xsd:string[${
+      (p[2] || []).length
+    }]">${
       p[2] == null
         ? ""
         : p[2].map(s => `<string>${encodeEntities(s)}</string>`).join("")
