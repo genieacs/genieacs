@@ -22,6 +22,7 @@ import PathSet from "./common/path-set";
 import VersionedMap from "./versioned-map";
 import InstanceSet from "./instance-set";
 import { IncomingMessage, ServerResponse } from "http";
+import { Script } from "vm";
 
 export type Expression = string | number | boolean | null | any[];
 
@@ -324,6 +325,34 @@ export interface Preset {
   provisions: string[][];
 }
 
+export interface Provisions {
+  [name: string]: { md5: string; script: Script };
+}
+
+export interface VirtualParameters {
+  [name: string]: { md5: string; script: Script };
+}
+
+export interface Files {
+  [name: string]: { length: number; md5: string; contentType: string };
+}
+
+export interface Users {
+  [name: string]: { password: string; salt: string; roles: string[] };
+}
+
+export interface Permissions {
+  [role: string]: {
+    [access: number]: {
+      [resource: string]: {
+        access: number;
+        filter: Expression;
+        validate?: Expression;
+      };
+    };
+  };
+}
+
 export type PermissionSet = {
   [resource: string]: {
     access: number;
@@ -331,6 +360,21 @@ export type PermissionSet = {
     filter: Expression;
   };
 }[];
+
+export interface Config {
+  [name: string]: Expression;
+}
+
+export interface UiConfig {
+  filters: {};
+  device: {};
+  index: {};
+  overview: {
+    charts?: {};
+    groups?: {};
+  };
+  pageSize?: Expression;
+}
 
 export interface SoapMessage {
   id: string;

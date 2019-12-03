@@ -27,25 +27,34 @@ import * as logger from "./logger";
 import * as scheduling from "./scheduling";
 import * as expression from "./common/expression";
 import { parse } from "./common/expression-parser";
-import { Preset, Expression } from "./types";
+import {
+  Preset,
+  Expression,
+  Provisions,
+  VirtualParameters,
+  Files,
+  Users,
+  Permissions,
+  Config,
+  UiConfig
+} from "./types";
 
-interface Permissions {
-  [role: string]: {
-    [access: number]: {
-      [resource: string]: {
-        access: number;
-        filter: Expression;
-        validate?: Expression;
-      };
-    };
-  };
+interface Snapshot {
+  presets: Preset[];
+  provisions: Provisions;
+  virtualParameters: VirtualParameters;
+  files: Files;
+  permissions: Permissions;
+  users: Users;
+  config: Config;
+  ui: UiConfig;
 }
 
 const REFRESH = 3000;
 const EVICT_TIMEOUT = 60000;
 
-const snapshots = new Map();
-let currentSnapshot = null;
+const snapshots = new Map<string, Snapshot>();
+let currentSnapshot: string = null;
 let nextRefresh = 1;
 
 function computeHash(snapshot): string {
@@ -244,7 +253,7 @@ async function fetchPresets(): Promise<Preset[]> {
   return presets;
 }
 
-async function fetchProvisions(): Promise<{}> {
+async function fetchProvisions(): Promise<Provisions> {
   const res = await db.getProvisions();
 
   const provisions = {};
@@ -263,7 +272,7 @@ async function fetchProvisions(): Promise<{}> {
   return provisions;
 }
 
-async function fetchVirtualParameters(): Promise<{}> {
+async function fetchVirtualParameters(): Promise<VirtualParameters> {
   const res = await db.getVirtualParameters();
 
   const virtualParameters = {};
@@ -301,7 +310,7 @@ async function fetchPermissions(): Promise<Permissions> {
   return permissions;
 }
 
-async function fetchFiles(): Promise<{}> {
+async function fetchFiles(): Promise<Files> {
   const res = await db.getFiles();
   const files = {};
 
@@ -316,7 +325,7 @@ async function fetchFiles(): Promise<{}> {
   return files;
 }
 
-async function fetchUsers(): Promise<{}> {
+async function fetchUsers(): Promise<Users> {
   const _users = await db.getUsers();
   const users = {};
 
@@ -331,7 +340,7 @@ async function fetchUsers(): Promise<{}> {
   return users;
 }
 
-async function fetchConfig(): Promise<[{}, {}]> {
+async function fetchConfig(): Promise<[Config, UiConfig]> {
   const conf = await db.getConfig();
 
   conf.sort((a, b) => (a.id > b.id ? 1 : a.id < b.id ? -1 : 0));
@@ -436,25 +445,19 @@ export function getPresets(snapshotKey): Preset[] {
   return snapshot.presets;
 }
 
-export function getProvisions(
-  snapshotKey
-): { [name: string]: { md5: string; script: vm.Script } } {
+export function getProvisions(snapshotKey): Provisions {
   const snapshot = snapshots.get(snapshotKey);
   if (!snapshot) throw new Error("Cache snapshot does not exist");
   return snapshot.provisions;
 }
 
-export function getVirtualParameters(
-  snapshotKey
-): { [name: string]: { md5: string; script: vm.Script } } {
+export function getVirtualParameters(snapshotKey): VirtualParameters {
   const snapshot = snapshots.get(snapshotKey);
   if (!snapshot) throw new Error("Cache snapshot does not exist");
   return snapshot.virtualParameters;
 }
 
-export function getFiles(
-  snapshotKey
-): { [name: string]: { length: number; md5: string; contentType: string } } {
+export function getFiles(snapshotKey): Files {
   const snapshot = snapshots.get(snapshotKey);
   if (!snapshot) throw new Error("Cache snapshot does not exist");
   return snapshot.files;
@@ -520,14 +523,14 @@ export function getUsers(snapshotKey): {} {
   return snapshot.users;
 }
 
-export function getPermissions(snapshotKey): {} {
+export function getPermissions(snapshotKey): Permissions {
   const snapshot = snapshots.get(snapshotKey);
   if (!snapshot) throw new Error("Cache snapshot does not exist");
 
   return snapshot.permissions;
 }
 
-export function getUiConfig(snapshotKey): {} {
+export function getUiConfig(snapshotKey): UiConfig {
   const snapshot = snapshots.get(snapshotKey);
   if (!snapshot) throw new Error("Cache snapshot does not exist");
 

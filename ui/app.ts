@@ -37,13 +37,14 @@ import * as usersPage from "./users-page";
 import Authorizer from "../lib//common/authorizer";
 import * as notifications from "./notifications";
 import { contextifyComponent } from "./components";
+import { PermissionSet, UiConfig } from "../lib/types";
 
 declare global {
   interface Window {
     authorizer: Authorizer;
-    permissionSets: any;
+    permissionSets: PermissionSet[];
     username: string;
-    clientConfig: any;
+    clientConfig: { ui: UiConfig };
     configSnapshot: string;
     genieacsVersion: string;
   }
