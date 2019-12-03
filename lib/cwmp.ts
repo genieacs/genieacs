@@ -26,7 +26,6 @@ import * as common from "./common";
 import * as soap from "./soap";
 import * as session from "./session";
 import { evaluateAsync, evaluate, extractParams } from "./common/expression";
-import * as device from "./device";
 import * as cache from "./cache";
 import * as localCache from "./local-cache";
 import * as db from "./db";
@@ -478,22 +477,17 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
 
   session.clearProvisions(sessionContext);
 
-  const parameterValues = {};
-  for (const [k, v] of Object.entries(parameters)) {
-    const unpacked = device.unpack(deviceData, v);
-    if (!unpacked.length) continue;
-    const attrs = deviceData.attributes.get(unpacked[0]);
-    if (attrs && attrs.value && attrs.value[1])
-      parameterValues[k] = attrs.value[1][0];
-  }
-
   if (whiteList != null)
     session.addProvisions(sessionContext, whiteList, whiteListProvisions);
 
   const appendProvisionsToFaults = {};
   const now = Date.now();
   for (const p of filteredPresets) {
-    if (evaluate(p.precondition, parameterValues, now)) {
+    if (
+      evaluate(p.precondition, {}, now, e =>
+        session.configContextCallback(sessionContext, e)
+      )
+    ) {
       if (blackList[p.channel] === 2) {
         appendProvisionsToFaults[p.channel] = (
           appendProvisionsToFaults[p.channel] || []
