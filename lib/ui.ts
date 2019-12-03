@@ -34,6 +34,7 @@ import { PermissionSet } from "./types";
 import { authLocal } from "./ui/api-functions";
 import * as init from "./init";
 import { version as VERSION } from "../package.json";
+import memoize from "./common/memoize";
 
 declare module "koa" {
   interface Request {
@@ -46,6 +47,17 @@ const router = new Router();
 
 const JWT_SECRET = "" + config.get("UI_JWT_SECRET");
 const JWT_COOKIE = "genieacs-ui-jwt";
+
+const getAuthorizer = memoize(
+  (snapshot: string, rolesStr: string): Authorizer => {
+    const roles: string[] = JSON.parse(rolesStr);
+    const allPermissions = localCache.getPermissions(snapshot);
+    const permissionSets: PermissionSet[] = roles.map(r =>
+      Object.values(allPermissions[r] || {})
+    );
+    return new Authorizer(permissionSets);
+  }
+);
 
 koa.on("error", async err => {
   throw err;
@@ -77,11 +89,9 @@ koa.use(
 );
 
 koa.use(async (ctx, next) => {
-  const permissionSets: PermissionSet[] = [];
+  let roles: string[] = [];
 
   if (ctx.state.user && ctx.state.user.username) {
-    const allPermissions = localCache.getPermissions(ctx.state.configSnapshot);
-
     let user;
     if (ctx.state.user.authMethod === "local") {
       user = localCache.getUsers(ctx.state.configSnapshot)[
@@ -90,12 +100,13 @@ koa.use(async (ctx, next) => {
     } else {
       throw new Error("Invalid auth method");
     }
-
-    for (const role of (user.roles || []).sort())
-      permissionSets.push(Object.values(allPermissions[role] || {}));
+    roles = user.roles || [];
   }
 
-  ctx.state.authorizer = new Authorizer(permissionSets);
+  ctx.state.authorizer = getAuthorizer(
+    ctx.state.configSnapshot,
+    JSON.stringify(roles)
+  );
 
   return next();
 });
@@ -206,7 +217,7 @@ router.post("/init", async ctx => {
 });
 
 router.get("/", async ctx => {
-  const permissionSets = ctx.state.authorizer.getPermissionSets();
+  const permissionSets: PermissionSet[] = ctx.state.authorizer.getPermissionSets();
 
   let wizard = "";
   if (!Object.keys(localCache.getUsers(ctx.state.configSnapshot)).length)
