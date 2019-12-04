@@ -72,7 +72,7 @@ export async function connectionRequest(
     udpConnectionRequestAddress = ((
       device["Device.ManagementServer.UDPConnectionRequestAddress"] || {}
     ).value || [""])[0];
-    udpConnectionRequestAddress = ((
+    username = ((
       device["Device.ManagementServer.ConnectionRequestUsername"] || {}
     ).value || [""])[0];
     password = ((
