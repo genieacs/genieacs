@@ -481,10 +481,9 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
     session.addProvisions(sessionContext, whiteList, whiteListProvisions);
 
   const appendProvisionsToFaults = {};
-  const now = Date.now();
   for (const p of filteredPresets) {
     if (
-      evaluate(p.precondition, {}, now, e =>
+      evaluate(p.precondition, {}, sessionContext.timestamp, e =>
         session.configContextCallback(sessionContext, e)
       )
     ) {
