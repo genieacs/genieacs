@@ -109,6 +109,16 @@ class SandboxDate {
 
     return t;
   }
+
+  public static parse(dateString: string): number {
+    return Date.parse(dateString);
+  }
+
+  public static UTC(
+    ...args: [number, number?, number?, number?, number?, number?, number?]
+  ): number {
+    return Date.UTC(...args);
+  }
 }
 
 function random(): number {
