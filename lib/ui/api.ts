@@ -455,6 +455,12 @@ router.put("/files/:id", async (ctx, next) => {
     return void (ctx.status = 403);
   }
 
+  try {
+    await db.deleteFile(id);
+  } catch (err) {
+    // File doesn't exist, ignore
+  }
+
   await db.putFile(id, metadata, ctx.req);
   log.metadata = metadata;
   logger.accessInfo(log);

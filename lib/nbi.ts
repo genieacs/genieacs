@@ -565,22 +565,35 @@ export function listener(request, response): void {
           version: request.headers.version
         };
         const bucket = new mongodb.GridFSBucket(db.client.db());
-        const uploadStream = bucket.openUploadStreamWithId(filename, filename, {
-          metadata: metadata
-        });
+        bucket.delete((filename as unknown) as mongodb.ObjectId, () => {
+          const uploadStream = bucket.openUploadStreamWithId(
+            filename,
+            filename,
+            {
+              metadata: metadata
+            }
+          );
 
-        uploadStream.on("error", err => {
-          throwError(err, response);
-        });
+          uploadStream.on("error", err => {
+            throwError(err, response);
+          });
 
-        uploadStream.end(body, () => {
-          response.writeHead(201);
-          response.end();
+          uploadStream.end(body, () => {
+            response.writeHead(201);
+            response.end();
+          });
         });
       } else if (request.method === "DELETE") {
         const bucket = new mongodb.GridFSBucket(db.client.db());
         bucket.delete((filename as unknown) as mongodb.ObjectId, err => {
-          if (err) return void throwError(err, response);
+          if (err) {
+            if (err.message.startsWith("FileNotFound")) {
+              response.writeHead(404);
+              response.end("404 Not Found");
+              return;
+            }
+            return void throwError(err, response);
+          }
 
           response.writeHead(200);
           response.end();
