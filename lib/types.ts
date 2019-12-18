@@ -178,6 +178,7 @@ export interface Task {
   fileName?: string;
   targetFileName?: string;
   expiry?: number;
+  provisions?: (string | number | boolean)[][];
 }
 
 export interface Operation {

@@ -686,6 +686,13 @@ async function nextRpc(sessionContext: SessionContext): Promise<void> {
         ["instances", task.objectName, 0]
       ]);
       break;
+    case "provisions":
+      session.addProvisions(
+        sessionContext,
+        `task_${task._id}`,
+        task.provisions
+      );
+      break;
     default:
       throw new Error("Task name not recognized");
   }
