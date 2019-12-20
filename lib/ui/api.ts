@@ -99,7 +99,7 @@ router.get(`/devices/:id.csv`, async ctx => {
 
   ctx.body = new stream.PassThrough();
   ctx.body.write(
-    "Parameter,Object,Object timestamp,Writable,Writable timestamp,Value,Value type,Value timestamp\n"
+    "Parameter,Object,Object timestamp,Writable,Writable timestamp,Value,Value type,Value timestamp,Notification,Notification timestamp,Access list,Access list timestamp\n"
   );
 
   for (const k of Object.keys(res[0]).sort()) {
@@ -112,7 +112,11 @@ router.get(`/devices/:id.csv`, async ctx => {
       p.writableTimestamp,
       p.value != null ? `"${p.value[0].toString().replace(/"/g, '""')}"` : "",
       p.value != null ? p.value[1] : "",
-      p.valueTimestamp
+      p.valueTimestamp,
+      p.notification,
+      p.notificationTimestamp,
+      p.accessList ? p.accessList.join(", ") : "",
+      p.accessListTimestamp
     ];
     ctx.body.write(row.map(r => (r != null ? r : "")).join(",") + "\n");
   }
