@@ -139,6 +139,7 @@ export interface SessionContext {
   new?: boolean;
   debug?: boolean;
   state: number;
+  authState: number;
   tasks?: Task[];
   operations?: { [commandKey: string]: Operation };
   cacheUntil?: number;

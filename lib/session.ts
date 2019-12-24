@@ -92,7 +92,8 @@ export function init(
     cycle: 0,
     extensionsCache: {},
     declarations: [],
-    state: 0
+    state: 0,
+    authState: 0
   };
 
   return sessionContext;

@@ -42,7 +42,8 @@ import {
   Fault,
   Expression,
   Task,
-  SoapMessage
+  SoapMessage,
+  InformRequest
 } from "./types";
 import { IncomingMessage, ServerResponse } from "http";
 import { Readable } from "stream";
@@ -280,9 +281,14 @@ function recordFault(
   session.clearProvisions(sessionContext);
 }
 
-async function inform(sessionContext: SessionContext, rpc): Promise<void> {
-  const acsResponse = await session.inform(sessionContext, rpc.cpeRequest);
-  sessionContext.state = 1;
+async function inform(
+  sessionContext: SessionContext,
+  rpc: SoapMessage
+): Promise<{ code: number; headers: {}; data: string }> {
+  const acsResponse = await session.inform(
+    sessionContext,
+    rpc.cpeRequest as InformRequest
+  );
 
   const res = soap.response({
     id: rpc.id,
@@ -306,7 +312,7 @@ async function inform(sessionContext: SessionContext, rpc): Promise<void> {
     res.headers["Set-Cookie"] = `session=${sessionContext.sessionId}`;
   }
 
-  return writeResponse(sessionContext, res);
+  return res;
 }
 
 async function transferComplete(sessionContext, rpc): Promise<void> {
@@ -955,11 +961,11 @@ async function reportBadState(sessionContext: SessionContext): Promise<void> {
 }
 
 async function responseUnauthorized(
-  sessionContext: SessionContext
+  sessionContext: SessionContext,
+  close: boolean
 ): Promise<void> {
-  const authHeader = sessionContext.httpRequest.headers["authorization"];
   const resHeaders = {};
-  if (authHeader) {
+  if (close) {
     // Invalid credentials
     logger.accessError({
       message: "Authentication failure",
@@ -993,19 +999,94 @@ async function responseUnauthorized(
 
 async function processRequest(
   sessionContext: SessionContext,
-  rpc: SoapMessage
+  rpc: SoapMessage,
+  parseWarnings: any[],
+  body: string
 ): Promise<void> {
-  if (rpc.cpeRequest) {
-    if (rpc.cpeRequest.name === "Inform") {
-      if (sessionContext.state !== 0) return reportBadState(sessionContext);
+  for (const w of parseWarnings) {
+    w.sessionContext = sessionContext;
+    w.rpc = rpc;
+    logger.accessWarn(w);
+  }
 
-      logger.accessInfo({
-        sessionContext: sessionContext,
-        message: "Inform",
-        rpc: rpc
-      });
-      return inform(sessionContext, rpc);
-    } else if (rpc.cpeRequest.name === "TransferComplete") {
+  if (sessionContext.state === 0) {
+    if (!rpc.cpeRequest || rpc.cpeRequest.name !== "Inform")
+      return reportBadState(sessionContext);
+
+    const res = await inform(sessionContext, rpc);
+
+    sessionContext.debug = !!localCache.getConfig(
+      sessionContext.cacheSnapshot,
+      "cwmp.debug",
+      {},
+      sessionContext.timestamp,
+      e => session.configContextCallback(sessionContext, e)
+    );
+
+    if (!sessionContext.timeout) {
+      sessionContext.timeout = +localCache.getConfig(
+        sessionContext.cacheSnapshot,
+        "cwmp.sessionTimeout",
+        {},
+        sessionContext.timestamp,
+        e => session.configContextCallback(sessionContext, e)
+      );
+    }
+
+    if (sessionContext.debug) {
+      debug.incomingHttpRequest(
+        sessionContext.httpRequest,
+        sessionContext.deviceId,
+        body
+      );
+    }
+
+    const authenticated = await authenticate(sessionContext, body);
+    if (!authenticated) {
+      if (!sessionContext.authState) {
+        sessionContext.authState = 1;
+        return responseUnauthorized(sessionContext, false);
+      } else {
+        return responseUnauthorized(sessionContext, true);
+      }
+    }
+
+    sessionContext.state = 1;
+    sessionContext.authState = 2;
+
+    logger.accessInfo({
+      sessionContext: sessionContext,
+      message: "Inform",
+      rpc: rpc
+    });
+
+    return writeResponse(sessionContext, res);
+  }
+
+  if (sessionContext.debug) {
+    debug.incomingHttpRequest(
+      sessionContext.httpRequest,
+      sessionContext.deviceId,
+      body
+    );
+  }
+
+  // Reauthenticate in case of new connection
+  if (sessionContext.authState !== 2) {
+    const authenticated = await authenticate(sessionContext, body);
+    if (!authenticated) {
+      if (!sessionContext.authState) {
+        sessionContext.authState = 1;
+        return responseUnauthorized(sessionContext, false);
+      } else {
+        return responseUnauthorized(sessionContext, true);
+      }
+    }
+    sessionContext.authState = 2;
+  }
+
+  if (rpc.cpeRequest) {
+    if (rpc.cpeRequest.name === "TransferComplete") {
       if (sessionContext.state !== 1) return reportBadState(sessionContext);
 
       logger.accessInfo({
@@ -1032,7 +1113,7 @@ async function processRequest(
       });
       return writeResponse(sessionContext, res);
     } else {
-      if (sessionContext.state !== 1)
+      if (sessionContext.state !== 1 || rpc.cpeRequest.name === "Inform")
         return void reportBadState(sessionContext);
 
       throw new Error("ACS method not supported");
@@ -1218,6 +1299,8 @@ async function listenerAsync(
       httpResponse.end(_body);
       return;
     }
+    if (newConnection && sessionContext.authState !== 1)
+      sessionContext.authState = 0;
   } else if (stats.concurrentRequests > MAX_CONCURRENT_REQUESTS) {
     // Check again just in case device included old session ID
     // from the previous session
@@ -1279,19 +1362,6 @@ async function listenerAsync(
     return;
   }
 
-  async function parsedRpc(_sessionContext, rpc, parseWarnings): Promise<void> {
-    for (const w of parseWarnings) {
-      w.sessionContext = _sessionContext;
-      w.rpc = rpc;
-      logger.accessWarn(w);
-    }
-
-    if (_sessionContext.debug)
-      debug.incomingHttpRequest(httpRequest, _sessionContext.deviceId, bodyStr);
-
-    return processRequest(_sessionContext, rpc);
-  }
-
   const parseWarnings = [];
   let rpc;
   try {
@@ -1340,17 +1410,8 @@ async function listenerAsync(
     return;
   }
 
-  if (sessionContext) {
-    // Authenticate in case of new connection or unauthenticated session
-    const authenticated =
-      sessionContext.state === 0 || newConnection
-        ? await authenticate(sessionContext, bodyStr)
-        : true;
-
-    if (!authenticated) return responseUnauthorized(sessionContext);
-
-    return parsedRpc(sessionContext, rpc, parseWarnings);
-  }
+  if (sessionContext)
+    return processRequest(sessionContext, rpc, parseWarnings, bodyStr);
 
   if (!(rpc.cpeRequest && rpc.cpeRequest.name === "Inform")) {
     logger.accessError({
@@ -1443,26 +1504,5 @@ async function listenerAsync(
     _sessionContext.new = true;
   }
 
-  if (!_sessionContext.timeout) {
-    _sessionContext.timeout = +localCache.getConfig(
-      cacheSnapshot,
-      "cwmp.sessionTimeout",
-      {},
-      _sessionContext.timestamp,
-      e => session.configContextCallback(_sessionContext, e)
-    );
-  }
-
-  _sessionContext.debug = !!localCache.getConfig(
-    cacheSnapshot,
-    "cwmp.debug",
-    {},
-    _sessionContext.timestamp,
-    e => session.configContextCallback(_sessionContext, e)
-  );
-
-  const authenticated = await authenticate(_sessionContext, bodyStr);
-  if (!authenticated) return responseUnauthorized(_sessionContext);
-
-  parsedRpc(_sessionContext, rpc, parseWarnings);
+  return processRequest(_sessionContext, rpc, parseWarnings, bodyStr);
 }
