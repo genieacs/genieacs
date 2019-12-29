@@ -48,10 +48,10 @@ import {
 import { IncomingMessage, ServerResponse } from "http";
 import { Readable } from "stream";
 import { promisify } from "util";
-import { TLSSocket } from "tls";
 import { decode, encodingExists } from "iconv-lite";
 import { parseXmlDeclaration } from "./xml-parser";
 import * as debug from "./debug";
+import { getRequestOrigin } from "./forwarded";
 
 const gzipPromisified = promisify(zlib.gzip);
 const deflatePromisified = promisify(zlib.deflate);
@@ -770,18 +770,18 @@ async function sendAcsRequest(
     const downloadRequest = acsRequest as SetAcsRequest;
     downloadRequest.fileSize = 0;
     if (!downloadRequest.url) {
-      const FS_PORT = config.get("FS_PORT");
-      const FS_SSL = config.get("FS_SSL_CERT");
-      let hostname = config.get("FS_HOSTNAME");
-      if (!hostname) {
-        if (sessionContext.httpRequest.headers["host"])
-          hostname = sessionContext.httpRequest.headers["host"].split(":")[0];
-        else hostname = sessionContext.httpRequest.connection.localAddress;
+      let prefix = "" + config.get("FS_URL_PREFIX");
+
+      if (!prefix) {
+        const FS_PORT = +config.get("FS_PORT");
+        const ssl = !!config.get("FS_SSL_CERT");
+        const origin = getRequestOrigin(sessionContext.httpRequest);
+        let hostname = origin.localAddress;
+        if (origin.host) [hostname] = origin.host.split(":", 1);
+        prefix = (ssl ? "https" : "http") + `://${hostname}:${FS_PORT}/`;
       }
-      downloadRequest.url = FS_SSL ? "https://" : "http://";
-      downloadRequest.url += hostname;
-      if (FS_PORT !== 80) downloadRequest.url += ":" + FS_PORT;
-      downloadRequest.url += "/" + encodeURI(downloadRequest.fileName);
+
+      downloadRequest.url = prefix + encodeURI(downloadRequest.fileName);
 
       const files = localCache.getFiles(sessionContext.cacheSnapshot);
       if (files[downloadRequest.fileName])
@@ -974,7 +974,7 @@ async function responseUnauthorized(
 
     resHeaders["Connection"] = "close";
   } else {
-    if (sessionContext.httpRequest.socket instanceof TLSSocket) {
+    if (getRequestOrigin(sessionContext.httpRequest).encrypted) {
       resHeaders["WWW-Authenticate"] = `Basic realm="${REALM}"`;
     } else {
       const nonce = crypto.randomBytes(16).toString("hex");
@@ -1347,12 +1347,12 @@ async function listenerAsync(
         cacheSnapshot,
         "cwmp.debug",
         {
-          remoteAddress: httpResponse.connection.remoteAddress
+          remoteAddress: getRequestOrigin(httpRequest).remoteAddress
         },
         Date.now(),
         e => {
           if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "REMOTE_ADDRESS")
-            return httpResponse.connection.remoteAddress;
+            return getRequestOrigin(httpRequest).remoteAddress;
           return e;
         }
       );
@@ -1395,12 +1395,12 @@ async function listenerAsync(
         cacheSnapshot,
         "cwmp.debug",
         {
-          remoteAddress: httpResponse.connection.remoteAddress
+          remoteAddress: getRequestOrigin(httpRequest).remoteAddress
         },
         Date.now(),
         e => {
           if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "REMOTE_ADDRESS")
-            return httpResponse.connection.remoteAddress;
+            return getRequestOrigin(httpRequest).remoteAddress;
           return e;
         }
       );
@@ -1429,12 +1429,12 @@ async function listenerAsync(
       cacheSnapshot,
       "cwmp.debug",
       {
-        remoteAddress: httpResponse.connection.remoteAddress
+        remoteAddress: getRequestOrigin(httpRequest).remoteAddress
       },
       Date.now(),
       e => {
         if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "REMOTE_ADDRESS")
-          return httpResponse.connection.remoteAddress;
+          return getRequestOrigin(httpRequest).remoteAddress;
         return e;
       }
     );

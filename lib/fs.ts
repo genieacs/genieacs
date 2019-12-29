@@ -19,11 +19,16 @@
 
 import * as url from "url";
 import * as querystring from "querystring";
+import { IncomingMessage, ServerResponse } from "http";
 import { GridFSBucket } from "mongodb";
 import * as db from "./db";
 import * as logger from "./logger";
+import { getRequestOrigin } from "./forwarded";
 
-export function listener(request, response): void {
+export function listener(
+  request: IncomingMessage,
+  response: ServerResponse
+): void {
   const urlParts = url.parse(request.url, true);
   if (request.method === "GET") {
     const filename = querystring.unescape(urlParts.pathname.substring(1));
@@ -31,7 +36,7 @@ export function listener(request, response): void {
     const log = {
       message: "Fetch file",
       filename: filename,
-      remoteAddress: request.connection.remoteAddress
+      remoteAddress: getRequestOrigin(request).remoteAddress
     };
 
     db.filesCollection.findOne({ _id: filename }, (err, file) => {

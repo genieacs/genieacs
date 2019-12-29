@@ -50,6 +50,7 @@ import {
   ScriptResult,
   Expression
 } from "./types";
+import { getRequestOrigin } from "./forwarded";
 
 const VALID_PARAM_TYPES = new Set([
   "xsd:int",
@@ -119,7 +120,7 @@ export function configContextCallback(
     else if (name === "productClass") name = "DeviceID.ProductClass";
     else if (name === "oui") name = "DeviceID.OUI";
     else if (name === "remoteAddress")
-      return sessionContext.httpRequest.connection.remoteAddress;
+      return getRequestOrigin(sessionContext.httpRequest).remoteAddress;
 
     const deviceData = sessionContext.deviceData;
     const paths = deviceData.paths;
@@ -130,7 +131,7 @@ export function configContextCallback(
     }
   } else if (exp[0] === "FUNC") {
     if (exp[1] === "REMOTE_ADDRESS")
-      return sessionContext.httpRequest.connection.remoteAddress;
+      return getRequestOrigin(sessionContext.httpRequest).remoteAddress;
   }
   return exp;
 }

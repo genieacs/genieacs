@@ -21,6 +21,7 @@ import * as fs from "fs";
 import * as os from "os";
 
 import * as config from "./config";
+import { getRequestOrigin } from "./forwarded";
 
 const REOPEN_EVERY = 60000;
 
@@ -149,8 +150,9 @@ export function close(): void {
 export function flatten(details): {} {
   if (details.sessionContext) {
     details.deviceId = details.sessionContext.deviceId;
-    details.remoteAddress =
-      details.sessionContext.httpRequest.connection.remoteAddress;
+    details.remoteAddress = getRequestOrigin(
+      details.sessionContext.httpRequest
+    ).remoteAddress;
     delete details.sessionContext;
   }
 
@@ -198,7 +200,7 @@ export function flatten(details): {} {
 
   // For genieacs-ui
   if (details.context) {
-    details.remoteAddress = details.context.request.ip;
+    details.remoteAddress = getRequestOrigin(details.context.req).remoteAddress;
     if (details.context.state.user)
       details.user = details.context.state.user.username;
     delete details.context;

@@ -77,7 +77,8 @@ const externals = [
   "yaml",
   "codemirror",
   "codemirror/mode/javascript/javascript",
-  "codemirror/mode/yaml/yaml"
+  "codemirror/mode/yaml/yaml",
+  "ipaddr.js"
 ];
 
 function rmDirSync(dirPath): void {

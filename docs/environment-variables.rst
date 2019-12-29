@@ -164,12 +164,13 @@ FS_ACCESS_LOG_FILE
 
   Default: unset
 
-FS_HOSTNAME
-  The hostname to use when generating the file URL for TR-069 Download
-  requests. Set this if the hostname where genieacs-fs is listening differs
-  from the hostname in the ACS URL.
+FS_URL_PREFIX
+  The URL prefix (e.g. 'https://example.com:7657/') to use when generating the
+  file URL for TR-069 Download requests. Set this if genieacs-fs and
+  genieacs-cwmp are behind a proxy or running on different servers.
 
-  Default: the hostname from the ACS URL
+  Default: auto generated based on the hostname from the ACS URL, FS_PORT
+  config, and whether or not SSL is enabled for genieacs-fs.
 
 UI_WORKER_PROCESSES
   The number of worker processes to spawn for genieacs-ui. A value of 0 means

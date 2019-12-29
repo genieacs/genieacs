@@ -32,7 +32,7 @@ while (!existsSync(`${ROOT_DIR}/package.json`)) {
 }
 
 // For compatibility with v1.1
-let configDir, cwmpSsl, nbiSsl, fsSsl, uiSsl;
+let configDir, cwmpSsl, nbiSsl, fsSsl, uiSsl, fsHostname;
 
 const options = {
   EXT_DIR: { type: "path", default: resolve(ROOT_DIR, "config/ext") },
@@ -62,7 +62,7 @@ const options = {
   FS_INTERFACE: { type: "string", default: "0.0.0.0" },
   FS_SSL_CERT: { type: "string", default: "" },
   FS_SSL_KEY: { type: "string", default: "" },
-  FS_HOSTNAME: { type: "string", default: "" },
+  FS_URL_PREFIX: { type: "string", default: "" },
   FS_LOG_FILE: { type: "path", default: "" },
   FS_ACCESS_LOG_FILE: { type: "path", default: "" },
 
@@ -76,6 +76,7 @@ const options = {
   UI_JWT_SECRET: { type: "string", default: "" },
 
   UDP_CONNECTION_REQUEST_PORT: { type: "int", default: 0 },
+  FORWARDED_HEADER: { type: "string", default: "" },
 
   DOWNLOAD_TIMEOUT: { type: "int", default: 3600 },
   EXT_TIMEOUT: { type: "int", default: 3000 },
@@ -142,6 +143,9 @@ function setConfig(name, value, commandLineArgument = false): boolean {
         .toLowerCase()
         .trim();
   }
+
+  if (name === "FS_HOSTNAME" || name === "fs-hostname")
+    fsHostname = fsHostname || String(value).trim();
 
   // For compatibility with v1.0
   if (name === "PRESETS_CACHE_DURATION" || name === "presets-cache-duration")
@@ -258,6 +262,15 @@ if (["true", "1"].includes(uiSsl)) {
   const d = configDir || `${ROOT_DIR}/config`;
   setConfig("UI_SSL_CERT", `${d}/cwmp.crt`);
   setConfig("UI_SSL_KEY", `${d}/cwmp.key`);
+}
+
+if (fsHostname) {
+  const FS_PORT = allConfig["FS_PORT"] || 7567;
+  const FS_SSL = !!allConfig["FS_SSL_CERT"];
+  setConfig(
+    "FS_URL_PREFIX",
+    (FS_SSL ? "https" : "http") + `://${fsHostname}:${FS_PORT}/`
+  );
 }
 
 // Defaults
