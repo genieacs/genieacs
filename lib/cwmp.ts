@@ -229,8 +229,12 @@ function recordFault(
     channels = sessionContext.channels;
   }
 
+  const channelKeys = Object.keys(channels);
+  if (!channelKeys.length)
+    throw new Error("Fault not associated with a channel!");
+
   const faults = sessionContext.faults;
-  for (const channel of Object.keys(channels)) {
+  for (const channel of channelKeys) {
     const provs = sessionContext.faults[channel]
       ? sessionContext.faults[channel].provisions
       : [];
@@ -248,7 +252,7 @@ function recordFault(
       ++sessionContext.retries[channel];
     } else {
       sessionContext.retries[channel] = 0;
-      if (Object.keys(channels).length !== 1) faults[channel].retryNow = true;
+      if (channelKeys.length !== 1) faults[channel].retryNow = true;
     }
 
     if (channels[channel] === 0) faults[channel].precondition = true;
@@ -266,13 +270,13 @@ function recordFault(
   }
 
   for (let i = 0; i < provisions.length; ++i) {
-    for (const channel of Object.keys(channels)) {
+    for (const channel of channelKeys) {
       if ((channels[channel] >> i) & 1)
         faults[channel].provisions.push(provisions[i]);
     }
   }
 
-  for (const channel of Object.keys(channels)) {
+  for (const channel of channelKeys) {
     const provs = faults[channel].provisions;
     faults[channel].provisions = [];
     appendProvisions(faults[channel].provisions, provs);
@@ -455,8 +459,11 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
     }
 
     filteredPresets.push(preset);
-    for (const k of extractParams(preset.precondition))
+    for (const k of extractParams(preset.precondition)) {
+      // Mark channel in case of fault during fetching precondition
+      sessionContext.channels[preset.channel] = 0;
       if (typeof k === "string") parameters[k] = Path.parse(k);
+    }
   }
 
   const declarations = Object.values(parameters).map(v => ({
