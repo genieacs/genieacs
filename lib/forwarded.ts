@@ -107,8 +107,7 @@ export function getRequestOrigin(request: IncomingMessage): RequestOrigin {
       encrypted: !!(request.socket as TLSSocket).encrypted
     };
 
-    // const header = request.headers["forwarded"];
-    const header = 'For="[2001:db8:cafe::17]:4711";proto_=https';
+    const header = request.headers["forwarded"];
     if (header) {
       const ip = parse(soc.remoteAddress) as IPv4;
       if (cidrs.some(cidr => ip.match(cidr as [IPv4, number]))) {
