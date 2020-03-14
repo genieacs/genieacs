@@ -97,6 +97,7 @@ export default class Path {
           )
             ++index;
           const s = pattern.slice(j, index).trim();
+          if (!s) throw new Error("Invalid parameter path");
           segments.push(s);
         }
 
