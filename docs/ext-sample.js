@@ -1,4 +1,4 @@
-// This is an exmaple GenieACS extension to get the current latitude/longitude
+// This is an example GenieACS extension to get the current latitude/longitude
 // of the International Space Station. Why, you ask? Because why not.
 // To install, copy this file to config/ext/iss.js.
 
