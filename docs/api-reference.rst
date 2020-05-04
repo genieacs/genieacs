@@ -41,11 +41,11 @@ Examples
 
 .. code:: javascript
 
-  query = {"_id": "202BC1-BM632w-0000000"}
+  query = {"_id": "202BC1-BM632w-000000"}
 
 .. code:: bash
 
-  curl -i 'http://localhost:7557/devices/?query=%7B%22_id%22%3A%22202BC1-BM632w-0000000%22%7D'
+  curl -i 'http://localhost:7557/devices/?query=%7B%22_id%22%3A%22202BC1-BM632w-000000%22%7D'
 
 - Find a device by its MAC address:
 
@@ -77,21 +77,21 @@ Examples
 
 .. code:: javascript
 
-  query = {"device": "202BC1-BM632w-0000000"}
+  query = {"device": "202BC1-BM632w-000000"}
 
 .. code:: bash
 
-  curl -i 'http://localhost:7557/tasks/?query=%7B%22device%22%3A%22202BC1-BM632w-0000000%22%7D'
+  curl -i 'http://localhost:7557/tasks/?query=%7B%22device%22%3A%22202BC1-BM632w-000000%22%7D'
 
 - Return specific parameters for a given device:
 
 .. code:: javascript
 
-  query = {"_id": "202BC1-BM632w-0000000"}
+  query = {"_id": "202BC1-BM632w-000000"}
 
 .. code:: bash
 
-  curl -i 'http://localhost:7557/devices?query=%7B%22_id%22%3A%22202BC1-BM632w-0000000%22%7D&projection=InternetGatewayDevice.DeviceInfo.ModelName,InternetGatewayDevice.DeviceInfo.Manufacturer'
+  curl -i 'http://localhost:7557/devices?query=%7B%22_id%22%3A%22202BC1-BM632w-000000%22%7D&projection=InternetGatewayDevice.DeviceInfo.ModelName,InternetGatewayDevice.DeviceInfo.Manufacturer'
 
 The ``projection`` URL param is a comma-separated list of the parameters to receive.
 
@@ -120,7 +120,7 @@ Examples
 
 .. code:: bash
 
-  curl -i 'http://localhost:7557/devices/202BC1-BM632w-0000000/tasks?connection_request' \
+  curl -i 'http://localhost:7557/devices/202BC1-BM632w-000000/tasks?connection_request' \
   -X POST \
   --data '{"name": "refreshObject", "objectName": ""}'
 
@@ -138,7 +138,7 @@ Examples
 
 .. code:: bash
 
-  curl -i 'http://localhost:7557/devices/202BC1-BM632w-0000000/tasks?connection_request' \
+  curl -i 'http://localhost:7557/devices/202BC1-BM632w-000000/tasks?connection_request' \
   -X POST \
   --data '{"name":"setParameterValues", "parameterValues": [["InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID", "GenieACS", "xsd:string"],["InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.PreSharedKey.1.PreSharedKey", "hello world", "xsd:string"]]}'
 
@@ -183,7 +183,7 @@ Example
 
 .. code:: bash
 
-  curl -i 'http://localhost:7557/faults/202BC1-BM632w-0000000:default' -X DELETE
+  curl -i 'http://localhost:7557/faults/202BC1-BM632w-000000:default' -X DELETE
 
 DELETE /devices/\<device_id\>
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -218,7 +218,7 @@ Assign the tag "testing" to a device:
 
 .. code:: bash
 
-  curl -i 'http://localhost:7557/devices/202BC1-BM632w-0000000/tags/testing' -X POST
+  curl -i 'http://localhost:7557/devices/202BC1-BM632w-000000/tags/testing' -X POST
 
 DELETE /devices/\<device_id\>/tags/\<tag\>
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -236,7 +236,7 @@ Remove the tag "testing" from a device:
 
 .. code:: bash
 
-  curl -i 'http://localhost:7557/devices/202BC1-BM632w-0000000/tags/testing' -X DELETE
+  curl -i 'http://localhost:7557/devices/202BC1-BM632w-000000/tags/testing' -X DELETE
 
 PUT /presets/\<preset_name\>
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
