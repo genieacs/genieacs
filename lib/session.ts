@@ -2305,9 +2305,27 @@ export async function rpcResponse(
     if (!parameterList.length) {
       sessionContext.rpcRequest = null;
     } else {
+      const DATETIME_MILLISECONDS = !!localCache.getConfig(
+        sessionContext.cacheSnapshot,
+        "cwmp.datetimeMilliseconds",
+        {},
+        sessionContext.timestamp,
+        e => configContextCallback(sessionContext, e)
+      );
+
+      const BOOLEAN_LITERAL = !!localCache.getConfig(
+        sessionContext.cacheSnapshot,
+        "cwmp.booleanLiteral",
+        {},
+        sessionContext.timestamp,
+        e => configContextCallback(sessionContext, e)
+      );
+
       const r: SetAcsRequest = {
         name: "SetParameterValues",
-        parameterList: parameterList
+        parameterList: parameterList,
+        DATETIME_MILLISECONDS: DATETIME_MILLISECONDS,
+        BOOLEAN_LITERAL: BOOLEAN_LITERAL
       };
       sessionContext.rpcRequest = r;
     }
