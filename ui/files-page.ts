@@ -108,7 +108,7 @@ function putActionHandler(action, _object): Promise<ValidationErrors> {
             .xhrRequest({
               method: "PUT",
               headers: headers,
-              url: `/api/files/${encodeURIComponent(id)}`,
+              url: `api/files/${encodeURIComponent(id)}`,
               serialize: body => body, // Identity function to prevent JSON.parse on blob data
               body: file
             })
@@ -132,7 +132,7 @@ function putActionHandler(action, _object): Promise<ValidationErrors> {
 const getDownloadUrl = memoize(filter => {
   const cols = {};
   for (const attr of attributes) cols[attr.label] = attr.id;
-  return `/api/files.csv?${m.buildQueryString({
+  return `api/files.csv?${m.buildQueryString({
     filter: stringify(filter),
     columns: JSON.stringify(cols)
   })}`;

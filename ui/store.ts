@@ -91,7 +91,7 @@ class QueryResponse {
 
 function checkConnection(): void {
   m.request({
-    url: "/status",
+    url: "status",
     method: "GET",
     background: true,
     extract: xhr => {
@@ -387,7 +387,7 @@ export function fulfill(accessTimestamp, _fulfillTimestamp): Promise<boolean> {
             xhrRequest({
               method: "HEAD",
               url:
-                `/api/${resourceType}/?` +
+                `api/${resourceType}/?` +
                 m.buildQueryString({
                   filter: memoizedStringify(filter)
                 }),
@@ -433,7 +433,7 @@ export function fulfill(accessTimestamp, _fulfillTimestamp): Promise<boolean> {
               xhrRequest({
                 method: "GET",
                 url:
-                  `/api/${resourceType}/?` +
+                  `api/${resourceType}/?` +
                   m.buildQueryString({
                     filter: memoizedStringify(filter),
                     limit: 1,
@@ -526,7 +526,7 @@ export function fulfill(accessTimestamp, _fulfillTimestamp): Promise<boolean> {
               xhrRequest({
                 method: "GET",
                 url:
-                  `/api/${resourceType}/?` +
+                  `api/${resourceType}/?` +
                   m.buildQueryString({
                     filter: memoizedStringify(combinedFilterDiff)
                   })
@@ -588,7 +588,7 @@ export function postTasks(deviceId, tasks): Promise<string> {
 
   return xhrRequest({
     method: "POST",
-    url: `/api/devices/${encodeURIComponent(deviceId)}/tasks`,
+    url: `api/devices/${encodeURIComponent(deviceId)}/tasks`,
     body: tasks,
     extract: xhr => {
       if (xhr.status !== 200) throw new Error(xhr.response);
@@ -609,7 +609,7 @@ export function postTasks(deviceId, tasks): Promise<string> {
 export function updateTags(deviceId, tags): Promise<void> {
   return xhrRequest({
     method: "POST",
-    url: `/api/devices/${encodeURIComponent(deviceId)}/tags`,
+    url: `api/devices/${encodeURIComponent(deviceId)}/tags`,
     body: tags
   });
 }
@@ -617,7 +617,7 @@ export function updateTags(deviceId, tags): Promise<void> {
 export function deleteResource(resourceType, id): Promise<void> {
   return xhrRequest({
     method: "DELETE",
-    url: `/api/${resourceType}/${encodeURIComponent(id)}`
+    url: `api/${resourceType}/${encodeURIComponent(id)}`
   });
 }
 
@@ -626,7 +626,7 @@ export function putResource(resourceType, id, object): Promise<void> {
 
   return xhrRequest({
     method: "PUT",
-    url: `/api/${resourceType}/${encodeURIComponent(id)}`,
+    url: `api/${resourceType}/${encodeURIComponent(id)}`,
     body: object
   });
 }
@@ -646,7 +646,7 @@ export function resourceExists(resource, id): Promise<number> {
   return xhrRequest({
     method: "HEAD",
     url:
-      `/api/${resource}/?` +
+      `api/${resource}/?` +
       m.buildQueryString({
         filter: memoizedStringify(filter)
       }),
@@ -669,7 +669,7 @@ export function changePassword(
   if (authPassword) body["authPassword"] = authPassword;
   return xhrRequest({
     method: "PUT",
-    url: `/api/users/${username}/password`,
+    url: `api/users/${username}/password`,
     background: true,
     body
   });
@@ -678,7 +678,7 @@ export function changePassword(
 export function logIn(username, password): Promise<void> {
   return xhrRequest({
     method: "POST",
-    url: "/login",
+    url: "login",
     background: true,
     body: { username, password }
   });
@@ -687,13 +687,13 @@ export function logIn(username, password): Promise<void> {
 export function logOut(): Promise<void> {
   return xhrRequest({
     method: "POST",
-    url: "/logout"
+    url: "logout"
   });
 }
 
 export function ping(host): Promise<{}> {
   return xhrRequest({
-    url: `/api/ping/${encodeURIComponent(host)}`,
+    url: `api/ping/${encodeURIComponent(host)}`,
     background: true
   });
 }

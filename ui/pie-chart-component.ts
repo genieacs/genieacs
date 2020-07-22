@@ -49,7 +49,7 @@ function drawChart(chartData): Children {
         m(
           "a",
           {
-            href: `/#!/devices/?${m.buildQueryString({
+            href: `#!/devices/?${m.buildQueryString({
               filter: memoizedStringify(slice["filter"])
             })}`
           },
@@ -89,7 +89,7 @@ function drawChart(chartData): Children {
         m(
           "a",
           {
-            "xlink:href": `/#!/devices/?${m.buildQueryString({
+            "xlink:href": `#!/devices/?${m.buildQueryString({
               filter: memoizedStringify(slice["filter"])
             })}`
           },

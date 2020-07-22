@@ -51,7 +51,7 @@ const getDownloadUrl = memoize(filter => {
       attr.id === "timestamp" ? `DATE_STRING(${attr.id})` : attr.id;
   }
 
-  return `/api/faults.csv?${m.buildQueryString({
+  return `api/faults.csv?${m.buildQueryString({
     filter: stringify(filter),
     columns: JSON.stringify(cols)
   })}`;

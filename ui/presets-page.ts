@@ -134,7 +134,7 @@ const formData = {
 const getDownloadUrl = memoize(filter => {
   const cols = {};
   for (const attr of attributes) cols[attr.label] = attr.id;
-  return `/api/presets.csv?${m.buildQueryString({
+  return `api/presets.csv?${m.buildQueryString({
     filter: stringify(filter),
     columns: JSON.stringify(cols)
   })}`;
@@ -240,7 +240,7 @@ export const component: ClosureComponent = (): Component => {
 
       const valueCallback = (attr, preset): {} => {
         if (attr.id === "precondition") {
-          let devicesUrl = "/#!/devices";
+          let devicesUrl = "#!/devices";
           if (preset["precondition"].length) {
             devicesUrl += `?${m.buildQueryString({
               filter: preset["precondition"]
@@ -259,7 +259,7 @@ export const component: ClosureComponent = (): Component => {
           return m(
             "a",
             {
-              href: `/#!/admin/provisions?${m.buildQueryString({
+              href: `#!/admin/provisions?${m.buildQueryString({
                 filter: `Q("ID", "${preset["provision"]}")`
               })}`
             },

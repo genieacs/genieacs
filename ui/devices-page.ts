@@ -47,7 +47,7 @@ const memoizedGetSortable = memoize(p => {
 const getDownloadUrl = memoize((filter, indexParameters) => {
   const columns = {};
   for (const p of indexParameters) columns[p.label] = stringify(p.parameter);
-  return `/api/devices.csv?${m.buildQueryString({
+  return `api/devices.csv?${m.buildQueryString({
     filter: stringify(filter),
     columns: JSON.stringify(columns)
   })}`;

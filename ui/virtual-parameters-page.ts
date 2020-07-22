@@ -114,7 +114,7 @@ const formData = {
 const getDownloadUrl = memoize(filter => {
   const cols = {};
   for (const attr of attributes) cols[attr.label] = attr.id;
-  return `/api/virtualParameters.csv?${m.buildQueryString({
+  return `api/virtualParameters.csv?${m.buildQueryString({
     filter: stringify(filter),
     columns: JSON.stringify(cols)
   })}`;

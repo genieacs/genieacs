@@ -140,7 +140,7 @@ const component: ClosureComponent = (): Component => {
         m(
           "a.download-csv",
           {
-            href: `/api/devices/${encodeURIComponent(
+            href: `api/devices/${encodeURIComponent(
               device["DeviceID.ID"].value[0]
             )}.csv`,
             download: "",

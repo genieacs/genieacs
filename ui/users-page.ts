@@ -137,7 +137,7 @@ const getDownloadUrl = memoize(filter => {
   const cols = {};
   for (const attr of attributes) cols[attr.label] = attr.id;
 
-  return `/api/users.csv?${m.buildQueryString({
+  return `api/users.csv?${m.buildQueryString({
     filter: stringify(filter),
     columns: JSON.stringify(cols)
   })}`;

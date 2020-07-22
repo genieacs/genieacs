@@ -21,7 +21,7 @@ import m, { ClosureComponent, Component } from "mithril";
 import * as notifications from "./notifications";
 
 export async function init(): Promise<{}> {
-  return m.request({ url: "/init" });
+  return m.request({ url: "init" });
 }
 
 export const component: ClosureComponent = (vnode): Component => {
@@ -82,12 +82,12 @@ export const component: ClosureComponent = (vnode): Component => {
 
               m.request({
                 method: "POST",
-                url: "/init",
+                url: "init",
                 body: opts
               })
                 .then(() => {
                   setTimeout(() => {
-                    m.request({ url: "/init" }).then(o => {
+                    m.request({ url: "init" }).then(o => {
                       e.target.disabled = false;
                       options = o;
                       notifications.push("success", "Initialization complete", {
