@@ -59,7 +59,7 @@ const adminPages = [
   "files",
   "config",
   "users",
-  "permissions"
+  "permissions",
 ];
 
 let state;
@@ -71,7 +71,7 @@ let fulfillTimeout = null;
 function fulfill(): void {
   clearTimeout(fulfillTimeout);
   fulfillTimeout = setTimeout(() => {
-    store.fulfill(lastRenderTimestamp, pageVisitTimestamp).then(updated => {
+    store.fulfill(lastRenderTimestamp, pageVisitTimestamp).then((updated) => {
       if (updated) m.redraw();
     });
   }, 100);
@@ -89,7 +89,7 @@ function pagify(pageName, page): RouteResolver {
       attrs["page"] = pageName;
       return m(layout, attrs, p);
     },
-    onmatch: null
+    onmatch: null,
   };
 
   component.onmatch = (args, requestedPath) => {
@@ -100,16 +100,16 @@ function pagify(pageName, page): RouteResolver {
       return null;
     }
 
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
       page
         .init(args)
-        .then(st => {
+        .then((st) => {
           if (!st) return void m.route.set("/");
           state = st;
           resolve();
           fulfill();
         })
-        .catch(err => {
+        .catch((err) => {
           if (!window.username && err.message.indexOf("authorized") >= 0) {
             notifications.push("error", err.message);
             m.route.set("/login", { continue: requestedPath });
@@ -133,7 +133,7 @@ function redirectAdminPage(): RouteResolver {
         }
       }
       return null;
-    }
+    },
   };
   return component;
 }
@@ -155,5 +155,5 @@ m.route(document.body, "/overview", {
   "/admin/files": pagify("files", filesPage),
   "/admin/config": pagify("config", configPage),
   "/admin/users": pagify("users", usersPage),
-  "/admin/permissions": pagify("permissions", permissionsPage)
+  "/admin/permissions": pagify("permissions", permissionsPage),
 });

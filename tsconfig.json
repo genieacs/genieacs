@@ -14,11 +14,11 @@
     "allowJs": true
   },
   "include": [
-      "./bin/.*.ts",
+      "./bin/*.ts",
       "./lib/**/*",
       "./ui/**/*",
       "./test/**/*",
       "./build/**/*",
-      "./tools/.*.ts"
+      "./tools/*.ts"
   ]
 }

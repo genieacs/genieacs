@@ -50,7 +50,7 @@ const component: ClosureComponent = (vn): Component => {
     onremove: () => {
       clearInterval(interval);
     },
-    view: vnode => {
+    view: (vnode) => {
       const device = vnode.attrs["device"];
       let param =
         device["InternetGatewayDevice.ManagementServer.ConnectionRequestURL"];
@@ -73,7 +73,7 @@ const component: ClosureComponent = (vn): Component => {
       }
 
       return m("div", `Pinging ${host}:`);
-    }
+    },
   };
 };
 

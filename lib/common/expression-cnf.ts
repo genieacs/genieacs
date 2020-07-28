@@ -65,7 +65,7 @@ function likePatternIncludes(pat1, pat2, idx1 = 0, idx2 = 0): boolean {
 export function booleanCnf(exp: Expression): { vars: number; clauses: CNF } {
   const ranges = new Map();
   const likePatterns = new Map();
-  map(exp, e => {
+  map(exp, (e) => {
     if (!Array.isArray(e)) return e;
     if (e[0] === "LIKE" || e[0] === "NOT LIKE") {
       if (
@@ -151,7 +151,7 @@ export function booleanCnf(exp: Expression): { vars: number; clauses: CNF } {
 
     if (to == null) vars.push(`${lhs}:${range[range.length - 1]}--`);
 
-    return vars.map(key => {
+    return vars.map((key) => {
       let f = expressions.get(key);
       if (!f) {
         expressions.set(key, (f = expressions.size + 1));
@@ -172,7 +172,7 @@ export function booleanCnf(exp: Expression): { vars: number; clauses: CNF } {
         vars.push(`${lhs}:like:${JSON.stringify(p)}`);
     }
 
-    return vars.map(key => {
+    return vars.map((key) => {
       let f = expressions.get(key);
       if (!f) expressions.set(key, (f = expressions.size + 1));
       return f;
@@ -184,11 +184,11 @@ export function booleanCnf(exp: Expression): { vars: number; clauses: CNF } {
   }
 
   const comparisonOperators: ComparisonOperators = {
-    "=": v => [v, true, v, true],
-    ">": v => [v, false, null, null],
-    ">=": v => [v, true, null, null],
-    "<": v => [null, null, v, false],
-    "<=": v => [null, null, v, true]
+    "=": (v) => [v, true, v, true],
+    ">": (v) => [v, false, null, null],
+    ">=": (v) => [v, true, null, null],
+    "<": (v) => [null, null, v, false],
+    "<=": (v) => [null, null, v, true],
   };
 
   function recursive(clause, negate): CNF {
@@ -211,7 +211,7 @@ export function booleanCnf(exp: Expression): { vars: number; clauses: CNF } {
         JSON.stringify(clause[1]),
         ...comparisonOperators["="](clause[2])
       );
-      if (!negate) return vars.map(x => [0 - x]);
+      if (!negate) return vars.map((x) => [0 - x]);
       else return [vars];
     } else if (op === "IS NULL") {
       const v = getVariable(JSON.stringify(clause[1]), "null");
@@ -227,7 +227,7 @@ export function booleanCnf(exp: Expression): { vars: number; clauses: CNF } {
           JSON.stringify(clause[1]),
           ...comparisonOperators[op](clause[2])
         );
-        if (negate) return vars.map(x => [0 - x]);
+        if (negate) return vars.map((x) => [0 - x]);
         else return [vars];
       } else if (!Array.isArray(clause[1])) {
         op = { ">": "<", ">=": "<=", "<": ">", "<=": ">=" }[op] || op;
@@ -235,7 +235,7 @@ export function booleanCnf(exp: Expression): { vars: number; clauses: CNF } {
           JSON.stringify(clause[2]),
           ...comparisonOperators[op](clause[1])
         );
-        if (negate) return vars.map(x => [0 - x]);
+        if (negate) return vars.map((x) => [0 - x]);
         else return [vars];
       } else {
         let lhs = JSON.stringify(clause[1]);
@@ -264,7 +264,7 @@ export function booleanCnf(exp: Expression): { vars: number; clauses: CNF } {
         clause[2],
         clause[3]
       );
-      if (negate) return vars.map(x => [0 - x]);
+      if (negate) return vars.map((x) => [0 - x]);
       else return [vars];
     } else {
       const v = getVariable(JSON.stringify(clause), "");

@@ -53,7 +53,7 @@ const RESOURCE_IDS = {
   permissions: "_id",
   users: "_id",
   faults: "_id",
-  tasks: "_id"
+  tasks: "_id",
 };
 
 const resources = {
@@ -66,21 +66,21 @@ const resources = {
   permissions: 0 | RESOURCE_DELETE | RESOURCE_PUT,
   users: 0 | RESOURCE_DELETE | RESOURCE_PUT,
   faults: 0 | RESOURCE_DELETE,
-  tasks: 0
+  tasks: 0,
 };
 
-router.get(`/devices/:id.csv`, async ctx => {
+router.get(`/devices/:id.csv`, async (ctx) => {
   const authorizer: Authorizer = ctx.state.authorizer;
   const log = {
     message: "Query device (CSV)",
     context: ctx,
-    id: ctx.params.id
+    id: ctx.params.id,
   };
 
   const filter = and(authorizer.getFilter("devices", 2), [
     "=",
     ["PARAM", RESOURCE_IDS.devices],
-    ctx.params.id
+    ctx.params.id,
   ]);
 
   if (!authorizer.hasAccess("devices", 2)) {
@@ -113,9 +113,9 @@ router.get(`/devices/:id.csv`, async ctx => {
       p.writableTimestamp,
       p.value != null ? `"${p.value[0].toString().replace(/"/g, '""')}"` : "",
       p.value != null ? p.value[1] : "",
-      p.valueTimestamp
+      p.valueTimestamp,
     ];
-    ctx.body.write(row.map(r => (r != null ? r : "")).join(",") + "\n");
+    ctx.body.write(row.map((r) => (r != null ? r : "")).join(",") + "\n");
   }
   ctx.body.end();
   logger.accessInfo(log);
@@ -132,7 +132,7 @@ for (const [resource, flags] of Object.entries(resources)) {
       message: `Count ${resource}`,
       context: ctx,
       filter: ctx.request.query.filter,
-      count: null
+      count: null,
     };
 
     if (!authorizer.hasAccess(resource, 1)) {
@@ -144,7 +144,7 @@ for (const [resource, flags] of Object.entries(resources)) {
     if (resource === "tasks" || resource === "faults") {
       filter = and(filter, [
         "NOT",
-        ["<", ["PARAM", "expiry"], Date.now() + 60000]
+        ["<", ["PARAM", "expiry"], Date.now() + 60000],
       ]);
     }
 
@@ -180,7 +180,7 @@ for (const [resource, flags] of Object.entries(resources)) {
       limit: options.limit,
       skip: options.skip,
       sort: options.sort,
-      projection: options.projection
+      projection: options.projection,
     };
 
     if (!authorizer.hasAccess(resource, 2)) {
@@ -192,7 +192,7 @@ for (const [resource, flags] of Object.entries(resources)) {
     if (resource === "tasks" || resource === "faults") {
       filter = and(filter, [
         "NOT",
-        ["<", ["PARAM", "expiry"], Date.now() + 60000]
+        ["<", ["PARAM", "expiry"], Date.now() + 60000],
       ]);
     }
 
@@ -201,7 +201,7 @@ for (const [resource, flags] of Object.entries(resources)) {
 
     let c = 0;
     ctx.body.write("[\n");
-    await db.query(resource, filter, options, obj => {
+    await db.query(resource, filter, options, (obj) => {
       ctx.body.write((c++ ? "," : "") + JSON.stringify(obj) + "\n");
     });
     ctx.body.end("]");
@@ -227,7 +227,7 @@ for (const [resource, flags] of Object.entries(resources)) {
       filter: ctx.request.query.filter,
       limit: options.limit,
       skip: options.skip,
-      sort: options.sort
+      sort: options.sort,
     };
 
     if (!authorizer.hasAccess(resource, 2)) {
@@ -235,7 +235,9 @@ for (const [resource, flags] of Object.entries(resources)) {
       return void next();
     }
 
-    const columns = JSON.parse(ctx.request.query.columns);
+    const columns: Record<string, Expression> = JSON.parse(
+      ctx.request.query.columns
+    );
     const now = Date.now();
 
     for (const [k, v] of Object.entries(columns)) {
@@ -249,7 +251,7 @@ for (const [resource, flags] of Object.entries(resources)) {
     if (resource === "tasks" || resource === "faults") {
       filter = and(filter, [
         "NOT",
-        ["<", ["PARAM", "expiry"], Date.now() + 60000]
+        ["<", ["PARAM", "expiry"], Date.now() + 60000],
       ]);
     }
 
@@ -260,11 +262,11 @@ for (const [resource, flags] of Object.entries(resources)) {
     );
 
     ctx.body.write(
-      Object.keys(columns).map(k => `"${k.replace(/"/, '""')}"`) + "\n"
+      Object.keys(columns).map((k) => `"${k.replace(/"/, '""')}"`) + "\n"
     );
-    await db.query(resource, filter, options, obj => {
-      const arr = Object.values(columns).map(exp => {
-        const v = evaluate(exp, obj, null, e => {
+    await db.query(resource, filter, options, (obj) => {
+      const arr = Object.values(columns).map((exp) => {
+        const v = evaluate(exp, obj, null, (e) => {
           if (Array.isArray(e)) {
             if (e[0] === "PARAM") {
               if (resource === "devices") {
@@ -303,13 +305,13 @@ for (const [resource, flags] of Object.entries(resources)) {
     const log = {
       message: `Count ${resource}`,
       context: ctx,
-      filter: `${RESOURCE_IDS[resource]} = "${ctx.params.id}"`
+      filter: `${RESOURCE_IDS[resource]} = "${ctx.params.id}"`,
     };
 
     const filter = and(authorizer.getFilter(resource, 2), [
       "=",
       ["PARAM", RESOURCE_IDS[resource]],
-      ctx.params.id
+      ctx.params.id,
     ]);
     if (!authorizer.hasAccess(resource, 2)) {
       logUnauthorizedWarning(log);
@@ -329,13 +331,13 @@ for (const [resource, flags] of Object.entries(resources)) {
     const log = {
       message: `Query ${resource}`,
       context: ctx,
-      filter: `${RESOURCE_IDS[resource]} = "${ctx.params.id}"`
+      filter: `${RESOURCE_IDS[resource]} = "${ctx.params.id}"`,
     };
 
     const filter = and(authorizer.getFilter(resource, 2), [
       "=",
       ["PARAM", RESOURCE_IDS[resource]],
-      ctx.params.id
+      ctx.params.id,
     ]);
     if (!authorizer.hasAccess(resource, 2)) {
       logUnauthorizedWarning(log);
@@ -356,13 +358,13 @@ for (const [resource, flags] of Object.entries(resources)) {
       const log = {
         message: `Delete ${resource}`,
         context: ctx,
-        id: ctx.params.id
+        id: ctx.params.id,
       };
 
       const filter = and(authorizer.getFilter(resource, 3), [
         "=",
         ["PARAM", RESOURCE_IDS[resource]],
-        ctx.params.id
+        ctx.params.id,
       ]);
       if (!authorizer.hasAccess(resource, 3)) {
         logUnauthorizedWarning(log);
@@ -393,7 +395,7 @@ for (const [resource, flags] of Object.entries(resources)) {
       const log = {
         message: `Put ${resource}`,
         context: ctx,
-        id: id
+        id: id,
       };
 
       if (!authorizer.hasAccess(resource, 3)) {
@@ -434,7 +436,7 @@ router.put("/files/:id", async (ctx, next) => {
     message: `Upload ${resource}`,
     context: ctx,
     id: id,
-    metadata: null
+    metadata: null,
   };
 
   if (!authorizer.hasAccess(resource, 3)) {
@@ -446,7 +448,7 @@ router.put("/files/:id", async (ctx, next) => {
     fileType: ctx.request.headers["metadata.filetype"] || "",
     oui: ctx.request.headers["metadata.oui"] || "",
     productClass: ctx.request.headers["metadata.productclass"] || "",
-    version: ctx.request.headers["metadata.version"] || ""
+    version: ctx.request.headers["metadata.version"] || "",
   };
 
   const validate = authorizer.getValidator(resource, metadata);
@@ -474,13 +476,13 @@ router.post("/devices/:id/tasks", async (ctx, next) => {
     message: "Commit tasks",
     context: ctx,
     deviceId: ctx.params.id,
-    tasks: null
+    tasks: null,
   };
 
   const filter = and(authorizer.getFilter("devices", 3), [
     "=",
     ["PARAM", "DeviceID.ID"],
-    ctx.params.id
+    ctx.params.id,
   ]);
   if (!authorizer.hasAccess("devices", 3)) {
     logUnauthorizedWarning(log);
@@ -503,7 +505,7 @@ router.post("/devices/:id/tasks", async (ctx, next) => {
     "cwmp.deviceOnlineThreshold",
     {},
     Date.now(),
-    exp => {
+    (exp) => {
       if (!Array.isArray(exp)) return exp;
       if (exp[0] === "PARAM") {
         const p = device[exp[1]];
@@ -519,7 +521,7 @@ router.post("/devices/:id/tasks", async (ctx, next) => {
       }
       return exp;
     }
-  );
+  ) as number;
 
   const res = await apiFunctions.postTasks(
     ctx.params.id,
@@ -528,7 +530,7 @@ router.post("/devices/:id/tasks", async (ctx, next) => {
     device
   );
 
-  log.tasks = res.tasks.map(t => t._id).join(",");
+  log.tasks = res.tasks.map((t) => t._id).join(",");
 
   logger.accessInfo(log);
 
@@ -542,13 +544,13 @@ router.post("/devices/:id/tags", async (ctx, next) => {
     message: "Update tags",
     context: ctx,
     deviceId: ctx.params.id,
-    tags: ctx.request.body
+    tags: ctx.request.body,
   };
 
   const filter = and(authorizer.getFilter("devices", 3), [
     "=",
     ["PARAM", "DeviceID.ID"],
-    ctx.params.id
+    ctx.params.id,
   ]);
   if (!authorizer.hasAccess("devices", 3)) {
     logUnauthorizedWarning(log);
@@ -577,8 +579,8 @@ router.post("/devices/:id/tags", async (ctx, next) => {
   ctx.body = "";
 });
 
-router.get("/ping/:host", async ctx => {
-  return new Promise(resolve => {
+router.get("/ping/:host", async (ctx) => {
+  return new Promise((resolve) => {
     ping(ctx.params.host, (err, parsed) => {
       if (parsed) {
         ctx.body = parsed;
@@ -597,7 +599,7 @@ router.put("/users/:id/password", async (ctx, next) => {
   const log = {
     message: "Change password",
     context: ctx,
-    username: username
+    username: username,
   };
 
   if (!ctx.state.user) {
@@ -622,7 +624,7 @@ router.put("/users/:id/password", async (ctx, next) => {
   const filter = and(authorizer.getFilter("users", 3), [
     "=",
     ["PARAM", RESOURCE_IDS.users],
-    username
+    username,
   ]);
   const res = await db.query("users", filter);
   if (!res.length) return void next();

@@ -24,7 +24,7 @@ import { m } from "./components";
 
 const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       const onPasswordChange = vnode.attrs["onPasswordChange"];
       const enforceAuth = !vnode.attrs["noAuth"];
       const username = vnode.attrs["username"];
@@ -40,19 +40,19 @@ const component: ClosureComponent = (): Component => {
             type: "text",
             value: vnode.state["username"],
             disabled: !!username,
-            oninput: e => {
+            oninput: (e) => {
               vnode.state["username"] = e.target.value;
             },
-            oncreate: _vnode => {
+            oncreate: (_vnode) => {
               (_vnode.dom as HTMLSelectElement).focus();
-            }
+            },
           })
-        )
+        ),
       ];
 
       let fields = {
         newPassword: "New password",
-        confirmPassword: "Confirm password"
+        confirmPassword: "Confirm password",
       };
       if (enforceAuth)
         fields = Object.assign({ authPassword: "Your password" }, fields);
@@ -66,9 +66,9 @@ const component: ClosureComponent = (): Component => {
               name: f,
               type: "password",
               value: vnode.state[f],
-              oninput: e => {
+              oninput: (e) => {
                 vnode.state[f] = e.target.value;
-              }
+              },
             })
           )
         );
@@ -77,7 +77,7 @@ const component: ClosureComponent = (): Component => {
       const submit = m(
         "button.primary",
         {
-          type: "submit"
+          type: "submit",
         },
         "Change password"
       ) as VnodeDOM;
@@ -89,7 +89,7 @@ const component: ClosureComponent = (): Component => {
         m(
           "form",
           {
-            onsubmit: e => {
+            onsubmit: (e) => {
               e.redraw = false;
               e.preventDefault();
               if (
@@ -120,19 +120,19 @@ const component: ClosureComponent = (): Component => {
                     if (onPasswordChange) onPasswordChange();
                     (submit.dom as HTMLFormElement).disabled = false;
                   })
-                  .catch(err => {
+                  .catch((err) => {
                     notifications.push("error", err.message);
                     (submit.dom as HTMLFormElement).disabled = false;
                   });
               }
-            }
+            },
           },
           form
-        )
+        ),
       ];
 
       return m("div.put-form", children);
-    }
+    },
   };
 };
 

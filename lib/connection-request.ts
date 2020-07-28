@@ -65,10 +65,10 @@ function httpGet(
   timeout,
   _debug: boolean,
   deviceId: string
-): Promise<{ statusCode: number; headers: {} }> {
+): Promise<{ statusCode: number; headers: http.IncomingHttpHeaders }> {
   return new Promise((resolve, reject) => {
     const req = http
-      .get(options, res => {
+      .get(options, (res) => {
         res.resume();
         resolve({ statusCode: res.statusCode, headers: res.headers });
         if (_debug) {
@@ -76,12 +76,12 @@ function httpGet(
           debug.incomingHttpResponse(res, deviceId, null);
         }
       })
-      .on("error", err => {
+      .on("error", (err) => {
         req.abort();
         reject(new Error("Device is offline"));
         if (_debug) debug.outgoingHttpRequestError(req, deviceId, options, err);
       })
-      .on("socket", socket => {
+      .on("socket", (socket) => {
         socket.setTimeout(timeout);
         socket.on("timeout", () => {
           req.abort();
@@ -104,10 +104,10 @@ export async function httpConnectionRequest(
 
   options.agent = new http.Agent({
     maxSockets: 1,
-    keepAlive: true
+    keepAlive: true,
   });
 
-  let authHeader: {};
+  let authHeader: Record<string, string>;
   let username: string;
   let password: string;
 
@@ -121,8 +121,8 @@ export async function httpConnectionRequest(
         opts = Object.assign(
           {
             headers: {
-              Authorization: auth.basic(username || "", password || "")
-            }
+              Authorization: auth.basic(username || "", password || ""),
+            },
           },
           options
         );
@@ -137,8 +137,8 @@ export async function httpConnectionRequest(
                 "GET",
                 null,
                 authHeader
-              )
-            }
+              ),
+            },
           },
           options
         );
@@ -172,7 +172,7 @@ export async function httpConnectionRequest(
 export async function udpConnectionRequest(
   address: string,
   authExp: Expression,
-  sourcePort: number = 0,
+  sourcePort = 0,
   _debug: boolean,
   deviceId: string
 ): Promise<void> {

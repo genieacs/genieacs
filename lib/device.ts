@@ -18,12 +18,18 @@
  */
 
 import Path from "./common/path";
-import { DeviceData, Declaration, Clear } from "./types";
+import {
+  DeviceData,
+  Declaration,
+  Clear,
+  AttributeTimestamps,
+  Attributes,
+} from "./types";
 
 const CHANGE_FLAGS = {
   object: 2,
   writable: 4,
-  value: 8
+  value: 8,
 };
 
 function parseBool(v): boolean {
@@ -36,7 +42,7 @@ function parseBool(v): boolean {
 
 export function sanitizeParameterValue(
   parameterValue: [string | number | boolean, string]
-): [string | number | boolean, string?] {
+): [string | number | boolean, string] {
   if (parameterValue[0] != null) {
     switch (parameterValue[1]) {
       case "xsd:boolean":
@@ -96,8 +102,8 @@ export function getAliasDeclarations(
       pathSet: null,
       attrGet: attrGet,
       attrSet: null,
-      defer: true
-    }
+      defer: true,
+    },
   ];
 
   if (path.alias) {
@@ -107,7 +113,7 @@ export function getAliasDeclarations(
         for (const [p] of alias as [Path, string][]) {
           decs = decs.concat(
             getAliasDeclarations(parent.concat(p), timestamp, {
-              value: timestamp
+              value: timestamp,
             })
           );
         }
@@ -189,10 +195,10 @@ export function unpack(
 }
 
 export function clear(
-  deviceData,
-  path,
-  timestamp,
-  attributes,
+  deviceData: DeviceData,
+  path: Path,
+  timestamp: number,
+  attributes: AttributeTimestamps,
   changeFlags = 0
 ): void {
   const changeTrackers = {};
@@ -271,8 +277,8 @@ function compareEquality(a, b): boolean {
 export function set(
   deviceData: DeviceData,
   path: Path,
-  timestamp,
-  attributes,
+  timestamp: number,
+  attributes: Attributes,
   toClear?: Clear[]
 ): Clear[] {
   path = deviceData.paths.add(path);
@@ -300,7 +306,7 @@ export function set(
       attributes.object[1] &&
       attributes.object[0] >= (attributes.value ? attributes.value[0] : 0)
     )
-      attributes.value = [attributes.object[0]];
+      attributes.value = [attributes.object[0], null];
 
     const newAttributes = Object.assign({}, currentAttributes, attributes);
 
@@ -376,7 +382,7 @@ export function track(
   deviceData: DeviceData,
   path: Path,
   marker: string,
-  attributes?
+  attributes?: string[]
 ): void {
   path = deviceData.paths.add(path);
   let f = 1;
@@ -393,7 +399,10 @@ export function track(
   cur[marker] |= f;
 }
 
-export function clearTrackers(deviceData: DeviceData, tracker): void {
+export function clearTrackers(
+  deviceData: DeviceData,
+  tracker: string | string[]
+): void {
   if (Array.isArray(tracker)) {
     for (const v of deviceData.trackers.values())
       for (const t of tracker) delete v[t];

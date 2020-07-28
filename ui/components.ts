@@ -24,7 +24,7 @@ import m, {
   ComponentTypes,
   Lifecycle,
   ClosureComponent,
-  Vnode
+  Vnode,
 } from "mithril";
 import parameter from "./components/parameter";
 import parameterList from "./components/parameter-list";
@@ -53,7 +53,7 @@ const comps = {
   tags,
   ping,
   "device-link": deviceLink,
-  "long-text": longTextComponent
+  "long-text": longTextComponent,
 };
 
 const contextifiedComponents = new WeakMap<ComponentTypes, ComponentTypes>();
@@ -96,7 +96,7 @@ const M = new Proxy(m, {
   get: (target, prop) => {
     if (prop === "context") return contextFn;
     else return Reflect.get(target, prop);
-  }
+  },
 }) as MC;
 
 function contextFn(context, ...argumentsList): Vnode {
@@ -125,17 +125,17 @@ export function contextifyComponent(component: ComponentTypes): ComponentTypes {
     if (typeof component !== "function") {
       c = Object.assign({}, component);
       const view = component.view;
-      c.view = function(vnode) {
+      c.view = function (vnode) {
         const context = vnodeContext.get(vnode) || {};
         const res = Reflect.apply(view, this, [vnode]);
         applyContext(res, context);
         return res;
       };
     } else if (!component.prototype || !component.prototype.view) {
-      c = initialNode => {
+      c = (initialNode) => {
         const state = (component as ClosureComponent)(initialNode);
         const view = state.view;
-        state.view = function(vnode) {
+        state.view = function (vnode) {
           const context = vnodeContext.get(vnode) || {};
           const res = Reflect.apply(view, this, [vnode]);
           applyContext(res, context);

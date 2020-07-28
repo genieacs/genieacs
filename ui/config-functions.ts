@@ -27,7 +27,7 @@ interface Diff {
   remove: string[];
 }
 
-export function flattenConfig(config): any {
+export function flattenConfig(config: Record<string, unknown>): any {
   const flatten = {};
   const recuresive = (obj: any, root: string): void => {
     for (const [k, v] of Object.entries(obj)) {
@@ -56,7 +56,7 @@ export function structureConfig(config: Config[]): any {
     ref[keys[0]] = c.value;
   }
 
-  const toArray = function(object): any {
+  const toArray = function (object): any {
     const MAX_BITS = 30;
     const MAX_ARRAY_SIZE = MAX_BITS * 10;
 
@@ -96,10 +96,13 @@ export function structureConfig(config: Config[]): any {
   return toArray(_config);
 }
 
-export function diffConfig(current, target): Diff {
+export function diffConfig(
+  current: Record<string, unknown>,
+  target: Record<string, unknown>
+): Diff {
   const diff = {
     add: [],
-    remove: []
+    remove: [],
   };
 
   for (const [k, v] of Object.entries(target))

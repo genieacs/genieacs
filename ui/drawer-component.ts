@@ -22,7 +22,7 @@ import m, {
   Child,
   ClosureComponent,
   Component,
-  VnodeDOM
+  VnodeDOM,
 } from "mithril";
 import * as taskQueue from "./task-queue";
 import * as store from "./store";
@@ -50,18 +50,18 @@ function renderStagingSpv(task, queueFunc, cancelFunc): Children {
       "select",
       {
         value: task.parameterValues[0][1].toString(),
-        onchange: e => {
+        onchange: (e) => {
           e.redraw = false;
           task.parameterValues[0][1] = input.dom.value;
         },
         onkeydown: keydown,
-        oncreate: vnode => {
+        oncreate: (vnode) => {
           (vnode.dom as HTMLSelectElement).focus();
-        }
+        },
       },
       [
         m("option", { value: "true" }, "true"),
-        m("option", { value: "false" }, "false")
+        m("option", { value: "false" }, "false"),
       ]
     );
   } else {
@@ -72,18 +72,18 @@ function renderStagingSpv(task, queueFunc, cancelFunc): Children {
         ? "number"
         : "text",
       value: task.parameterValues[0][1],
-      oninput: e => {
+      oninput: (e) => {
         e.redraw = false;
         task.parameterValues[0][1] = input.dom.value;
       },
       onkeydown: keydown,
-      oncreate: vnode => {
+      oncreate: (vnode) => {
         (vnode.dom as HTMLInputElement).focus();
         (vnode.dom as HTMLInputElement).select();
         // Need to prevent scrolling on focus because
         // we're animating height and using overflow: hidden
         (vnode.dom.parentNode.parentNode as Element).scrollTop = 0;
-      }
+      },
     });
   }
 
@@ -104,8 +104,8 @@ function renderStagingDownload(task): Children {
     "2 Web Content",
     "3 Vendor Configuration File",
     "4 Tone File",
-    "5 Ringer File"
-  ].map(t =>
+    "5 Ringer File",
+  ].map((t) =>
     m(
       "option",
       { disabled: !t, value: t, selected: (task.fileType || "") === t },
@@ -117,14 +117,14 @@ function renderStagingDownload(task): Children {
     .concat(
       files.value
         .filter(
-          f =>
+          (f) =>
             (!f["metadata.oui"] || f["metadata.oui"] === oui) &&
             (!f["metadata.productClass"] ||
               f["metadata.productClass"] === productClass)
         )
-        .map(f => f._id)
+        .map((f) => f._id)
     )
-    .map(f =>
+    .map((f) =>
       m(
         "option",
         { disabled: !f, value: f, selected: (task.fileName || "") === f },
@@ -137,7 +137,7 @@ function renderStagingDownload(task): Children {
     m(
       "select",
       {
-        onchange: e => {
+        onchange: (e) => {
           const f = e.target.value;
           task.fileName = f;
           task.fileType = "";
@@ -145,7 +145,7 @@ function renderStagingDownload(task): Children {
             if (file._id === f) task.fileType = file["metadata.fileType"];
         },
         disabled: files.fulfilling,
-        style: "width: 350px"
+        style: "width: 350px",
       },
       filesList
     ),
@@ -153,12 +153,12 @@ function renderStagingDownload(task): Children {
     m(
       "select",
       {
-        onchange: e => {
+        onchange: (e) => {
           task.fileType = e.target.value;
-        }
+        },
       },
       typesList
-    )
+    ),
   ];
 }
 
@@ -216,7 +216,7 @@ function renderQueue(queue): Child[] {
               title: "Retry this task",
               onclick: () => {
                 taskQueue.queueTask(t);
-              }
+              },
             },
             getIcon("retry")
           )
@@ -230,7 +230,7 @@ function renderQueue(queue): Child[] {
             title: "Remove this task",
             onclick: () => {
               taskQueue.deleteTask(t);
-            }
+            },
           },
           getIcon("remove")
         )
@@ -324,18 +324,18 @@ function renderNotifications(notifs): Child[] {
         {
           class: n.type,
           style: "position: absolute;opacity: 0",
-          oncreate: vnode => {
+          oncreate: (vnode) => {
             (vnode.dom as HTMLDivElement).style.opacity = "1";
           },
-          onbeforeremove: vnode => {
+          onbeforeremove: (vnode) => {
             (vnode.dom as HTMLDivElement).style.opacity = "0";
-            return new Promise(resolve => {
+            return new Promise((resolve) => {
               setTimeout(() => {
                 resolve();
               }, 500);
             });
           },
-          key: n.timestamp
+          key: n.timestamp,
         },
         m("div", buttons, n.message)
       )
@@ -346,7 +346,7 @@ function renderNotifications(notifs): Child[] {
 
 const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       const queue = taskQueue.getQueue();
       const staging = taskQueue.getStaging();
       const notifs = notifications.getNotifications();
@@ -395,7 +395,7 @@ const component: ClosureComponent = (): Component => {
               disabled: !statusCount.queued,
               onclick: () => {
                 const tasks = Array.from(taskQueue.getQueue()).filter(
-                  t => t["status"] === "queued"
+                  (t) => t["status"] === "queued"
                 );
                 taskQueue
                   .commit(
@@ -442,7 +442,7 @@ const component: ClosureComponent = (): Component => {
                   .then(() => {
                     store.fulfill(0, Date.now());
                   });
-              }
+              },
             },
             "Commit"
           ),
@@ -451,7 +451,7 @@ const component: ClosureComponent = (): Component => {
             {
               title: "Clear tasks",
               onclick: taskQueue.clear,
-              disabled: !queueElements.length
+              disabled: !queueElements.length,
             },
             "Clear"
           )
@@ -487,31 +487,31 @@ const component: ClosureComponent = (): Component => {
           {
             key: "drawer",
             style: "opacity: 0;height: 0;",
-            oncreate: vnode2 => {
+            oncreate: (vnode2) => {
               vnode.state["mouseIn"] = false;
               (vnode2.dom as HTMLDivElement).style.opacity = "1";
               resizeDrawer();
             },
-            onmouseover: e => {
+            onmouseover: (e) => {
               vnode.state["mouseIn"] = true;
               resizeDrawer();
               e.redraw = false;
             },
-            onmouseleave: e => {
+            onmouseleave: (e) => {
               vnode.state["mouseIn"] = false;
               resizeDrawer();
               e.redraw = false;
             },
             onupdate: resizeDrawer,
-            onbeforeremove: vnode2 => {
+            onbeforeremove: (vnode2) => {
               (vnode2.dom as HTMLDivElement).onmouseover = null;
               (vnode2.dom as HTMLDivElement).onmouseleave = null;
               (vnode2.dom as HTMLDivElement).style.opacity = "0";
               (vnode2.dom as HTMLDivElement).style.height = "0";
-              return new Promise(resolve => {
+              return new Promise((resolve) => {
                 setTimeout(resolve, 500);
               });
-            }
+            },
           },
           statusElement,
           stagingElements.length ? stagingElements : m(".queue", queueElements)
@@ -527,12 +527,12 @@ const component: ClosureComponent = (): Component => {
             key: "notifications",
             style: "position: relative;",
             onupdate: repositionNotifications,
-            oncreate: repositionNotifications
+            oncreate: repositionNotifications,
           },
           notificationElements
         )
       );
-    }
+    },
   };
 };
 

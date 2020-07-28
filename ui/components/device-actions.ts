@@ -25,7 +25,7 @@ import * as store from "../store";
 
 const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       const device = vnode.attrs["device"];
 
       const buttons = [];
@@ -38,9 +38,9 @@ const component: ClosureComponent = (): Component => {
             onclick: () => {
               taskQueue.queueTask({
                 name: "reboot",
-                device: device["DeviceID.ID"].value[0]
+                device: device["DeviceID.ID"].value[0],
               });
-            }
+            },
           },
           "Reboot"
         )
@@ -54,9 +54,9 @@ const component: ClosureComponent = (): Component => {
             onclick: () => {
               taskQueue.queueTask({
                 name: "factoryReset",
-                device: device["DeviceID.ID"].value[0]
+                device: device["DeviceID.ID"].value[0],
               });
-            }
+            },
           },
           "Reset"
         )
@@ -70,9 +70,9 @@ const component: ClosureComponent = (): Component => {
             onclick: () => {
               taskQueue.stageDownload({
                 name: "download",
-                device: device["DeviceID.ID"].value[0]
+                device: device["DeviceID.ID"].value[0],
               });
-            }
+            },
           },
           "Push file"
         )
@@ -93,17 +93,17 @@ const component: ClosureComponent = (): Component => {
                   notifications.push("success", `${deviceId}: Device deleted`);
                   m.route.set("/devices");
                 })
-                .catch(err => {
+                .catch((err) => {
                   notifications.push("error", err.message);
                 });
-            }
+            },
           },
           "Delete"
         )
       );
 
       return m(".actions-bar", buttons);
-    }
+    },
   };
 };
 

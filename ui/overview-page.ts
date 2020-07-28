@@ -30,7 +30,7 @@ for (const group of Object.values(GROUPS)) {
     CHARTS[chartName] = config.ui.overview.charts[chartName];
 }
 
-function queryCharts(charts): {} {
+function queryCharts(charts: Record<string, unknown>): Record<string, unknown> {
   charts = Object.assign({}, charts);
   for (let [chartName, chart] of Object.entries(charts)) {
     charts[chartName] = chart = Object.assign({}, chart);
@@ -44,7 +44,7 @@ function queryCharts(charts): {} {
   return charts;
 }
 
-export function init(): Promise<{}> {
+export function init(): Promise<Record<string, unknown>> {
   if (!window.authorizer.hasAccess("devices", 1)) {
     return Promise.reject(
       new Error("You are not authorized to view this page")
@@ -56,7 +56,7 @@ export function init(): Promise<{}> {
 
 export const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       document.title = "Overview - GenieACS";
       const children = [];
       for (const group of Object.values(GROUPS)) {
@@ -79,6 +79,6 @@ export const component: ClosureComponent = (): Component => {
       }
 
       return children;
-    }
+    },
   };
 };

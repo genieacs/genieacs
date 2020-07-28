@@ -36,8 +36,8 @@ function messageHandler(message): void {
   }
 }
 
-export function run(args): Promise<{ fault: Fault; value: any }> {
-  return new Promise(resolve => {
+export function run(args: string[]): Promise<{ fault: Fault; value: any }> {
+  return new Promise((resolve) => {
     const scriptName = args[0];
 
     const id = crypto.randomBytes(8).toString("hex");
@@ -45,16 +45,16 @@ export function run(args): Promise<{ fault: Fault; value: any }> {
 
     if (!processes[scriptName]) {
       const p = spawn(ROOT_DIR + "/bin/genieacs-ext", [scriptName], {
-        stdio: ["inherit", "inherit", "inherit", "ipc"]
+        stdio: ["inherit", "inherit", "inherit", "ipc"],
       });
       processes[scriptName] = p;
 
-      p.on("error", err => {
+      p.on("error", (err) => {
         if (processes[scriptName] === p) {
           if (jobs.delete(id)) {
             resolve({
               fault: { code: err.name, message: err.message },
-              value: null
+              value: null,
             });
           }
 
@@ -74,7 +74,7 @@ export function run(args): Promise<{ fault: Fault; value: any }> {
       if (jobs.delete(id)) {
         resolve({
           fault: { code: "timeout", message: "Extension timed out" },
-          value: null
+          value: null,
         });
       }
     }, TIMEOUT);
@@ -86,7 +86,7 @@ export function run(args): Promise<{ fault: Fault; value: any }> {
 }
 
 function kill(process: ChildProcess): Promise<void> {
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     const timeToKill = Date.now() + 5000;
 
     process.kill();

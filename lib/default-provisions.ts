@@ -21,10 +21,15 @@ import Path from "./common/path";
 import * as config from "./config";
 import * as device from "./device";
 import * as scheduling from "./scheduling";
+import { SessionContext, Declaration } from "./types";
 
 const MAX_DEPTH = +config.get("MAX_DEPTH");
 
-export function refresh(sessionContext, provision, declarations): boolean {
+export function refresh(
+  sessionContext: SessionContext,
+  provision: (string | number | boolean)[],
+  declarations: Declaration[]
+): boolean {
   if (
     (provision.length !== 2 || typeof provision[1] !== "string") &&
     (provision.length !== 3 ||
@@ -38,7 +43,7 @@ export function refresh(sessionContext, provision, declarations): boolean {
   segments.length = MAX_DEPTH;
   segments.fill("*", l);
   const path = Path.parse(segments.join("."));
-  const every = 1000 * (provision[2] || 1);
+  const every = 1000 * ((provision[2] as number) || 1);
   const offset = scheduling.variance(sessionContext.deviceId, every);
   const t = scheduling.interval(sessionContext.timestamp, every, offset);
 
@@ -49,14 +54,18 @@ export function refresh(sessionContext, provision, declarations): boolean {
       pathSet: null,
       attrGet: { object: 1, writable: 1, value: t },
       attrSet: null,
-      defer: true
+      defer: true,
     });
   }
 
   return true;
 }
 
-export function value(sessionContext, provision, declarations): boolean {
+export function value(
+  sessionContext: SessionContext,
+  provision: (string | number | boolean)[],
+  declarations: Declaration[]
+): boolean {
   if (provision.length !== 3 || typeof provision[1] !== "string")
     throw new Error("Invalid arguments");
 
@@ -66,13 +75,17 @@ export function value(sessionContext, provision, declarations): boolean {
     pathSet: null,
     attrGet: { value: 1 },
     attrSet: { value: [provision[2]] },
-    defer: true
+    defer: true,
   });
 
   return true;
 }
 
-export function tag(sessionContext, provision, declarations): boolean {
+export function tag(
+  sessionContext: SessionContext,
+  provision: (string | number | boolean)[],
+  declarations: Declaration[]
+): boolean {
   if (
     provision.length !== 3 ||
     typeof provision[1] !== "string" ||
@@ -86,13 +99,17 @@ export function tag(sessionContext, provision, declarations): boolean {
     pathSet: null,
     attrGet: { value: 1 },
     attrSet: { value: [provision[2]] },
-    defer: true
+    defer: true,
   });
 
   return true;
 }
 
-export function reboot(sessionContext, provision, declarations): boolean {
+export function reboot(
+  sessionContext: SessionContext,
+  provision: (string | number | boolean)[],
+  declarations: Declaration[]
+): boolean {
   if (provision.length !== 1) throw new Error("Invalid arguments");
 
   declarations.push({
@@ -101,13 +118,17 @@ export function reboot(sessionContext, provision, declarations): boolean {
     pathSet: null,
     attrGet: { value: 1 },
     attrSet: { value: [sessionContext.timestamp] },
-    defer: true
+    defer: true,
   });
 
   return true;
 }
 
-export function reset(sessionContext, provision, declarations): boolean {
+export function reset(
+  sessionContext: SessionContext,
+  provision: (string | number | boolean)[],
+  declarations: Declaration[]
+): boolean {
   if (provision.length !== 1) throw new Error("Invalid arguments");
 
   declarations.push({
@@ -116,13 +137,17 @@ export function reset(sessionContext, provision, declarations): boolean {
     pathSet: null,
     attrGet: { value: 1 },
     attrSet: { value: [sessionContext.timestamp] },
-    defer: true
+    defer: true,
   });
 
   return true;
 }
 
-export function download(sessionContext, provision, declarations): boolean {
+export function download(
+  sessionContext: SessionContext,
+  provision: (string | number | boolean)[],
+  declarations: Declaration[]
+): boolean {
   if (
     (provision.length !== 3 ||
       typeof provision[1] !== "string" ||
@@ -137,7 +162,7 @@ export function download(sessionContext, provision, declarations): boolean {
   const alias = [
     `FileType:${JSON.stringify(provision[1] || "")}`,
     `FileName:${JSON.stringify(provision[2] || "")}`,
-    `TargetFileName:${JSON.stringify(provision[3] || "")}`
+    `TargetFileName:${JSON.stringify(provision[3] || "")}`,
   ].join(",");
 
   declarations.push({
@@ -146,7 +171,7 @@ export function download(sessionContext, provision, declarations): boolean {
     pathSet: 1,
     attrGet: null,
     attrSet: null,
-    defer: true
+    defer: true,
   });
 
   declarations.push({
@@ -155,18 +180,18 @@ export function download(sessionContext, provision, declarations): boolean {
     pathSet: null,
     attrGet: { value: 1 },
     attrSet: { value: [sessionContext.timestamp] },
-    defer: true
+    defer: true,
   });
 
   return true;
 }
 
 export function instances(
-  sessionContext,
-  provision,
-  declarations,
-  startRevision,
-  endRevision
+  sessionContext: SessionContext,
+  provision: (string | number | boolean)[],
+  declarations: Declaration[],
+  startRevision: number,
+  endRevision: number
 ): boolean {
   if (provision.length !== 3 || typeof provision[1] !== "string")
     throw new Error("Invalid arguments");
@@ -184,7 +209,7 @@ export function instances(
       pathSet: null,
       attrGet: null,
       attrSet: null,
-      defer: true
+      defer: true,
     });
 
     if (endRevision === startRevision) return false;
@@ -203,7 +228,7 @@ export function instances(
     pathSet: count,
     attrGet: null,
     attrSet: null,
-    defer: true
+    defer: true,
   });
 
   return true;

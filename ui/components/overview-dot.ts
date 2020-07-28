@@ -26,9 +26,9 @@ const CHARTS = config.ui.overview.charts;
 
 const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       const device = vnode.attrs["device"];
-      const chart = CHARTS[vnode.attrs["chart"]];
+      const chart = CHARTS[vnode.attrs["chart"]] as Record<string, unknown>;
       if (!chart) return null;
       for (const slice of Object.values(chart.slices)) {
         const filter = slice["filter"];
@@ -39,20 +39,20 @@ const component: ClosureComponent = (): Component => {
               width: "1em",
               height: "1em",
               xmlns: "http://www.w3.org/2000/svg",
-              "xmlns:xlink": "http://www.w3.org/1999/xlink"
+              "xmlns:xlink": "http://www.w3.org/1999/xlink",
             },
             m("circle", {
               cx: "0.5em",
               cy: "0.5em",
               r: "0.4em",
-              fill: slice["color"]
+              fill: slice["color"],
             })
           );
           return m("span.overview-dot", dot, `${slice["label"]}`);
         }
       }
       return null;
-    }
+    },
   };
 };
 

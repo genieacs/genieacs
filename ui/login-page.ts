@@ -24,13 +24,15 @@ import * as notifications from "./notifications";
 import * as overlay from "./overlay";
 import changePasswordComponent from "./change-password-component";
 
-export function init(args): Promise<{}> {
+export function init(
+  args: Record<string, unknown>
+): Promise<Record<string, unknown>> {
   return Promise.resolve(args);
 }
 
 export const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       if (window.username) m.route.set(vnode.attrs["continue"] || "/");
 
       document.title = "Login - GenieACS";
@@ -45,12 +47,12 @@ export const component: ClosureComponent = (): Component => {
               name: "username",
               type: "text",
               value: vnode.state["username"],
-              oncreate: vnode2 => {
+              oncreate: (vnode2) => {
                 (vnode2.dom as HTMLInputElement).focus();
               },
-              oninput: e => {
+              oninput: (e) => {
                 vnode.state["username"] = e.target.value;
-              }
+              },
             })
           ),
           m(
@@ -60,9 +62,9 @@ export const component: ClosureComponent = (): Component => {
               name: "password",
               type: "password",
               value: vnode.state["password"],
-              oninput: e => {
+              oninput: (e) => {
                 vnode.state["password"] = e.target.value;
-              }
+              },
             })
           ),
           m(
@@ -71,19 +73,19 @@ export const component: ClosureComponent = (): Component => {
               "button.primary",
               {
                 type: "submit",
-                onclick: e => {
+                onclick: (e) => {
                   e.target.disabled = true;
                   store
                     .logIn(vnode.state["username"], vnode.state["password"])
                     .then(() => {
                       location.reload();
                     })
-                    .catch(err => {
+                    .catch((err) => {
                       notifications.push("error", err.message);
                       e.target.disabled = false;
                     });
                   return false;
-                }
+                },
               },
               "Login"
             )
@@ -98,16 +100,16 @@ export const component: ClosureComponent = (): Component => {
                   onPasswordChange: () => {
                     overlay.close(cb);
                     m.redraw();
-                  }
+                  },
                 };
                 return m(changePasswordComponent, attrs);
               };
               overlay.open(cb);
-            }
+            },
           },
           "Change password"
-        )
+        ),
       ];
-    }
+    },
   };
 };

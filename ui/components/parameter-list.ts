@@ -22,14 +22,14 @@ import { m } from "../components";
 
 const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       const device = vnode.attrs["device"];
 
-      const rows = Object.values(vnode.attrs["parameters"]).map(parameter => {
+      const rows = Object.values(vnode.attrs["parameters"]).map((parameter) => {
         const p = m.context(
           {
             device: device,
-            parameter: parameter["parameter"]
+            parameter: parameter["parameter"],
           },
           parameter["type"] || "parameter",
           parameter
@@ -38,11 +38,11 @@ const component: ClosureComponent = (): Component => {
         return m(
           "tr",
           {
-            onupdate: vn => {
+            onupdate: (vn) => {
               (vn.dom as HTMLElement).style.display = (p as VnodeDOM).dom
                 ? ""
                 : "none";
-            }
+            },
           },
           m("th", parameter["label"]),
           m("td", p)
@@ -50,7 +50,7 @@ const component: ClosureComponent = (): Component => {
       });
 
       return m("table.parameter-list", rows);
-    }
+    },
   };
 };
 

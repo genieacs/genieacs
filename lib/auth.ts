@@ -19,11 +19,11 @@
 
 import { createHash, randomBytes, pbkdf2 } from "crypto";
 
-function parseHeaderFeilds(str: string): {} {
+function parseHeaderFeilds(str: string): Record<string, string> {
   const res = {};
   const parts = str.split(",");
 
-  let part;
+  let part: string;
   while ((part = parts.shift()) != null) {
     const name = part.split("=", 1)[0];
     if (name.length === part.length) {
@@ -52,7 +52,9 @@ function parseHeaderFeilds(str: string): {} {
   return res;
 }
 
-export function parseAuthorizationHeader(authHeader): { method: string } {
+export function parseAuthorizationHeader(
+  authHeader: string
+): { method: string } {
   authHeader = authHeader.trim();
   const method = authHeader.split(" ", 1)[0];
   const res = { method: method };
@@ -74,7 +76,9 @@ export function parseAuthorizationHeader(authHeader): { method: string } {
   return res;
 }
 
-export function parseWwwAuthenticateHeader(authHeader): {} {
+export function parseWwwAuthenticateHeader(
+  authHeader: string
+): Record<string, string> {
   authHeader = authHeader.trim();
   const method = authHeader.split(" ", 1)[0];
   const res = { method: method };
@@ -82,7 +86,7 @@ export function parseWwwAuthenticateHeader(authHeader): {} {
   return res;
 }
 
-export function basic(username, password): string {
+export function basic(username: string, password: string): string {
   return "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
 }
 
@@ -99,20 +103,12 @@ export function digest(
   nc?: string | Buffer
 ): string {
   const ha1 = createHash("md5");
-  ha1
-    .update(username)
-    .update(":")
-    .update(realm)
-    .update(":")
-    .update(password);
+  ha1.update(username).update(":").update(realm).update(":").update(password);
   // TODO support "MD5-sess" algorithm directive
   const ha1d = ha1.digest("hex");
 
   const ha2 = createHash("md5");
-  ha2
-    .update(httpMethod)
-    .update(":")
-    .update(uri);
+  ha2.update(httpMethod).update(":").update(uri);
 
   if (qop === "auth-int") {
     const bodyHash = createHash("md5")
@@ -124,10 +120,7 @@ export function digest(
   const ha2d = ha2.digest("hex");
 
   const hash = createHash("md5");
-  hash
-    .update(ha1d)
-    .update(":")
-    .update(nonce);
+  hash.update(ha1d).update(":").update(nonce);
   if (qop) {
     hash
       .update(":")
@@ -148,7 +141,7 @@ export function solveDigest(
   uri: string | Buffer,
   httpMethod: string | Buffer,
   body: string | Buffer,
-  authHeader
+  authHeader: Record<string, string>
 ): string {
   const cnonce = randomBytes(8).toString("hex");
   const nc = "00000001";
@@ -185,7 +178,7 @@ export function solveDigest(
   return authString;
 }
 
-export function generateSalt(length): Promise<string> {
+export function generateSalt(length: number): Promise<string> {
   return new Promise((resolve, reject) => {
     randomBytes(length, (err, rand) => {
       if (err) return void reject(err);
@@ -194,7 +187,7 @@ export function generateSalt(length): Promise<string> {
   });
 }
 
-export function hashPassword(pass, salt): Promise<string> {
+export function hashPassword(pass: string, salt: string): Promise<string> {
   return new Promise((resolve, reject) => {
     pbkdf2(pass, salt, 10000, 128, "sha512", (err, hash) => {
       if (err) return void reject(err);

@@ -27,7 +27,7 @@ import {
   SessionFault,
   Task,
   Operation,
-  Expression
+  Expression,
 } from "./types";
 import Path from "./common/path";
 
@@ -49,7 +49,7 @@ export let client: MongoClient;
 
 export async function connect(): Promise<void> {
   clientPromise = MongoClient.connect("" + get("MONGODB_CONNECTION_URL"), {
-    useNewUrlParser: true
+    useNewUrlParser: true,
   });
 
   client = await clientPromise;
@@ -77,7 +77,7 @@ export async function disconnect(): Promise<void> {
 
 // Optimize projection by removing overlaps
 // This can modify the object
-function optimizeProjection(obj: {}): {} {
+function optimizeProjection(obj: { [path: string]: 1 }): { [path: string]: 1 } {
   if (obj[""]) return { "": obj[""] };
 
   const keys = Object.keys(obj).sort();
@@ -104,13 +104,13 @@ export async function fetchDevice(
     [
       Path.parse("Events"),
       timestamp,
-      { object: [timestamp, 1], writable: [timestamp, 0] }
+      { object: [timestamp, 1], writable: [timestamp, 0] },
     ],
     [
       Path.parse("DeviceID"),
       timestamp,
-      { object: [timestamp, 1], writable: [timestamp, 0] }
-    ]
+      { object: [timestamp, 1], writable: [timestamp, 0] },
+    ],
   ];
 
   const device = await devicesCollection.findOne({ _id: id });
@@ -157,8 +157,8 @@ export async function fetchDevice(
           {
             object: [+v, 0],
             writable: [+v, 0],
-            value: [+v, [+v, "xsd:dateTime"]]
-          }
+            value: [+v, [+v, "xsd:dateTime"]],
+          },
         ]);
         break;
       case "_lastBoot":
@@ -168,8 +168,8 @@ export async function fetchDevice(
           {
             object: [+v, 0],
             writable: [+v, 0],
-            value: [+v, [+v, "xsd:dateTime"]]
-          }
+            value: [+v, [+v, "xsd:dateTime"]],
+          },
         ]);
         break;
       case "_lastBootstrap":
@@ -179,8 +179,8 @@ export async function fetchDevice(
           {
             object: [+v, 0],
             writable: [+v, 0],
-            value: [+v, [+v, "xsd:dateTime"]]
-          }
+            value: [+v, [+v, "xsd:dateTime"]],
+          },
         ]);
         break;
       case "_registered":
@@ -191,8 +191,8 @@ export async function fetchDevice(
           {
             object: [timestamp, 0],
             writable: [timestamp, 0],
-            value: [timestamp, [+v, "xsd:dateTime"]]
-          }
+            value: [timestamp, [+v, "xsd:dateTime"]],
+          },
         ]);
         break;
       case "_id":
@@ -202,8 +202,8 @@ export async function fetchDevice(
           {
             object: [timestamp, 0],
             writable: [timestamp, 0],
-            value: [timestamp, [v as string, "xsd:string"]]
-          }
+            value: [timestamp, [v as string, "xsd:string"]],
+          },
         ]);
         break;
       case "_tags":
@@ -211,7 +211,7 @@ export async function fetchDevice(
           res.push([
             Path.parse("Tags"),
             timestamp,
-            { object: [timestamp, 1], writable: [timestamp, 0] }
+            { object: [timestamp, 1], writable: [timestamp, 0] },
           ]);
         }
 
@@ -223,8 +223,8 @@ export async function fetchDevice(
             {
               object: [timestamp, 0],
               writable: [timestamp, 1],
-              value: [timestamp, [true, "xsd:boolean"]]
-            }
+              value: [timestamp, [true, "xsd:boolean"]],
+            },
           ]);
         }
         break;
@@ -236,8 +236,8 @@ export async function fetchDevice(
             {
               object: [timestamp, 0],
               writable: [timestamp, 0],
-              value: [timestamp, [v["_Manufacturer"], "xsd:string"]]
-            }
+              value: [timestamp, [v["_Manufacturer"], "xsd:string"]],
+            },
           ]);
         }
 
@@ -248,8 +248,8 @@ export async function fetchDevice(
             {
               object: [timestamp, 0],
               writable: [timestamp, 0],
-              value: [timestamp, [v["_OUI"], "xsd:string"]]
-            }
+              value: [timestamp, [v["_OUI"], "xsd:string"]],
+            },
           ]);
         }
 
@@ -260,8 +260,8 @@ export async function fetchDevice(
             {
               object: [timestamp, 0],
               writable: [timestamp, 0],
-              value: [timestamp, [v["_ProductClass"], "xsd:string"]]
-            }
+              value: [timestamp, [v["_ProductClass"], "xsd:string"]],
+            },
           ]);
         }
 
@@ -272,8 +272,8 @@ export async function fetchDevice(
             {
               object: [timestamp, 0],
               writable: [timestamp, 0],
-              value: [timestamp, [v["_SerialNumber"], "xsd:string"]]
-            }
+              value: [timestamp, [v["_SerialNumber"], "xsd:string"]],
+            },
           ]);
         }
     }
@@ -398,7 +398,7 @@ export async function saveDevice(
           } else {
             if (!update["$pull"]["_tags"]) {
               update["$pull"]["_tags"] = {
-                $in: []
+                $in: [],
               };
             }
             update["$pull"]["_tags"]["$in"].push(path.segments[1]);
@@ -510,7 +510,7 @@ export async function saveDevice(
   }
 
   const result = await devicesCollection.updateOne({ _id: deviceId }, update, {
-    upsert: isNew
+    upsert: isNew,
   });
 
   if (result.result.n !== 1)
@@ -523,7 +523,7 @@ export async function saveDevice(
 }
 
 export async function getFaults(
-  deviceId
+  deviceId: string
 ): Promise<{ [channel: string]: SessionFault }> {
   const res = await faultsCollection
     .find({ _id: { $regex: `^${escapeRegExp(deviceId)}\\:` } })
@@ -543,24 +543,31 @@ export async function getFaults(
   return faults;
 }
 
-export async function saveFault(deviceId, channel, fault): Promise<void> {
+export async function saveFault(
+  deviceId: string,
+  channel: string,
+  fault: SessionFault
+): Promise<void> {
   const id = `${deviceId}:${channel}`;
-  fault = Object.assign({}, fault);
-  fault._id = id;
-  fault.device = deviceId;
-  fault.channel = channel;
-  fault.timestamp = new Date(fault.timestamp);
-  fault.provisions = JSON.stringify(fault.provisions);
-  await faultsCollection.replaceOne({ _id: id }, fault, { upsert: true });
+  const f = Object.assign({}, fault) as Record<string, any>;
+  f["_id"] = id;
+  f["device"] = deviceId;
+  f["channel"] = channel;
+  f["timestamp"] = new Date(fault.timestamp);
+  f["provisions"] = JSON.stringify(fault.provisions);
+  await faultsCollection.replaceOne({ _id: id }, f, { upsert: true });
 }
 
-export async function deleteFault(deviceId, channel): Promise<void> {
+export async function deleteFault(
+  deviceId: string,
+  channel: string
+): Promise<void> {
   await faultsCollection.deleteOne({ _id: `${deviceId}:${channel}` });
 }
 
 export async function getDueTasks(
-  deviceId,
-  timestamp
+  deviceId: string,
+  timestamp: number
 ): Promise<[Task[], number]> {
   const cur = tasksCollection.find({ device: deviceId }).sort(["timestamp"]);
   const tasks = [] as Task[];
@@ -593,14 +600,17 @@ export async function getDueTasks(
   return [tasks, null];
 }
 
-export async function clearTasks(deviceId, taskIds): Promise<void> {
+export async function clearTasks(
+  deviceId: string,
+  taskIds: string[]
+): Promise<void> {
   await tasksCollection.deleteMany({
-    _id: { $in: taskIds.map(id => new ObjectID(id)) }
+    _id: { $in: taskIds.map((id) => new ObjectID(id)) },
   });
 }
 
 export async function getOperations(
-  deviceId
+  deviceId: string
 ): Promise<{ [commandKey: string]: Operation }> {
   const res = await operationsCollection
     .find({ _id: { $regex: `^${escapeRegExp(deviceId)}\\:` } })
@@ -620,43 +630,46 @@ export async function getOperations(
 }
 
 export async function saveOperation(
-  deviceId,
-  commandKey,
-  operation
+  deviceId: string,
+  commandKey: string,
+  operation: Operation
 ): Promise<void> {
   const id = `${deviceId}:${commandKey}`;
-  operation = Object.assign({}, operation);
-  operation._id = id;
-  operation.timestamp = new Date(operation.timestamp);
-  operation.provisions = JSON.stringify(operation.provisions);
-  operation.retries = JSON.stringify(operation.retries);
-  operation.args = JSON.stringify(operation.args);
+  const o = Object.assign({}, operation) as Record<string, any>;
+  o["_id"] = id;
+  o["timestamp"] = new Date(operation.timestamp);
+  o["provisions"] = JSON.stringify(operation.provisions);
+  o["retries"] = JSON.stringify(operation.retries);
+  o["args"] = JSON.stringify(operation.args);
   await operationsCollection.replaceOne({ _id: id }, operation, {
-    upsert: true
+    upsert: true,
   });
 }
 
-export async function deleteOperation(deviceId, commandKey): Promise<void> {
+export async function deleteOperation(
+  deviceId: string,
+  commandKey: string
+): Promise<void> {
   await operationsCollection.deleteOne({ _id: `${deviceId}:${commandKey}` });
 }
 
-export async function getPresets(): Promise<{}[]> {
+export async function getPresets(): Promise<Record<string, any>[]> {
   return presetsCollection.find().toArray();
 }
 
-export async function getObjects(): Promise<{}[]> {
+export async function getObjects(): Promise<Record<string, any>[]> {
   return objectsCollection.find().toArray();
 }
 
-export async function getProvisions(): Promise<{}[]> {
+export async function getProvisions(): Promise<Record<string, any>[]> {
   return provisionsCollection.find().toArray();
 }
 
-export async function getVirtualParameters(): Promise<{}[]> {
+export async function getVirtualParameters(): Promise<Record<string, any>[]> {
   return virtualParametersCollection.find().toArray();
 }
 
-export function getFiles(): Promise<{}[]> {
+export function getFiles(): Promise<Record<string, any>[]> {
   return filesCollection.find().toArray();
 }
 
@@ -664,9 +677,9 @@ export async function getConfig(): Promise<
   { id: string; value: Expression }[]
 > {
   const res = await configCollection.find().toArray();
-  return res.map(c => ({
+  return res.map((c) => ({
     id: c["_id"],
-    value: parse(c["value"])
+    value: parse(c["value"]),
   }));
 }
 

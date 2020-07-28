@@ -22,7 +22,7 @@ import { ClosureComponent, Component } from "mithril";
 
 const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       const active = { [vnode.attrs["page"]]: "active" };
       const tabs = [];
 
@@ -97,7 +97,7 @@ const component: ClosureComponent = (): Component => {
       }
 
       return m("nav#side-menu", m("ul", tabs));
-    }
+    },
   };
 };
 

@@ -29,7 +29,7 @@ let mongoTimeOffset = 0;
 export async function connect(): Promise<void> {
   const MONGODB_CONNECTION_URL = "" + config.get("MONGODB_CONNECTION_URL");
   clientPromise = MongoClient.connect(MONGODB_CONNECTION_URL, {
-    useNewUrlParser: true
+    useNewUrlParser: true,
   });
   const db = (await clientPromise).db();
   mongoCollection = db.collection("cache");
@@ -43,7 +43,7 @@ export async function disconnect(): Promise<void> {
   if (clientPromise) await (await clientPromise).close();
 }
 
-export async function get(key): Promise<any> {
+export async function get(key: string | string[]): Promise<any> {
   const expire = new Date(Date.now() - mongoTimeOffset);
   if (Array.isArray(key)) {
     const res = await mongoCollection.find({ _id: { $in: key } }).toArray();
@@ -54,7 +54,7 @@ export async function get(key): Promise<any> {
     });
 
     const values = [];
-    res.forEach(r => {
+    res.forEach((r) => {
       if (r["expire"] > expire) values[indices[r["_id"]]] = r["value"];
     });
 
@@ -66,7 +66,7 @@ export async function get(key): Promise<any> {
   }
 }
 
-export async function del(key): Promise<void> {
+export async function del(key: string | string[]): Promise<void> {
   if (Array.isArray(key))
     await mongoCollection.deleteMany({ _id: { $in: key } });
   else await mongoCollection.deleteOne({ _id: key });
@@ -85,7 +85,7 @@ export async function set(
   );
 }
 
-export async function pop(key): Promise<any> {
+export async function pop(key: string): Promise<any> {
   const res = await mongoCollection.findOneAndDelete({ _id: key });
 
   if (
@@ -98,16 +98,17 @@ export async function pop(key): Promise<any> {
   return null;
 }
 
-export async function lock(lockName, ttl): Promise<Function> {
-  const token = Math.random()
-    .toString(36)
-    .slice(2);
+export async function lock(
+  lockName: string,
+  ttl: number
+): Promise<(extendTtl?: number) => Promise<void>> {
+  const token = Math.random().toString(36).slice(2);
 
-  async function unlockOrExtend(extendTtl): Promise<void> {
+  async function unlockOrExtend(extendTtl?: number): Promise<void> {
     if (!extendTtl) {
       const res = await mongoCollection.deleteOne({
         _id: lockName,
-        value: token
+        value: token,
       });
       if (res["result"]["n"] !== 1) throw new Error("Lock expired");
     } else {
@@ -131,7 +132,7 @@ export async function lock(lockName, ttl): Promise<Function> {
     );
   } catch (err) {
     if (err && err.code === 11000) {
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 200));
       return lock(lockName, ttl);
     }
   }

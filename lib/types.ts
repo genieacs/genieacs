@@ -152,7 +152,7 @@ export interface SessionContext {
 }
 
 export interface Task {
-  _id: string;
+  _id?: string;
   name: string;
   parameterNames?: string[];
   parameterValues?: [string, string | number | boolean, string?][];
@@ -300,7 +300,7 @@ export interface QueryOptions {
 export interface Declaration {
   path: Path;
   pathGet: number;
-  pathSet?: [number, number];
+  pathSet?: number | [number, number];
   attrGet?: { object?: number; writable?: number; value?: number };
   attrSet?: {
     object?: boolean;
@@ -322,7 +322,7 @@ export interface Preset {
   channel: string;
   schedule?: { md5: string; duration: number; schedule: any };
   events?: { [event: string]: boolean };
-  precondition?: {};
+  precondition?: Expression;
   provisions: string[][];
 }
 
@@ -367,12 +367,12 @@ export interface Config {
 }
 
 export interface UiConfig {
-  filters: {};
-  device: {};
-  index: {};
+  filters: Record<string, unknown>;
+  device: Record<string, unknown>;
+  index: Record<string, unknown>;
   overview: {
-    charts?: {};
-    groups?: {};
+    charts?: Record<string, unknown>;
+    groups?: Record<string, unknown>;
   };
   pageSize?: Expression;
 }

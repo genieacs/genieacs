@@ -127,7 +127,7 @@ function random(): number {
   return state.rng();
 }
 
-random.seed = function(s) {
+random.seed = function (s) {
   state.rng = seedrandom(s);
 };
 
@@ -135,7 +135,7 @@ class ParameterWrapper {
   public constructor(path: Path, attributes, unpacked?, unpackedRevision?) {
     for (const attrName of attributes) {
       Object.defineProperty(this, attrName, {
-        get: function() {
+        get: function () {
           if (state.uncommitted) commit();
 
           if (state.revision !== unpackedRevision) {
@@ -157,12 +157,12 @@ class ParameterWrapper {
           if (!attr) return UNDEFINED;
 
           return attr[1];
-        }
+        },
       });
     }
 
     Object.defineProperty(this, "path", {
-      get: function() {
+      get: function () {
         if (state.uncommitted) commit();
 
         if (state.revision !== unpackedRevision) {
@@ -177,11 +177,11 @@ class ParameterWrapper {
         if (!unpacked.length) return UNDEFINED;
 
         return unpacked[0].toString();
-      }
+      },
     });
 
     Object.defineProperty(this, "size", {
-      get: function() {
+      get: function () {
         if (state.uncommitted) commit();
 
         if (state.revision !== unpackedRevision) {
@@ -196,10 +196,10 @@ class ParameterWrapper {
         if (!unpacked.length) return UNDEFINED;
 
         return unpacked.length;
-      }
+      },
     });
 
-    this[Symbol.iterator] = function*() {
+    this[Symbol.iterator] = function* () {
       if (state.uncommitted) commit();
 
       if (state.revision !== unpackedRevision) {
@@ -235,7 +235,7 @@ function declare(
     pathSet: null,
     attrGet: null,
     attrSet: null,
-    defer: true
+    defer: true,
   };
 
   const attrs = new Set();
@@ -290,9 +290,9 @@ function commit(): void {
   }
 }
 
-function ext(): any {
+function ext(...args: unknown[]): any {
   ++state.extCounter;
-  const extCall = Array.from(arguments).map(String);
+  const extCall = args.map(String);
   const key = `${state.revision}: ${JSON.stringify(extCall)}`;
 
   if (key in state.sessionContext.extensionsCache)
@@ -302,11 +302,11 @@ function ext(): any {
   throw EXT;
 }
 
-function log(msg: string, meta: {}): void {
+function log(msg: string, meta: Record<string, unknown>): void {
   if (state.revision === state.maxRevision && state.extCounter >= 0) {
     const details = Object.assign({}, meta, {
       sessionContext: state.sessionContext,
-      message: `Script: ${msg}`
+      message: `Script: ${msg}`,
     });
 
     delete details["hostname"];
@@ -342,8 +342,8 @@ function errorToFault(err: Error): Fault {
     message: err.message,
     detail: {
       name: err.name,
-      message: err.message
-    }
+      message: err.message,
+    },
   };
 
   if (err.stack) {
@@ -365,7 +365,7 @@ function errorToFault(err: Error): Fault {
 
 export async function run(
   script: vm.Script,
-  globals: {},
+  globals: Record<string, unknown>,
   sessionContext: SessionContext,
   startRevision: number,
   maxRevision: number,
@@ -380,7 +380,7 @@ export async function run(
     extensions: {},
     clear: [],
     rng: null,
-    extCounter: extCounter
+    extCounter: extCounter,
   };
 
   for (const n of Object.keys(context)) delete context[n];
@@ -403,7 +403,7 @@ export async function run(
         clear: null,
         declare: null,
         done: false,
-        returnValue: null
+        returnValue: null,
       };
     }
   }
@@ -423,7 +423,7 @@ export async function run(
       clear: null,
       declare: null,
       done: false,
-      returnValue: null
+      returnValue: null,
     };
   }
 
@@ -443,6 +443,6 @@ export async function run(
     clear: _state.clear,
     declare: _state.declarations,
     done: status === 0,
-    returnValue: ret
+    returnValue: ret,
   };
 }

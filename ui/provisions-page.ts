@@ -38,11 +38,11 @@ const memoizedJsonParse = memoize(JSON.parse);
 
 const attributes = [
   { id: "_id", label: "Name" },
-  { id: "script", label: "Script", type: "code" }
+  { id: "script", label: "Script", type: "code" },
 ];
 
-const unpackSmartQuery = memoize(query => {
-  return map(query, e => {
+const unpackSmartQuery = memoize((query) => {
+  return map(query, (e) => {
     if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "Q")
       return smartQuery.unpack("provisions", e[2], e[3]);
     return e;
@@ -64,7 +64,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
 
       store
         .resourceExists("provisions", id)
-        .then(exists => {
+        .then((exists) => {
           if (exists && isNew) {
             store.fulfill(0, Date.now());
             return void resolve({ _id: "Provision already exists" });
@@ -96,7 +96,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
           store.fulfill(0, Date.now());
           resolve();
         })
-        .catch(err => {
+        .catch((err) => {
           store.fulfill(0, Date.now());
           reject(err);
         });
@@ -108,19 +108,21 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
 
 const formData = {
   resource: "provisions",
-  attributes: attributes
+  attributes: attributes,
 };
 
-const getDownloadUrl = memoize(filter => {
+const getDownloadUrl = memoize((filter) => {
   const cols = {};
   for (const attr of attributes) cols[attr.label] = attr.id;
   return `api/provisions.csv?${m.buildQueryString({
     filter: stringify(filter),
-    columns: JSON.stringify(cols)
+    columns: JSON.stringify(cols),
   })}`;
 });
 
-export function init(args): Promise<{}> {
+export function init(
+  args: Record<string, unknown>
+): Promise<Record<string, unknown>> {
   if (!window.authorizer.hasAccess("provisions", 2)) {
     return Promise.reject(
       new Error("You are not authorized to view this page")
@@ -141,7 +143,7 @@ export function init(args): Promise<{}> {
 
 export const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       document.title = "Provisions - GenieACS";
 
       function showMore(): void {
@@ -184,7 +186,7 @@ export const component: ClosureComponent = (): Component => {
 
       const provisions = store.fetch("provisions", filter, {
         limit: vnode.state["showCount"] || PAGE_SIZE,
-        sort: sort
+        sort: sort,
       });
 
       const count = store.count("provisions", filter);
@@ -199,7 +201,7 @@ export const component: ClosureComponent = (): Component => {
       attrs["sortAttributes"] = sortAttributes;
       attrs["onSortChange"] = onSortChange;
       attrs["downloadUrl"] = downloadUrl;
-      attrs["recordActionsCallback"] = provision => {
+      attrs["recordActionsCallback"] = (provision) => {
         return [
           m(
             "a",
@@ -212,9 +214,9 @@ export const component: ClosureComponent = (): Component => {
                       {
                         base: provision,
                         actionHandler: (action, object) => {
-                          return new Promise(resolve => {
+                          return new Promise((resolve) => {
                             putActionHandler(action, object, false)
-                              .then(errors => {
+                              .then((errors) => {
                                 const errorList = errors
                                   ? Object.values(errors)
                                   : [];
@@ -226,27 +228,27 @@ export const component: ClosureComponent = (): Component => {
                                 }
                                 resolve();
                               })
-                              .catch(err => {
+                              .catch((err) => {
                                 notifications.push("error", err.message);
                                 resolve();
                               });
                           });
-                        }
+                        },
                       },
                       formData
                     )
                   );
                 };
                 overlay.open(cb);
-              }
+              },
             },
             "Show"
-          )
+          ),
         ];
       };
 
       if (window.authorizer.hasAccess("provisions", 3)) {
-        attrs["actionsCallback"] = (selected): Children => {
+        attrs["actionsCallback"] = (selected: Set<string>): Children => {
           return [
             m(
               "button.primary",
@@ -259,9 +261,9 @@ export const component: ClosureComponent = (): Component => {
                       Object.assign(
                         {
                           actionHandler: (action, object) => {
-                            return new Promise(resolve => {
+                            return new Promise((resolve) => {
                               putActionHandler(action, object, true)
-                                .then(errors => {
+                                .then((errors) => {
                                   const errorList = errors
                                     ? Object.values(errors)
                                     : [];
@@ -273,19 +275,19 @@ export const component: ClosureComponent = (): Component => {
                                   }
                                   resolve();
                                 })
-                                .catch(err => {
+                                .catch((err) => {
                                   notifications.push("error", err.message);
                                   resolve();
                                 });
                             });
-                          }
+                          },
                         },
                         formData
                       )
                     );
                   };
                   overlay.open(cb);
-                }
+                },
               },
               "New"
             ),
@@ -294,7 +296,7 @@ export const component: ClosureComponent = (): Component => {
               {
                 title: "Delete selected provisions",
                 disabled: !selected.size,
-                onclick: e => {
+                onclick: (e) => {
                   if (
                     !confirm(
                       `Deleting ${selected.size} provisions. Are you sure?`
@@ -305,25 +307,25 @@ export const component: ClosureComponent = (): Component => {
                   e.redraw = false;
                   e.target.disabled = true;
                   Promise.all(
-                    Array.from(selected).map(id =>
+                    Array.from(selected).map((id) =>
                       store.deleteResource("provisions", id)
                     )
                   )
-                    .then(res => {
+                    .then((res) => {
                       notifications.push(
                         "success",
                         `${res.length} provisions deleted`
                       );
                       store.fulfill(0, Date.now());
                     })
-                    .catch(err => {
+                    .catch((err) => {
                       notifications.push("error", err.message);
                       store.fulfill(0, Date.now());
                     });
-                }
+                },
               },
               "Delete"
-            )
+            ),
           ];
         };
       }
@@ -336,8 +338,8 @@ export const component: ClosureComponent = (): Component => {
       return [
         m("h1", "Listing provisions"),
         m(filterComponent, filterAttrs),
-        m(indexTableComponent, attrs)
+        m(indexTableComponent, attrs),
       ];
-    }
+    },
   };
 };

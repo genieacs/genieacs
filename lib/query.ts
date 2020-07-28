@@ -17,7 +17,9 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import * as common from "./common";
+function isObject(obj: any): boolean {
+  return Object.prototype.toString.call(obj) === "[object Object]";
+}
 
 function stringToRegexp(input, flags?): RegExp | false {
   if (input.indexOf("*") === -1) return false;
@@ -34,8 +36,8 @@ function stringToRegexp(input, flags?): RegExp | false {
 }
 
 function normalize(input): any {
-  if (common.typeOf(input) === common.STRING_TYPE) {
-    const vals = [input];
+  if (typeof input === "string") {
+    const vals: any = [input];
     const m = /^\/(.*?)\/(g?i?m?y?)$/.exec(input);
     if (m) vals.push({ $regex: new RegExp(m[1], m[2]) });
 
@@ -52,14 +54,14 @@ function normalize(input): any {
   return input;
 }
 
-export function expandValue(value): any[] {
-  if (common.typeOf(value) === common.ARRAY_TYPE) {
+function expandValue(value: unknown): unknown[] {
+  if (Array.isArray(value)) {
     let a = [];
     for (const j of value) a = a.concat(expandValue(j));
     return [a];
-  } else if (common.typeOf(value) !== common.OBJECT_TYPE) {
+  } else if (!isObject(value)) {
     const n = normalize(value);
-    if (common.typeOf(n) !== common.ARRAY_TYPE) return [n];
+    if (!Array.isArray(n)) return [n];
     else return n;
   }
 
@@ -103,12 +105,14 @@ function permute(param, val): any[] {
   return conditions;
 }
 
-export function expand(query): {} {
+export function expand(
+  query: Record<string, unknown>
+): Record<string, unknown> {
   const newQuery = {};
   for (const [k, v] of Object.entries(query)) {
     if (k[0] === "$") {
       // Operator
-      newQuery[k] = (v as any[]).map(e => expand(e));
+      newQuery[k] = (v as any[]).map((e) => expand(e));
     } else {
       const conditions = permute(k, v);
       if (conditions.length > 1) {
@@ -129,100 +133,16 @@ export function expand(query): {} {
   return newQuery;
 }
 
-function testExpressions(params, expressions, lop): boolean {
-  for (const f of expressions) {
-    const res = test(params, f);
-    switch (lop) {
-      case "$and":
-        if (!res) return false;
-        break;
-      case "$or":
-        if (res) return true;
-        break;
-      case "$nor":
-        if (res) return false;
-    }
-  }
-
-  switch (lop) {
-    case "$and":
-      return true;
-    case "$or":
-      return false;
-    case "$nor":
-      return true;
-    default:
-      throw new Error("Unknown logical operator");
-  }
-}
-
-export function test(params, query): boolean {
-  let res;
-  for (const [k, v] of Object.entries(query)) {
-    if (k.charAt(0) === "$") {
-      // Logical operator
-      res = testExpressions(params, v, k);
-    } else {
-      const value = params[k];
-      if (common.typeOf(v) !== common.OBJECT_TYPE) {
-        if (common.typeOf(value) === common.ARRAY_TYPE) {
-          // TODO comparing array to regex, array to array, and object to object
-          res = value.indexOf(v) !== -1;
-        } else {
-          if (common.typeOf(v) === common.REGEXP_TYPE)
-            res = (v as RegExp).test(value);
-          else res = v === value;
-        }
-      } else {
-        for (const [k2, v2] of Object.entries(v)) {
-          switch (k2) {
-            case "$ne":
-              if (common.typeOf(value) === common.ARRAY_TYPE)
-                res = value.indexOf(v2) === -1;
-              else res = value !== v2;
-              break;
-            case "$lt":
-              res = value < v2;
-              break;
-            case "$lte":
-              res = value <= v2;
-              break;
-            case "$gt":
-              res = value > v2;
-              break;
-            case "$gte":
-              res = value >= v2;
-              break;
-            case "$regex":
-              res = v2.test(value);
-              break;
-            case "$in":
-              throw new Error("Operator not supported");
-            case "$nin":
-              throw new Error("Operator not supported");
-            case "$all":
-              throw new Error("Operator not supported");
-            case "$exists":
-              throw new Error("Operator not supported");
-            default:
-              throw new Error("Operator not supported");
-          }
-        }
-      }
-    }
-
-    if (!res) return false;
-  }
-  return true;
-}
-
-export function sanitizeQueryTypes(query, types): {} {
+export function sanitizeQueryTypes(
+  query: Record<string, unknown>,
+  types: Record<string, (v: unknown) => unknown>
+): Record<string, unknown> {
   for (const [k, v] of Object.entries(query)) {
     if (k[0] === "$") {
       // Logical operator
       for (const vv of v as any[]) sanitizeQueryTypes(vv, types);
     } else if (k in types) {
-      if (common.typeOf(v) === common.OBJECT_TYPE) {
+      if (isObject(v)) {
         for (const [kk, vv] of Object.entries(v)) {
           switch (kk) {
             case "$in":

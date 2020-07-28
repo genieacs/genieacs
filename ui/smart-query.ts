@@ -27,18 +27,18 @@ const resources = {
     Channel: { parameter: ["PARAM", "channel"], type: "string" },
     Code: { parameter: ["PARAM", "code"], type: "string" },
     Retries: { parameter: ["PARAM", "retries"], type: "number" },
-    Timestamp: { parameter: ["PARAM", "timestamp"], type: "timestamp" }
+    Timestamp: { parameter: ["PARAM", "timestamp"], type: "timestamp" },
   },
   presets: {
     ID: { parameter: ["PARAM", "_id"], type: "string" },
     Channel: { parameter: ["PARAM", "channel"], type: "string" },
-    Weight: { parameter: ["PARAM", "weight"], type: "number" }
+    Weight: { parameter: ["PARAM", "weight"], type: "number" },
   },
   provisions: {
-    ID: { parameter: ["PARAM", "_id"], type: "string" }
+    ID: { parameter: ["PARAM", "_id"], type: "string" },
   },
   virtualParameters: {
-    ID: { parameter: ["PARAM", "_id"], type: "string" }
+    ID: { parameter: ["PARAM", "_id"], type: "string" },
   },
   files: {
     ID: { parameter: ["PARAM", "_id"], type: "string" },
@@ -46,35 +46,36 @@ const resources = {
     OUI: { parameter: ["PARAM", "metadata.oui"], type: "string" },
     "Product class": {
       parameter: ["PARAM", "metadata.productClass"],
-      type: "string"
+      type: "string",
     },
-    Version: { parameter: ["PARAM", "metadata.version"], type: "string" }
+    Version: { parameter: ["PARAM", "metadata.version"], type: "string" },
   },
   permissions: {
     Role: { parameter: ["PARAM", "role"], type: "string" },
     Resource: { parameter: ["PARAM", "resource"], type: "string" },
-    Access: { parameter: ["PARAM", "access"], type: "number" }
+    Access: { parameter: ["PARAM", "access"], type: "number" },
   },
-  users: { Username: { parameter: ["PARAM", "_id"], type: "string" } }
+  users: { Username: { parameter: ["PARAM", "_id"], type: "string" } },
 };
 
-for (const v of Object.values(config.ui.filters as {
-  label: string;
-  parameter: string;
-  type: string;
-}[])) {
+for (const v of Object.values(
+  config.ui.filters as Record<
+    string,
+    { label: string; parameter: string; type: string }
+  >
+)) {
   resources.devices[v.label] = {
     parameter: v.parameter,
-    type: (v.type || "").split(",").map(s => s.trim())
+    type: (v.type || "").split(",").map((s) => s.trim()),
   };
 }
 
-export function getLabels(resource): string[] {
+export function getLabels(resource: string): string[] {
   if (!resources[resource]) return [];
   return Object.keys(resources[resource]);
 }
 
-function queryNumber(param, value): Expression {
+function queryNumber(param: string, value: string): Expression {
   let op = "=";
   for (const o of ["<>", "=", "<=", "<", ">=", ">"]) {
     if (value.startsWith(o)) {
@@ -117,7 +118,7 @@ function queryMac(param, value): Expression {
     return [
       "LIKE",
       ["FUNC", "LOWER", param],
-      value.replace(/(..)(?!$)/g, "$1:")
+      value.replace(/(..)(?!$)/g, "$1:"),
     ];
   }
 
@@ -126,9 +127,13 @@ function queryMac(param, value): Expression {
     [
       "LIKE",
       ["FUNC", "LOWER", param],
-      `%${value.replace(/(..)(?!$)/g, "$1:")}%`
+      `%${value.replace(/(..)(?!$)/g, "$1:")}%`,
     ],
-    ["LIKE", ["FUNC", "LOWER", param], `%${value.replace(/(.)(.)/g, "$1:$2")}%`]
+    [
+      "LIKE",
+      ["FUNC", "LOWER", param],
+      `%${value.replace(/(.)(.)/g, "$1:$2")}%`,
+    ],
   ];
 }
 
@@ -137,7 +142,7 @@ function queryTag(tag: string): Expression {
   return ["IS NOT NULL", ["PARAM", `Tags.${t}`]];
 }
 
-export function getTip(resource, label): string {
+export function getTip(resource: string, label: string): string {
   let tip;
   if (resources[resource] && resources[resource][label]) {
     const param = resources[resource][label];
@@ -172,7 +177,11 @@ export function getTip(resource, label): string {
   return tip;
 }
 
-export function unpack(resource, label, value): Expression {
+export function unpack(
+  resource: string,
+  label: string,
+  value: string
+): Expression {
   if (!resources[resource]) return null;
   const type = resources[resource][label].type;
   value = value.trim();

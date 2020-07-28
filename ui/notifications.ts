@@ -28,12 +28,16 @@ interface Notification {
 
 const notifications = new Set<Notification>();
 
-export function push(type, message, actions?): Notification {
+export function push(
+  type: string,
+  message: string,
+  actions?: { [label: string]: () => void }
+): Notification {
   const n: Notification = {
     type: type,
     message: message,
     timestamp: Date.now(),
-    actions: actions
+    actions: actions,
   };
   notifications.add(n);
   m.redraw();

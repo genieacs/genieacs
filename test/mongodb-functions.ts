@@ -2,7 +2,7 @@ import ava from "ava";
 import * as mongodbFunctions from "../lib/mongodb-functions";
 import { stringify } from "../lib/common/expression-parser";
 
-ava("mongoQueryToFilter", t => {
+ava("mongoQueryToFilter", (t) => {
   const tests = [
     [{}, "true"],
     [{ test: "test" }, 'test = "test"'],
@@ -22,21 +22,21 @@ ava("mongoQueryToFilter", t => {
     [{ _tags: { $eq: "test" } }, "Tags.test IS NOT NULL"],
     [
       { $and: [{ test: "test" }, { test: { $ne: "test" } }] },
-      'test = "test" AND test <> "test"'
+      'test = "test" AND test <> "test"',
     ],
     [{ test: "test", test2: "test2" }, 'test = "test" AND test2 = "test2"'],
     [
       { $or: [{ test: "test" }, { test: { $ne: "test" } }] },
-      'test = "test" OR test <> "test"'
+      'test = "test" OR test <> "test"',
     ],
     [
       { test: { $gte: "test1", $ne: "test2" } },
-      'test >= "test1" AND test <> "test2"'
+      'test >= "test1" AND test <> "test2"',
     ],
     [
       { test: "test", test2: { $ne: "test2" } },
-      'test = "test" AND test2 <> "test2"'
-    ]
+      'test = "test" AND test2 <> "test2"',
+    ],
   ];
 
   const shouldFailTests = [
@@ -45,7 +45,7 @@ ava("mongoQueryToFilter", t => {
     [{ "Tags.test": { $gt: true } }, "Invalid tag query"],
     [{ _tags: [] }, "Invalid type"],
     [{ _tags: { $gt: "test" } }, "Invalid tag query"],
-    [{ $nor: [] }, "Operator $nor not supported"]
+    [{ $nor: [] }, "Operator $nor not supported"],
   ];
 
   t.plan(tests.length + 2 * shouldFailTests.length);
@@ -54,7 +54,7 @@ ava("mongoQueryToFilter", t => {
 
   for (const test of shouldFailTests) {
     const func = (): void => {
-      mongodbFunctions.mongoQueryToFilter(test[0]);
+      mongodbFunctions.mongoQueryToFilter(test[0] as Record<string, unknown>);
     };
     const error = t.throws(func, Error);
     t.is(error.message, test[1]);

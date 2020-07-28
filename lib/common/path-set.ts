@@ -73,8 +73,8 @@ export default class PathSet {
 
   public find(
     path: Path,
-    superset: boolean = false,
-    subset: boolean = false,
+    superset = false,
+    subset = false,
     depth: number = path.length
   ): Path[] {
     if (path.alias) throw new Error("PathSet does not support aliased paths");
@@ -106,24 +106,24 @@ export default class PathSet {
       if (!fragmentIndexSet1) {
         if (!fragmentIndexSet2) return [];
         if (!res) res = [...fragmentIndexSet2];
-        else res = res.filter(r => fragmentIndexSet2.has(r));
+        else res = res.filter((r) => fragmentIndexSet2.has(r));
       } else if (!fragmentIndexSet2) {
         if (!res) res = [...fragmentIndexSet1];
-        else res = res.filter(r => fragmentIndexSet1.has(r));
+        else res = res.filter((r) => fragmentIndexSet1.has(r));
       } else {
         if (!res) {
           res = [...fragmentIndexSet1, ...fragmentIndexSet2];
         } else {
           res = res.filter(
-            r => fragmentIndexSet1.has(r) || fragmentIndexSet2.has(r)
+            (r) => fragmentIndexSet1.has(r) || fragmentIndexSet2.has(r)
           );
         }
       }
       if (!res.length) return res;
     }
 
-    if (!res) res = [].concat(...lengthIndex.map(a => [...a]));
-    else res = res.filter(r => lengthIndex.some(a => a.has(r)));
+    if (!res) res = [].concat(...lengthIndex.map((a) => [...a]));
+    else res = res.filter((r) => lengthIndex.some((a) => a.has(r)));
 
     return res;
   }

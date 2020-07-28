@@ -119,7 +119,7 @@ export default class Path {
       if (Array.isArray(s)) {
         alias |= 1 << i;
         const parts = s.map(
-          al => `${al[0].toString()}:${JSON.stringify(al[1])}`
+          (al) => `${al[0].toString()}:${JSON.stringify(al[1])}`
         );
         return `[${parts.join(",")}]`;
       } else if (s === "*") {
@@ -160,7 +160,7 @@ export default class Path {
     return this._string;
   }
 
-  public slice(start: number = 0, end: number = this.segments.length): Path {
+  public slice(start = 0, end: number = this.segments.length): Path {
     if (start < 0) start = Math.max(0, this.segments.length + start);
     if (end < 0) end = Math.max(0, this.segments.length + end);
 
@@ -212,7 +212,7 @@ export default class Path {
 
   public stripAlias(): Path {
     if (!this.alias) return this;
-    const segments = this.segments.map(s => (Array.isArray(s) ? "*" : s));
+    const segments = this.segments.map((s) => (Array.isArray(s) ? "*" : s));
     const str = segments.join(".");
 
     let path = cache1.get(str);

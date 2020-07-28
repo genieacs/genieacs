@@ -24,11 +24,11 @@ import * as cache from "./cache";
 import {
   getCurrentSnapshot,
   getConfig,
-  getConfigExpression
+  getConfigExpression,
 } from "./local-cache";
 import {
   httpConnectionRequest,
-  udpConnectionRequest
+  udpConnectionRequest,
 } from "./connection-request";
 import { Expression, Task } from "./types";
 import { flattenDevice } from "./mongodb-functions";
@@ -36,7 +36,7 @@ import { evaluate } from "./common/expression";
 
 export async function connectionRequest(
   deviceId: string,
-  device?: {}
+  device?: Record<string, { value?: [boolean | number | string, string] }>
 ): Promise<void> {
   if (!device) {
     const res = await db.devicesCollection.findOne({ _id: deviceId });
@@ -137,7 +137,7 @@ export async function connectionRequest(
       "FUNC",
       "AUTH",
       ["PARAM", "username"],
-      ["PARAM", "password"]
+      ["PARAM", "password"],
     ] as Expression;
   }
 
@@ -171,8 +171,12 @@ export async function connectionRequest(
   }
 }
 
-export async function watchTask(deviceId, taskId, timeout): Promise<string> {
-  await new Promise(resolve => setTimeout(resolve, 500));
+export async function watchTask(
+  deviceId: string,
+  taskId: string,
+  timeout: number
+): Promise<string> {
+  await new Promise((resolve) => setTimeout(resolve, 500));
 
   const task = await db.tasksCollection.findOne(
     { _id: taskId },
@@ -182,7 +186,7 @@ export async function watchTask(deviceId, taskId, timeout): Promise<string> {
 
   const q = { _id: `${deviceId}:task_${taskId}` };
   const fault = await db.faultsCollection.findOne(q, {
-    projection: { _id: 1 }
+    projection: { _id: 1 },
   });
   if (fault) return "fault";
 
@@ -194,7 +198,7 @@ export async function watchTask(deviceId, taskId, timeout): Promise<string> {
 function sanitizeTask(task): void {
   task.timestamp = new Date(task.timestamp || Date.now());
   if (task.expiry) {
-    if (common.typeOf(task.expiry) === common.DATE_TYPE || isNaN(task.expiry))
+    if (task.expiry instanceof Date || isNaN(task.expiry))
       task.expiry = new Date(task.expiry);
     else task.expiry = new Date(task.timestamp.getTime() + +task.expiry * 1000);
   }
@@ -269,8 +273,8 @@ function sanitizeTask(task): void {
   return task;
 }
 
-export async function insertTasks(tasks): Promise<Task[]> {
-  if (tasks && common.typeOf(tasks) !== common.ARRAY_TYPE) tasks = [tasks];
+export async function insertTasks(tasks: any[]): Promise<Task[]> {
+  if (tasks && !Array.isArray(tasks)) tasks = [tasks];
   else if (!tasks || tasks.length === 0) return tasks || [];
 
   for (const task of tasks) {
@@ -278,7 +282,7 @@ export async function insertTasks(tasks): Promise<Task[]> {
     if (task.uniqueKey) {
       await db.tasksCollection.deleteOne({
         device: task.device,
-        uniqueKey: task.uniqueKey
+        uniqueKey: task.uniqueKey,
       });
     }
   }
@@ -286,20 +290,20 @@ export async function insertTasks(tasks): Promise<Task[]> {
   return tasks;
 }
 
-export async function deleteDevice(deviceId): Promise<void> {
+export async function deleteDevice(deviceId: string): Promise<void> {
   await Promise.all([
     db.tasksCollection.deleteMany({ device: deviceId }),
     db.devicesCollection.deleteOne({ _id: deviceId }),
     db.faultsCollection.deleteMany({
       _id: {
-        $regex: `^${common.escapeRegExp(deviceId)}\\:`
-      }
+        $regex: `^${common.escapeRegExp(deviceId)}\\:`,
+      },
     }),
     db.operationsCollection.deleteMany({
       _id: {
-        $regex: `^${common.escapeRegExp(deviceId)}\\:`
-      }
+        $regex: `^${common.escapeRegExp(deviceId)}\\:`,
+      },
     }),
-    cache.del(`${deviceId}_tasks_faults_operations`)
+    cache.del(`${deviceId}_tasks_faults_operations`),
   ]);
 }

@@ -46,25 +46,25 @@ export function render(): Children {
           close(overlayCallback);
         },
         style: "opacity: 0",
-        oncreate: vnode => {
+        oncreate: (vnode) => {
           (vnode.dom as HTMLDivElement).focus();
           (vnode.dom as HTMLDivElement).style.opacity = "1";
         },
-        onbeforeremove: vnode => {
+        onbeforeremove: (vnode) => {
           (vnode.dom as HTMLDivElement).style.opacity = "0";
-          return new Promise(resolve => {
+          return new Promise((resolve) => {
             setTimeout(() => {
               resolve();
             }, 500);
           });
-        }
+        },
       },
       m(
         ".overlay",
         {
-          onclick: e => {
+          onclick: (e) => {
             e.stopPropagation();
-          }
+          },
         },
         overlayCallback()
       )
@@ -74,7 +74,7 @@ export function render(): Children {
   return null;
 }
 
-document.addEventListener("keydown", e => {
+document.addEventListener("keydown", (e) => {
   if (overlayCallback && e.keyCode === 27 && close(overlayCallback)) m.redraw();
 });
 

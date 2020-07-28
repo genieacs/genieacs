@@ -39,7 +39,7 @@ function getKey(obj): string {
   return k;
 }
 
-export default function memoize<T extends Function>(func: T): T {
+export default function memoize<T extends (...args: any[]) => any>(func: T): T {
   const funcKey = getKey(func);
   return ((...args) => {
     const key = JSON.stringify(args.map(getKey)) + funcKey;

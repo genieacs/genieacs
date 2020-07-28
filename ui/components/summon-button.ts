@@ -25,26 +25,26 @@ import * as notifications from "../notifications";
 
 const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       const device = vnode.attrs["device"];
 
       return m(
         "button.primary",
         {
           title: "Initiate session and refresh basic parameters",
-          onclick: e => {
+          onclick: (e) => {
             e.target.disabled = true;
             const params = Object.values(vnode.attrs["parameters"])
-              .map(exp => {
+              .map((exp) => {
                 if (!Array.isArray(exp) || exp[0] !== "PARAM") return null;
-                return store.evaluateExpression(exp[1], device);
+                return store.evaluateExpression(exp[1], device) as string;
               })
-              .filter(exp => !!exp);
+              .filter((exp) => !!exp);
 
             const task = {
               name: "getParameterValues",
               parameterNames: params,
-              device: device["DeviceID.ID"].value[0]
+              device: device["DeviceID.ID"].value[0],
             };
 
             taskQueue
@@ -80,11 +80,11 @@ const component: ClosureComponent = (): Component => {
                 e.target.disabled = false;
                 store.fulfill(0, Date.now());
               });
-          }
+          },
         },
         "Summon"
       );
-    }
+    },
   };
 };
 

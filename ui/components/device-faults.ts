@@ -25,13 +25,13 @@ import { getIcon } from "../icons";
 
 const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       const device = vnode.attrs["device"];
       const deviceId = device["DeviceID.ID"].value[0];
       const faults = store.fetch("faults", [
         "AND",
         [">", ["PARAM", "_id"], `${deviceId}:`],
-        ["<", ["PARAM", "_id"], `${deviceId}:zzzz`]
+        ["<", ["PARAM", "_id"], `${deviceId}:zzzz`],
       ]);
 
       const headers = [
@@ -39,8 +39,8 @@ const component: ClosureComponent = (): Component => {
         "Code",
         "Message",
         "Retries",
-        "Timestamp"
-      ].map(l => m("th", l));
+        "Timestamp",
+      ].map((l) => m("th", l));
       const thead = m("thead", m("tr", headers));
 
       const rows = [];
@@ -57,7 +57,7 @@ const component: ClosureComponent = (): Component => {
               "button",
               {
                 title: "Delete fault",
-                onclick: e => {
+                onclick: (e) => {
                   e.redraw = false;
                   store
                     .deleteResource("faults", f["_id"])
@@ -66,21 +66,24 @@ const component: ClosureComponent = (): Component => {
                       store.fulfill(Date.now(), Date.now());
                       m.redraw();
                     })
-                    .catch(err => {
+                    .catch((err) => {
                       notifications.push("error", err.message);
                       store.fulfill(Date.now(), Date.now());
                     });
-                }
+                },
               },
               getIcon("remove")
             )
-          )
+          ),
         ]);
       }
 
       let tbody;
       if (rows.length) {
-        tbody = m("tbody", rows.map(r => m("tr", r)));
+        tbody = m(
+          "tbody",
+          rows.map((r) => m("tr", r))
+        );
       } else {
         tbody = m(
           "tbody",
@@ -89,7 +92,7 @@ const component: ClosureComponent = (): Component => {
       }
 
       return m("table.table", thead, tbody);
-    }
+    },
   };
 };
 

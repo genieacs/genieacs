@@ -2,10 +2,10 @@ import ava from "ava";
 import {
   parseXmlDeclaration,
   decodeEntities,
-  parseXml
+  parseXml,
 } from "../lib/xml-parser";
 
-ava("parseXmlDeclaration", t => {
+ava("parseXmlDeclaration", (t) => {
   const buf = Buffer.from(
     '<?xml version="1.0" encoding="UTF-8"?>\n<soap-env:Envelope />'
   );
@@ -15,25 +15,25 @@ ava("parseXmlDeclaration", t => {
       name: "version",
       namespace: "",
       localName: "version",
-      value: "1.0"
+      value: "1.0",
     },
     {
       name: "encoding",
       namespace: "",
       localName: "encoding",
-      value: "UTF-8"
-    }
+      value: "UTF-8",
+    },
   ]);
 });
 
-ava("decodeEntities", t => {
+ava("decodeEntities", (t) => {
   t.is(
     decodeEntities("&&amp;&lt;&gt;&quot;&apos;&gt;&#167;&#xd842;&#xDFB7;;"),
     "&&<>\"'>§𠮷;"
   );
 });
 
-ava("parse", t => {
+ava("parse", (t) => {
   const xml =
     '<?xml version="1.0"?>\n<a-b:c><d f="1<g>"/><!-- comment --><h >i</h></a-b:c>';
   const parsed = parseXml(xml);
@@ -60,7 +60,7 @@ ava("parse", t => {
             attrs: 'f="1<g>"',
             text: "",
             bodyIndex: 42,
-            children: []
+            children: [],
           },
           {
             name: "h",
@@ -69,10 +69,10 @@ ava("parse", t => {
             attrs: "",
             text: "i",
             bodyIndex: 62,
-            children: []
-          }
-        ]
-      }
-    ]
+            children: [],
+          },
+        ],
+      },
+    ],
   });
 });

@@ -24,8 +24,8 @@ import { Expression, Fault, Task } from "./types";
 
 const isArray = Array.isArray;
 
-export function processDeviceFilter(filter): Expression {
-  return map(filter, exp => {
+export function processDeviceFilter(filter: Expression): Expression {
+  return map(filter, (exp) => {
     if (!isArray(exp)) return exp;
 
     if (exp[0] === "PARAM") {
@@ -61,10 +61,10 @@ export function processDeviceFilter(filter): Expression {
         "LIKE",
         "NOT LIKE",
         "IS NULL",
-        "IS NOT NULL"
+        "IS NOT NULL",
       ].includes(exp[0])
     ) {
-      let e = map(exp, ee => {
+      let e = map(exp, (ee) => {
         if (
           isArray(ee) &&
           ee[0] === "PARAM" &&
@@ -86,8 +86,8 @@ export function processDeviceFilter(filter): Expression {
   });
 }
 
-export function processTasksFilter(filter): Expression {
-  return map(filter, exp => {
+export function processTasksFilter(filter: Expression): Expression {
+  return map(filter, (exp) => {
     if (!isArray(exp)) return exp;
     if (["=", "<>", ">", ">=", "<", "<="].includes(exp[0])) {
       const e = exp.slice();
@@ -102,8 +102,8 @@ export function processTasksFilter(filter): Expression {
   });
 }
 
-export function processFaultsFilter(filter): Expression {
-  return map(filter, exp => {
+export function processFaultsFilter(filter: Expression): Expression {
+  return map(filter, (exp) => {
     if (!isArray(exp)) return exp;
     if (["=", "<>", ">", ">=", "<", "<="].includes(exp[0])) {
       const e = exp.slice();
@@ -116,7 +116,7 @@ export function processFaultsFilter(filter): Expression {
   });
 }
 
-export function filterToMongoQuery(exp: Expression): {} {
+export function filterToMongoQuery(exp: Expression): Record<string, unknown> {
   const ops = {
     OR: 0,
     AND: 0,
@@ -130,10 +130,10 @@ export function filterToMongoQuery(exp: Expression): {} {
     LIKE: 1,
     "NOT LIKE": 1,
     "IS NULL": 1,
-    "IS NOT NULL": 1
+    "IS NOT NULL": 1,
   };
 
-  function recursive(filter, negate, res = {}): {} {
+  function recursive(filter, negate, res = {}): Record<string, unknown> {
     const op = filter[0];
 
     if (ops[op] === 0) {
@@ -249,7 +249,9 @@ export function filterToMongoQuery(exp: Expression): {} {
   return recursive(_exp, false);
 }
 
-export function processDeviceProjection(projection: {}): {} {
+export function processDeviceProjection(
+  projection: Record<string, 1>
+): Record<string, 1> {
   if (!projection) return projection;
   const p = {};
   for (const [k, v] of Object.entries(projection)) {
@@ -275,7 +277,9 @@ export function processDeviceProjection(projection: {}): {} {
   return p;
 }
 
-export function processDeviceSort(sort: {}): {} {
+export function processDeviceSort(
+  sort: Record<string, number>
+): Record<string, number> {
   if (!sort) return sort;
   const s = {};
   for (const [k, v] of Object.entries(sort)) {
@@ -291,7 +295,7 @@ export function processDeviceSort(sort: {}): {} {
   return s;
 }
 
-function parseDate(d): number | string {
+function parseDate(d: Date): number | string {
   const n = +d;
   return isNaN(n) ? "" + d : n;
 }
@@ -307,45 +311,45 @@ interface FlatDevice {
   };
 }
 
-export function flattenDevice(device): FlatDevice {
+export function flattenDevice(device: Record<string, unknown>): FlatDevice {
   function recursive(input, root, output, timestamp): void {
     for (const [name, tree] of Object.entries(input)) {
       if (!root) {
         if (name === "_lastInform") {
           output["Events.Inform"] = {
-            value: [parseDate(tree), "xsd:dateTime"],
+            value: [parseDate(tree as Date), "xsd:dateTime"],
             valueTimestamp: timestamp,
             writable: false,
             writableTimestamp: timestamp,
             object: false,
-            objectTimestamp: timestamp
+            objectTimestamp: timestamp,
           };
         } else if (name === "_registered") {
           output["Events.Registered"] = {
-            value: [parseDate(tree), "xsd:dateTime"],
+            value: [parseDate(tree as Date), "xsd:dateTime"],
             valueTimestamp: timestamp,
             writable: false,
             writableTimestamp: timestamp,
             object: false,
-            objectTimestamp: timestamp
+            objectTimestamp: timestamp,
           };
         } else if (name === "_lastBoot") {
           output["Events.1_BOOT"] = {
-            value: [parseDate(tree), "xsd:dateTime"],
+            value: [parseDate(tree as Date), "xsd:dateTime"],
             valueTimestamp: timestamp,
             writable: false,
             writableTimestamp: timestamp,
             object: false,
-            objectTimestamp: timestamp
+            objectTimestamp: timestamp,
           };
         } else if (name === "_lastBootstrap") {
           output["Events.0_BOOTSTRAP"] = {
-            value: [parseDate(tree), "xsd:dateTime"],
+            value: [parseDate(tree as Date), "xsd:dateTime"],
             valueTimestamp: timestamp,
             writable: false,
             writableTimestamp: timestamp,
             object: false,
-            objectTimestamp: timestamp
+            objectTimestamp: timestamp,
           };
         } else if (name === "_id") {
           output["DeviceID.ID"] = {
@@ -354,7 +358,7 @@ export function flattenDevice(device): FlatDevice {
             writable: false,
             writableTimestamp: timestamp,
             object: false,
-            objectTimestamp: timestamp
+            objectTimestamp: timestamp,
           };
         } else if (name === "_deviceId") {
           output["DeviceID.Manufacturer"] = {
@@ -363,7 +367,7 @@ export function flattenDevice(device): FlatDevice {
             writable: false,
             writableTimestamp: timestamp,
             object: false,
-            objectTimestamp: timestamp
+            objectTimestamp: timestamp,
           };
           output["DeviceID.OUI"] = {
             value: [tree["_OUI"], "xsd:string"],
@@ -371,7 +375,7 @@ export function flattenDevice(device): FlatDevice {
             writable: false,
             writableTimestamp: timestamp,
             object: false,
-            objectTimestamp: timestamp
+            objectTimestamp: timestamp,
           };
           output["DeviceID.ProductClass"] = {
             value: [tree["_ProductClass"], "xsd:string"],
@@ -379,7 +383,7 @@ export function flattenDevice(device): FlatDevice {
             writable: false,
             writableTimestamp: timestamp,
             object: false,
-            objectTimestamp: timestamp
+            objectTimestamp: timestamp,
           };
           output["DeviceID.SerialNumber"] = {
             value: [tree["_SerialNumber"], "xsd:string"],
@@ -387,14 +391,14 @@ export function flattenDevice(device): FlatDevice {
             writable: false,
             writableTimestamp: timestamp,
             object: false,
-            objectTimestamp: timestamp
+            objectTimestamp: timestamp,
           };
         } else if (name === "_tags") {
           output["Tags"] = {
             writable: false,
             writableTimestamp: timestamp,
             object: true,
-            objectTimestamp: timestamp
+            objectTimestamp: timestamp,
           };
 
           for (const t of tree as string[]) {
@@ -404,7 +408,7 @@ export function flattenDevice(device): FlatDevice {
               writable: true,
               writableTimestamp: timestamp,
               object: false,
-              objectTimestamp: timestamp
+              objectTimestamp: timestamp,
             };
           }
         }
@@ -422,7 +426,7 @@ export function flattenDevice(device): FlatDevice {
       if (tree["_value"] != null) {
         attrs["value"] = [
           tree["_value"] instanceof Date ? +tree["_value"] : tree["_value"],
-          tree["_type"]
+          tree["_type"],
         ];
         attrs["valueTimestamp"] = +(tree["_timestamp"] || childrenTimestamp);
         attrs["object"] = false;
@@ -446,27 +450,27 @@ export function flattenDevice(device): FlatDevice {
   }
 
   const newDevice = {};
-  const timestamp = new Date(device["_lastInform"] || 1).getTime();
+  const timestamp = new Date((device["_lastInform"] as Date) || 1).getTime();
   recursive(device, "", newDevice, timestamp);
   return newDevice;
 }
 
-export function flattenFault(fault): Fault {
-  const f = Object.assign({}, fault);
+export function flattenFault(fault: unknown): Fault {
+  const f = Object.assign({}, fault) as Fault;
   if (f.timestamp) f.timestamp = +f.timestamp;
-  if (f.expiry) f.expiry = +f.expiry;
-  return f;
+  if (f["expiry"]) f["expiry"] = +f["expiry"];
+  return f as Fault;
 }
 
-export function flattenTask(task): Task {
-  const t = Object.assign({}, task);
+export function flattenTask(task: unknown): Task {
+  const t = Object.assign({}, task) as Task;
   t._id = "" + t._id;
-  if (t.timestamp) t.timestamp = +t.timestamp;
+  if (t["timestamp"]) t["timestamp"] = +t["timestamp"];
   if (t.expiry) t.expiry = +t.expiry;
   return t;
 }
 
-export function mongoQueryToFilter(query): Expression {
+export function mongoQueryToFilter(query: Record<string, unknown>): Expression {
   function recursive(_query): Expression {
     const expressions: Expression[] = [];
     for (const [k, v] of Object.entries(_query)) {
@@ -554,15 +558,19 @@ export function mongoQueryToFilter(query): Expression {
   return recursive(query);
 }
 
-export function flattenPreset(preset): {} {
+export function flattenPreset(
+  preset: Record<string, unknown>
+): Record<string, unknown> {
   const p = Object.assign({}, preset);
   if (p.precondition) {
     try {
       // Try parse to check expression validity
-      parse(p.precondition);
+      parse(p.precondition as string);
     } catch (error) {
-      p.precondition = mongoQueryToFilter(JSON.parse(p.precondition));
-      p.precondition = p.precondition.length ? stringify(p.precondition) : "";
+      p.precondition = mongoQueryToFilter(JSON.parse(p.precondition as string));
+      p.precondition = (p.precondition as string).length
+        ? stringify(p.precondition as Expression)
+        : "";
     }
   }
 
@@ -574,7 +582,7 @@ export function flattenPreset(preset): {} {
 
   const provision = p.configurations[0];
   if (
-    p.configurations.length === 1 &&
+    (p.configurations as any[]).length === 1 &&
     provision.type === "provision" &&
     provision.name &&
     provision.name.length
@@ -589,30 +597,34 @@ export function flattenPreset(preset): {} {
   return p;
 }
 
-export function flattenFile(file): {} {
+export function flattenFile(
+  file: Record<string, unknown>
+): Record<string, unknown> {
   const f = {};
   f["_id"] = file["_id"];
   if (file.metadata) {
-    f["metadata.fileType"] = file.metadata.fileType || "";
-    f["metadata.oui"] = file.metadata.oui || "";
-    f["metadata.productClass"] = file.metadata.productClass || "";
-    f["metadata.version"] = file.metadata.version || "";
+    f["metadata.fileType"] = file["metadata"]["fileType"] || "";
+    f["metadata.oui"] = file["metadata"]["oui"] || "";
+    f["metadata.productClass"] = file["metadata"]["productClass"] || "";
+    f["metadata.version"] = file["metadata"]["version"] || "";
   }
   return f;
 }
 
-export function preProcessPreset(data): {} {
+export function preProcessPreset(
+  data: Record<string, unknown>
+): Record<string, unknown> {
   const preset = Object.assign({}, data);
 
   if (!preset.precondition) preset.precondition = "";
   // Try parse to check expression validity
-  parse(preset.precondition);
+  parse(preset.precondition as string);
 
-  preset.weight = parseInt(preset.weight) || 0;
+  preset.weight = parseInt(preset.weight as string) || 0;
 
   const events = {};
   if (preset.events) {
-    for (let e of preset.events.split(",")) {
+    for (let e of (preset.events as string).split(",")) {
       let v = true;
       e = e.trim();
       if (e.startsWith("-")) {
@@ -630,7 +642,7 @@ export function preProcessPreset(data): {} {
   const configuration = {
     type: "provision",
     name: preset.provision,
-    args: null
+    args: null,
   };
 
   if (preset.provisionArgs)

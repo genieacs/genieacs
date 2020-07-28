@@ -25,7 +25,7 @@ import { getIcon } from "../icons";
 
 const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       const device = vnode.attrs["device"];
       let writable = true;
       if (vnode.attrs["writable"] != null) writable = vnode.attrs["writable"];
@@ -36,18 +36,23 @@ const component: ClosureComponent = (): Component => {
 
       tags.sort();
 
-      if (!writable) return m(".tags", tags.map(t => m("span.tag", t)));
+      if (!writable) {
+        return m(
+          ".tags",
+          tags.map((t) => m("span.tag", t))
+        );
+      }
 
       return m(
         ".tags",
-        tags.map(tag =>
+        tags.map((tag) =>
           m(
             "span.tag",
             tag,
             m(
               "button",
               {
-                onclick: e => {
+                onclick: (e) => {
                   e.target.disabled = true;
                   const deviceId = device["DeviceID.ID"].value[0];
                   store
@@ -60,14 +65,14 @@ const component: ClosureComponent = (): Component => {
                       );
                       store.fulfill(0, Date.now());
                     })
-                    .catch(err => {
+                    .catch((err) => {
                       e.target.disabled = false;
                       notifications.push(
                         "error",
                         `${deviceId}: ${err.message}`
                       );
                     });
-                }
+                },
               },
               getIcon("remove")
             )
@@ -79,7 +84,7 @@ const component: ClosureComponent = (): Component => {
           m(
             "button",
             {
-              onclick: e => {
+              onclick: (e) => {
                 e.target.disabled = true;
                 const deviceId = device["DeviceID.ID"].value[0];
                 const tag = prompt(`Enter tag to assign to device:`);
@@ -95,17 +100,17 @@ const component: ClosureComponent = (): Component => {
                     notifications.push("success", `${deviceId}: Tags updated`);
                     store.fulfill(0, Date.now());
                   })
-                  .catch(err => {
+                  .catch((err) => {
                     e.target.disabled = false;
                     notifications.push("error", `${deviceId}: ${err.message}`);
                   });
-              }
+              },
             },
             getIcon("add")
           )
         )
       );
-    }
+    },
   };
 };
 

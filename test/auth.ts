@@ -2,7 +2,7 @@ import ava from "ava";
 import { randomBytes } from "crypto";
 import * as auth from "../lib/auth";
 
-ava("digest", t => {
+ava("digest", (t) => {
   const username = "test";
   const password = "test";
   const uri = "/";
@@ -14,7 +14,7 @@ ava("digest", t => {
   const challenges = [
     `Digest realm="${realm}",nonce="${nonce}"`,
     `Digest realm="${realm}",nonce="${nonce}",qop="auth"`,
-    `Digest realm="${realm}",nonce="${nonce}",qop="auth-int"`
+    `Digest realm="${realm}",nonce="${nonce}",qop="auth-int"`,
   ];
 
   t.plan(challenges.length);

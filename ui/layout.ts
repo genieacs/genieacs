@@ -31,12 +31,12 @@ const adminPages = [
   "files",
   "config",
   "users",
-  "permissions"
+  "permissions",
 ];
 
 const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       let sideMenu, group;
 
       if (adminPages.includes(vnode.attrs["page"])) {
@@ -54,18 +54,18 @@ const component: ClosureComponent = (): Component => {
           m("img.logo", { src: "logo.svg" }),
           m(userMenu),
           m(menu, attrs),
-          m(drawerComponent)
+          m(drawerComponent),
         ]),
         m(
           "#content-wrapper",
           sideMenu,
           m("#content", { class: `page-${vnode.attrs["page"]}` }, [
-            vnode.children
+            vnode.children,
           ])
         ),
-        overlay.render()
+        overlay.render(),
       ];
-    }
+    },
   };
 };
 

@@ -32,7 +32,7 @@ function onError(): void {
       {
         Reload: () => {
           window.location.reload();
-        }
+        },
       }
     );
   }
@@ -47,14 +47,14 @@ export function loadCodeMirror(): Promise<void> {
       import(
         /* webpackChunkName: "codemirror" */ "codemirror/mode/javascript/javascript"
       ),
-      import(/* webpackChunkName: "codemirror" */ "codemirror/mode/yaml/yaml")
+      import(/* webpackChunkName: "codemirror" */ "codemirror/mode/yaml/yaml"),
     ];
     Promise.all(promises)
-      .then(modules => {
+      .then((modules) => {
         codeMirror = modules[0];
         resolve();
       })
-      .catch(err => {
+      .catch((err) => {
         onError();
         reject(err);
       });
@@ -66,11 +66,11 @@ export function loadYaml(): Promise<void> {
 
   return new Promise((resolve, reject) => {
     import(/* webpackChunkName: "yaml" */ "yaml")
-      .then(module => {
+      .then((module) => {
         yaml = module;
         resolve();
       })
-      .catch(err => {
+      .catch((err) => {
         onError();
         reject(err);
       });

@@ -1,5 +1,3 @@
-#!/usr/bin/env -S node -r esm -r ts-node/register/transpile-only
-
 /**
  * Copyright 2013-2019  GenieACS Inc.
  *
@@ -32,8 +30,8 @@ import { version as VERSION } from "../package.json";
 
 logger.init("ui", VERSION);
 
-const SERVICE_ADDRESS = config.get("UI_INTERFACE");
-const SERVICE_PORT = config.get("UI_PORT");
+const SERVICE_ADDRESS = config.get("UI_INTERFACE") as string;
+const SERVICE_PORT = config.get("UI_PORT") as number;
 
 function exitWorkerGracefully(): void {
   setTimeout(exitWorkerUngracefully, 5000).unref();
@@ -42,7 +40,7 @@ function exitWorkerGracefully(): void {
     db2.disconnect(),
     cache.disconnect(),
     extensions.killAll(),
-    cluster.worker.disconnect()
+    cluster.worker.disconnect(),
   ]).catch(exitWorkerUngracefully);
 }
 
@@ -53,12 +51,12 @@ function exitWorkerUngracefully(): void {
 }
 
 if (!cluster.worker) {
-  const WORKER_COUNT = config.get("UI_WORKER_PROCESSES");
+  const WORKER_COUNT = config.get("UI_WORKER_PROCESSES") as number;
 
   logger.info({
     message: `genieacs-ui starting`,
     pid: process.pid,
-    version: VERSION
+    version: VERSION,
   });
 
   cluster.start(WORKER_COUNT, SERVICE_PORT, SERVICE_ADDRESS);
@@ -66,7 +64,7 @@ if (!cluster.worker) {
   process.on("SIGINT", () => {
     logger.info({
       message: "Received signal SIGINT, exiting",
-      pid: process.pid
+      pid: process.pid,
     });
 
     cluster.stop();
@@ -75,31 +73,28 @@ if (!cluster.worker) {
   process.on("SIGTERM", () => {
     logger.info({
       message: "Received signal SIGTERM, exiting",
-      pid: process.pid
+      pid: process.pid,
     });
 
     cluster.stop();
   });
 } else {
   const ssl = {
-    key: config.get("UI_SSL_KEY"),
-    cert: config.get("UI_SSL_CERT")
+    key: config.get("UI_SSL_KEY") as string,
+    cert: config.get("UI_SSL_CERT") as string,
   };
 
   let stopping = false;
 
-  process.on("uncaughtException", err => {
+  process.on("uncaughtException", (err) => {
     if ((err as NodeJS.ErrnoException).code === "ERR_IPC_DISCONNECTED") return;
     logger.error({
       message: "Uncaught exception",
       exception: err,
-      pid: process.pid
+      pid: process.pid,
     });
     stopping = true;
-    server
-      .stop()
-      .then(exitWorkerGracefully)
-      .catch(exitWorkerUngracefully);
+    server.stop().then(exitWorkerGracefully).catch(exitWorkerUngracefully);
   });
 
   const _listener = (req, res): void => {
@@ -111,7 +106,7 @@ if (!cluster.worker) {
     .then(() => {
       server.start(SERVICE_PORT, SERVICE_ADDRESS, ssl, _listener);
     })
-    .catch(err => {
+    .catch((err) => {
       setTimeout(() => {
         throw err;
       });
@@ -120,20 +115,14 @@ if (!cluster.worker) {
   process.on("SIGINT", () => {
     stopping = true;
     initPromise.finally(() => {
-      server
-        .stop()
-        .then(exitWorkerGracefully)
-        .catch(exitWorkerUngracefully);
+      server.stop().then(exitWorkerGracefully).catch(exitWorkerUngracefully);
     });
   });
 
   process.on("SIGTERM", () => {
     stopping = true;
     initPromise.finally(() => {
-      server
-        .stop()
-        .then(exitWorkerGracefully)
-        .catch(exitWorkerUngracefully);
+      server.stop().then(exitWorkerGracefully).catch(exitWorkerUngracefully);
     });
   });
 }

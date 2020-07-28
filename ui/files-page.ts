@@ -51,23 +51,23 @@ const attributes: {
       "2 Web Content",
       "3 Vendor Configuration File",
       "4 Tone File",
-      "5 Ringer File"
-    ]
+      "5 Ringer File",
+    ],
   },
   { id: "metadata.oui", label: "OUI" },
   { id: "metadata.productClass", label: "Product Class" },
-  { id: "metadata.version", label: "Version" }
+  { id: "metadata.version", label: "Version" },
 ];
 
 const formData = {
   resource: "files",
   attributes: attributes
     .slice(1) // remove _id from new object form
-    .concat([{ id: "file", label: "File", type: "file" }])
+    .concat([{ id: "file", label: "File", type: "file" }]),
 };
 
-const unpackSmartQuery = memoize(query => {
-  return map(query, e => {
+const unpackSmartQuery = memoize((query) => {
+  return map(query, (e) => {
     if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "Q")
       return smartQuery.unpack("files", e[2], e[3]);
     return e;
@@ -91,7 +91,7 @@ function putActionHandler(action, _object): Promise<ValidationErrors> {
 
       store
         .resourceExists("files", id)
-        .then(exists => {
+        .then((exists) => {
           if (exists) {
             store.fulfill(0, Date.now());
             return void resolve({ file: "File already exists" });
@@ -99,7 +99,7 @@ function putActionHandler(action, _object): Promise<ValidationErrors> {
           const headers = Object.assign(
             {
               "Content-Type": "application/octet-stream",
-              Accept: "application/octet-stream"
+              Accept: "application/octet-stream",
             },
             object
           );
@@ -109,8 +109,8 @@ function putActionHandler(action, _object): Promise<ValidationErrors> {
               method: "PUT",
               headers: headers,
               url: `api/files/${encodeURIComponent(id)}`,
-              serialize: body => body, // Identity function to prevent JSON.parse on blob data
-              body: file
+              serialize: (body) => body, // Identity function to prevent JSON.parse on blob data
+              body: file,
             })
             .then(() => {
               notifications.push(
@@ -129,16 +129,18 @@ function putActionHandler(action, _object): Promise<ValidationErrors> {
   });
 }
 
-const getDownloadUrl = memoize(filter => {
+const getDownloadUrl = memoize((filter) => {
   const cols = {};
   for (const attr of attributes) cols[attr.label] = attr.id;
   return `api/files.csv?${m.buildQueryString({
     filter: stringify(filter),
-    columns: JSON.stringify(cols)
+    columns: JSON.stringify(cols),
   })}`;
 });
 
-export function init(args): Promise<{}> {
+export function init(
+  args: Record<string, unknown>
+): Promise<Record<string, unknown>> {
   if (!window.authorizer.hasAccess("files", 2)) {
     return Promise.reject(
       new Error("You are not authorized to view this page")
@@ -152,7 +154,7 @@ export function init(args): Promise<{}> {
 
 export const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       document.title = "Files - GenieACS";
 
       function showMore(): void {
@@ -195,7 +197,7 @@ export const component: ClosureComponent = (): Component => {
 
       const files = store.fetch("files", filter, {
         limit: vnode.state["showCount"] || PAGE_SIZE,
-        sort: sort
+        sort: sort,
       });
 
       const count = store.count("files", filter);
@@ -212,7 +214,7 @@ export const component: ClosureComponent = (): Component => {
       attrs["downloadUrl"] = downloadUrl;
 
       if (window.authorizer.hasAccess("files", 3)) {
-        attrs["actionsCallback"] = (selected): Children => {
+        attrs["actionsCallback"] = (selected: Set<string>): Children => {
           return [
             m(
               "button.primary",
@@ -225,9 +227,9 @@ export const component: ClosureComponent = (): Component => {
                       Object.assign(
                         {
                           actionHandler: (action, object) => {
-                            return new Promise(resolve => {
+                            return new Promise((resolve) => {
                               putActionHandler(action, object)
-                                .then(errors => {
+                                .then((errors) => {
                                   const errorList = errors
                                     ? Object.values(errors)
                                     : [];
@@ -239,19 +241,19 @@ export const component: ClosureComponent = (): Component => {
                                   }
                                   resolve();
                                 })
-                                .catch(err => {
+                                .catch((err) => {
                                   notifications.push("error", err.message);
                                   resolve();
                                 });
                             });
-                          }
+                          },
                         },
                         formData
                       )
                     );
                   };
                   overlay.open(cb);
-                }
+                },
               },
               "New"
             ),
@@ -260,7 +262,7 @@ export const component: ClosureComponent = (): Component => {
               {
                 title: "Delete selected files",
                 disabled: !selected.size,
-                onclick: e => {
+                onclick: (e) => {
                   if (
                     !confirm(`Deleting ${selected.size} files. Are you sure?`)
                   )
@@ -269,25 +271,25 @@ export const component: ClosureComponent = (): Component => {
                   e.redraw = false;
                   e.target.disabled = true;
                   Promise.all(
-                    Array.from(selected).map(id =>
+                    Array.from(selected).map((id) =>
                       store.deleteResource("files", id)
                     )
                   )
-                    .then(res => {
+                    .then((res) => {
                       notifications.push(
                         "success",
                         `${res.length} files deleted`
                       );
                       store.fulfill(0, Date.now());
                     })
-                    .catch(err => {
+                    .catch((err) => {
                       notifications.push("error", err.message);
                       store.fulfill(0, Date.now());
                     });
-                }
+                },
               },
               "Delete"
-            )
+            ),
           ];
         };
       }
@@ -300,8 +302,8 @@ export const component: ClosureComponent = (): Component => {
       return [
         m("h1", "Listing files"),
         m(filterComponent, filterAttrs),
-        m(indexTableComponent, attrs)
+        m(indexTableComponent, attrs),
       ];
-    }
+    },
   };
 };

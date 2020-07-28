@@ -1,5 +1,3 @@
-#!/usr/bin/env -S node -r esm -r ts-node/register/transpile-only
-
 /**
  * Copyright 2013-2019  GenieACS Inc.
  *
@@ -60,7 +58,7 @@ connect()
   .then(() => {
     devicesCollection.findOne(
       {
-        _id: process.argv[2]
+        _id: process.argv[2],
       },
       {},
       (err, device) => {
@@ -79,6 +77,6 @@ connect()
       }
     );
   })
-  .catch(err => {
+  .catch((err) => {
     throw err;
   });

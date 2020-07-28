@@ -32,31 +32,33 @@ function escapeRegExp(str): string {
 
 const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       const device = vnode.attrs["device"];
 
       const search = m("input", {
         type: "text",
         placeholder: "Search parameters",
-        oninput: e => {
+        oninput: (e) => {
           vnode.state["searchString"] = e.target.value;
           e.redraw = false;
           clearTimeout(vnode.state["timeout"]);
           vnode.state["timeout"] = setTimeout(m.redraw, 500);
-        }
+        },
       });
 
       const instanceRegex = /\.[0-9]+$/;
       let re;
       if (vnode.state["searchString"]) {
-        const keywords = vnode.state["searchString"].split(" ").filter(s => s);
+        const keywords = vnode.state["searchString"]
+          .split(" ")
+          .filter((s) => s);
         if (keywords.length)
-          re = new RegExp(keywords.map(s => escapeRegExp(s)).join(".*"), "i");
+          re = new RegExp(keywords.map((s) => escapeRegExp(s)).join(".*"), "i");
       }
 
       const rows = Object.keys(device)
         .sort()
-        .map(k => {
+        .map((k) => {
           const p = device[k];
           const val = [];
           const attrs = {};
@@ -83,9 +85,9 @@ const component: ClosureComponent = (): Component => {
                       taskQueue.queueTask({
                         name: "deleteObject",
                         device: device["DeviceID.ID"].value[0],
-                        objectName: k
+                        objectName: k,
                       });
-                    }
+                    },
                   },
                   getIcon("delete-instance")
                 )
@@ -100,9 +102,9 @@ const component: ClosureComponent = (): Component => {
                       taskQueue.queueTask({
                         name: "addObject",
                         device: device["DeviceID.ID"].value[0],
-                        objectName: k
+                        objectName: k,
                       });
-                    }
+                    },
                   },
                   getIcon("add-instance")
                 )
@@ -119,9 +121,9 @@ const component: ClosureComponent = (): Component => {
                   taskQueue.queueTask({
                     name: "getParameterValues",
                     device: device["DeviceID.ID"].value[0],
-                    parameterNames: [k]
+                    parameterNames: [k],
                   });
-                }
+                },
               },
               getIcon("refresh")
             )
@@ -144,14 +146,14 @@ const component: ClosureComponent = (): Component => {
               device["DeviceID.ID"].value[0]
             )}.csv`,
             download: "",
-            style: "float: right;"
+            style: "float: right;",
           },
           "Download"
         ),
         search,
         m(".parameter-list", m("table", m("tbody", rows)))
       );
-    }
+    },
   };
 };
 

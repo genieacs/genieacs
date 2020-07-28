@@ -1,5 +1,3 @@
-#!/usr/bin/env -S node -r esm -r ts-node/register/transpile-only
-
 /**
  * Copyright 2013-2019  GenieACS Inc.
  *
@@ -23,16 +21,16 @@ import * as config from "../lib/config";
 import * as logger from "../lib/logger";
 import * as cluster from "../lib/cluster";
 import * as server from "../lib/server";
-import * as cwmp from "../lib/cwmp";
+import { listener } from "../lib/nbi";
 import * as db from "../lib/db";
 import * as extensions from "../lib/extensions";
 import * as cache from "../lib/cache";
 import { version as VERSION } from "../package.json";
 
-logger.init("cwmp", VERSION);
+logger.init("nbi", VERSION);
 
-const SERVICE_ADDRESS = config.get("CWMP_INTERFACE");
-const SERVICE_PORT = config.get("CWMP_PORT");
+const SERVICE_ADDRESS = config.get("NBI_INTERFACE") as string;
+const SERVICE_PORT = config.get("NBI_PORT") as number;
 
 function exitWorkerGracefully(): void {
   setTimeout(exitWorkerUngracefully, 5000).unref();
@@ -40,7 +38,7 @@ function exitWorkerGracefully(): void {
     db.disconnect(),
     cache.disconnect(),
     extensions.killAll(),
-    cluster.worker.disconnect()
+    cluster.worker.disconnect(),
   ]).catch(exitWorkerUngracefully);
 }
 
@@ -51,12 +49,12 @@ function exitWorkerUngracefully(): void {
 }
 
 if (!cluster.worker) {
-  const WORKER_COUNT = config.get("CWMP_WORKER_PROCESSES");
+  const WORKER_COUNT = config.get("NBI_WORKER_PROCESSES") as number;
 
   logger.info({
-    message: `genieacs-cwmp starting`,
+    message: `genieacs-nbi starting`,
     pid: process.pid,
-    version: VERSION
+    version: VERSION,
   });
 
   cluster.start(WORKER_COUNT, SERVICE_PORT, SERVICE_ADDRESS);
@@ -64,7 +62,7 @@ if (!cluster.worker) {
   process.on("SIGINT", () => {
     logger.info({
       message: "Received signal SIGINT, exiting",
-      pid: process.pid
+      pid: process.pid,
     });
 
     cluster.stop();
@@ -73,62 +71,56 @@ if (!cluster.worker) {
   process.on("SIGTERM", () => {
     logger.info({
       message: "Received signal SIGTERM, exiting",
-      pid: process.pid
+      pid: process.pid,
     });
 
     cluster.stop();
   });
 } else {
   const ssl = {
-    key: config.get("CWMP_SSL_KEY"),
-    cert: config.get("CWMP_SSL_CERT")
+    key: config.get("NBI_SSL_KEY") as string,
+    cert: config.get("NBI_SSL_CERT") as string,
   };
 
-  process.on("uncaughtException", err => {
+  let stopping = false;
+
+  process.on("uncaughtException", (err) => {
     if ((err as NodeJS.ErrnoException).code === "ERR_IPC_DISCONNECTED") return;
     logger.error({
       message: "Uncaught exception",
       exception: err,
-      pid: process.pid
+      pid: process.pid,
     });
-    server
-      .stop()
-      .then(exitWorkerGracefully)
-      .catch(exitWorkerUngracefully);
+    stopping = true;
+    server.stop().then(exitWorkerGracefully).catch(exitWorkerUngracefully);
   });
+
+  const _listener = (req, res): void => {
+    if (stopping) res.setHeader("Connection", "close");
+    listener(req, res);
+  };
 
   const initPromise = Promise.all([db.connect(), cache.connect()])
     .then(() => {
-      server.start(
-        SERVICE_PORT,
-        SERVICE_ADDRESS,
-        ssl,
-        cwmp.listener,
-        cwmp.onConnection,
-        0
-      );
+      server.start(SERVICE_PORT, SERVICE_ADDRESS, ssl, _listener);
     })
-    .catch(err => {
+    .catch((err) => {
       setTimeout(() => {
         throw err;
       });
     });
 
   process.on("SIGINT", () => {
+    stopping = true;
     initPromise.finally(() => {
-      server
-        .stop()
-        .then(exitWorkerGracefully)
-        .catch(exitWorkerUngracefully);
+      server.stop().then(exitWorkerGracefully).catch(exitWorkerUngracefully);
     });
   });
 
   process.on("SIGTERM", () => {
+    stopping = true;
     initPromise.finally(() => {
-      server
-        .stop()
-        .then(exitWorkerGracefully)
-        .catch(exitWorkerUngracefully);
+      server.stop().then(exitWorkerGracefully).catch(exitWorkerUngracefully);
     });
   });
 }

@@ -24,6 +24,8 @@ import memoize from "../lib/common/memoize";
 import { QueryOptions, Expression } from "../lib/types";
 import * as notifications from "./notifications";
 import { configSnapshot, genieacsVersion } from "./config";
+import { QueueTask } from "./task-queue";
+import { PingResult } from "../lib/ping";
 
 const memoizedStringify = memoize(stringify);
 const memoizedEvaluate = memoize(evaluate);
@@ -39,7 +41,7 @@ const queries = {
   fulfilled: new WeakMap(),
   fulfilling: new WeakSet(),
   accessed: new WeakMap(),
-  value: new WeakMap()
+  value: new WeakMap(),
 };
 
 interface Resources {
@@ -62,13 +64,13 @@ for (const r of [
   "files",
   "config",
   "users",
-  "permissions"
+  "permissions",
 ]) {
   resources[r] = {
     objects: new Map(),
     count: new Map(),
     fetch: new Map(),
-    combinedFilter: null
+    combinedFilter: null,
   };
 }
 
@@ -94,7 +96,7 @@ function checkConnection(): void {
     url: "status",
     method: "GET",
     background: true,
-    extract: xhr => {
+    extract: (xhr) => {
       if (xhr.status !== 200) {
         if (!connectionNotification) {
           connectionNotification = notifications.push(
@@ -125,7 +127,7 @@ function checkConnection(): void {
               {
                 Reload: () => {
                   window.location.reload();
-                }
+                },
               }
             );
           }
@@ -142,27 +144,27 @@ function checkConnection(): void {
               {
                 Reload: () => {
                   window.location.reload();
-                }
+                },
               }
             );
           }
         }
       }
-    }
+    },
   });
 }
 
 setInterval(checkConnection, 3000);
 
 export async function xhrRequest(
-  options: { url: string } & m.RequestOptions<{}>
+  options: { url: string } & m.RequestOptions<unknown>
 ): Promise<any> {
   const extract = options.extract;
   const deserialize = options.deserialize;
 
   options.extract = (
     xhr: XMLHttpRequest,
-    _options?: { url: string } & m.RequestOptions<{}>
+    _options?: { url: string } & m.RequestOptions<unknown>
   ): any => {
     if (typeof extract === "function") return extract(xhr, _options);
 
@@ -196,13 +198,13 @@ export async function xhrRequest(
   return m.request(options);
 }
 
-export function unpackExpression(exp): Expression {
+export function unpackExpression(exp: Expression): Expression {
   if (!Array.isArray(exp)) return exp;
   const e = memoizedEvaluate(exp, null, fulfillTimestamp);
   return e;
 }
 
-export function count(resourceType, filter): QueryResponse {
+export function count(resourceType: string, filter: Expression): QueryResponse {
   const filterStr = memoizedStringify(filter);
   let queryResponse = resources[resourceType].count.get(filterStr);
   if (queryResponse) return queryResponse;
@@ -216,45 +218,40 @@ export function count(resourceType, filter): QueryResponse {
 
 function limitFilter(filter, sort, bookmark): Expression {
   const sortSort = (a, b): number => Math.abs(b[1]) - Math.abs(a[1]);
-  const arr = Object.entries(sort)
-    .sort(sortSort)
-    .reverse();
+  const arr = Object.entries(sort).sort(sortSort).reverse();
   return and(
     filter,
-    arr.reduce(
-      (cur, kv) => {
-        const [param, asc] = kv;
-        if (asc <= 0) {
-          if (bookmark[param] == null) {
-            return or(
-              ["IS NOT NULL", ["PARAM", param]],
-              and(["IS NULL", ["PARAM", param]], cur)
-            );
-          }
-
-          let f = null;
-
-          if (typeof bookmark[param] !== "string")
-            f = or(f, [">=", ["PARAM", param], ""]);
-
-          f = or(f, [">", ["PARAM", param], bookmark[param]]);
-          return or(f, and(["=", ["PARAM", param], bookmark[param]], cur));
-        } else {
-          let f: Expression = ["IS NULL", ["PARAM", param]];
-          if (bookmark[param] == null) return and(f, cur);
-
-          if (typeof bookmark[param] !== "number") {
-            f = or(f, [">=", ["PARAM", param], 0]);
-            f = or(f, ["<", ["PARAM", param], 0]);
-          }
-
-          f = or(f, ["<", ["PARAM", param], bookmark[param]]);
-
-          return or(f, and(["=", ["PARAM", param], bookmark[param]], cur));
+    arr.reduce((cur, kv) => {
+      const [param, asc] = kv;
+      if (asc <= 0) {
+        if (bookmark[param] == null) {
+          return or(
+            ["IS NOT NULL", ["PARAM", param]],
+            and(["IS NULL", ["PARAM", param]], cur)
+          );
         }
-      },
-      true as Expression
-    )
+
+        let f = null;
+
+        if (typeof bookmark[param] !== "string")
+          f = or(f, [">=", ["PARAM", param], ""]);
+
+        f = or(f, [">", ["PARAM", param], bookmark[param]]);
+        return or(f, and(["=", ["PARAM", param], bookmark[param]], cur));
+      } else {
+        let f: Expression = ["IS NULL", ["PARAM", param]];
+        if (bookmark[param] == null) return and(f, cur);
+
+        if (typeof bookmark[param] !== "number") {
+          f = or(f, [">=", ["PARAM", param], 0]);
+          f = or(f, ["<", ["PARAM", param], 0]);
+        }
+
+        f = or(f, ["<", ["PARAM", param], bookmark[param]]);
+
+        return or(f, and(["=", ["PARAM", param], bookmark[param]], cur));
+      }
+    }, true as Expression)
   );
 }
 
@@ -287,7 +284,7 @@ function compareFunction(sort: {
         const w = {
           null: 1,
           number: 2,
-          string: 3
+          string: 3,
         };
         const w1 = w[v1 == null ? "null" : typeof v1] || 4;
         const w2 = w[v2 == null ? "null" : typeof v2] || 4;
@@ -331,8 +328,8 @@ function inferQuery(resourceType, queryResponse): void {
 }
 
 export function fetch(
-  resourceType,
-  filter,
+  resourceType: string,
+  filter: Expression,
   options: QueryOptions = {}
 ): QueryResponse {
   const filterStr = memoizedStringify(filter);
@@ -357,7 +354,10 @@ export function fetch(
   return queryResponse;
 }
 
-export function fulfill(accessTimestamp, _fulfillTimestamp): Promise<boolean> {
+export function fulfill(
+  accessTimestamp: number,
+  _fulfillTimestamp: number
+): Promise<boolean> {
   let updated = false;
 
   if (_fulfillTimestamp > fulfillTimestamp) {
@@ -389,18 +389,18 @@ export function fulfill(accessTimestamp, _fulfillTimestamp): Promise<boolean> {
               url:
                 `api/${resourceType}/?` +
                 m.buildQueryString({
-                  filter: memoizedStringify(filter)
+                  filter: memoizedStringify(filter),
                 }),
-              extract: xhr => +xhr.getResponseHeader("x-total-count"),
-              background: true
+              extract: (xhr) => +xhr.getResponseHeader("x-total-count"),
+              background: true,
             })
-              .then(c => {
+              .then((c) => {
                 queries.value.set(queryResponse, c);
                 queries.fulfilled.set(queryResponse, fulfillTimestamp);
                 queries.fulfilling.delete(queryResponse);
                 resolve();
               })
-              .catch(err => reject(err));
+              .catch((err) => reject(err));
           })
         );
       }
@@ -439,11 +439,11 @@ export function fulfill(accessTimestamp, _fulfillTimestamp): Promise<boolean> {
                     limit: 1,
                     skip: limit - 1,
                     sort: JSON.stringify(sort),
-                    projection: Object.keys(sort).join(",")
-                  })
+                    projection: Object.keys(sort).join(","),
+                  }),
               })
-                .then(res => {
-                  if ((res as {}[]).length) {
+                .then((res) => {
+                  if ((res as any[]).length) {
                     // Generate bookmark object
                     const bm = Object.keys(sort).reduce((b, k) => {
                       if (res[0][k] != null) {
@@ -478,7 +478,7 @@ export function fulfill(accessTimestamp, _fulfillTimestamp): Promise<boolean> {
         for (let [resourceType, toFetch] of Object.entries(toFetchAll)) {
           let combinedFilter = null;
 
-          toFetch = toFetch.filter(queryResponse => {
+          toFetch = toFetch.filter((queryResponse) => {
             let filter = queries.filter.get(queryResponse);
             filter = unpackExpression(filter);
             const limit = queries.limit.get(queryResponse);
@@ -528,11 +528,11 @@ export function fulfill(accessTimestamp, _fulfillTimestamp): Promise<boolean> {
                 url:
                   `api/${resourceType}/?` +
                   m.buildQueryString({
-                    filter: memoizedStringify(combinedFilterDiff)
-                  })
+                    filter: memoizedStringify(combinedFilterDiff),
+                  }),
               })
-                .then(res => {
-                  for (const r of res as {}[]) {
+                .then((res) => {
+                  for (const r of res as any[]) {
                     const id =
                       resourceType === "devices"
                         ? r["DeviceID.ID"].value[0]
@@ -580,7 +580,10 @@ export function getTimestamp(): number {
   return fulfillTimestamp;
 }
 
-export function postTasks(deviceId, tasks): Promise<string> {
+export function postTasks(
+  deviceId: string,
+  tasks: QueueTask[]
+): Promise<string> {
   for (const t of tasks) {
     t.status = "pending";
     t.device = deviceId;
@@ -590,7 +593,7 @@ export function postTasks(deviceId, tasks): Promise<string> {
     method: "POST",
     url: `api/devices/${encodeURIComponent(deviceId)}/tasks`,
     body: tasks,
-    extract: xhr => {
+    extract: (xhr) => {
       if (xhr.status !== 200) throw new Error(xhr.response);
       const connectionRequestStatus = xhr.getResponseHeader(
         "Connection-Request"
@@ -599,35 +602,45 @@ export function postTasks(deviceId, tasks): Promise<string> {
       for (const [i, t] of st.entries()) {
         tasks[i]._id = t._id;
         tasks[i].status = t.status;
-        tasks[i].fault = t.fault;
+        tasks[i]["fault"] = t.fault;
       }
       return connectionRequestStatus;
-    }
+    },
   });
 }
 
-export function updateTags(deviceId, tags): Promise<void> {
+export function updateTags(
+  deviceId: string,
+  tags: Record<string, boolean>
+): Promise<void> {
   return xhrRequest({
     method: "POST",
     url: `api/devices/${encodeURIComponent(deviceId)}/tags`,
-    body: tags
+    body: tags,
   });
 }
 
-export function deleteResource(resourceType, id): Promise<void> {
+export function deleteResource(
+  resourceType: string,
+  id: string
+): Promise<void> {
   return xhrRequest({
     method: "DELETE",
-    url: `api/${resourceType}/${encodeURIComponent(id)}`
+    url: `api/${resourceType}/${encodeURIComponent(id)}`,
   });
 }
 
-export function putResource(resourceType, id, object): Promise<void> {
+export function putResource(
+  resourceType: string,
+  id: string,
+  object: Record<string, unknown>
+): Promise<void> {
   for (const k in object) if (object[k] === undefined) object[k] = null;
 
   return xhrRequest({
     method: "PUT",
     url: `api/${resourceType}/${encodeURIComponent(id)}`,
-    body: object
+    body: object,
   });
 }
 
@@ -636,11 +649,11 @@ export function queryConfig(pattern = "%"): Promise<any[]> {
   return xhrRequest({
     method: "GET",
     url: `api/config/?${m.buildQueryString({ filter: filter })}`,
-    background: true
+    background: true,
   });
 }
 
-export function resourceExists(resource, id): Promise<number> {
+export function resourceExists(resource: string, id: string): Promise<number> {
   const param = resource === "devices" ? "DeviceID.ID" : "_id";
   const filter = ["=", ["PARAM", param], id];
   return xhrRequest({
@@ -648,22 +661,25 @@ export function resourceExists(resource, id): Promise<number> {
     url:
       `api/${resource}/?` +
       m.buildQueryString({
-        filter: memoizedStringify(filter)
+        filter: memoizedStringify(filter),
       }),
-    extract: xhr => +xhr.getResponseHeader("x-total-count"),
-    background: true
+    extract: (xhr) => +xhr.getResponseHeader("x-total-count"),
+    background: true,
   });
 }
 
-export function evaluateExpression(exp, obj): Expression {
+export function evaluateExpression(
+  exp: Expression,
+  obj: Record<string, unknown>
+): Expression {
   if (!Array.isArray(exp)) return exp;
   return memoizedEvaluate(exp, obj, fulfillTimestamp);
 }
 
 export function changePassword(
-  username,
-  newPassword,
-  authPassword?
+  username: string,
+  newPassword: string,
+  authPassword?: string
 ): Promise<void> {
   const body = { newPassword };
   if (authPassword) body["authPassword"] = authPassword;
@@ -671,29 +687,29 @@ export function changePassword(
     method: "PUT",
     url: `api/users/${username}/password`,
     background: true,
-    body
+    body,
   });
 }
 
-export function logIn(username, password): Promise<void> {
+export function logIn(username: string, password: string): Promise<void> {
   return xhrRequest({
     method: "POST",
     url: "login",
     background: true,
-    body: { username, password }
+    body: { username, password },
   });
 }
 
 export function logOut(): Promise<void> {
   return xhrRequest({
     method: "POST",
-    url: "logout"
+    url: "logout",
   });
 }
 
-export function ping(host): Promise<{}> {
+export function ping(host: string): Promise<PingResult> {
   return xhrRequest({
     url: `api/ping/${encodeURIComponent(host)}`,
-    background: true
+    background: true,
   });
 }

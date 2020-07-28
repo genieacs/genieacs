@@ -26,8 +26,9 @@ import {
   insertTasks,
   watchTask,
   connectionRequest,
-  deleteDevice
+  deleteDevice,
 } from "../api-functions";
+import { Task } from "../types";
 
 async function deleteFault(id): Promise<void> {
   const deviceId = id.split(":", 1)[0];
@@ -37,13 +38,16 @@ async function deleteFault(id): Promise<void> {
     db.deleteFault(id),
     channel.startsWith("task_")
       ? db.deleteTask(new ObjectID(channel.slice(5)))
-      : null
+      : null,
   ]);
 
   await del(`${deviceId}_tasks_faults_operations`);
 }
 
-export async function deleteResource(resource, id): Promise<void> {
+export async function deleteResource(
+  resource: string,
+  id: string
+): Promise<void> {
   switch (resource) {
     case "devices":
       await deleteDevice(id);
@@ -86,18 +90,18 @@ export async function deleteResource(resource, id): Promise<void> {
 }
 
 export async function postTasks(
-  deviceId,
-  tasks,
-  timeout,
-  device
+  deviceId: string,
+  tasks: Task[],
+  timeout: number,
+  device: Record<string, { value?: [boolean | number | string, string] }>
 ): Promise<{ connectionRequest: string; tasks: any[] }> {
   for (const task of tasks) {
     delete task._id;
-    task.device = deviceId;
+    task["device"] = deviceId;
   }
 
   tasks = await insertTasks(tasks);
-  const statuses = tasks.map(t => {
+  const statuses = tasks.map((t) => {
     return { _id: t._id, status: "pending" };
   });
 
@@ -106,9 +110,10 @@ export async function postTasks(
   try {
     await connectionRequest(deviceId, device);
   } catch (err) {
+    for (const t of statuses) db.deleteTask(new ObjectID(t._id));
     return {
       connectionRequest: err.message,
-      tasks: statuses
+      tasks: statuses,
     };
   }
 
@@ -131,9 +136,9 @@ export async function postTasks(
       r.status = "done";
     } else if (res[i * 2 + 1].length === 1) {
       r.status = "fault";
-      r.fault = res[i * 2 + 1][0];
+      r["fault"] = res[i * 2 + 1][0];
     }
-    db.deleteTask(r._id);
+    db.deleteTask(new ObjectID(r._id));
   }
 
   return { connectionRequest: "OK", tasks: statuses };
@@ -149,7 +154,11 @@ interface PingResponse {
   mdev: number;
 }
 
-export async function putResource(resource, id, data): Promise<void> {
+export async function putResource(
+  resource: string,
+  id: string,
+  data: Record<string, unknown>
+): Promise<void> {
   if (resource === "presets") {
     await db.putPreset(id, data);
   } else if (resource === "provisions") {
@@ -161,21 +170,25 @@ export async function putResource(resource, id, data): Promise<void> {
   } else if (resource === "permissions") {
     await db.putPermission(id, data);
   } else if (resource === "users") {
-    delete data.password;
-    delete data.salt;
+    delete data["password"];
+    delete data["salt"];
     await db.putUser(id, data);
   }
 
   await del("presets_hash");
 }
 
-export function authLocal(snapshot, username, password): Promise<boolean> {
+export function authLocal(
+  snapshot: string,
+  username: string,
+  password: string
+): Promise<boolean> {
   return new Promise((resolve, reject) => {
     const users = getUsers(snapshot);
     const user = users[username];
     if (!user || !user.password) return void resolve(null);
     hashPassword(password, user.salt)
-      .then(hash => {
+      .then((hash) => {
         if (hash === user.password) resolve(true);
         else resolve(false);
       })

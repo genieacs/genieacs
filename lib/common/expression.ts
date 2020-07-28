@@ -24,7 +24,7 @@ import { Expression } from "../types";
 
 const isArray = Array.isArray;
 
-const regExpCache = new WeakMap<object, RegExp>();
+const regExpCache = new WeakMap<any, RegExp>();
 
 const REDUCE_SKIP = {};
 function reduce(exp, callback): Expression {
@@ -44,7 +44,7 @@ function reduce(exp, callback): Expression {
   return exp;
 }
 
-export function likePatternToRegExp(pat, esc = "", flags = ""): RegExp {
+export function likePatternToRegExp(pat: string, esc = "", flags = ""): RegExp {
   const convChars = {
     "-": "\\-",
     "/": "\\/",
@@ -63,11 +63,11 @@ export function likePatternToRegExp(pat, esc = "", flags = ""): RegExp {
     "{": "\\{",
     "}": "\\}",
     "\\%": ".*",
-    "\\_": "."
+    "\\_": ".",
   };
   let chars = parseLikePattern(pat, esc);
   if (!chars.length) return new RegExp("^$", flags);
-  chars = chars.map(c => convChars[c] || c);
+  chars = chars.map((c) => convChars[c] || c);
   chars[0] = chars[0] === ".*" ? "" : "^" + chars[0];
   const l = chars.length - 1;
   chars[l] = [".*", ""].includes(chars[l]) ? "" : chars[l] + "$";
@@ -195,14 +195,24 @@ function evalExp(e: Expression): Expression {
 }
 
 export function evaluate(
-  exp,
-  obj,
+  exp: Expression,
+  obj: Record<string, unknown> | ((exp: string) => Expression),
   now: number,
-  cb?: Function
+  cb?: (exp: Expression) => Expression
 ): string | number | boolean | null;
-export function evaluate(exp, obj?, now?: number, cb?: Function): Expression;
-export function evaluate(exp, obj?, now?: number, cb?: Function): Expression {
-  return map(exp, e => {
+export function evaluate(
+  exp: Expression,
+  obj?: Record<string, unknown> | ((exp: string) => Expression),
+  now?: number,
+  cb?: (exp: Expression) => Expression
+): Expression;
+export function evaluate(
+  exp: Expression,
+  obj?: Record<string, unknown> | ((exp: string) => Expression),
+  now?: number,
+  cb?: (exp: Expression) => Expression
+): Expression {
+  return map(exp, (e) => {
     if (cb) e = cb(e);
     if (!isArray(e)) return e;
 
@@ -233,24 +243,24 @@ export function evaluate(exp, obj?, now?: number, cb?: Function): Expression {
 }
 
 export async function evaluateAsync(
-  exp,
-  obj,
+  exp: Expression,
+  obj: Record<string, unknown>,
   now: number,
-  cb?: Function
+  cb?: (exp: Expression) => Promise<Expression>
 ): Promise<string | number | boolean | null>;
 export async function evaluateAsync(
-  exp,
-  obj?,
+  exp: Expression,
+  obj?: Record<string, unknown>,
   now?: number,
-  cb?: Function
+  cb?: (exp: Expression) => Promise<Expression>
 ): Promise<Expression>;
 export async function evaluateAsync(
-  exp,
-  obj?,
+  exp: Expression,
+  obj?: Record<string, unknown>,
   now?: number,
-  cb?: Function
+  cb?: (exp: Expression) => Promise<Expression>
 ): Promise<Expression> {
-  return mapAsync(exp, async e => {
+  return mapAsync(exp, async (e) => {
     if (cb) e = await cb(e);
     if (!isArray(e)) return e;
 
@@ -269,8 +279,8 @@ export async function evaluateAsync(
       if (obj && !isArray(e[1])) {
         let v = obj[e[1]];
         if (v == null) return null;
-        if (typeof v === "object") v = v.value ? v.value[0] : null;
-        return v;
+        if (typeof v === "object") v = v["value"] ? v["value"][0] : null;
+        return v as Expression;
       }
     }
     return evalExp(e);
@@ -307,21 +317,21 @@ export function or(exp1: Expression, exp2: Expression): Expression {
   return res;
 }
 
-export function not(exp): Expression {
+export function not(exp: Expression): Expression {
   if (isArray(exp) && exp[0] === "NOT") return exp[1];
   return ["NOT", exp];
 }
 
-export function subset(exp1, exp2): boolean {
+export function subset(exp1: Expression, exp2: Expression): boolean {
   const e = evaluate(["NOT", ["OR", ["NOT", exp1], exp2]]);
   if (!isArray(e)) return !e;
   const { vars, clauses } = booleanCnf(e);
   return !naiveDpll(clauses, vars);
 }
 
-export function extractParams(exp): Expression[] {
+export function extractParams(exp: Expression): Expression[] {
   const params = new Set<Expression>();
-  map(exp, e => {
+  map(exp, (e) => {
     if (isArray(e) && e[0] === "PARAM") params.add(e[1]);
     return e;
   });

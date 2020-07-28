@@ -90,7 +90,7 @@ export function parseAttrs(string: string): Attribute[] {
               name: name,
               namespace: namespace,
               localName: localName,
-              value: value
+              value: value,
             };
             attrs.push(e);
             name = "";
@@ -128,8 +128,8 @@ export function parseAttrs(string: string): Attribute[] {
   return attrs;
 }
 
-export function decodeEntities(string): string {
-  return string.replace(/&[0-9a-z#]+;/gi, match => {
+export function decodeEntities(string: string): string {
+  return string.replace(/&[0-9a-z#]+;/gi, (match) => {
     switch (match) {
       case "&quot;":
         return '"';
@@ -161,15 +161,15 @@ export function decodeEntities(string): string {
   });
 }
 
-export function encodeEntities(string): string {
+export function encodeEntities(string: string): string {
   const entities = {
     "&": "&amp;",
     '"': "&quot;",
     "'": "&apos;",
     "<": "&lt;",
-    ">": "&gt;"
+    ">": "&gt;",
   };
-  return string.replace(/[&"'<>]/g, m => entities[m]);
+  return string.replace(/[&"'<>]/g, (m) => entities[m]);
 }
 
 export function parseXml(string: string): Element {
@@ -186,7 +186,7 @@ export function parseXml(string: string): Element {
     attrs: "",
     text: "",
     bodyIndex: 0,
-    children: []
+    children: [],
   };
 
   const stack: Element[] = [root];
@@ -330,7 +330,7 @@ export function parseXml(string: string): Element {
                   : "",
                 text: "",
                 bodyIndex: i + 1,
-                children: []
+                children: [],
               };
               parent.children.push(e);
               if (!selfClosing) stack.push(e);

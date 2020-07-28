@@ -5,7 +5,7 @@ import PathSet from "../lib/common/path-set";
 import VersionedMap from "../lib/versioned-map";
 import { Attributes } from "../lib/types";
 
-ava("getAliasDeclarations", t => {
+ava("getAliasDeclarations", (t) => {
   const path = Path.parse("a.[aa:10,bb.[aaa:100].cc:1].b");
   const decs = device.getAliasDeclarations(path, 99);
 
@@ -22,64 +22,64 @@ ava("getAliasDeclarations", t => {
   }
 });
 
-ava("unpack", t => {
+ava("unpack", (t) => {
   const now = Date.now();
   const deviceData = {
     paths: new PathSet(),
     timestamps: new VersionedMap<Path, number>(),
     attributes: new VersionedMap<Path, Attributes>(),
     trackers: new Map<Path, { [name: string]: number }>(),
-    changes: new Set<string>()
+    changes: new Set<string>(),
   };
 
   device.set(deviceData, Path.parse("a.1.b"), now, {
-    value: [now, ["b", "xsd:string"]]
+    value: [now, ["b", "xsd:string"]],
   });
   device.set(deviceData, Path.parse("a.1.c"), now, {
-    value: [now, ["c", "xsd:string"]]
+    value: [now, ["c", "xsd:string"]],
   });
   device.set(deviceData, Path.parse("a.1.a.1.a"), now, {
-    value: [now, ["", "xsd:string"]]
+    value: [now, ["", "xsd:string"]],
   });
   device.set(deviceData, Path.parse("a.1.a.1.b"), now, {
-    value: [now, ["b1", "xsd:string"]]
+    value: [now, ["b1", "xsd:string"]],
   });
   device.set(deviceData, Path.parse("a.1.a.1.c"), now, {
-    value: [now, ["c1", "xsd:string"]]
+    value: [now, ["c1", "xsd:string"]],
   });
   device.set(deviceData, Path.parse("a.1.a.2.a"), now, {
-    value: [now, ["", "xsd:string"]]
+    value: [now, ["", "xsd:string"]],
   });
   device.set(deviceData, Path.parse("a.1.a.2.b"), now, {
-    value: [now, ["b2", "xsd:string"]]
+    value: [now, ["b2", "xsd:string"]],
   });
   device.set(deviceData, Path.parse("a.1.a.2.c"), now, {
-    value: [now, ["c2", "xsd:string"]]
+    value: [now, ["c2", "xsd:string"]],
   });
 
   device.set(deviceData, Path.parse("a.2.b"), now, {
-    value: [now, ["b", "xsd:string"]]
+    value: [now, ["b", "xsd:string"]],
   });
   device.set(deviceData, Path.parse("a.2.c"), now, {
-    value: [now, ["c", "xsd:string"]]
+    value: [now, ["c", "xsd:string"]],
   });
   device.set(deviceData, Path.parse("a.2.a.1.a"), now, {
-    value: [now, ["", "xsd:string"]]
+    value: [now, ["", "xsd:string"]],
   });
   device.set(deviceData, Path.parse("a.2.a.1.b"), now, {
-    value: [now, ["b1", "xsd:string"]]
+    value: [now, ["b1", "xsd:string"]],
   });
   device.set(deviceData, Path.parse("a.2.a.1.c"), now, {
-    value: [now, ["c1", "xsd:string"]]
+    value: [now, ["c1", "xsd:string"]],
   });
   device.set(deviceData, Path.parse("a.2.a.2.a"), now, {
-    value: [now, ["", "xsd:string"]]
+    value: [now, ["", "xsd:string"]],
   });
   device.set(deviceData, Path.parse("a.2.a.2.b"), now, {
-    value: [now, ["c1", "xsd:string"]]
+    value: [now, ["c1", "xsd:string"]],
   });
   device.set(deviceData, Path.parse("a.2.a.2.c"), now, {
-    value: [now, ["b1", "xsd:string"]]
+    value: [now, ["b1", "xsd:string"]],
   });
 
   let unpacked: Path[];

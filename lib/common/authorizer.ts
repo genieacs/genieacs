@@ -23,13 +23,13 @@ import { evaluate, or } from "./expression";
 export default class Authorizer {
   private permissionSets: PermissionSet[];
   private validatorCache: WeakMap<
-    object,
+    any,
     (mutationType, mutation, any) => boolean
   >;
   private hasAccessCache: Map<string, boolean>;
   private getFilterCache: Map<string, Expression>;
 
-  public constructor(permissionSets) {
+  public constructor(permissionSets: PermissionSet[]) {
     this.permissionSets = permissionSets;
     this.validatorCache = new WeakMap();
     this.hasAccessCache = new Map();
@@ -77,8 +77,8 @@ export default class Authorizer {
   }
 
   public getValidator(
-    resourceType,
-    resource
+    resourceType: string,
+    resource: unknown
   ): (mutationType: string, mutation?: any, args?: any) => boolean {
     if (this.validatorCache.has(resource))
       return this.validatorCache.get(resource);
@@ -108,7 +108,7 @@ export default class Authorizer {
         mutation,
         resourceType,
         object: resource,
-        options: any
+        options: any,
       };
 
       const valueFunction = (paramName): any => {

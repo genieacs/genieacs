@@ -31,7 +31,7 @@ const UNDISCOVERED_DEPTH = 7;
 // point has been discovered.
 export function estimateGpnCount(
   gpnPatterns: [Path, number][],
-  depth: number = 0
+  depth = 0
 ): number {
   const children: { [segment: string]: [Path, number][] } = {};
   const wildcardChildren: [Path, number][] = [];

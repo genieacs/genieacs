@@ -43,7 +43,8 @@ import {
   Expression,
   Task,
   SoapMessage,
-  InformRequest
+  InformRequest,
+  AcsResponse,
 } from "./types";
 import { IncomingMessage, ServerResponse } from "http";
 import { Readable } from "stream";
@@ -67,7 +68,7 @@ const stats = {
   concurrentRequests: 0,
   totalRequests: 0,
   droppedRequests: 0,
-  initiatedSessions: 0
+  initiatedSessions: 0,
 };
 
 async function authenticate(
@@ -195,14 +196,14 @@ async function writeResponse(
   if (connection.destroyed) {
     logger.accessError({
       sessionContext: sessionContext,
-      message: "Connection dropped"
+      message: "Connection dropped",
     });
   } else if (close) {
     const isNew = await endSession(sessionContext);
     if (isNew) {
       logger.accessInfo({
         sessionContext: sessionContext,
-        message: "New device registered"
+        message: "New device registered",
       });
     }
   } else {
@@ -265,7 +266,7 @@ function recordFault(
       message: "Channel has faulted",
       fault: fault,
       channel: channel,
-      retries: sessionContext.retries[channel]
+      retries: sessionContext.retries[channel],
     });
   }
 
@@ -288,7 +289,7 @@ function recordFault(
 async function inform(
   sessionContext: SessionContext,
   rpc: SoapMessage
-): Promise<{ code: number; headers: {}; data: string }> {
+): Promise<{ code: number; headers: Record<string, string>; data: string }> {
   const acsResponse = await session.inform(
     sessionContext,
     rpc.cpeRequest as InformRequest
@@ -297,7 +298,7 @@ async function inform(
   const res = soap.response({
     id: rpc.id,
     acsResponse: acsResponse,
-    cwmpVersion: sessionContext.cwmpVersion
+    cwmpVersion: sessionContext.cwmpVersion,
   });
 
   const cookiesPath = localCache.getConfig(
@@ -305,7 +306,7 @@ async function inform(
     "cwmp.cookiesPath",
     {},
     sessionContext.timestamp,
-    e => session.configContextCallback(sessionContext, e)
+    (e) => session.configContextCallback(sessionContext, e)
   );
 
   if (cookiesPath) {
@@ -329,7 +330,7 @@ async function transferComplete(sessionContext, rpc): Promise<void> {
     logger.accessWarn({
       sessionContext: sessionContext,
       message: "Unrecognized command key",
-      rpc: rpc
+      rpc: rpc,
     });
   }
 
@@ -346,7 +347,7 @@ async function transferComplete(sessionContext, rpc): Promise<void> {
   const res = soap.response({
     id: rpc.id,
     acsResponse: acsResponse,
-    cwmpVersion: sessionContext.cwmpVersion
+    cwmpVersion: sessionContext.cwmpVersion,
   });
 
   return writeResponse(sessionContext, res);
@@ -397,7 +398,7 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
     "cwmp.retryDelay",
     {},
     sessionContext.timestamp,
-    e => session.configContextCallback(sessionContext, e)
+    (e) => session.configContextCallback(sessionContext, e)
   );
 
   if (sessionContext.faults) {
@@ -466,13 +467,13 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
     }
   }
 
-  const declarations = Object.values(parameters).map(v => ({
+  const declarations = Object.values(parameters).map((v) => ({
     path: v,
     pathGet: 1,
     pathSet: null,
     attrGet: { value: 1 },
     attrSet: null,
-    defer: true
+    defer: true,
   }));
 
   const { fault: flt, rpcId: reqId, rpc: acsReq } = await session.rpcRequest(
@@ -496,7 +497,7 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
   const appendProvisionsToFaults = {};
   for (const p of filteredPresets) {
     if (
-      evaluate(p.precondition, {}, sessionContext.timestamp, e =>
+      evaluate(p.precondition, {}, sessionContext.timestamp, (e) =>
         session.configContextCallback(sessionContext, e)
       )
     ) {
@@ -529,7 +530,7 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
     const fault = {
       code: "preset_loop",
       message: "The presets are stuck in an endless configuration loop",
-      timestamp: sessionContext.timestamp
+      timestamp: sessionContext.timestamp,
     };
     recordFault(sessionContext, fault);
     // No need to save retryNow
@@ -610,13 +611,13 @@ async function nextRpc(sessionContext: SessionContext): Promise<void> {
   session.clearProvisions(sessionContext);
 
   // Clear expired tasks
-  sessionContext.tasks = sessionContext.tasks.filter(task => {
+  sessionContext.tasks = sessionContext.tasks.filter((task) => {
     if (!(task.expiry <= sessionContext.timestamp)) return true;
 
     logger.accessInfo({
       sessionContext: sessionContext,
       message: "Task expired",
-      task: task
+      task: task,
     });
 
     if (!sessionContext.doneTasks) sessionContext.doneTasks = [];
@@ -633,7 +634,7 @@ async function nextRpc(sessionContext: SessionContext): Promise<void> {
   });
 
   const task = sessionContext.tasks.find(
-    t => !sessionContext.faults[`task_${t._id}`]
+    (t) => !sessionContext.faults[`task_${t._id}`]
   );
 
   if (!task) return applyPresets(sessionContext);
@@ -646,7 +647,7 @@ async function nextRpc(sessionContext: SessionContext): Promise<void> {
       sessionContext.channels[`task_${task._id}`] = 0;
       for (const p of task.parameterNames) {
         session.addProvisions(sessionContext, `task_${task._id}`, [
-          ["refresh", p]
+          ["refresh", p],
         ]);
       }
 
@@ -656,14 +657,14 @@ async function nextRpc(sessionContext: SessionContext): Promise<void> {
       sessionContext.channels[`task_${task._id}`] = 0;
       for (const p of task.parameterValues) {
         session.addProvisions(sessionContext, `task_${task._id}`, [
-          ["value", p[0], p[1]]
+          ["value", p[0], p[1]],
         ]);
       }
 
       break;
     case "refreshObject":
       session.addProvisions(sessionContext, `task_${task._id}`, [
-        ["refresh", task.objectName]
+        ["refresh", task.objectName],
       ]);
       break;
     case "reboot":
@@ -674,20 +675,20 @@ async function nextRpc(sessionContext: SessionContext): Promise<void> {
       break;
     case "download":
       session.addProvisions(sessionContext, `task_${task._id}`, [
-        ["download", task.fileType, task.fileName, task.targetFileName || ""]
+        ["download", task.fileType, task.fileName, task.targetFileName || ""],
       ]);
       break;
     case "addObject":
       alias = (task.parameterValues || [])
-        .map(p => `${p[0]}:${JSON.stringify(p[1])}`)
+        .map((p) => `${p[0]}:${JSON.stringify(p[1])}`)
         .join(",");
       session.addProvisions(sessionContext, `task_${task._id}`, [
-        ["instances", `${task.objectName}.[${alias}]`, "+1"]
+        ["instances", `${task.objectName}.[${alias}]`, "+1"],
       ]);
       break;
     case "deleteObject":
       session.addProvisions(sessionContext, `task_${task._id}`, [
-        ["instances", task.objectName, 0]
+        ["instances", task.objectName, 0],
       ]);
       break;
     default:
@@ -799,13 +800,13 @@ async function sendAcsRequest(
   const rpc = {
     id: id,
     acsRequest: acsRequest,
-    cwmpVersion: sessionContext.cwmpVersion
+    cwmpVersion: sessionContext.cwmpVersion,
   };
 
   logger.accessInfo({
     sessionContext: sessionContext,
     message: "ACS request",
-    rpc: rpc
+    rpc: rpc,
   });
 
   const res = soap.response(rpc);
@@ -821,7 +822,7 @@ async function getSession(connection, sessionId): Promise<SessionContext> {
 
   if (!sessionId) return null;
 
-  await new Promise(resolve => setTimeout(resolve, 100));
+  await new Promise((resolve) => setTimeout(resolve, 100));
 
   const sessionContextString = await cache.pop(`session_${sessionId}`);
   if (!sessionContextString) return null;
@@ -848,7 +849,7 @@ export function onConnection(socket: Socket): void {
     const timeoutMsg = logger.flatten({
       sessionContext: sessionContext,
       message: "Session timeout",
-      sessionTimestamp: sessionContext.timestamp
+      sessionTimestamp: sessionContext.timestamp,
     });
 
     const timeout =
@@ -883,7 +884,7 @@ setInterval(() => {
       droppedRequests: stats.droppedRequests,
       totalRequests: stats.totalRequests,
       initiatedSessions: stats.initiatedSessions,
-      pid: process.pid
+      pid: process.pid,
     });
   }
 
@@ -908,20 +909,20 @@ async function getDueTasksAndFaultsAndOperations(
       tasks: resParsed.tasks || [],
       faults: resParsed.faults || {},
       operations: resParsed.operations || {},
-      ttl: 0
+      ttl: 0,
     };
   }
 
   const res2 = await Promise.all([
     db.getDueTasks(deviceId, timestamp),
     db.getFaults(deviceId),
-    db.getOperations(deviceId)
+    db.getOperations(deviceId),
   ]);
   return {
     tasks: res2[0][0],
     faults: res2[1],
     operations: res2[2],
-    ttl: res2[0][1] || 0
+    ttl: res2[0][1] || 0,
   };
 }
 
@@ -935,7 +936,7 @@ async function cacheDueTasksAndFaultsAndOperations(
   const v = {
     tasks: null,
     faults: null,
-    operations: null
+    operations: null,
   };
   if (tasks.length) v.tasks = tasks;
   if (Object.keys(faults).length) v.faults = faults;
@@ -955,7 +956,7 @@ async function cacheDueTasksAndFaultsAndOperations(
 async function reportBadState(sessionContext: SessionContext): Promise<void> {
   logger.accessError({
     message: "Bad session state",
-    sessionContext: sessionContext
+    sessionContext: sessionContext,
   });
   const httpResponse = sessionContext.httpResponse;
   currentSessions.delete(httpResponse.connection);
@@ -976,7 +977,7 @@ async function responseUnauthorized(
     // Invalid credentials
     logger.accessError({
       message: "Authentication failure",
-      sessionContext: sessionContext
+      sessionContext: sessionContext,
     });
 
     resHeaders["Connection"] = "close";
@@ -1007,7 +1008,7 @@ async function responseUnauthorized(
 async function processRequest(
   sessionContext: SessionContext,
   rpc: SoapMessage,
-  parseWarnings: any[],
+  parseWarnings: Record<string, unknown>[],
   body: string
 ): Promise<void> {
   for (const w of parseWarnings) {
@@ -1027,7 +1028,7 @@ async function processRequest(
       "cwmp.debug",
       {},
       sessionContext.timestamp,
-      e => session.configContextCallback(sessionContext, e)
+      (e) => session.configContextCallback(sessionContext, e)
     );
 
     if (!sessionContext.timeout) {
@@ -1036,7 +1037,7 @@ async function processRequest(
         "cwmp.sessionTimeout",
         {},
         sessionContext.timestamp,
-        e => session.configContextCallback(sessionContext, e)
+        (e) => session.configContextCallback(sessionContext, e)
       );
     }
 
@@ -1064,7 +1065,7 @@ async function processRequest(
     logger.accessInfo({
       sessionContext: sessionContext,
       message: "Inform",
-      rpc: rpc
+      rpc: rpc,
     });
 
     return writeResponse(sessionContext, res);
@@ -1099,7 +1100,7 @@ async function processRequest(
       logger.accessInfo({
         sessionContext: sessionContext,
         message: "CPE request",
-        rpc: rpc
+        rpc: rpc,
       });
       return transferComplete(sessionContext, rpc);
     } else if (rpc.cpeRequest.name === "GetRPCMethods") {
@@ -1108,15 +1109,15 @@ async function processRequest(
       logger.accessInfo({
         sessionContext: sessionContext,
         message: "CPE request",
-        rpc: rpc
+        rpc: rpc,
       });
       const res = soap.response({
         id: rpc.id,
         acsResponse: {
           name: "GetRPCMethodsResponse",
-          methodList: ["Inform", "GetRPCMethods", "TransferComplete"]
-        },
-        cwmpVersion: sessionContext.cwmpVersion
+          methodList: ["Inform", "GetRPCMethods", "TransferComplete"],
+        } as AcsResponse,
+        cwmpVersion: sessionContext.cwmpVersion,
       });
       return writeResponse(sessionContext, res);
     } else {
@@ -1136,7 +1137,7 @@ async function processRequest(
     logger.accessWarn({
       sessionContext: sessionContext,
       message: "CPE fault",
-      rpc: rpc
+      rpc: rpc,
     });
 
     const fault = await session.rpcFault(sessionContext, rpc.id, rpc.cpeFault);
@@ -1179,7 +1180,7 @@ export function listener(
     .then(() => {
       stats.concurrentRequests -= 1;
     })
-    .catch(err => {
+    .catch((err) => {
       currentSessions.delete(httpResponse.connection);
       httpResponse.writeHead(500, { Connection: "close" });
       httpResponse.end(`${err.name}: ${err.message}`);
@@ -1208,7 +1209,7 @@ async function listenerAsync(
   if (httpRequest.method !== "POST") {
     httpResponse.writeHead(405, {
       Allow: "POST",
-      Connection: "close"
+      Connection: "close",
     });
     httpResponse.end("405 Method Not Allowed");
     return;
@@ -1225,7 +1226,7 @@ async function listenerAsync(
   if (!sessionId && stats.concurrentRequests > MAX_CONCURRENT_REQUESTS) {
     httpResponse.writeHead(503, {
       "Retry-after": 60,
-      Connection: "close"
+      Connection: "close",
     });
     httpResponse.end("503 Service Unavailable");
     stats.droppedRequests += 1;
@@ -1252,7 +1253,7 @@ async function listenerAsync(
     const chunks: Buffer[] = [];
     let bytes = 0;
 
-    stream.on("data", chunk => {
+    stream.on("data", (chunk) => {
       chunks.push(chunk);
       bytes += chunk.length;
     });
@@ -1290,7 +1291,7 @@ async function listenerAsync(
     ) {
       logger.accessError({
         message: "Invalid session",
-        sessionContext: sessionContext
+        sessionContext: sessionContext,
       });
 
       const _body = "Invalid session";
@@ -1327,7 +1328,7 @@ async function listenerAsync(
 
   if (!charset) {
     const parse = parseXmlDeclaration(body);
-    const e = parse ? parse.find(s => s.localName === "encoding") : null;
+    const e = parse ? parse.find((s) => s.localName === "encoding") : null;
     charset = e ? e.value.toLowerCase() : "utf8";
   }
 
@@ -1340,8 +1341,8 @@ async function listenerAsync(
       parseError: msg,
       sessionContext: sessionContext || {
         httpRequest: httpRequest,
-        httpResponse: httpResponse
-      }
+        httpResponse: httpResponse,
+      },
     });
     httpResponse.setHeader("Content-Length", Buffer.byteLength(msg));
     httpResponse.writeHead(400, { Connection: "close" });
@@ -1354,10 +1355,10 @@ async function listenerAsync(
         cacheSnapshot,
         "cwmp.debug",
         {
-          remoteAddress: getRequestOrigin(httpRequest).remoteAddress
+          remoteAddress: getRequestOrigin(httpRequest).remoteAddress,
         },
         Date.now(),
-        e => {
+        (e) => {
           if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "REMOTE_ADDRESS")
             return getRequestOrigin(httpRequest).remoteAddress;
           return e;
@@ -1383,8 +1384,8 @@ async function listenerAsync(
       parseError: error.message.trim(),
       sessionContext: sessionContext || {
         httpRequest: httpRequest,
-        httpResponse: httpResponse
-      }
+        httpResponse: httpResponse,
+      },
     });
     httpResponse.setHeader("Content-Length", Buffer.byteLength(error.message));
     httpResponse.writeHead(400, { Connection: "close" });
@@ -1402,10 +1403,10 @@ async function listenerAsync(
         cacheSnapshot,
         "cwmp.debug",
         {
-          remoteAddress: getRequestOrigin(httpRequest).remoteAddress
+          remoteAddress: getRequestOrigin(httpRequest).remoteAddress,
         },
         Date.now(),
-        e => {
+        (e) => {
           if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "REMOTE_ADDRESS")
             return getRequestOrigin(httpRequest).remoteAddress;
           return e;
@@ -1425,8 +1426,8 @@ async function listenerAsync(
       message: "Invalid session",
       sessionContext: sessionContext || {
         httpRequest: httpRequest,
-        httpResponse: httpResponse
-      }
+        httpResponse: httpResponse,
+      },
     });
     const _body = "Invalid session";
     httpResponse.setHeader("Content-Length", Buffer.byteLength(_body));
@@ -1436,10 +1437,10 @@ async function listenerAsync(
       cacheSnapshot,
       "cwmp.debug",
       {
-        remoteAddress: getRequestOrigin(httpRequest).remoteAddress
+        remoteAddress: getRequestOrigin(httpRequest).remoteAddress,
       },
       Date.now(),
-      e => {
+      (e) => {
         if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "REMOTE_ADDRESS")
           return getRequestOrigin(httpRequest).remoteAddress;
         return e;
@@ -1473,7 +1474,7 @@ async function listenerAsync(
     tasks: dueTasks,
     faults,
     operations,
-    ttl: cacheUntil
+    ttl: cacheUntil,
   } = await getDueTasksAndFaultsAndOperations(
     deviceId,
     _sessionContext.timestamp

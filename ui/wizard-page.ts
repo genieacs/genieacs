@@ -20,7 +20,7 @@
 import m, { ClosureComponent, Component } from "mithril";
 import * as notifications from "./notifications";
 
-export async function init(): Promise<{}> {
+export async function init(): Promise<Record<string, unknown>> {
   return m.request({ url: "init" });
 }
 
@@ -39,18 +39,18 @@ export const component: ClosureComponent = (vnode): Component => {
         "filters",
         "device",
         "index",
-        "overview"
-      ].map(s => {
+        "overview",
+      ].map((s) => {
         if (!options[s]) selected.delete(s);
         return m("input", {
           type: "checkbox",
           checked: selected.has(s),
           disabled: !options[s],
           style: "display: inline; margin-right: 0.5em;",
-          onclick: e => {
+          onclick: (e) => {
             if (e.target.checked) selected.add(s);
             else selected.delete(s);
-          }
+          },
         });
       });
 
@@ -74,7 +74,7 @@ export const component: ClosureComponent = (vnode): Component => {
           {
             style: "margin: 10px;",
             disabled: selected.size === 0,
-            onclick: e => {
+            onclick: (e) => {
               e.target.disabled = true;
 
               const opts = {};
@@ -83,18 +83,18 @@ export const component: ClosureComponent = (vnode): Component => {
               m.request({
                 method: "POST",
                 url: "init",
-                body: opts
+                body: opts,
               })
                 .then(() => {
                   setTimeout(() => {
-                    m.request({ url: "init" }).then(o => {
+                    m.request({ url: "init" }).then((o) => {
                       e.target.disabled = false;
                       options = o;
                       notifications.push("success", "Initialization complete", {
                         "Open Sesame!": () => {
                           m.route.set("/login");
                           window.location.reload();
-                        }
+                        },
                       });
                     });
                   }, 3000);
@@ -104,14 +104,14 @@ export const component: ClosureComponent = (vnode): Component => {
                     );
                   }
                 })
-                .catch(err => {
+                .catch((err) => {
                   notifications.push("error", err.message);
                 });
-            }
+            },
           },
           "ABRACADABRA!"
-        )
+        ),
       ]);
-    }
+    },
   };
 };

@@ -43,19 +43,19 @@ function drawChart(chartData): Children {
     legend.push(
       m(".legend-line", [
         m("span.color", {
-          style: `background-color: ${slice["color"]} !important;`
+          style: `background-color: ${slice["color"]} !important;`,
         }),
         `${slice["label"]}: `,
         m(
           "a",
           {
             href: `#!/devices/?${m.buildQueryString({
-              filter: memoizedStringify(slice["filter"])
-            })}`
+              filter: memoizedStringify(slice["filter"]),
+            })}`,
           },
           slice["count"]["value"] || 0
         ),
-        ` (${(percent * 100).toFixed(2)}%)`
+        ` (${(percent * 100).toFixed(2)}%)`,
       ])
     );
 
@@ -76,7 +76,7 @@ function drawChart(chartData): Children {
       paths.push(
         m("path", {
           d: sketch,
-          fill: slice["color"]
+          fill: slice["color"],
         })
       );
 
@@ -90,13 +90,13 @@ function drawChart(chartData): Children {
           "a",
           {
             "xlink:href": `#!/devices/?${m.buildQueryString({
-              filter: memoizedStringify(slice["filter"])
-            })}`
+              filter: memoizedStringify(slice["filter"]),
+            })}`,
           },
           [
             m("path", {
               d: sketch,
-              "fill-opacity": 0
+              "fill-opacity": 0,
             }),
             m(
               "text",
@@ -104,10 +104,10 @@ function drawChart(chartData): Children {
                 x: percentageX,
                 y: percentageY,
                 "dominant-baseline": "middle",
-                "text-anchor": "middle"
+                "text-anchor": "middle",
               },
               `${(percent * 100).toFixed(2)}%`
-            )
+            ),
           ]
         )
       );
@@ -125,19 +125,19 @@ function drawChart(chartData): Children {
         width: "204px",
         height: "204px",
         xmlns: "http://www.w3.org/2000/svg",
-        "xmlns:xlink": "http://www.w3.org/1999/xlink"
+        "xmlns:xlink": "http://www.w3.org/1999/xlink",
       },
       paths.concat(links)
     ),
-    m(".legend", legend)
+    m(".legend", legend),
   ]);
 }
 
 const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       return drawChart(vnode.attrs["chart"]);
-    }
+    },
   };
 };
 

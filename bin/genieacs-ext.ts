@@ -1,5 +1,3 @@
-#!/usr/bin/env -S node -r esm -r ts-node/register/transpile-only
-
 /**
  * Copyright 2013-2019  GenieACS Inc.
  *
@@ -35,8 +33,8 @@ function errorToFault(err: Error): Fault {
     message: err.message,
     detail: {
       name: err.name,
-      message: err.message
-    }
+      message: err.message,
+    },
   };
 
   if (err.stack) {
@@ -56,16 +54,16 @@ function errorToFault(err: Error): Fault {
   return fault;
 }
 
-process.on("uncaughtException", err => {
+process.on("uncaughtException", (err) => {
   const fault = errorToFault(err);
-  jobs.forEach(jobId => {
+  jobs.forEach((jobId) => {
     process.send([jobId, fault, null]);
   });
   jobs.clear();
   process.disconnect();
 });
 
-process.on("message", message => {
+process.on("message", (message) => {
   jobs.add(message[0]);
 
   if (!script) {
@@ -79,7 +77,7 @@ process.on("message", message => {
   if (!script[funcName]) {
     const fault = {
       code: "ext",
-      message: `No such function '${funcName}' in extension '${fileName}'`
+      message: `No such function '${funcName}' in extension '${fileName}'`,
     };
     process.send([message[0], fault, null]);
     return;
@@ -93,4 +91,6 @@ process.on("message", message => {
 });
 
 // Ignore SIGINT
-process.on("SIGINT", () => {});
+process.on("SIGINT", () => {
+  // Ignore
+});

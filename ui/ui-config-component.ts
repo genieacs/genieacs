@@ -50,7 +50,7 @@ function putActionHandler(prefix: string[], dataYaml: string): Promise<any> {
 
       store
         .queryConfig(`${prefix.join(".")}.%`)
-        .then(res => {
+        .then((res) => {
           const current = {};
           for (const f of res) current[f._id] = f.value;
 
@@ -59,8 +59,15 @@ function putActionHandler(prefix: string[], dataYaml: string): Promise<any> {
 
           const promises = [];
 
-          for (const obj of diff.add)
-            promises.push(store.putResource("config", obj._id, obj));
+          for (const obj of diff.add) {
+            promises.push(
+              store.putResource(
+                "config",
+                obj._id,
+                (obj as unknown) as Record<string, unknown>
+              )
+            );
+          }
 
           for (const id of diff.remove)
             promises.push(store.deleteResource("config", id));
@@ -80,7 +87,7 @@ function putActionHandler(prefix: string[], dataYaml: string): Promise<any> {
 
 const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       const prefix = vnode.attrs["prefix"].split(".");
       const name = vnode.attrs["name"];
       const data = vnode.attrs["data"];
@@ -97,9 +104,9 @@ const component: ClosureComponent = (): Component => {
         config && Object.values(config).length
           ? yaml.stringify(config, {
               schema: "failsafe",
-              tags: args => {
+              tags: (args) => {
                 return args;
-              }
+              },
             })
           : "";
 
@@ -108,12 +115,12 @@ const component: ClosureComponent = (): Component => {
         value: yamlString,
         mode: "yaml",
         focus: true,
-        onSubmit: dom => {
+        onSubmit: (dom) => {
           dom.form.querySelector("button[type=submit]").click();
         },
-        onChange: value => {
+        onChange: (value) => {
           vnode.state["updatedYaml"] = value;
-        }
+        },
       };
 
       const code = m(codeEditorComponent, attrs);
@@ -124,7 +131,7 @@ const component: ClosureComponent = (): Component => {
         m(
           "form",
           {
-            onsubmit: e => {
+            onsubmit: (e) => {
               e.redraw = false;
               e.preventDefault();
               if (vnode.state["updatedYaml"] == null)
@@ -133,12 +140,12 @@ const component: ClosureComponent = (): Component => {
               putActionHandler(prefix, vnode.state["updatedYaml"])
                 .then(vnode.attrs["onUpdate"])
                 .catch(vnode.attrs["onError"]);
-            }
+            },
           },
           [code, m(".actions-bar", [submit])]
-        )
+        ),
       ]);
-    }
+    },
   };
 };
 

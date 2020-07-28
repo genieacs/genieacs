@@ -27,7 +27,7 @@ const singular = {
   virtualParameters: "virtual parameter",
   files: "file",
   users: "user",
-  permissions: "permission"
+  permissions: "permission",
 };
 
 function createField(current, attr, focus): Children {
@@ -50,14 +50,14 @@ function createField(current, attr, focus): Children {
         name: attr.id,
         value: selected,
         oncreate: focus
-          ? _vnode => {
+          ? (_vnode) => {
               (_vnode.dom as HTMLSelectElement).focus();
             }
           : null,
-        onchange: e => {
+        onchange: (e) => {
           current.object[attr.id] = e.target.value;
           e.redraw = false;
-        }
+        },
       },
       options
     );
@@ -66,22 +66,22 @@ function createField(current, attr, focus): Children {
       new Set(attr.options.concat(current.object[attr.id] || []))
     );
     const currentSelected = new Set(current.object[attr.id]);
-    const options = optionsValues.map(op => {
+    const options = optionsValues.map((op) => {
       const id = `${attr.id}-${op}`;
       const opts = {
         type: "checkbox",
         id: id,
         value: op,
-        oncreate: _vnode => {
+        oncreate: (_vnode) => {
           if (focus && !options.length) _vnode.dom.focus();
           if (currentSelected.has(op)) _vnode.dom.checked = true;
         },
-        onchange: e => {
+        onchange: (e) => {
           if (e.target.checked) currentSelected.add(op);
           else currentSelected.delete(op);
           current.object[attr.id] = Array.from(currentSelected);
           e.redraw = false;
-        }
+        },
       };
 
       return m("tr", [m("td", m("input", opts)), m("td", op)]);
@@ -93,12 +93,12 @@ function createField(current, attr, focus): Children {
       id: attr.id,
       value: current.object[attr.id],
       mode: "javascript",
-      onSubmit: dom => {
+      onSubmit: (dom) => {
         dom.form.querySelector("button[type=submit]").click();
       },
-      onChange: value => {
+      onChange: (value) => {
         current.object[attr.id] = value;
-      }
+      },
     };
     return m(codeEditorComponent, attrs);
   } else if (attr.type === "file") {
@@ -106,14 +106,14 @@ function createField(current, attr, focus): Children {
       type: "file",
       name: attr.id,
       oncreate: focus
-        ? _vnode => {
+        ? (_vnode) => {
             (_vnode.dom as HTMLInputElement).focus();
           }
         : null,
-      onchange: e => {
+      onchange: (e) => {
         current.object[attr.id] = e.target.files;
         e.redraw = false;
-      }
+      },
     });
   } else if (attr.type === "textarea") {
     return m("textarea", {
@@ -124,17 +124,17 @@ function createField(current, attr, focus): Children {
       rows: attr.rows || 4,
       style: "resize: none;",
       oncreate: focus
-        ? _vnode => {
+        ? (_vnode) => {
             const dom = _vnode.dom as HTMLInputElement;
             dom.focus();
             dom.setSelectionRange(dom.value.length, dom.value.length);
           }
         : null,
-      oninput: e => {
+      oninput: (e) => {
         current.object[attr.id] = e.target.value;
         e.redraw = false;
       },
-      onkeypress: e => {
+      onkeypress: (e) => {
         e.redraw = false;
         if (e.which === 13 && !e.shiftKey) {
           const dom = e.target;
@@ -142,7 +142,7 @@ function createField(current, attr, focus): Children {
           return false;
         }
         return true;
-      }
+      },
     });
   }
 
@@ -152,20 +152,20 @@ function createField(current, attr, focus): Children {
     disabled: attr.id === "_id" && !current.isNew,
     value: current.object[attr.id],
     oncreate: focus
-      ? _vnode => {
+      ? (_vnode) => {
           (_vnode.dom as HTMLInputElement).focus();
         }
       : null,
-    oninput: e => {
+    oninput: (e) => {
       current.object[attr.id] = e.target.value;
       e.redraw = false;
-    }
+    },
   });
 }
 
 const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       const actionHandler = vnode.attrs["actionHandler"];
       const attributes = vnode.attrs["attributes"];
       const resource = vnode.attrs["resource"];
@@ -173,7 +173,7 @@ const component: ClosureComponent = (): Component => {
       if (!vnode.state["current"]) {
         vnode.state["current"] = {
           isNew: !base["_id"],
-          object: Object.assign({}, base)
+          object: Object.assign({}, base),
         };
       }
 
@@ -204,21 +204,23 @@ const component: ClosureComponent = (): Component => {
       const buttons = [submit];
 
       if (!current.isNew) {
-        buttons.push(m(
-          "button.primary",
-          {
-            type: "button",
-            title: `Delete ${singular[resource] || resource}`,
-            onclick: e => {
-              e.redraw = false;
-              e.target.disabled = true;
-              actionHandler("delete", current.object).then(() => {
-                e.target.disabled = false;
-              });
-            }
-          },
-          "Delete"
-        ) as VnodeDOM);
+        buttons.push(
+          m(
+            "button.primary",
+            {
+              type: "button",
+              title: `Delete ${singular[resource] || resource}`,
+              onclick: (e) => {
+                e.redraw = false;
+                e.target.disabled = true;
+                actionHandler("delete", current.object).then(() => {
+                  e.target.disabled = false;
+                });
+              },
+            },
+            "Delete"
+          ) as VnodeDOM
+        );
       }
 
       form.push(m(".actions-bar", buttons));
@@ -226,13 +228,14 @@ const component: ClosureComponent = (): Component => {
       const children = [
         m(
           "h1",
-          `${current.isNew ? "New" : "Editing"} ${singular[resource] ||
-            resource}`
+          `${current.isNew ? "New" : "Editing"} ${
+            singular[resource] || resource
+          }`
         ),
         m(
           "form",
           {
-            onsubmit: e => {
+            onsubmit: (e) => {
               e.redraw = false;
               // const onsubmit = e.target.onsubmit;
               e.preventDefault();
@@ -244,14 +247,14 @@ const component: ClosureComponent = (): Component => {
                 // e.target.onsubmit = onsubmit;
                 (submit.dom as HTMLFormElement).disabled = false;
               });
-            }
+            },
           },
           form
-        )
+        ),
       ];
 
       return m("div.put-form", children);
-    }
+    },
   };
 };
 

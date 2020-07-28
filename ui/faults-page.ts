@@ -41,10 +41,10 @@ const attributes = [
   { id: "message", label: "Message" },
   { id: "detail", label: "Detail" },
   { id: "retries", label: "Retries" },
-  { id: "timestamp", label: "Timestamp" }
+  { id: "timestamp", label: "Timestamp" },
 ];
 
-const getDownloadUrl = memoize(filter => {
+const getDownloadUrl = memoize((filter) => {
   const cols = {};
   for (const attr of attributes) {
     cols[attr.label] =
@@ -53,19 +53,21 @@ const getDownloadUrl = memoize(filter => {
 
   return `api/faults.csv?${m.buildQueryString({
     filter: stringify(filter),
-    columns: JSON.stringify(cols)
+    columns: JSON.stringify(cols),
   })}`;
 });
 
-const unpackSmartQuery = memoize(query => {
-  return map(query, e => {
+const unpackSmartQuery = memoize((query) => {
+  return map(query, (e) => {
     if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "Q")
       return smartQuery.unpack("faults", e[2], e[3]);
     return e;
   });
 });
 
-export function init(args): Promise<{}> {
+export function init(
+  args: Record<string, unknown>
+): Promise<Record<string, unknown>> {
   if (!window.authorizer.hasAccess("faults", 2)) {
     return Promise.reject(
       new Error("You are not authorized to view this page")
@@ -85,7 +87,7 @@ export function init(args): Promise<{}> {
 
 export const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       document.title = "Faults - GenieACS";
 
       function showMore(): void {
@@ -130,7 +132,7 @@ export const component: ClosureComponent = (): Component => {
 
       const faults = store.fetch("faults", filter, {
         limit: vnode.state["showCount"] || PAGE_SIZE,
-        sort: sort
+        sort: sort,
       });
       const count = store.count("faults", filter);
 
@@ -165,13 +167,13 @@ export const component: ClosureComponent = (): Component => {
       attrs["downloadUrl"] = downloadUrl;
 
       if (window.authorizer.hasAccess("faults", 3)) {
-        attrs["actionsCallback"] = (selected): Children => {
+        attrs["actionsCallback"] = (selected: Set<string>): Children => {
           return m(
             "button.primary",
             {
               disabled: selected.size === 0,
               title: "Delete selected faults",
-              onclick: e => {
+              onclick: (e) => {
                 e.redraw = false;
                 e.target.disabled = true;
 
@@ -179,22 +181,22 @@ export const component: ClosureComponent = (): Component => {
                   return;
 
                 Promise.all(
-                  Array.from(selected).map(id =>
+                  Array.from(selected).map((id) =>
                     store.deleteResource("faults", id)
                   )
                 )
-                  .then(res => {
+                  .then((res) => {
                     notifications.push(
                       "success",
                       `${res.length} faults deleted`
                     );
                     store.fulfill(0, Date.now());
                   })
-                  .catch(err => {
+                  .catch((err) => {
                     notifications.push("error", err.message);
                     store.fulfill(0, Date.now());
                   });
-              }
+              },
             },
             "Delete"
           );
@@ -209,8 +211,8 @@ export const component: ClosureComponent = (): Component => {
       return [
         m("h1", "Listing faults"),
         m(filterComponent, filterAttrs),
-        m(indexTableComponent, attrs)
+        m(indexTableComponent, attrs),
       ];
-    }
+    },
   };
 };

@@ -22,12 +22,12 @@ import { m } from "../components";
 
 const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       let deviceId;
       if (vnode.attrs["device"])
         deviceId = vnode.attrs["device"]["DeviceID.ID"].value[0];
 
-      const children = Object.values(vnode.attrs["components"]).map(c => {
+      const children = Object.values(vnode.attrs["components"]).map((c) => {
         if (typeof c !== "object") return `${c}`;
         const attrs = Object.assign({}, vnode.attrs, c);
         return m(attrs["type"], attrs);
@@ -41,7 +41,7 @@ const component: ClosureComponent = (): Component => {
       } else {
         return children;
       }
-    }
+    },
   };
 };
 

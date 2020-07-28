@@ -21,7 +21,7 @@ import {
   IncomingMessage,
   ServerResponse,
   ClientRequest,
-  RequestOptions
+  RequestOptions,
 } from "http";
 import { Socket } from "net";
 import { appendFileSync } from "fs";
@@ -60,7 +60,7 @@ export function incomingHttpRequest(
     method: httpRequest.method,
     url: httpRequest.url,
     headers: httpRequest.headers,
-    body: body
+    body: body,
   };
 
   if (DEBUG_FORMAT === "yaml")
@@ -86,7 +86,7 @@ export function outgoingHttpResponse(
     connection: getConnectionTimestamp(con),
     statusCode: httpResponse.statusCode,
     headers: httpResponse.getHeaders(),
-    body: body
+    body: body,
   };
 
   if (DEBUG_FORMAT === "yaml")
@@ -115,7 +115,7 @@ export function outgoingHttpRequest(
     method: options.method || "GET",
     url: options.path,
     headers: httpRequest.getHeaders(),
-    body: body
+    body: body,
   };
 
   if (DEBUG_FORMAT === "yaml")
@@ -143,7 +143,7 @@ export function outgoingHttpRequestError(
     method: options.method,
     url: options.path,
     headers: httpRequest.getHeaders(),
-    error: err.message
+    error: err.message,
   };
 
   if (DEBUG_FORMAT === "yaml")
@@ -169,7 +169,7 @@ export function incomingHttpResponse(
     connection: getConnectionTimestamp(httpResponse.connection),
     statusCode: httpResponse.statusCode,
     headers: httpResponse.headers,
-    body: body
+    body: body,
   };
 
   if (DEBUG_FORMAT === "yaml")
@@ -193,7 +193,7 @@ export function outgoingUdpMessage(
     remoteAddress: remoteAddress,
     deviceId: deviceId,
     remotePort: remotePort,
-    body: body
+    body: body,
   };
 
   if (DEBUG_FORMAT === "yaml")

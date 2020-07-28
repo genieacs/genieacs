@@ -23,7 +23,7 @@ import * as store from "../store";
 
 const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       if (vnode.attrs["filter"]) {
         if (
           !store.evaluateExpression(
@@ -34,13 +34,13 @@ const component: ClosureComponent = (): Component => {
           return null;
       }
 
-      const children = Object.values(vnode.attrs["components"]).map(c => {
+      const children = Object.values(vnode.attrs["components"]).map((c) => {
         if (typeof c !== "object") return `${c}`;
         return m(c["type"], c);
       });
       if (vnode.attrs["element"]) return m(vnode.attrs["element"], children);
       else return children;
-    }
+    },
   };
 };
 

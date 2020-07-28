@@ -23,11 +23,11 @@ import { codeMirror } from "./dynamic-loader";
 
 const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       return m("textarea", {
         name: vnode.attrs["id"],
         value: vnode.attrs["value"],
-        oncreate: _vnode => {
+        oncreate: (_vnode) => {
           const editor = codeMirror.fromTextArea(_vnode.dom, {
             mode: vnode.attrs["mode"],
             lineNumbers: true,
@@ -40,21 +40,21 @@ const component: ClosureComponent = (): Component => {
               "Cmd-Enter": () => {
                 if (vnode.attrs["onSubmit"])
                   vnode.attrs["onSubmit"](_vnode.dom);
-              }
-            }
+              },
+            },
           });
 
           if (vnode.attrs["onChange"]) {
-            editor.on("change", e => {
+            editor.on("change", (e) => {
               vnode.attrs["onChange"](e.getValue());
             });
           }
 
           if (vnode.attrs["focus"]) editor.focus();
           if (vnode.attrs["onReady"]) vnode.attrs["onReady"](editor);
-        }
+        },
       });
-    }
+    },
   };
 };
 

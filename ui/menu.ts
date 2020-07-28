@@ -21,7 +21,7 @@ import m, { ClosureComponent, Component } from "mithril";
 
 const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       const active = { [vnode.attrs["page"]]: "active" };
 
       const tabs = [];
@@ -59,7 +59,7 @@ const component: ClosureComponent = (): Component => {
         "presets",
         "provisions",
         "virtualParameters",
-        "files"
+        "files",
       ];
       for (const page of adminPages) {
         if (window.authorizer.hasAccess(page, 2)) {
@@ -75,7 +75,7 @@ const component: ClosureComponent = (): Component => {
       }
 
       return m("nav", m("ul", tabs));
-    }
+    },
   };
 };
 

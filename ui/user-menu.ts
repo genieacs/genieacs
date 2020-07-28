@@ -31,7 +31,7 @@ const component: ClosureComponent = (): Component => {
           m(
             "button",
             {
-              onclick: e => {
+              onclick: (e) => {
                 e.target.disabled = true;
                 store
                   .logOut()
@@ -39,12 +39,12 @@ const component: ClosureComponent = (): Component => {
                     location.hash = "";
                     location.reload();
                   })
-                  .catch(err => {
+                  .catch((err) => {
                     e.target.disabled = false;
                     notifications.push("error", err.message);
                   });
                 return false;
-              }
+              },
             },
             "Log out"
           )
@@ -56,13 +56,13 @@ const component: ClosureComponent = (): Component => {
             "a",
             {
               href:
-                "#!/login?" + m.buildQueryString({ continue: m.route.get() })
+                "#!/login?" + m.buildQueryString({ continue: m.route.get() }),
             },
             "Log in"
           )
         );
       }
-    }
+    },
   };
 };
 

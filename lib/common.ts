@@ -17,22 +17,12 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export const UNDEFINED_TYPE = "[object Undefined]";
-export const NULL_TYPE = "[object Null]";
-export const BOOLEAN_TYPE = "[object Boolean]";
-export const NUMBER_TYPE = "[object Number]";
-export const STRING_TYPE = "[object String]";
-export const ARRAY_TYPE = "[object Array]";
-export const OBJECT_TYPE = "[object Object]";
-export const REGEXP_TYPE = "[object RegExp]";
-export const DATE_TYPE = "[object Date]";
-
-export const typeOf = (obj): string => Object.prototype.toString.call(obj);
-
-export function generateDeviceId(deviceIdStruct): string {
+export function generateDeviceId(
+  deviceIdStruct: Record<string, string>
+): string {
   // Escapes everything except alphanumerics and underscore
   function esc(str): string {
-    return str.replace(/[^A-Za-z0-9_]/g, chr => {
+    return str.replace(/[^A-Za-z0-9_]/g, (chr) => {
       const buf = Buffer.from(chr, "utf8");
       let rep = "";
       for (const b of buf) rep += "%" + b.toString(16).toUpperCase();
@@ -54,6 +44,6 @@ export function generateDeviceId(deviceIdStruct): string {
 }
 
 // Source: http://stackoverflow.com/a/6969486
-export function escapeRegExp(str): string {
+export function escapeRegExp(str: string): string {
   return str.replace(/[-[\]/{}()*+?.\\^$|]/g, "\\$&");
 }

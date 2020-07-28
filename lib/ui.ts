@@ -52,14 +52,14 @@ const getAuthorizer = memoize(
   (snapshot: string, rolesStr: string): Authorizer => {
     const roles: string[] = JSON.parse(rolesStr);
     const allPermissions = localCache.getPermissions(snapshot);
-    const permissionSets: PermissionSet[] = roles.map(r =>
+    const permissionSets: PermissionSet[] = roles.map((r) =>
       Object.values(allPermissions[r] || {})
     );
     return new Authorizer(permissionSets);
   }
 );
 
-koa.on("error", async err => {
+koa.on("error", async (err) => {
   throw err;
 });
 
@@ -84,7 +84,7 @@ koa.use(
       }
 
       return true;
-    }
+    },
   })
 );
 
@@ -111,7 +111,7 @@ koa.use(async (ctx, next) => {
   return next();
 });
 
-router.post("/login", async ctx => {
+router.post("/login", async (ctx) => {
   if (!JWT_SECRET) {
     ctx.status = 500;
     ctx.body = "UI_JWT_SECRET is not set";
@@ -126,7 +126,7 @@ router.post("/login", async ctx => {
     message: "Log in",
     context: ctx,
     username: username,
-    method: null
+    method: null,
   };
 
   function success(authMethod): void {
@@ -150,13 +150,13 @@ router.post("/login", async ctx => {
   failure();
 });
 
-router.post("/logout", async ctx => {
+router.post("/logout", async (ctx) => {
   ctx.cookies.set(JWT_COOKIE); // Delete cookie
   ctx.body = "";
 
   logger.accessInfo({
     message: "Log out",
-    context: ctx
+    context: ctx,
   });
 });
 
@@ -170,11 +170,11 @@ koa.use(async (ctx, next) => {
 koa.use(koaBodyParser());
 router.use("/api", api.routes(), api.allowedMethods());
 
-router.get("/status", ctx => {
+router.get("/status", (ctx) => {
   ctx.body = "OK";
 });
 
-router.get("/init", async ctx => {
+router.get("/init", async (ctx) => {
   const status = await init.getStatus();
   if (Object.keys(localCache.getUsers(ctx.state.configSnapshot)).length) {
     if (!ctx.state.authorizer.hasAccess("users", 3)) status["users"] = false;
@@ -195,7 +195,7 @@ router.get("/init", async ctx => {
   ctx.body = status;
 });
 
-router.post("/init", async ctx => {
+router.post("/init", async (ctx) => {
   const status = ctx.request.body;
   if (Object.keys(localCache.getUsers(ctx.state.configSnapshot)).length) {
     if (!ctx.state.authorizer.hasAccess("users", 3)) status["users"] = false;
@@ -216,7 +216,7 @@ router.post("/init", async ctx => {
   ctx.body = "";
 });
 
-router.get("/", async ctx => {
+router.get("/", async (ctx) => {
   const permissionSets: PermissionSet[] = ctx.state.authorizer.getPermissionSets();
 
   let wizard = "";
@@ -234,7 +234,7 @@ router.get("/", async ctx => {
     <noscript>GenieACS UI requires JavaScript to work. Please enable JavaScript in your browser.</noscript>
       <script>
         window.clientConfig = ${JSON.stringify({
-          ui: localCache.getUiConfig(ctx.state.configSnapshot)
+          ui: localCache.getUiConfig(ctx.state.configSnapshot),
         })};
         window.configSnapshot = ${JSON.stringify(ctx.state.configSnapshot)};
         window.genieacsVersion = ${JSON.stringify(VERSION)};
@@ -251,7 +251,7 @@ router.get("/", async ctx => {
 
 koa.use(
   koaCompress({
-    flush: Z_SYNC_FLUSH
+    flush: Z_SYNC_FLUSH,
   })
 );
 

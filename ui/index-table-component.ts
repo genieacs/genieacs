@@ -57,14 +57,14 @@ function renderTable(
     const selectAll = m("input", {
       type: "checkbox",
       checked: records.length && selected.size === records.length,
-      onchange: e => {
+      onchange: (e) => {
         for (const record of records) {
           const id = record["_id"] || record["DeviceID.ID"].value[0];
           if (e.target.checked) selected.add(id);
           else selected.delete(id);
         }
       },
-      disabled: !total
+      disabled: !total,
     });
     labels.push(m("th", selectAll));
   }
@@ -89,7 +89,7 @@ function renderTable(
         onclick: () => {
           if (sortAttributes[i] > 0) direction *= -1;
           return onSortChange({ [i]: direction });
-        }
+        },
       },
       symbol
     );
@@ -106,14 +106,14 @@ function renderTable(
       const checkbox = m("input", {
         type: "checkbox",
         checked: selected.has(id),
-        onchange: e => {
+        onchange: (e) => {
           if (e.target.checked) selected.add(id);
           else selected.delete(id);
         },
-        onclick: e => {
+        onclick: (e) => {
           e.stopPropagation();
           e.redraw = false;
-        }
+        },
       });
       tds.push(m("td", checkbox));
     }
@@ -152,14 +152,14 @@ function renderTable(
       m(
         "tr",
         {
-          onclick: e => {
+          onclick: (e) => {
             if (["INPUT", "BUTTON", "A"].includes(e.target.nodeName)) {
               e.redraw = false;
               return;
             }
 
             if (!selected.delete(id)) selected.add(id);
-          }
+          },
         },
         tds
       )
@@ -180,7 +180,7 @@ function renderTable(
       {
         title: "Show more records",
         onclick: showMoreCallback,
-        disabled: !data.length || records.length >= total
+        disabled: !data.length || records.length >= total,
       },
       "More"
     )
@@ -203,7 +203,7 @@ function renderTable(
       m("thead", m("tr", labels)),
       m("tbody", rows),
       tfoot
-    )
+    ),
   ];
 
   if (buttons.length) children.push(m("div.actions-bar", buttons));
@@ -214,7 +214,7 @@ const component: ClosureComponent = (): Component => {
   let selected = new Set<string>();
 
   return {
-    view: vnode => {
+    view: (vnode) => {
       const attributes = vnode.attrs["attributes"];
       const data = vnode.attrs["data"];
       const valueCallback = vnode.attrs["valueCallback"];
@@ -246,7 +246,7 @@ const component: ClosureComponent = (): Component => {
         actionsCallback,
         recordActionsCallback
       );
-    }
+    },
   };
 };
 

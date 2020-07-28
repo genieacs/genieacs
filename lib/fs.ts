@@ -36,7 +36,7 @@ export function listener(
     const log = {
       message: "Fetch file",
       filename: filename,
-      remoteAddress: getRequestOrigin(request).remoteAddress
+      remoteAddress: getRequestOrigin(request).remoteAddress,
     };
 
     db.filesCollection.findOne({ _id: filename }, (err, file) => {
@@ -52,7 +52,7 @@ export function listener(
 
       response.writeHead(200, {
         "Content-Type": file.contentType || "application/octet-stream",
-        "Content-Length": file.length
+        "Content-Length": file.length,
       });
 
       const bucket = new GridFSBucket(db.client.db());

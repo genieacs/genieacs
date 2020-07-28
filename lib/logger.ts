@@ -22,6 +22,14 @@ import * as os from "os";
 
 import * as config from "./config";
 import { getRequestOrigin } from "./forwarded";
+import {
+  SessionContext,
+  AcsRequest,
+  CpeRequest,
+  CpeFault,
+  InformRequest,
+  Fault,
+} from "./types";
 
 const REOPEN_EVERY = 60000;
 
@@ -67,7 +75,7 @@ function reopen(): void {
       if (!(stat && stat.dev === logStat.dev && stat.ino === logStat.ino)) {
         logStream.end();
         logStream = fs.createWriteStream(null, {
-          fd: fs.openSync(LOG_FILE, "a")
+          fd: fs.openSync(LOG_FILE, "a"),
         });
         logStat = fs.fstatSync(logStream.fd);
       }
@@ -91,7 +99,7 @@ function reopen(): void {
       ) {
         accessLogStream.end();
         accessLogStream = fs.createWriteStream(null, {
-          fd: fs.openSync(ACCESS_LOG_FILE, "a")
+          fd: fs.openSync(ACCESS_LOG_FILE, "a"),
         });
         accessLogStat = fs.fstatSync(accessLogStream.fd);
       }
@@ -105,7 +113,7 @@ function reopen(): void {
     setTimeout(reopen, REOPEN_EVERY - (Date.now() % REOPEN_EVERY)).unref();
 }
 
-export function init(service, version): void {
+export function init(service: string, version: string): void {
   defaultMeta.hostname = os.hostname();
   defaultMeta.pid = process.pid;
   defaultMeta.name = `genieacs-${service}`;
@@ -121,7 +129,7 @@ export function init(service, version): void {
 
   if (ACCESS_LOG_FILE) {
     accessLogStream = fs.createWriteStream(null, {
-      fd: fs.openSync(ACCESS_LOG_FILE, "a")
+      fd: fs.openSync(ACCESS_LOG_FILE, "a"),
     });
     accessLogStat = fs.fstatSync(accessLogStream.fd);
   }
@@ -147,62 +155,75 @@ export function close(): void {
   logStream.end();
 }
 
-export function flatten(details): {} {
+export function flatten(
+  details: Record<string, unknown>
+): Record<string, unknown> {
   if (details.sessionContext) {
-    details.deviceId = details.sessionContext.deviceId;
+    const sessionContext = details.sessionContext as SessionContext;
+    details.deviceId = sessionContext.deviceId;
     details.remoteAddress = getRequestOrigin(
-      details.sessionContext.httpRequest
+      sessionContext.httpRequest
     ).remoteAddress;
     delete details.sessionContext;
   }
 
   if (details.exception) {
-    details.exceptionName = details.exception.name;
-    details.exceptionMessage = details.exception.message;
-    details.exceptionStack = details.exception.stack;
+    const err = details.exception as Error;
+    details.exceptionName = err.name;
+    details.exceptionMessage = err.message;
+    details.exceptionStack = err.stack;
     delete details.exception;
   }
 
   if (details.task) {
-    details.taskId = details.task._id;
+    details.taskId = details.task["_id"];
     delete details.task;
   }
 
   if (details.rpc) {
-    if (details.rpc.acsRequest) {
-      details.acsRequestId = details.rpc.id;
-      details.acsRequestName = details.rpc.acsRequest.name;
-      if (details.rpc.acsRequest.commandKey)
-        details.acsRequestCommandKey = details.rpc.acsRequest.commandKey;
-    } else if (details.rpc.cpeRequest) {
-      details.cpeRequestId = details.rpc.id;
-      if (details.rpc.cpeRequest.name === "Inform") {
-        details.informEvent = details.rpc.cpeRequest.event.join(",");
-        details.informRetryCount = details.rpc.cpeRequest.retryCount;
+    const rpc = details.rpc as {
+      id: string;
+      acsRequest?: AcsRequest;
+      cpeRequest?: CpeRequest;
+      cpeFault?: CpeFault;
+    };
+    if (rpc.acsRequest) {
+      details.acsRequestId = rpc.id;
+      details.acsRequestName = rpc.acsRequest.name;
+      if (rpc.acsRequest["commandKey"])
+        details.acsRequestCommandKey = rpc.acsRequest["commandKey"];
+    } else if (rpc.cpeRequest) {
+      details.cpeRequestId = rpc.id;
+      if (rpc.cpeRequest.name === "Inform") {
+        details.informEvent = (rpc.cpeRequest as InformRequest).event.join(",");
+        details.informRetryCount = (rpc.cpeRequest as InformRequest).retryCount;
       } else {
-        details.cpeRequestName = details.rpc.cpeRequest.name;
-        if (details.rpc.cpeRequest.commandKey)
-          details.cpeRequestCommandKey = details.rpc.cpeRequest.commandKey;
+        details.cpeRequestName = rpc.cpeRequest.name;
+        if (rpc.cpeRequest["commandKey"])
+          details.cpeRequestCommandKey = rpc.cpeRequest["commandKey"];
       }
-    } else if (details.rpc.cpeFault) {
-      details.acsRequestId = details.rpc.id;
-      details.cpeFaultCode = details.rpc.cpeFault.detail.faultCode;
-      details.cpeFaultString = details.rpc.cpeFault.detail.faultString;
+    } else if (rpc.cpeFault) {
+      details.acsRequestId = rpc.id;
+      details.cpeFaultCode = rpc.cpeFault.detail.faultCode;
+      details.cpeFaultString = rpc.cpeFault.detail.faultString;
     }
     delete details.rpc;
   }
 
   if (details.fault) {
-    details.faultCode = details.fault.code;
-    details.faultMessage = details.fault.message;
+    const fault = details.fault as Fault;
+    details.faultCode = fault.code;
+    details.faultMessage = fault.message;
     delete details.fault;
   }
 
   // For genieacs-ui
   if (details.context) {
-    details.remoteAddress = getRequestOrigin(details.context.req).remoteAddress;
-    if (details.context.state.user)
-      details.user = details.context.state.user.username;
+    details.remoteAddress = getRequestOrigin(
+      details.context["req"]
+    ).remoteAddress;
+    if (details.context["state"].user)
+      details.user = details.context["state"].user.username;
     delete details.context;
   }
 
@@ -212,7 +233,10 @@ export function flatten(details): {} {
   return details;
 }
 
-function formatJson(details, systemd): string {
+function formatJson(
+  details: Record<string, unknown>,
+  systemd: boolean
+): string {
   if (systemd) {
     let severity = "";
     if (details.severity === "info") severity = "<6>";
@@ -225,14 +249,17 @@ function formatJson(details, systemd): string {
   return `${JSON.stringify(flatten(details))}${os.EOL}`;
 }
 
-function formatSimple(details, systemd): string {
+function formatSimple(
+  details: Record<string, unknown>,
+  systemd: boolean
+): string {
   const skip = {
     user: true,
     remoteAddress: true,
     severity: true,
     timestamp: true,
     message: true,
-    deviceId: !!details.sessionContext
+    deviceId: !!details.sessionContext,
   };
 
   flatten(details);
@@ -265,12 +292,14 @@ function formatSimple(details, systemd): string {
     return `${severity}${remote}${details.message}${meta}${os.EOL}`;
   }
 
-  return `${details.timestamp} [${details.severity.toUpperCase()}] ${remote}${
+  return `${
+    details.timestamp
+  } [${(details.severity as string).toUpperCase()}] ${remote}${
     details.message
   }${meta}${os.EOL}`;
 }
 
-function log(details): void {
+function log(details: Record<string, unknown>): void {
   details.timestamp = new Date().toISOString();
   if (LOG_FORMAT === "json") {
     details = Object.assign({}, defaultMeta, details);
@@ -280,22 +309,22 @@ function log(details): void {
   }
 }
 
-export function info(details): void {
+export function info(details: Record<string, unknown>): void {
   details.severity = "info";
   log(details);
 }
 
-export function warn(details): void {
+export function warn(details: Record<string, unknown>): void {
   details.severity = "warn";
   log(details);
 }
 
-export function error(details): void {
+export function error(details: Record<string, unknown>): void {
   details.severity = "error";
   log(details);
 }
 
-export function accessLog(details): void {
+export function accessLog(details: Record<string, unknown>): void {
   details.timestamp = new Date().toISOString();
   if (ACCESS_LOG_FORMAT === "json") {
     Object.assign(details, defaultMeta);
@@ -305,17 +334,17 @@ export function accessLog(details): void {
   }
 }
 
-export function accessInfo(details): void {
+export function accessInfo(details: Record<string, unknown>): void {
   details.severity = "info";
   accessLog(details);
 }
 
-export function accessWarn(details): void {
+export function accessWarn(details: Record<string, unknown>): void {
   details.severity = "warn";
   accessLog(details);
 }
 
-export function accessError(details): void {
+export function accessError(details: Record<string, unknown>): void {
   details.severity = "error";
   accessLog(details);
 }

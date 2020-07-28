@@ -17,7 +17,7 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ClosureComponent, Component, Children } from "mithril";
+import { ClosureComponent, Component, Children, Vnode } from "mithril";
 import { m } from "./components";
 import config from "./config";
 import filterComponent from "./filter-component";
@@ -43,11 +43,11 @@ const attributes = [
   { id: "events", label: "Events" },
   { id: "precondition", label: "Precondition", type: "textarea" },
   { id: "provision", label: "Provision", type: "combo" },
-  { id: "provisionArgs", label: "Arguments" }
+  { id: "provisionArgs", label: "Arguments" },
 ];
 
-const unpackSmartQuery = memoize(query => {
-  return map(query, e => {
+const unpackSmartQuery = memoize((query) => {
+  return map(query, (e) => {
     if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "Q")
       return smartQuery.unpack("presets", e[2], e[3]);
     return e;
@@ -77,14 +77,14 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
           object.precondition = stringify(memoizedParse(object.precondition));
         } catch (err) {
           return void resolve({
-            precondition: "Precondition must be valid expression"
+            precondition: "Precondition must be valid expression",
           });
         }
       }
 
       store
         .resourceExists("presets", id)
-        .then(exists => {
+        .then((exists) => {
           if (exists && isNew) {
             store.fulfill(0, Date.now());
             return void resolve({ _id: "Preset already exists" });
@@ -116,7 +116,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
           store.fulfill(0, Date.now());
           resolve();
         })
-        .catch(err => {
+        .catch((err) => {
           reject(err);
           store.fulfill(0, Date.now());
         });
@@ -128,19 +128,21 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
 
 const formData = {
   resource: "presets",
-  attributes: attributes
+  attributes: attributes,
 };
 
-const getDownloadUrl = memoize(filter => {
+const getDownloadUrl = memoize((filter) => {
   const cols = {};
   for (const attr of attributes) cols[attr.label] = attr.id;
   return `api/presets.csv?${m.buildQueryString({
     filter: stringify(filter),
-    columns: JSON.stringify(cols)
+    columns: JSON.stringify(cols),
   })}`;
 });
 
-export function init(args): Promise<{}> {
+export function init(
+  args: Record<string, unknown>
+): Promise<Record<string, unknown>> {
   if (!window.authorizer.hasAccess("presets", 2)) {
     return Promise.reject(
       new Error("You are not authorized to view this page")
@@ -154,7 +156,7 @@ export function init(args): Promise<{}> {
 
 export const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       document.title = "Presets - GenieACS";
 
       function showMore(): void {
@@ -207,7 +209,7 @@ export const component: ClosureComponent = (): Component => {
 
       const presets = store.fetch("presets", filter, {
         limit: vnode.state["showCount"] || PAGE_SIZE,
-        sort: sort
+        sort: sort,
       });
       const count = store.count("presets", filter);
 
@@ -220,7 +222,7 @@ export const component: ClosureComponent = (): Component => {
         "reboot",
         "reset",
         "download",
-        "instances"
+        "instances",
       ]);
 
       const provisions = store.fetch("provisions", true);
@@ -231,19 +233,19 @@ export const component: ClosureComponent = (): Component => {
         }
       }
 
-      const provisionAttr = attributes.find(attr => {
+      const provisionAttr = attributes.find((attr) => {
         return attr.id === "provision";
       });
       provisionAttr["options"] = Array.from(provisionIds);
 
       const downloadUrl = getDownloadUrl(filter);
 
-      const valueCallback = (attr, preset): {} => {
+      const valueCallback = (attr, preset): Vnode => {
         if (attr.id === "precondition") {
           let devicesUrl = "#!/devices";
           if (preset["precondition"].length) {
             devicesUrl += `?${m.buildQueryString({
-              filter: preset["precondition"]
+              filter: preset["precondition"],
             })}`;
           }
 
@@ -260,8 +262,8 @@ export const component: ClosureComponent = (): Component => {
             "a",
             {
               href: `#!/admin/provisions?${m.buildQueryString({
-                filter: `Q("ID", "${preset["provision"]}")`
-              })}`
+                filter: `Q("ID", "${preset["provision"]}")`,
+              })}`,
             },
             preset["provision"]
           );
@@ -279,7 +281,7 @@ export const component: ClosureComponent = (): Component => {
       attrs["onSortChange"] = onSortChange;
       attrs["downloadUrl"] = downloadUrl;
       attrs["valueCallback"] = valueCallback;
-      attrs["recordActionsCallback"] = preset => {
+      attrs["recordActionsCallback"] = (preset) => {
         return [
           m(
             "a",
@@ -300,9 +302,9 @@ export const component: ClosureComponent = (): Component => {
                       {
                         base: preset,
                         actionHandler: (action, object) => {
-                          return new Promise(resolve => {
+                          return new Promise((resolve) => {
                             putActionHandler(action, object, false)
-                              .then(errors => {
+                              .then((errors) => {
                                 const errorList = errors
                                   ? Object.values(errors)
                                   : [];
@@ -314,27 +316,27 @@ export const component: ClosureComponent = (): Component => {
                                 }
                                 resolve();
                               })
-                              .catch(err => {
+                              .catch((err) => {
                                 notifications.push("error", err.message);
                                 resolve();
                               });
                           });
-                        }
+                        },
                       },
                       formData
                     )
                   );
                 };
                 overlay.open(cb);
-              }
+              },
             },
             "Show"
-          )
+          ),
         ];
       };
 
       if (window.authorizer.hasAccess("presets", 3)) {
-        attrs["actionsCallback"] = (selected): Children => {
+        attrs["actionsCallback"] = (selected: Set<string>): Children => {
           return [
             m(
               "button.primary",
@@ -347,9 +349,9 @@ export const component: ClosureComponent = (): Component => {
                       Object.assign(
                         {
                           actionHandler: (action, object) => {
-                            return new Promise(resolve => {
+                            return new Promise((resolve) => {
                               putActionHandler(action, object, true)
-                                .then(errors => {
+                                .then((errors) => {
                                   const errorList = errors
                                     ? Object.values(errors)
                                     : [];
@@ -361,19 +363,19 @@ export const component: ClosureComponent = (): Component => {
                                   }
                                   resolve();
                                 })
-                                .catch(err => {
+                                .catch((err) => {
                                   notifications.push("error", err.message);
                                   resolve();
                                 });
                             });
-                          }
+                          },
                         },
                         formData
                       )
                     );
                   };
                   overlay.open(cb);
-                }
+                },
               },
               "New"
             ),
@@ -382,7 +384,7 @@ export const component: ClosureComponent = (): Component => {
               {
                 title: "Delete selected presets",
                 disabled: !selected.size,
-                onclick: e => {
+                onclick: (e) => {
                   if (
                     !confirm(`Deleting ${selected.size} presets. Are you sure?`)
                   )
@@ -391,25 +393,25 @@ export const component: ClosureComponent = (): Component => {
                   e.redraw = false;
                   e.target.disabled = true;
                   Promise.all(
-                    Array.from(selected).map(id =>
+                    Array.from(selected).map((id) =>
                       store.deleteResource("presets", id)
                     )
                   )
-                    .then(res => {
+                    .then((res) => {
                       notifications.push(
                         "success",
                         `${res.length} presets deleted`
                       );
                       store.fulfill(0, Date.now());
                     })
-                    .catch(err => {
+                    .catch((err) => {
                       notifications.push("error", err.message);
                       store.fulfill(0, Date.now());
                     });
-                }
+                },
               },
               "Delete"
-            )
+            ),
           ];
         };
       }
@@ -422,8 +424,8 @@ export const component: ClosureComponent = (): Component => {
       return [
         m("h1", "Listing presets"),
         m(filterComponent, filterAttrs),
-        m(indexTableComponent, attrs)
+        m(indexTableComponent, attrs),
       ];
-    }
+    },
   };
 };

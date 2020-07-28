@@ -25,6 +25,7 @@ import * as config from "./config";
 import * as db from "./db";
 import * as query from "./query";
 import * as apiFunctions from "./api-functions";
+import { IncomingMessage, ServerResponse } from "http";
 import * as cache from "./cache";
 import { version as VERSION } from "../package.json";
 import { ping } from "./ping";
@@ -42,7 +43,7 @@ const PROVISIONS_REGEX = /^\/provisions\/([a-zA-Z0-9\-_%]+)\/?$/;
 const VIRTUAL_PARAMETERS_REGEX = /^\/virtual_parameters\/([a-zA-Z0-9\-_%]+)\/?$/;
 const FAULTS_REGEX = /^\/faults\/([a-zA-Z0-9\-_%:]+)\/?$/;
 
-function throwError(err, httpResponse?): never {
+function throwError(err: Error, httpResponse?: ServerResponse): never {
   if (httpResponse) {
     httpResponse.writeHead(500, { Connection: "close" });
     httpResponse.end(`${err.name}: ${err.message}`);
@@ -50,7 +51,10 @@ function throwError(err, httpResponse?): never {
   throw err;
 }
 
-export function listener(request, response): void {
+export function listener(
+  request: IncomingMessage,
+  response: ServerResponse
+): void {
   const chunks = [];
   let bytes = 0;
   response.setHeader("GenieACS-Version", VERSION);
@@ -85,7 +89,7 @@ export function listener(request, response): void {
           { _id: presetName },
           preset,
           { upsert: true },
-          err => {
+          (err) => {
             if (err) return void throwError(err, response);
 
             cache
@@ -94,7 +98,7 @@ export function listener(request, response): void {
                 response.writeHead(200);
                 response.end();
               })
-              .catch(err => {
+              .catch((err) => {
                 setTimeout(() => {
                   throwError(err, response);
                 });
@@ -102,7 +106,7 @@ export function listener(request, response): void {
           }
         );
       } else if (request.method === "DELETE") {
-        db.presetsCollection.deleteOne({ _id: presetName }, err => {
+        db.presetsCollection.deleteOne({ _id: presetName }, (err) => {
           if (err) return void throwError(err, response);
 
           cache
@@ -111,7 +115,7 @@ export function listener(request, response): void {
               response.writeHead(200);
               response.end();
             })
-            .catch(err => {
+            .catch((err) => {
               setTimeout(() => {
                 throwError(err, response);
               });
@@ -132,7 +136,7 @@ export function listener(request, response): void {
           { _id: objectName },
           object,
           { upsert: true },
-          err => {
+          (err) => {
             if (err) return void throwError(err, response);
 
             cache
@@ -141,7 +145,7 @@ export function listener(request, response): void {
                 response.writeHead(200);
                 response.end();
               })
-              .catch(err => {
+              .catch((err) => {
                 setTimeout(() => {
                   throwError(err, response);
                 });
@@ -149,7 +153,7 @@ export function listener(request, response): void {
           }
         );
       } else if (request.method === "DELETE") {
-        db.objectsCollection.deleteOne({ _id: objectName }, err => {
+        db.objectsCollection.deleteOne({ _id: objectName }, (err) => {
           if (err) return void throwError(err, response);
 
           cache
@@ -158,7 +162,7 @@ export function listener(request, response): void {
               response.writeHead(200);
               response.end();
             })
-            .catch(err => {
+            .catch((err) => {
               setTimeout(() => {
                 throwError(err, response);
               });
@@ -175,7 +179,7 @@ export function listener(request, response): void {
       if (request.method === "PUT") {
         const object = {
           _id: provisionName,
-          script: body.toString()
+          script: body.toString(),
         };
 
         try {
@@ -190,7 +194,7 @@ export function listener(request, response): void {
           { _id: provisionName },
           object,
           { upsert: true },
-          err => {
+          (err) => {
             if (err) return void throwError(err, response);
 
             cache
@@ -199,7 +203,7 @@ export function listener(request, response): void {
                 response.writeHead(200);
                 response.end();
               })
-              .catch(err => {
+              .catch((err) => {
                 setTimeout(() => {
                   throwError(err, response);
                 });
@@ -207,7 +211,7 @@ export function listener(request, response): void {
           }
         );
       } else if (request.method === "DELETE") {
-        db.provisionsCollection.deleteOne({ _id: provisionName }, err => {
+        db.provisionsCollection.deleteOne({ _id: provisionName }, (err) => {
           if (err) return void throwError(err, response);
 
           cache
@@ -216,7 +220,7 @@ export function listener(request, response): void {
               response.writeHead(200);
               response.end();
             })
-            .catch(err => {
+            .catch((err) => {
               setTimeout(() => {
                 throwError(err, response);
               });
@@ -233,7 +237,7 @@ export function listener(request, response): void {
       if (request.method === "PUT") {
         const object = {
           _id: virtualParameterName,
-          script: body.toString()
+          script: body.toString(),
         };
 
         try {
@@ -248,7 +252,7 @@ export function listener(request, response): void {
           { _id: virtualParameterName },
           object,
           { upsert: true },
-          err => {
+          (err) => {
             if (err) return void throwError(err, response);
 
             cache
@@ -257,7 +261,7 @@ export function listener(request, response): void {
                 response.writeHead(200);
                 response.end();
               })
-              .catch(err => {
+              .catch((err) => {
                 setTimeout(() => {
                   throwError(err, response);
                 });
@@ -267,7 +271,7 @@ export function listener(request, response): void {
       } else if (request.method === "DELETE") {
         db.virtualParametersCollection.deleteOne(
           { _id: virtualParameterName },
-          err => {
+          (err) => {
             if (err) return void throwError(err, response);
 
             cache
@@ -276,7 +280,7 @@ export function listener(request, response): void {
                 response.writeHead(200);
                 response.end();
               })
-              .catch(err => {
+              .catch((err) => {
                 setTimeout(() => {
                   throwError(err, response);
                 });
@@ -295,7 +299,7 @@ export function listener(request, response): void {
         db.devicesCollection.updateOne(
           { _id: deviceId },
           { $addToSet: { _tags: tag } },
-          err => {
+          (err) => {
             if (err) return void throwError(err, response);
             response.writeHead(200);
             response.end();
@@ -305,7 +309,7 @@ export function listener(request, response): void {
         db.devicesCollection.updateOne(
           { _id: deviceId },
           { $pull: { _tags: tag } },
-          err => {
+          (err) => {
             if (err) return void throwError(err, response);
 
             response.writeHead(200);
@@ -323,12 +327,12 @@ export function listener(request, response): void {
         );
         const deviceId = faultId.split(":", 1)[0];
         const channel = faultId.slice(deviceId.length + 1);
-        db.faultsCollection.deleteOne({ _id: faultId }, err => {
+        db.faultsCollection.deleteOne({ _id: faultId }, (err) => {
           if (err) return void throwError(err, response);
 
           if (channel.startsWith("task_")) {
             const objId = new mongodb.ObjectID(channel.slice(5));
-            return void db.tasksCollection.deleteOne({ _id: objId }, err => {
+            return void db.tasksCollection.deleteOne({ _id: objId }, (err) => {
               if (err) return void throwError(err, response);
 
               cache
@@ -337,7 +341,7 @@ export function listener(request, response): void {
                   response.writeHead(200);
                   response.end();
                 })
-                .catch(err => {
+                .catch((err) => {
                   setTimeout(() => {
                     throwError(err, response);
                   });
@@ -351,7 +355,7 @@ export function listener(request, response): void {
               response.writeHead(200);
               response.end();
             })
-            .catch(err => {
+            .catch((err) => {
               setTimeout(() => {
                 throwError(err, response);
               });
@@ -382,17 +386,20 @@ export function listener(request, response): void {
                         const taskTimeout =
                           (urlParts.query.timeout &&
                             parseInt(urlParts.query.timeout as string)) ||
-                          config.get("DEVICE_ONLINE_THRESHOLD", deviceId);
+                          (config.get(
+                            "DEVICE_ONLINE_THRESHOLD",
+                            deviceId
+                          ) as number);
 
                         apiFunctions
                           .watchTask(deviceId, task._id, taskTimeout)
-                          .then(status => {
+                          .then((status) => {
                             if (status === "timeout") {
                               response.writeHead(
                                 202,
                                 "Task queued but not processed",
                                 {
-                                  "Content-Type": "application/json"
+                                  "Content-Type": "application/json",
                                 }
                               );
                               response.end(JSON.stringify(task));
@@ -404,44 +411,44 @@ export function listener(request, response): void {
                                     return void throwError(err, response);
 
                                   response.writeHead(202, "Task faulted", {
-                                    "Content-Type": "application/json"
+                                    "Content-Type": "application/json",
                                   });
                                   response.end(JSON.stringify(task2));
                                 }
                               );
                             } else {
                               response.writeHead(200, {
-                                "Content-Type": "application/json"
+                                "Content-Type": "application/json",
                               });
                               response.end(JSON.stringify(task));
                             }
                           })
-                          .catch(err => {
+                          .catch((err) => {
                             setTimeout(() => {
                               throwError(err, response);
                             });
                           });
                       })
-                      .catch(err => {
+                      .catch((err) => {
                         response.writeHead(202, err.message, {
-                          "Content-Type": "application/json"
+                          "Content-Type": "application/json",
                         });
                         response.end(JSON.stringify(task));
                       });
                   } else {
                     response.writeHead(202, {
-                      "Content-Type": "application/json"
+                      "Content-Type": "application/json",
                     });
                     response.end(JSON.stringify(task));
                   }
                 })
-                .catch(err => {
+                .catch((err) => {
                   setTimeout(() => {
                     throwError(err, response);
                   });
                 });
             })
-            .catch(err => {
+            .catch((err) => {
               setTimeout(() => {
                 throwError(err, response);
               });
@@ -454,7 +461,7 @@ export function listener(request, response): void {
               response.writeHead(200);
               response.end();
             })
-            .catch(err => {
+            .catch((err) => {
               response.writeHead(504);
               response.end(`${err.name}: ${err.message}`);
             });
@@ -487,12 +494,12 @@ export function listener(request, response): void {
               const deviceId = task.device;
               db.tasksCollection.deleteOne(
                 { _id: new mongodb.ObjectID(taskId) },
-                err => {
+                (err) => {
                   if (err) return void throwError(err, response);
 
                   db.faultsCollection.deleteOne(
                     { _id: `${deviceId}:task_${taskId}` },
-                    err => {
+                    (err) => {
                       if (err) return void throwError(err, response);
 
                       cache
@@ -501,7 +508,7 @@ export function listener(request, response): void {
                           response.writeHead(200);
                           response.end();
                         })
-                        .catch(err => {
+                        .catch((err) => {
                           setTimeout(() => {
                             throwError(err, response);
                           });
@@ -527,7 +534,7 @@ export function listener(request, response): void {
               const deviceId = task.device;
               db.faultsCollection.deleteOne(
                 { _id: `${deviceId}:task_${taskId}` },
-                err => {
+                (err) => {
                   if (err) return void throwError(err, response);
 
                   cache
@@ -536,7 +543,7 @@ export function listener(request, response): void {
                       response.writeHead(200);
                       response.end();
                     })
-                    .catch(err => {
+                    .catch((err) => {
                       setTimeout(() => {
                         throwError(err, response);
                       });
@@ -562,7 +569,7 @@ export function listener(request, response): void {
           fileType: request.headers.filetype,
           oui: request.headers.oui,
           productClass: request.headers.productclass,
-          version: request.headers.version
+          version: request.headers.version,
         };
         const bucket = new mongodb.GridFSBucket(db.client.db());
         bucket.delete((filename as unknown) as mongodb.ObjectId, () => {
@@ -570,11 +577,11 @@ export function listener(request, response): void {
             filename,
             filename,
             {
-              metadata: metadata
+              metadata: metadata,
             }
           );
 
-          uploadStream.on("error", err => {
+          uploadStream.on("error", (err) => {
             throwError(err, response);
           });
 
@@ -585,7 +592,7 @@ export function listener(request, response): void {
         });
       } else if (request.method === "DELETE") {
         const bucket = new mongodb.GridFSBucket(db.client.db());
-        bucket.delete((filename as unknown) as mongodb.ObjectId, err => {
+        bucket.delete((filename as unknown) as mongodb.ObjectId, (err) => {
           if (err) {
             if (err.message.startsWith("FileNotFound")) {
               response.writeHead(404);
@@ -618,7 +625,7 @@ export function listener(request, response): void {
 
         response.writeHead(200, {
           "Content-Type": "text/plain",
-          "Cache-Control": "no-cache"
+          "Cache-Control": "no-cache",
         });
         response.end(stdout);
       });
@@ -638,7 +645,7 @@ export function listener(request, response): void {
           response.writeHead(200);
           response.end();
         })
-        .catch(err => {
+        .catch((err) => {
           setTimeout(() => {
             throwError(err, response);
           });
@@ -686,15 +693,15 @@ export function listener(request, response): void {
           break;
         case "tasks":
           q = query.sanitizeQueryTypes(q, {
-            _id: v => new mongodb.ObjectID(v),
-            timestamp: v => new Date(v),
-            retries: Number
+            _id: (v) => new mongodb.ObjectID(v as string),
+            timestamp: (v) => new Date(v as number),
+            retries: Number,
           });
           break;
         case "faults":
           q = query.sanitizeQueryTypes(q, {
-            timestamp: v => new Date(v),
-            retries: Number
+            timestamp: (v) => new Date(v as number),
+            retries: Number,
           });
       }
 
@@ -730,7 +737,7 @@ export function listener(request, response): void {
 
         response.writeHead(200, {
           "Content-Type": "application/json",
-          total: total
+          total: total,
         });
 
         if (request.method === "HEAD") {
@@ -741,11 +748,11 @@ export function listener(request, response): void {
         response.write("[\n");
         i = 0;
         cur.forEach(
-          item => {
+          (item) => {
             if (i++) response.write(",\n");
             response.write(JSON.stringify(item));
           },
-          err => {
+          (err) => {
             if (err) return void throwError(err);
             response.end("\n]");
           }

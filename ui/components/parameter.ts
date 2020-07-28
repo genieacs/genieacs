@@ -29,7 +29,7 @@ import { getIcon } from "../icons";
 const evaluateParam = memoize((exp, obj, now: number) => {
   let timestamp = now;
   const params = new Set();
-  const value = expression.evaluate(exp, obj, now, e => {
+  const value = expression.evaluate(exp, obj, now, (e) => {
     if (Array.isArray(e)) {
       if (e[0] === "PARAM") {
         params.add(e[1]);
@@ -52,7 +52,7 @@ const evaluateParam = memoize((exp, obj, now: number) => {
 
 const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       const device = vnode.attrs["device"];
 
       const { value, timestamp, parameter } = evaluateParam(
@@ -77,11 +77,11 @@ const component: ClosureComponent = (): Component => {
                   [
                     parameter,
                     device[parameter].value[0],
-                    device[parameter].value[1]
-                  ]
-                ]
+                    device[parameter].value[1],
+                  ],
+                ],
               });
-            }
+            },
           },
           getIcon("edit")
         );
@@ -93,7 +93,7 @@ const component: ClosureComponent = (): Component => {
         "span",
         {
           class: "parameter-value",
-          onmouseover: e => {
+          onmouseover: (e) => {
             e.redraw = false;
             // Don't update any child element
             if (e.target === (el as VnodeDOM).dom) {
@@ -101,12 +101,12 @@ const component: ClosureComponent = (): Component => {
               const localeString = new Date(timestamp).toLocaleString();
               e.target.title = `${localeString} (${timeAgo(now - timestamp)})`;
             }
-          }
+          },
         },
         el,
         edit
       );
-    }
+    },
   };
 };
 

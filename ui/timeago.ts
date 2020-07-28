@@ -23,10 +23,10 @@ const UNITS = {
   day: 24 * 60 * 60 * 1000,
   hour: 60 * 60 * 1000,
   minute: 60 * 1000,
-  second: 1000
+  second: 1000,
 };
 
-export default function timeAgo(dtime): string {
+export default function timeAgo(dtime: number): string {
   let res = "";
   let level = 2;
 

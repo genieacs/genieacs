@@ -35,7 +35,7 @@ const FORWARDED_HEADER = "" + config.get("FORWARDED_HEADER");
 const cache = new WeakMap<IncomingMessage, RequestOrigin>();
 const cidrs: [IPv4 | IPv6, number][] = [];
 
-for (const str of FORWARDED_HEADER.split(",").map(s => s.trim())) {
+for (const str of FORWARDED_HEADER.split(",").map((s) => s.trim())) {
   try {
     cidrs.push(parseCIDR(str));
   } catch (err) {
@@ -104,13 +104,13 @@ export function getRequestOrigin(request: IncomingMessage): RequestOrigin {
       remoteAddress: soc.remoteAddress,
       remotePort: soc.remotePort,
       host: request.headers["host"],
-      encrypted: !!(request.socket as TLSSocket).encrypted
+      encrypted: !!(request.socket as TLSSocket).encrypted,
     };
 
     const header = request.headers["forwarded"];
     if (header) {
       const ip = parse(soc.remoteAddress) as IPv4;
-      if (cidrs.some(cidr => ip.match(cidr as [IPv4, number]))) {
+      if (cidrs.some((cidr) => ip.match(cidr as [IPv4, number]))) {
         const parsed = parseForwardedHeader(header);
 
         if (parsed["proto"] === "https") {

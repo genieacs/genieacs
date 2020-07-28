@@ -22,7 +22,7 @@ import {
   Element,
   parseAttrs,
   encodeEntities,
-  decodeEntities
+  decodeEntities,
 } from "./xml-parser";
 import memoize from "./common/memoize";
 import { version as VERSION } from "../package.json";
@@ -36,7 +36,8 @@ import {
   SpvFault,
   CpeFault,
   SoapMessage,
-  TransferCompleteRequest
+  TransferCompleteRequest,
+  AcsRequest,
 } from "./types";
 
 const SERVER_NAME = `GenieACS/${VERSION}`;
@@ -47,39 +48,39 @@ const NAMESPACES = {
     "soap-env": "http://schemas.xmlsoap.org/soap/envelope/",
     xsd: "http://www.w3.org/2001/XMLSchema",
     xsi: "http://www.w3.org/2001/XMLSchema-instance",
-    cwmp: "urn:dslforum-org:cwmp-1-0"
+    cwmp: "urn:dslforum-org:cwmp-1-0",
   },
   "1.1": {
     "soap-enc": "http://schemas.xmlsoap.org/soap/encoding/",
     "soap-env": "http://schemas.xmlsoap.org/soap/envelope/",
     xsd: "http://www.w3.org/2001/XMLSchema",
     xsi: "http://www.w3.org/2001/XMLSchema-instance",
-    cwmp: "urn:dslforum-org:cwmp-1-1"
+    cwmp: "urn:dslforum-org:cwmp-1-1",
   },
   "1.2": {
     "soap-enc": "http://schemas.xmlsoap.org/soap/encoding/",
     "soap-env": "http://schemas.xmlsoap.org/soap/envelope/",
     xsd: "http://www.w3.org/2001/XMLSchema",
     xsi: "http://www.w3.org/2001/XMLSchema-instance",
-    cwmp: "urn:dslforum-org:cwmp-1-2"
+    cwmp: "urn:dslforum-org:cwmp-1-2",
   },
   "1.3": {
     "soap-enc": "http://schemas.xmlsoap.org/soap/encoding/",
     "soap-env": "http://schemas.xmlsoap.org/soap/envelope/",
     xsd: "http://www.w3.org/2001/XMLSchema",
     xsi: "http://www.w3.org/2001/XMLSchema-instance",
-    cwmp: "urn:dslforum-org:cwmp-1-2"
+    cwmp: "urn:dslforum-org:cwmp-1-2",
   },
   "1.4": {
     "soap-enc": "http://schemas.xmlsoap.org/soap/encoding/",
     "soap-env": "http://schemas.xmlsoap.org/soap/envelope/",
     xsd: "http://www.w3.org/2001/XMLSchema",
     xsi: "http://www.w3.org/2001/XMLSchema-instance",
-    cwmp: "urn:dslforum-org:cwmp-1-3"
-  }
+    cwmp: "urn:dslforum-org:cwmp-1-3",
+  },
 };
 
-let warnings;
+let warnings: Record<string, unknown>[];
 
 const memoizedParseAttrs = memoize(parseAttrs);
 
@@ -93,14 +94,16 @@ function parseBool(v): boolean {
 
 function event(xml: Element): string[] {
   return xml.children
-    .filter(n => n.localName === "EventStruct")
-    .map(c => c.children.find(n => n.localName === "EventCode").text.trim());
+    .filter((n) => n.localName === "EventStruct")
+    .map((c) =>
+      c.children.find((n) => n.localName === "EventCode").text.trim()
+    );
 }
 
 function parameterInfoList(xml: Element): [string, boolean][] {
   return xml.children
-    .filter(e => e.localName === "ParameterInfoStruct")
-    .map<[string, boolean]>(e => {
+    .filter((e) => e.localName === "ParameterInfoStruct")
+    .map<[string, boolean]>((e) => {
       let param: string, value: string;
       for (const c of e.children) {
         switch (c.localName) {
@@ -118,7 +121,7 @@ function parameterInfoList(xml: Element): [string, boolean][] {
       if (parsed === null) {
         warnings.push({
           message: "Invalid writable attribute",
-          parameter: param
+          parameter: param,
         });
         parsed = false;
       }
@@ -129,7 +132,7 @@ function parameterInfoList(xml: Element): [string, boolean][] {
 
 const getValueType = memoize((str: string) =>
   parseAttrs(str)
-    .find(s => s.localName === "type")
+    .find((s) => s.localName === "type")
     .value.trim()
 );
 
@@ -137,8 +140,8 @@ function parameterValueList(
   xml: Element
 ): [string, string | number | boolean, string][] {
   return xml.children
-    .filter(e => e.localName === "ParameterValueStruct")
-    .map<[string, string | number | boolean, string]>(e => {
+    .filter((e) => e.localName === "ParameterValueStruct")
+    .map<[string, string | number | boolean, string]>((e) => {
       let valueElement: Element, param: string;
       for (const c of e.children) {
         switch (c.localName) {
@@ -160,7 +163,7 @@ function parameterValueList(
         if (parsed === null) {
           warnings.push({
             message: "Invalid value attribute",
-            parameter: param
+            parameter: param,
           });
           parsed = value;
         }
@@ -169,7 +172,7 @@ function parameterValueList(
         if (isNaN(parsed)) {
           warnings.push({
             message: "Invalid value attribute",
-            parameter: param
+            parameter: param,
           });
           parsed = value;
         }
@@ -178,7 +181,7 @@ function parameterValueList(
         if (isNaN(parsed)) {
           warnings.push({
             message: "Invalid value attribute",
-            parameter: param
+            parameter: param,
           });
           parsed = value;
         }
@@ -198,8 +201,8 @@ function GetParameterNamesResponse(xml): CpeGetResponse {
   return {
     name: "GetParameterNamesResponse",
     parameterList: parameterInfoList(
-      xml.children.find(n => n.localName === "ParameterList")
-    )
+      xml.children.find((n) => n.localName === "ParameterList")
+    ),
   };
 }
 
@@ -207,7 +210,7 @@ function GetParameterValues(methodRequest): string {
   return `<cwmp:GetParameterValues><ParameterNames soap-enc:arrayType="xsd:string[${
     methodRequest.parameterNames.length
   }]">${methodRequest.parameterNames
-    .map(p => `<string>${p}</string>`)
+    .map((p) => `<string>${p}</string>`)
     .join("")}</ParameterNames></cwmp:GetParameterValues>`;
 }
 
@@ -215,13 +218,13 @@ function GetParameterValuesResponse(xml: Element): CpeGetResponse {
   return {
     name: "GetParameterValuesResponse",
     parameterList: parameterValueList(
-      xml.children.find(n => n.localName === "ParameterList")
-    )
+      xml.children.find((n) => n.localName === "ParameterList")
+    ),
   };
 }
 
 function SetParameterValues(methodRequest): string {
-  const params = methodRequest.parameterList.map(p => {
+  const params = methodRequest.parameterList.map((p) => {
     let val = p[1];
     if (p[2] === "xsd:dateTime" && typeof val === "number") {
       val = new Date(val).toISOString();
@@ -237,24 +240,24 @@ function SetParameterValues(methodRequest): string {
 
   return `<cwmp:SetParameterValues><ParameterList soap-enc:arrayType="cwmp:ParameterValueStruct[${
     methodRequest.parameterList.length
-  }]">${params.join(
-    ""
-  )}</ParameterList><ParameterKey>${methodRequest.parameterKey ||
-    ""}</ParameterKey></cwmp:SetParameterValues>`;
+  }]">${params.join("")}</ParameterList><ParameterKey>${
+    methodRequest.parameterKey || ""
+  }</ParameterKey></cwmp:SetParameterValues>`;
 }
 
 function SetParameterValuesResponse(xml: Element): CpeSetResponse {
   return {
     name: "SetParameterValuesResponse",
-    status: parseInt(xml.children.find(n => n.localName === "Status").text)
+    status: parseInt(xml.children.find((n) => n.localName === "Status").text),
   };
 }
 
 function AddObject(methodRequest): string {
   return `<cwmp:AddObject><ObjectName>${
     methodRequest.objectName
-  }</ObjectName><ParameterKey>${methodRequest.parameterKey ||
-    ""}</ParameterKey></cwmp:AddObject>`;
+  }</ObjectName><ParameterKey>${
+    methodRequest.parameterKey || ""
+  }</ParameterKey></cwmp:AddObject>`;
 }
 
 function AddObjectResponse(xml: Element): CpeSetResponse {
@@ -273,32 +276,34 @@ function AddObjectResponse(xml: Element): CpeSetResponse {
   return {
     name: "AddObjectResponse",
     instanceNumber: instanceNumber,
-    status: status
+    status: status,
   };
 }
 
 function DeleteObject(methodRequest): string {
   return `<cwmp:DeleteObject><ObjectName>${
     methodRequest.objectName
-  }</ObjectName><ParameterKey>${methodRequest.parameterKey ||
-    ""}</ParameterKey></cwmp:DeleteObject>`;
+  }</ObjectName><ParameterKey>${
+    methodRequest.parameterKey || ""
+  }</ParameterKey></cwmp:DeleteObject>`;
 }
 
 function DeleteObjectResponse(xml: Element): CpeSetResponse {
   return {
     name: "DeleteObjectResponse",
-    status: parseInt(xml.children.find(n => n.localName === "Status").text)
+    status: parseInt(xml.children.find((n) => n.localName === "Status").text),
   };
 }
 
 function Reboot(methodRequest): string {
-  return `<cwmp:Reboot><CommandKey>${methodRequest.commandKey ||
-    ""}</CommandKey></cwmp:Reboot>`;
+  return `<cwmp:Reboot><CommandKey>${
+    methodRequest.commandKey || ""
+  }</CommandKey></cwmp:Reboot>`;
 }
 
 function RebootResponse(): CpeSetResponse {
   return {
-    name: "RebootResponse"
+    name: "RebootResponse",
   };
 }
 
@@ -308,23 +313,26 @@ function FactoryReset(): string {
 
 function FactoryResetResponse(): CpeSetResponse {
   return {
-    name: "FactoryResetResponse"
+    name: "FactoryResetResponse",
   };
 }
 
 function Download(methodRequest): string {
-  return `<cwmp:Download><CommandKey>${methodRequest.commandKey ||
-    ""}</CommandKey><FileType>${methodRequest.fileType}</FileType><URL>${
+  return `<cwmp:Download><CommandKey>${
+    methodRequest.commandKey || ""
+  }</CommandKey><FileType>${methodRequest.fileType}</FileType><URL>${
     methodRequest.url
   }</URL><Username>${encodeEntities(
     methodRequest.username || ""
   )}</Username><Password>${encodeEntities(
     methodRequest.password || ""
-  )}</Password><FileSize>${methodRequest.fileSize ||
-    "0"}</FileSize><TargetFileName>${encodeEntities(
+  )}</Password><FileSize>${
+    methodRequest.fileSize || "0"
+  }</FileSize><TargetFileName>${encodeEntities(
     methodRequest.targetFileName || ""
-  )}</TargetFileName><DelaySeconds>${methodRequest.delaySeconds ||
-    "0"}</DelaySeconds><SuccessURL>${encodeEntities(
+  )}</TargetFileName><DelaySeconds>${
+    methodRequest.delaySeconds || "0"
+  }</DelaySeconds><SuccessURL>${encodeEntities(
     methodRequest.successUrl || ""
   )}</SuccessURL><FailureURL>${encodeEntities(
     methodRequest.failureUrl || ""
@@ -351,7 +359,7 @@ function DownloadResponse(xml: Element): CpeSetResponse {
     name: "DownloadResponse",
     status: status,
     startTime: startTime,
-    completeTime: completeTime
+    completeTime: completeTime,
   };
 }
 
@@ -361,7 +369,7 @@ function Inform(xml: Element): InformRequest {
     Manufacturer: null,
     OUI: null,
     ProductClass: null,
-    SerialNumber: null
+    SerialNumber: null,
   };
 
   for (const c of xml.children) {
@@ -389,7 +397,7 @@ function Inform(xml: Element): InformRequest {
     parameterList: parameterList,
     deviceId: deviceId,
     event: evnt,
-    retryCount: retryCount
+    retryCount: retryCount,
   };
 }
 
@@ -405,7 +413,7 @@ function GetRPCMethodsResponse(methodResponse): string {
   return `<cwmp:GetRPCMethodsResponse><MethodList soap-enc:arrayType="xsd:string[${
     methodResponse.methodList.length
   }]">${methodResponse.methodList
-    .map(m => `<string>${m}</string>`)
+    .map((m) => `<string>${m}</string>`)
     .join("")}</MethodList></cwmp:GetRPCMethodsResponse>`;
 }
 
@@ -433,7 +441,7 @@ function TransferComplete(xml: Element): TransferCompleteRequest {
     commandKey: commandKey,
     faultStruct: _faultStruct,
     startTime: startTime,
-    completeTime: completeTime
+    completeTime: completeTime,
   };
 }
 
@@ -444,7 +452,7 @@ function TransferCompleteResponse(): string {
 function RequestDownload(xml: Element): CpeRequest {
   return {
     name: "RequestDownload",
-    fileType: xml.children.find(n => n.localName === "FileType").text
+    fileType: xml.children.find((n) => n.localName === "FileType").text,
   };
 }
 
@@ -480,7 +488,7 @@ function faultStruct(xml: Element): FaultStruct {
         setParameterValuesFault.push({
           parameterName: pn,
           faultCode: fc,
-          faultString: fs
+          faultString: fs,
         });
     }
   }
@@ -499,7 +507,7 @@ function fault(xml: Element): CpeFault {
         faultString = decodeEntities(c.text);
         break;
       case "detail":
-        detail = faultStruct(c.children.find(n => n.localName === "Fault"));
+        detail = faultStruct(c.children.find((n) => n.localName === "Fault"));
         break;
     }
   }
@@ -507,7 +515,11 @@ function fault(xml: Element): CpeFault {
   return { faultCode, faultString, detail };
 }
 
-export function request(body: string, cwmpVersion, warn): SoapMessage {
+export function request(
+  body: string,
+  cwmpVersion: string,
+  warn: Record<string, unknown>[]
+): SoapMessage {
   warnings = warn;
 
   const rpc = {
@@ -516,7 +528,7 @@ export function request(body: string, cwmpVersion, warn): SoapMessage {
     sessionTimeout: null,
     cpeRequest: null,
     cpeFault: null,
-    cpeResponse: null
+    cpeResponse: null,
   };
 
   if (!body.length) return rpc;
@@ -563,9 +575,9 @@ export function request(body: string, cwmpVersion, warn): SoapMessage {
         const attrs = memoizedParseAttrs(e.attrs);
         const attr = namespace
           ? attrs.find(
-              s => s.namespace === "xmlns" && s.localName === namespace
+              (s) => s.namespace === "xmlns" && s.localName === namespace
             )
-          : attrs.find(s => s.name === "xmlns");
+          : attrs.find((s) => s.name === "xmlns");
 
         if (attr) namespaceHref = attr.value;
       }
@@ -653,13 +665,18 @@ const namespacesAttrs = {
     .join(" "),
   "1.4": Object.entries(NAMESPACES["1.4"])
     .map(([k, v]) => `xmlns:${k}="${v}"`)
-    .join(" ")
+    .join(" "),
 };
 
-export function response(rpc): { code: number; headers: {}; data: string } {
+export function response(rpc: {
+  id: string;
+  acsRequest?: AcsRequest;
+  acsResponse?: AcsResponse;
+  cwmpVersion?: string;
+}): { code: number; headers: Record<string, string>; data: string } {
   const headers = {
     Server: SERVER_NAME,
-    SOAPServer: SERVER_NAME
+    SOAPServer: SERVER_NAME,
   };
 
   if (!rpc) return { code: 204, headers: headers, data: "" };
@@ -721,6 +738,6 @@ export function response(rpc): { code: number; headers: {}; data: string } {
       namespacesAttrs[rpc.cwmpVersion]
     }><soap-env:Header><cwmp:ID soap-env:mustUnderstand="1">${
       rpc.id
-    }</cwmp:ID></soap-env:Header><soap-env:Body>${body}</soap-env:Body></soap-env:Envelope>`
+    }</cwmp:ID></soap-env:Header><soap-env:Body>${body}</soap-env:Body></soap-env:Envelope>`,
   };
 }

@@ -36,7 +36,7 @@ import {
   Users,
   Permissions,
   Config,
-  UiConfig
+  UiConfig,
 } from "./types";
 
 interface Snapshot {
@@ -107,11 +107,15 @@ function computeHash(snapshot): string {
   return h.digest("hex");
 }
 
-function flattenObject(src, prefix = "", dst = {}): {} {
+function flattenObject(
+  src: Record<string, unknown>,
+  prefix = "",
+  dst = {}
+): Record<string, unknown> {
   for (const k of Object.keys(src)) {
     const v = src[k];
     if (typeof v === "object" && !Array.isArray(v))
-      flattenObject(v, `${prefix}${k}.`, dst);
+      flattenObject(v as Record<string, unknown>, `${prefix}${k}.`, dst);
     else dst[`${prefix}${k}`] = v;
   }
   return dst;
@@ -121,14 +125,14 @@ async function fetchPresets(): Promise<Preset[]> {
   const res = await db.getPresets();
   let objects = await db.getObjects();
 
-  objects = objects.map(obj => {
+  objects = objects.map((obj) => {
     // Flatten object
     obj = flattenObject(obj);
 
     // If no keys are defined, consider all parameters as keys to keep the
     // same behavior from v1.0
     if (!obj["_keys"] || !obj["_keys"].length)
-      obj["_keys"] = Object.keys(obj).filter(k => !k.startsWith("_"));
+      obj["_keys"] = Object.keys(obj).filter((k) => !k.startsWith("_"));
 
     return obj;
   });
@@ -145,12 +149,9 @@ async function fetchPresets(): Promise<Preset[]> {
     if (preset["schedule"]) {
       const parts = preset["schedule"].trim().split(/\s+/);
       schedule = {
-        md5: crypto
-          .createHash("md5")
-          .update(preset["schedule"])
-          .digest("hex"),
+        md5: crypto.createHash("md5").update(preset["schedule"]).digest("hex"),
         duration: null,
-        schedule: null
+        schedule: null,
       };
 
       try {
@@ -160,7 +161,7 @@ async function fetchPresets(): Promise<Preset[]> {
         logger.warn({
           message: "Invalid preset schedule",
           preset: preset["_id"],
-          schedule: preset["schedule"]
+          schedule: preset["schedule"],
         });
         schedule.schedule = false;
       }
@@ -208,7 +209,7 @@ async function fetchPresets(): Promise<Preset[]> {
           for (const obj of objects) {
             if (obj["_id"] === c.object) {
               const alias = obj["_keys"]
-                .map(k => `${k}:${JSON.stringify(obj[k])}`)
+                .map((k) => `${k}:${JSON.stringify(obj[k])}`)
                 .join(",");
               const p = `${c.name}.[${alias}]`;
               _provisions.push(["instances", p, 1]);
@@ -226,7 +227,7 @@ async function fetchPresets(): Promise<Preset[]> {
           for (const obj of objects) {
             if (obj["_id"] === c.object) {
               const alias = obj["_keys"]
-                .map(k => `${k}:${JSON.stringify(obj[k])}`)
+                .map((k) => `${k}:${JSON.stringify(obj[k])}`)
                 .join(",");
               const p = `${c.name}.[${alias}]`;
               _provisions.push(["instances", p, 0]);
@@ -246,7 +247,7 @@ async function fetchPresets(): Promise<Preset[]> {
       schedule: schedule,
       events: events,
       precondition: precondition,
-      provisions: _provisions
+      provisions: _provisions,
     });
   }
 
@@ -263,7 +264,9 @@ async function fetchProvisions(): Promise<Provisions> {
       .createHash("md5")
       .update(r["script"])
       .digest("hex");
-    provisions[r["_id"]].script = new vm.Script(
+    provisions[
+      r["_id"]
+    ].script = new vm.Script(
       `"use strict";(function(){\n${r["script"]}\n})();`,
       { filename: r["_id"], lineOffset: -1, timeout: 50 }
     );
@@ -282,7 +285,9 @@ async function fetchVirtualParameters(): Promise<VirtualParameters> {
       .createHash("md5")
       .update(r["script"])
       .digest("hex");
-    virtualParameters[r["_id"]].script = new vm.Script(
+    virtualParameters[
+      r["_id"]
+    ].script = new vm.Script(
       `"use strict";(function(){\n${r["script"]}\n})();`,
       { filename: r["_id"], lineOffset: -1, timeout: 50 }
     );
@@ -301,7 +306,7 @@ async function fetchPermissions(): Promise<Permissions> {
 
     permissions[p.role][p.access][p.resource] = {
       access: p.access,
-      filter: parse(p.filter || "true")
+      filter: parse(p.filter || "true"),
     };
     if (p.validate)
       permissions[p.role][p.access][p.resource].validate = parse(p.validate);
@@ -333,7 +338,7 @@ async function fetchUsers(): Promise<Users> {
     users[user._id] = {
       password: user.password,
       salt: user.salt,
-      roles: user.roles.split(",").map(s => s.trim())
+      roles: user.roles.split(",").map((s) => s.trim()),
     };
   }
 
@@ -349,7 +354,7 @@ async function fetchConfig(): Promise<[Config, UiConfig]> {
     filters: {},
     device: {},
     index: {},
-    overview: {}
+    overview: {},
   };
   const _config = {};
 
@@ -376,7 +381,7 @@ async function fetchConfig(): Promise<[Config, UiConfig]> {
 
 async function refresh(): Promise<void> {
   if (!nextRefresh) {
-    await new Promise(resolve => setTimeout(resolve, 20));
+    await new Promise((resolve) => setTimeout(resolve, 20));
     await refresh();
     return;
   }
@@ -400,7 +405,7 @@ async function refresh(): Promise<void> {
     fetchFiles(),
     fetchPermissions(),
     fetchUsers(),
-    fetchConfig()
+    fetchConfig(),
   ]);
 
   const snapshot = {
@@ -411,7 +416,7 @@ async function refresh(): Promise<void> {
     permissions: res[4],
     users: res[5],
     config: res[6][0],
-    ui: res[6][1]
+    ui: res[6][1],
   };
 
   if (currentSnapshot) {
@@ -435,29 +440,29 @@ export async function getCurrentSnapshot(): Promise<string> {
   return currentSnapshot;
 }
 
-export function hasSnapshot(hash): boolean {
+export function hasSnapshot(hash: string): boolean {
   return snapshots.has(hash);
 }
 
-export function getPresets(snapshotKey): Preset[] {
+export function getPresets(snapshotKey: string): Preset[] {
   const snapshot = snapshots.get(snapshotKey);
   if (!snapshot) throw new Error("Cache snapshot does not exist");
   return snapshot.presets;
 }
 
-export function getProvisions(snapshotKey): Provisions {
+export function getProvisions(snapshotKey: string): Provisions {
   const snapshot = snapshots.get(snapshotKey);
   if (!snapshot) throw new Error("Cache snapshot does not exist");
   return snapshot.provisions;
 }
 
-export function getVirtualParameters(snapshotKey): VirtualParameters {
+export function getVirtualParameters(snapshotKey: string): VirtualParameters {
   const snapshot = snapshots.get(snapshotKey);
   if (!snapshot) throw new Error("Cache snapshot does not exist");
   return snapshot.virtualParameters;
 }
 
-export function getFiles(snapshotKey): Files {
+export function getFiles(snapshotKey: string): Files {
   const snapshot = snapshots.get(snapshotKey);
   if (!snapshot) throw new Error("Cache snapshot does not exist");
   return snapshot.files;
@@ -466,7 +471,7 @@ export function getFiles(snapshotKey): Files {
 export function getConfig(
   snapshotKey: string,
   key: string,
-  context: {},
+  context: Record<string, unknown>,
   now: number,
   cb?: (Expression) => Expression
 ): string | number | boolean | null {
@@ -488,7 +493,7 @@ export function getConfig(
       "CONNECTION_REQUEST_ALLOW_BASIC_AUTH",
     "cwmp.maxCommitIterations": "MAX_COMMIT_ITERATIONS",
     "cwmp.deviceOnlineThreshold": "DEVICE_ONLINE_THRESHOLD",
-    "cwmp.udpConnectionRequestPort": "UDP_CONNECTION_REQUEST_PORT"
+    "cwmp.udpConnectionRequestPort": "UDP_CONNECTION_REQUEST_PORT",
   };
 
   if (!(key in snapshot.config)) {
@@ -509,28 +514,31 @@ export function getConfig(
   return Array.isArray(v) ? null : v;
 }
 
-export function getConfigExpression(snapshotKey, key): Expression {
+export function getConfigExpression(
+  snapshotKey: string,
+  key: string
+): Expression {
   const snapshot = snapshots.get(snapshotKey);
   if (!snapshot) throw new Error("Cache snapshot does not exist");
 
   return snapshot.config[key];
 }
 
-export function getUsers(snapshotKey): {} {
+export function getUsers(snapshotKey: string): Users {
   const snapshot = snapshots.get(snapshotKey);
   if (!snapshot) throw new Error("Cache snapshot does not exist");
 
   return snapshot.users;
 }
 
-export function getPermissions(snapshotKey): Permissions {
+export function getPermissions(snapshotKey: string): Permissions {
   const snapshot = snapshots.get(snapshotKey);
   if (!snapshot) throw new Error("Cache snapshot does not exist");
 
   return snapshot.permissions;
 }
 
-export function getUiConfig(snapshotKey): UiConfig {
+export function getUiConfig(snapshotKey: string): UiConfig {
   const snapshot = snapshots.get(snapshotKey);
   if (!snapshot) throw new Error("Cache snapshot does not exist");
 

@@ -20,6 +20,7 @@
 import * as fs from "fs";
 import * as http from "http";
 import * as https from "https";
+import { Socket } from "net";
 import * as path from "path";
 import { ROOT_DIR } from "./config";
 
@@ -52,12 +53,12 @@ function closeServer(timeout, callback): void {
 }
 
 export function start(
-  port,
-  networkInterface,
-  ssl,
-  _listener,
-  onConnection?,
-  keepAliveTimeout: number = -1
+  port: number,
+  networkInterface: string,
+  ssl: { key: string; cert: string },
+  _listener: http.RequestListener,
+  onConnection?: (socket: Socket) => void,
+  keepAliveTimeout = -1
 ): void {
   listener = _listener;
 
@@ -65,10 +66,10 @@ export function start(
     const options = {
       key: ssl.key
         .split(":")
-        .map(f => fs.readFileSync(path.resolve(ROOT_DIR, f.trim()))),
+        .map((f) => fs.readFileSync(path.resolve(ROOT_DIR, f.trim()))),
       cert: ssl.cert
         .split(":")
-        .map(f => fs.readFileSync(path.resolve(ROOT_DIR, f.trim())))
+        .map((f) => fs.readFileSync(path.resolve(ROOT_DIR, f.trim()))),
     };
 
     server = https.createServer(options, listener);

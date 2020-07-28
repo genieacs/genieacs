@@ -41,7 +41,7 @@ function restartWorker(worker, code, signal): void {
     message: "Worker died",
     pid: worker.process.pid,
     exitCode: null,
-    signal: null
+    signal: null,
   };
 
   if (code != null) msg.exitCode = code;
@@ -57,7 +57,7 @@ function restartWorker(worker, code, signal): void {
     min2 = 0,
     min3 = 0;
 
-  crashes = crashes.filter(n => {
+  crashes = crashes.filter((n) => {
     if (n > now - 60000) ++min1;
     else if (n > now - 120000) ++min2;
     else if (n > now - 180000) ++min3;
@@ -72,7 +72,7 @@ function restartWorker(worker, code, signal): void {
 
     logger.error({
       message: "Too many crashes, exiting",
-      pid: process.pid
+      pid: process.pid,
     });
     return;
   }
@@ -89,7 +89,11 @@ function restartWorker(worker, code, signal): void {
   }, respawnTimestamp - now);
 }
 
-export function start(workerCount, servicePort, serviceAddress): void {
+export function start(
+  workerCount: number,
+  servicePort: number,
+  serviceAddress: string
+): void {
   cluster.on("listening", (worker, address) => {
     if (
       (address.addressType === 4 || address.addressType === 6) &&
@@ -100,7 +104,7 @@ export function start(workerCount, servicePort, serviceAddress): void {
         message: "Worker listening",
         pid: worker.process.pid,
         address: address.address,
-        port: address.port
+        port: address.port,
       });
     }
   });

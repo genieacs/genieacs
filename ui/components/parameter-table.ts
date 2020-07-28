@@ -26,21 +26,21 @@ import { getIcon } from "../icons";
 
 const component: ClosureComponent = (): Component => {
   return {
-    oninit: vnode => {
+    oninit: (vnode) => {
       const obj = vnode.attrs["parameter"];
       if (!Array.isArray(obj) || obj[0] !== "PARAM")
         throw new Error("Object must be a parameter path");
       vnode.state["object"] = obj[1];
       vnode.state["parameters"] = Object.values(vnode.attrs["childParameters"]);
     },
-    view: vnode => {
+    view: (vnode) => {
       const device = vnode.attrs["device"];
       const object = store.evaluateExpression(vnode.state["object"], device);
       const parameters = vnode.state["parameters"];
 
-      if (!device[object]) return null;
+      if (typeof object !== "string" || !device[object]) return null;
 
-      const instances = new Set();
+      const instances: Set<string> = new Set();
       const prefix = `${object}.`;
       for (const p in device) {
         if (p.startsWith(prefix)) {
@@ -50,7 +50,7 @@ const component: ClosureComponent = (): Component => {
         }
       }
 
-      const headers = Object.values(parameters).map(p => m("th", p["label"]));
+      const headers = Object.values(parameters).map((p) => m("th", p["label"]));
 
       const thead = m("thead", m("tr", headers));
 
@@ -59,7 +59,7 @@ const component: ClosureComponent = (): Component => {
         let filter =
           vnode.attrs["filter"] != null ? vnode.attrs["filter"] : true;
 
-        filter = expressionParser.map(filter, e => {
+        filter = expressionParser.map(filter, (e) => {
           if (Array.isArray(e) && e[0] === "PARAM")
             return ["PARAM", ["||", i, ".", e[1]]];
           return e;
@@ -67,8 +67,8 @@ const component: ClosureComponent = (): Component => {
 
         if (!store.evaluateExpression(filter, device)) continue;
 
-        const row = parameters.map(p => {
-          const param = expressionParser.map(p.parameter, e => {
+        const row = parameters.map((p) => {
+          const param = expressionParser.map(p.parameter, (e) => {
             if (Array.isArray(e) && e[0] === "PARAM")
               return ["PARAM", ["||", i, ".", e[1]]];
             return e;
@@ -78,13 +78,13 @@ const component: ClosureComponent = (): Component => {
             m.context(
               {
                 device: device,
-                parameter: param
+                parameter: param,
               },
               p.type || "parameter",
               Object.assign({}, p, {
                 device: device,
                 parameter: param,
-                label: null
+                label: null,
               })
             )
           );
@@ -102,9 +102,9 @@ const component: ClosureComponent = (): Component => {
                     taskQueue.queueTask({
                       name: "deleteObject",
                       device: device["DeviceID.ID"].value[0],
-                      objectName: i
+                      objectName: i,
                     });
-                  }
+                  },
                 },
                 getIcon("delete-instance")
               )
@@ -135,9 +135,9 @@ const component: ClosureComponent = (): Component => {
                     taskQueue.queueTask({
                       name: "addObject",
                       device: device["DeviceID.ID"].value[0],
-                      objectName: object
+                      objectName: object,
                     });
-                  }
+                  },
                 },
                 getIcon("add-instance")
               )
@@ -150,7 +150,7 @@ const component: ClosureComponent = (): Component => {
       if (vnode.attrs["label"]) label = m("h2", vnode.attrs["label"]);
 
       return [label, m("table.table", thead, m("tbody", rows))];
-    }
+    },
   };
 };
 

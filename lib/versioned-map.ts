@@ -46,7 +46,7 @@ export default class VersionedMap<K, V> {
     return this._revision;
   }
 
-  public set revision(rev) {
+  public set revision(rev: number) {
     for (let i = this._sizeDiff.length; i <= rev; ++i)
       this._sizeDiff[i] = this._sizeDiff[i - 1];
 
@@ -193,7 +193,7 @@ export default class VersionedMap<K, V> {
       const last = v[l];
       v.splice(revision, l - revision);
 
-      if (last === NONEXISTENT && !v.some(vv => vv !== NONEXISTENT))
+      if (last === NONEXISTENT && !v.some((vv) => vv !== NONEXISTENT))
         this.map.delete(k);
     }
   }

@@ -30,7 +30,7 @@ import { getIcon } from "./icons";
 
 const attributes = [
   { id: "_id", label: "Key" },
-  { id: "value", label: "Value", type: "textarea" }
+  { id: "value", label: "Value", type: "textarea" },
 ];
 
 interface ValidationErrors {
@@ -52,13 +52,13 @@ function putActionHandler(action, _object, isNew?): Promise<ValidationErrors> {
         object.value = stringify(parse(object.value || ""));
       } catch (err) {
         return void resolve({
-          value: "Config value must be valid expression"
+          value: "Config value must be valid expression",
         });
       }
 
       store
         .resourceExists("config", id)
-        .then(exists => {
+        .then((exists) => {
           if (exists && isNew) {
             store.fulfill(0, Date.now());
             return void resolve({ _id: "Config already exists" });
@@ -90,7 +90,7 @@ function putActionHandler(action, _object, isNew?): Promise<ValidationErrors> {
           store.fulfill(0, Date.now());
           resolve();
         })
-        .catch(err => {
+        .catch((err) => {
           store.fulfill(0, Date.now());
           reject(err);
         });
@@ -102,14 +102,14 @@ function putActionHandler(action, _object, isNew?): Promise<ValidationErrors> {
 
 const formData = {
   resource: "config",
-  attributes: attributes
+  attributes: attributes,
 };
 
 function escapeRegExp(str): string {
   return str.replace(/[-[\]/{}()*+?.\\^$|]/g, "\\$&");
 }
 
-export function init(): Promise<{}> {
+export function init(): Promise<Record<string, unknown>> {
   if (!window.authorizer.hasAccess("config", 2)) {
     return Promise.reject(
       new Error("You are not authorized to view this page")
@@ -131,9 +131,9 @@ function renderTable(confsResponse, searchString): Children {
 
   let regex;
   if (searchString) {
-    const keywords = searchString.split(" ").filter(s => s);
+    const keywords = searchString.split(" ").filter((s) => s);
     if (keywords.length)
-      regex = new RegExp(keywords.map(s => escapeRegExp(s)).join(".*"), "i");
+      regex = new RegExp(keywords.map((s) => escapeRegExp(s)).join(".*"), "i");
   }
 
   const rows = [];
@@ -154,9 +154,9 @@ function renderTable(confsResponse, searchString): Children {
                 {
                   base: conf,
                   actionHandler: (action, object) => {
-                    return new Promise(resolve => {
+                    return new Promise((resolve) => {
                       putActionHandler(action, object, false)
-                        .then(errors => {
+                        .then((errors) => {
                           const ErrorList = errors ? Object.values(errors) : [];
                           if (ErrorList.length) {
                             for (const err of ErrorList)
@@ -166,19 +166,19 @@ function renderTable(confsResponse, searchString): Children {
                           }
                           resolve();
                         })
-                        .catch(err => {
+                        .catch((err) => {
                           notifications.push("error", err.message);
                           resolve();
                         });
                     });
-                  }
+                  },
                 },
                 formData
               )
             );
           };
           overlay.open(cb);
-        }
+        },
       },
       getIcon("edit")
     );
@@ -190,10 +190,10 @@ function renderTable(confsResponse, searchString): Children {
         onclick: () => {
           if (!confirm(`Deleting ${conf._id} config. Are you sure?`)) return;
 
-          putActionHandler("delete", conf).catch(err => {
+          putActionHandler("delete", conf).catch((err) => {
             throw err;
           });
-        }
+        },
       },
       getIcon("remove")
     );
@@ -219,18 +219,18 @@ function renderTable(confsResponse, searchString): Children {
 
 export const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       document.title = "Config - GenieACS";
 
       const search = m("input", {
         type: "text",
         placeholder: "Search config",
-        oninput: e => {
+        oninput: (e) => {
           vnode.state["searchString"] = e.target.value;
           e.redraw = false;
           clearTimeout(vnode.state["timeout"]);
           vnode.state["timeout"] = setTimeout(m.redraw, 250);
-        }
+        },
       });
 
       const confs = store.fetch("config", true);
@@ -250,9 +250,9 @@ export const component: ClosureComponent = (): Component => {
                   Object.assign(
                     {
                       actionHandler: (action, object) => {
-                        return new Promise(resolve => {
+                        return new Promise((resolve) => {
                           putActionHandler(action, object, true)
-                            .then(errors => {
+                            .then((errors) => {
                               const errorList = errors
                                 ? Object.values(errors)
                                 : [];
@@ -264,19 +264,19 @@ export const component: ClosureComponent = (): Component => {
                               }
                               resolve();
                             })
-                            .catch(err => {
+                            .catch((err) => {
                               notifications.push("error", err.message);
                               resolve();
                             });
                         });
-                      }
+                      },
                     },
                     formData
                   )
                 );
               };
               overlay.open(cb);
-            }
+            },
           },
           "New config"
         );
@@ -286,7 +286,7 @@ export const component: ClosureComponent = (): Component => {
           { name: "charts", prefix: "ui.overview.charts.", data: [] },
           { name: "filters", prefix: "ui.filters.", data: [] },
           { name: "index page", prefix: "ui.index.", data: [] },
-          { name: "device page", prefix: "ui.device.", data: [] }
+          { name: "device page", prefix: "ui.device.", data: [] },
         ];
 
         if (confs.fulfilled) {
@@ -312,7 +312,7 @@ export const component: ClosureComponent = (): Component => {
                       uiConfigComponent,
                       Object.assign(
                         {
-                          onUpdate: errs => {
+                          onUpdate: (errs: string[]) => {
                             const errors = errs ? Object.values(errs) : [];
                             if (errors.length) {
                               for (const err of errors)
@@ -329,18 +329,18 @@ export const component: ClosureComponent = (): Component => {
                             }
                             store.fulfill(0, Date.now());
                           },
-                          onError: err => {
+                          onError: (err) => {
                             notifications.push("error", err.message);
                             store.fulfill(0, Date.now());
                             overlay.close(cb);
-                          }
+                          },
                         },
                         attrs
                       )
                     );
                   };
                   overlay.open(cb);
-                }
+                },
               },
               `Edit ${sub.name}`
             )
@@ -359,8 +359,8 @@ export const component: ClosureComponent = (): Component => {
             renderTable(confs, vnode.state["searchString"])
           ),
           m(".actions-bar", [newConfig].concat(subs))
-        )
+        ),
       ];
-    }
+    },
   };
 };

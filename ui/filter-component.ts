@@ -25,16 +25,16 @@ import * as smartQuery from "./smart-query";
 import { filterToMongoQuery } from "../lib/mongodb-functions";
 import { Expression } from "../lib/types";
 
-const getAutocomplete = memoize(resource => {
+const getAutocomplete = memoize((resource) => {
   const labels = smartQuery.getLabels(resource);
   const autocomplete = new Autocomplete("autocomplete", (txt, cb) => {
     txt = txt.toLowerCase();
     cb(
       labels
-        .filter(s => s.toLowerCase().includes(txt))
-        .map(s => ({
+        .filter((s) => s.toLowerCase().includes(txt))
+        .map((s) => ({
           value: `${s}: `,
-          tip: smartQuery.getTip(resource, s)
+          tip: smartQuery.getTip(resource, s),
         }))
     );
   });
@@ -53,7 +53,7 @@ function parseFilter(resource, f): Expression {
 
   // Throw exception if invalid Mongo query
   filterToMongoQuery(
-    map(exp, e => {
+    map(exp, (e) => {
       if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "Q")
         return smartQuery.unpack(resource, e[2], e[3]);
       return e;
@@ -69,7 +69,7 @@ function stringifyFilter(f: Expression): string {
   return stringify(f);
 }
 
-const splitFilter = memoize(filter => {
+const splitFilter = memoize((filter) => {
   if (!filter) return [""];
   const list = [];
   const f = parse(filter);
@@ -83,7 +83,7 @@ const splitFilter = memoize(filter => {
 
 const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       if (
         !vnode.state["filterList"] ||
         vnode.attrs["filter"] !== vnode.state["filter"]
@@ -95,7 +95,7 @@ const component: ClosureComponent = (): Component => {
 
       function onChange(): void {
         vnode.state["filterInvalid"] = 0;
-        vnode.state["filterList"] = vnode.state["filterList"].filter(f => f);
+        vnode.state["filterList"] = vnode.state["filterList"].filter((f) => f);
         let filter = vnode.state["filterList"].map((f, idx) => {
           try {
             return parseFilter(vnode.attrs["resource"], f);
@@ -128,19 +128,21 @@ const component: ClosureComponent = (): Component => {
                 (vnode.state["filterInvalid"] >> idx) & 1 ? "error" : ""
               }`,
               value: fltr,
-              onchange: e => {
+              onchange: (e) => {
                 vnode.state["filterList"] = vnode.state["filterList"].slice();
                 vnode.state["filterList"][idx] = e.target.value.trim();
                 onChange();
               },
-              oncreate: vn => {
-                getAutocomplete(vnode.attrs["resource"]).attach(vn.dom);
-              }
+              oncreate: (vn) => {
+                getAutocomplete(vnode.attrs["resource"]).attach(
+                  vn.dom as HTMLInputElement
+                );
+              },
             });
           })
         )
       );
-    }
+    },
   };
 };
 

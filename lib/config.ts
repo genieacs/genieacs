@@ -38,7 +38,7 @@ const options = {
   EXT_DIR: { type: "path", default: resolve(ROOT_DIR, "config/ext") },
   MONGODB_CONNECTION_URL: {
     type: "string",
-    default: "mongodb://127.0.0.1/genieacs"
+    default: "mongodb://127.0.0.1/genieacs",
   },
 
   CWMP_WORKER_PROCESSES: { type: "int", default: 0 },
@@ -100,7 +100,7 @@ const options = {
   MAX_COMMIT_ITERATIONS: { type: "int", default: 32 },
 
   // Should probably never be changed
-  DEVICE_ONLINE_THRESHOLD: { type: "int", default: 4000 }
+  DEVICE_ONLINE_THRESHOLD: { type: "int", default: 4000 },
 };
 
 const allConfig: { [name: string]: string | number } = {};
@@ -112,37 +112,17 @@ function setConfig(name, value, commandLineArgument = false): boolean {
   if (name === "CONFIG_DIR" || name === "config-dir")
     configDir = configDir || resolve(ROOT_DIR, value);
 
-  if (name === "CWMP_SSL" || name === "cwmp-ssl") {
-    cwmpSsl =
-      cwmpSsl ||
-      String(value)
-        .toLowerCase()
-        .trim();
-  }
+  if (name === "CWMP_SSL" || name === "cwmp-ssl")
+    cwmpSsl = cwmpSsl || String(value).toLowerCase().trim();
 
-  if (name === "NBI_SSL" || name === "nbi-ssl") {
-    nbiSsl =
-      nbiSsl ||
-      String(value)
-        .toLowerCase()
-        .trim();
-  }
+  if (name === "NBI_SSL" || name === "nbi-ssl")
+    nbiSsl = nbiSsl || String(value).toLowerCase().trim();
 
-  if (name === "FS_SSL" || name === "fs-ssl") {
-    fsSsl =
-      fsSsl ||
-      String(value)
-        .toLowerCase()
-        .trim();
-  }
+  if (name === "FS_SSL" || name === "fs-ssl")
+    fsSsl = fsSsl || String(value).toLowerCase().trim();
 
-  if (name === "UI_SSL" || name === "ui-ssl") {
-    uiSsl =
-      uiSsl ||
-      String(value)
-        .toLowerCase()
-        .trim();
-  }
+  if (name === "UI_SSL" || name === "ui-ssl")
+    uiSsl = uiSsl || String(value).toLowerCase().trim();
 
   if (name === "FS_HOSTNAME" || name === "fs-hostname")
     fsHostname = fsHostname || String(value).trim();
@@ -170,11 +150,7 @@ function setConfig(name, value, commandLineArgument = false): boolean {
       case "int":
         return Number(val);
       case "bool":
-        return ["true", "1"].includes(
-          String(val)
-            .trim()
-            .toLowerCase()
-        );
+        return ["true", "1"].includes(String(val).trim().toLowerCase());
       case "string":
         return String(val);
       case "path":
@@ -308,7 +284,7 @@ export function get(
   return null;
 }
 
-export function getDefault(optionName): string | number | boolean {
+export function getDefault(optionName: string): string | number | boolean {
   const option = options[optionName];
   if (!option) return null;
 

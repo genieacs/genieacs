@@ -168,7 +168,7 @@ function unitPropagate(clauses, varVals): number[] | 1 | -1 {
   return derivedVars;
 }
 
-export function naiveDpll(clauses, maxvarnr): boolean {
+export function naiveDpll(clauses: unknown[], maxvarnr: number): boolean {
   // variable values are 0 if not set, 1 if positive, -1 if negative
   const varVals = new Int32Array(maxvarnr + 1);
   return satisfiableAt(clauses, varVals, 0, 0);

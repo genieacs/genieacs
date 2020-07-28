@@ -20,7 +20,7 @@
 import { platform } from "os";
 import { exec } from "child_process";
 
-interface Ping {
+export interface PingResult {
   packetsTransmitted: number;
   packetsReceived: number;
   packetLoss: number;
@@ -32,7 +32,7 @@ interface Ping {
 
 export function ping(
   host: string,
-  callback: (err, res?, stdout?) => void
+  callback: (err: Error, res?: PingResult, stdout?: string) => void
 ): void {
   let cmd: string, parseRegExp1: RegExp, parseRegExp2: RegExp;
   switch (platform()) {
@@ -55,7 +55,7 @@ export function ping(
   }
 
   exec(cmd, (err, stdout) => {
-    let parsed: Ping;
+    let parsed: PingResult;
     if (stdout) {
       const m1 = stdout.match(parseRegExp1);
       if (m1) {
@@ -66,7 +66,7 @@ export function ping(
           min: +m1[4],
           avg: +m1[5],
           max: +m1[6],
-          mdev: +m1[7]
+          mdev: +m1[7],
         };
       } else {
         const m2 = stdout.match(parseRegExp2);
@@ -78,7 +78,7 @@ export function ping(
             min: null,
             avg: null,
             max: null,
-            mdev: null
+            mdev: null,
           };
         }
       }

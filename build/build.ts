@@ -21,7 +21,6 @@ import * as path from "path";
 import * as fs from "fs";
 import { promisify } from "util";
 import { rollup, WarningHandler } from "rollup";
-import rollupReplace from "rollup-plugin-replace";
 import rollupJson from "rollup-plugin-json";
 import typescript from "rollup-plugin-typescript";
 import { terser } from "rollup-plugin-terser";
@@ -78,7 +77,7 @@ const externals = [
   "codemirror",
   "codemirror/mode/javascript/javascript",
   "codemirror/mode/yaml/yaml",
-  "ipaddr.js"
+  "ipaddr.js",
 ];
 
 function rmDirSync(dirPath): void {
@@ -123,9 +122,7 @@ function generateSymbol(id: string, svgStr: string): string {
     }
   }
   const symbolBody = xml.children[0].children
-    .map(c => {
-      return xmlTostring(c);
-    })
+    .map((c) => xmlTostring(c))
     .join("");
   return `<symbol id="icon-${id}" ${viewBox}>${symbolBody}</symbol>`;
 }
@@ -147,7 +144,7 @@ async function init(): Promise<void> {
   delete packageJson["devDependencies"];
   packageJson["scripts"] = {
     install: packageJson["scripts"].install,
-    configure: packageJson["scripts"].configure
+    configure: packageJson["scripts"].configure,
   };
   packageJson["version"] = `${packageJson["version"]}+${BUILD_METADATA}`;
   fs.writeFileSync(
@@ -173,7 +170,7 @@ async function copyStatic(): Promise<void> {
     "README.md",
     "CHANGELOG.md",
     "public/logo.svg",
-    "public/favicon.png"
+    "public/favicon.png",
   ];
 
   for (const file of files) {
@@ -194,35 +191,31 @@ async function generateCss(): Promise<void> {
       stage: 3,
       features: {
         "nesting-rules": true,
-        "color-mod-function": true
-      }
+        "color-mod-function": true,
+      },
     }),
-    cssnano
+    cssnano,
   ]).process(cssIn, { from: cssInPath, to: cssOutPath });
   fs.writeFileSync(cssOutPath, cssOut.css);
 }
 
 async function generateToolsJs(): Promise<void> {
   for (const bin of ["dump-data-model"]) {
-    const inputFile = path.resolve(INPUT_DIR, `tools/${bin}`);
+    const inputFile = path.resolve(INPUT_DIR, `tools/${bin}.ts`);
     const outputFile = path.resolve(OUTPUT_DIR, `tools/${bin}`);
     const bundle = await rollup({
       input: inputFile,
       external: externals,
       acorn: {
-        allowHashBang: true
+        allowHashBang: true,
       },
       plugins: [
-        rollupReplace({
-          delimiters: ["", ""],
-          "#!/usr/bin/env -S node -r esm -r ts-node/register/transpile-only": ""
-        }),
         typescript({
           tsconfig: "./tsconfig.json",
-          include: [`tools/${bin}`, "lib/**/*.ts"]
+          include: [`tools/${bin}.ts`, "lib/**/*.ts"],
         }),
-        MODE === "production" ? terser() : null
-      ]
+        MODE === "production" ? terser() : null,
+      ],
     });
 
     await bundle.write({
@@ -231,7 +224,7 @@ async function generateToolsJs(): Promise<void> {
       sourcemap: "inline",
       sourcemapExcludeSources: true,
       banner: "#!/usr/bin/env node",
-      file: outputFile
+      file: outputFile,
     });
 
     // Mark as executable
@@ -246,25 +239,21 @@ async function generateBackendJs(): Promise<void> {
     "genieacs-ext",
     "genieacs-nbi",
     "genieacs-fs",
-    "genieacs-ui"
+    "genieacs-ui",
   ]) {
-    const inputFile = path.resolve(INPUT_DIR, `bin/${bin}`);
+    const inputFile = path.resolve(INPUT_DIR, `bin/${bin}.ts`);
     const outputFile = path.resolve(OUTPUT_DIR, `bin/${bin}`);
     const bundle = await rollup({
       input: inputFile,
       external: externals,
       acorn: {
-        allowHashBang: true
+        allowHashBang: true,
       },
       treeshake: {
         propertyReadSideEffects: false,
-        pureExternalModules: true
+        pureExternalModules: true,
       },
       plugins: [
-        rollupReplace({
-          delimiters: ["", ""],
-          "#!/usr/bin/env -S node -r esm -r ts-node/register/transpile-only": ""
-        }),
         rollupJson({ preferConst: true }),
         {
           resolveId: (importee, importer) => {
@@ -274,14 +263,14 @@ async function generateBackendJs(): Promise<void> {
                 return path.resolve(OUTPUT_DIR, "package.json");
             }
             return null;
-          }
+          },
         },
         typescript({
           tsconfig: "./tsconfig.json",
-          include: [`bin/${bin}`, "lib/**/*.ts"]
+          include: [`bin/${bin}.ts`, "lib/**/*.ts"],
         }),
-        MODE === "production" ? terser() : null
-      ]
+        MODE === "production" ? terser() : null,
+      ],
     });
 
     await bundle.write({
@@ -290,7 +279,7 @@ async function generateBackendJs(): Promise<void> {
       sourcemap: "inline",
       sourcemapExcludeSources: true,
       banner: "#!/usr/bin/env node",
-      file: outputFile
+      file: outputFile,
     });
 
     // Mark as executable
@@ -308,17 +297,17 @@ async function generateFrontendJs(): Promise<void> {
     external: externals,
     plugins: [
       rollupJson({ preferConst: true }),
-      typescript({ tsconfig: "./tsconfig.json" })
+      typescript({ tsconfig: "./tsconfig.json" }),
     ],
     inlineDynamicImports: true,
     treeshake: {
       propertyReadSideEffects: false,
-      pureExternalModules: true
+      pureExternalModules: true,
     },
     onwarn: ((warning, warn) => {
       // Ignore circular dependency warnings
       if (warning.code !== "CIRCULAR_DEPENDENCY") warn(warning);
-    }) as WarningHandler
+    }) as WarningHandler,
   });
 
   await bundle.write({
@@ -326,14 +315,14 @@ async function generateFrontendJs(): Promise<void> {
     format: "esm",
     sourcemap: "inline",
     sourcemapExcludeSources: true,
-    file: outputFile
+    file: outputFile,
   });
 
   const webpackConf = {
     mode: MODE,
     entry: outputFile,
     resolve: {
-      aliasFields: ["module"]
+      aliasFields: ["module"],
     },
     devtool: "nosources-source-map",
     module: {
@@ -341,14 +330,14 @@ async function generateFrontendJs(): Promise<void> {
         {
           test: /\.js$/,
           use: ["source-map-loader"],
-          enforce: "pre"
-        }
-      ]
+          enforce: "pre",
+        },
+      ],
     },
     output: {
       path: path.resolve(OUTPUT_DIR, "public"),
-      filename: "app.js"
-    }
+      filename: "app.js",
+    },
   };
 
   const stats = await promisify(webpack)(webpackConf);
@@ -379,13 +368,15 @@ init()
       generateIconsSprite(),
       generateToolsJs(),
       generateBackendJs(),
-      generateFrontendJs()
+      generateFrontendJs(),
     ])
-      .then(() => {})
-      .catch(err => {
+      .then(() => {
+        // Ignore
+      })
+      .catch((err) => {
         process.stderr.write(err.stack + "\n");
       });
   })
-  .catch(err => {
+  .catch((err) => {
     process.stderr.write(err.stack + "\n");
   });

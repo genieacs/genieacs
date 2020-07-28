@@ -95,11 +95,11 @@ export async function getStatus(): Promise<Status> {
     filters: !Object.keys(ui["filters"]).length,
     device: !Object.keys(ui["device"]).length,
     index: !Object.keys(ui["index"]).length,
-    overview: !Object.keys(ui["overview"]).length
+    overview: !Object.keys(ui["overview"]).length,
   };
 }
 
-export async function seed(options): Promise<void> {
+export async function seed(options: Record<string, boolean>): Promise<void> {
   const resources = {};
   const proms = [];
 
@@ -117,12 +117,12 @@ export async function seed(options): Promise<void> {
         role: "admin",
         resource: "virtualParameters",
         access: 3,
-        validate: "true"
-      }
+        validate: "true",
+      },
     ];
 
     resources["users"] = [
-      { username: "admin", password: "admin", roles: ["admin"] }
+      { username: "admin", password: "admin", roles: ["admin"] },
     ];
   }
 
@@ -135,7 +135,7 @@ export async function seed(options): Promise<void> {
       { _id: "ui.filters.1.parameter", value: "DeviceID.ProductClass" },
       { _id: "ui.filters.1.type", value: "'string'" },
       { _id: "ui.filters.2.label", value: "'Tag'" },
-      { _id: "ui.filters.2.type", value: "'tag'" }
+      { _id: "ui.filters.2.type", value: "'tag'" },
     ]);
   }
 
@@ -149,118 +149,118 @@ export async function seed(options): Promise<void> {
       { _id: "ui.device.2.parameters.0.label", value: "'Last inform'" },
       {
         _id: "ui.device.2.parameters.0.components.0.type",
-        value: "'parameter'"
+        value: "'parameter'",
       },
       { _id: "ui.device.2.parameters.0.components.1.chart", value: "'online'" },
       {
         _id: "ui.device.2.parameters.0.components.1.type",
-        value: "'overview-dot'"
+        value: "'overview-dot'",
       },
       {
         _id: "ui.device.2.parameters.0.components.2.type",
-        value: "'summon-button'"
+        value: "'summon-button'",
       },
       {
         _id: "ui.device.2.parameters.0.components.2.parameters.0",
-        value: "InternetGatewayDevice.DeviceInfo.HardwareVersion"
+        value: "InternetGatewayDevice.DeviceInfo.HardwareVersion",
       },
       {
         _id: "ui.device.2.parameters.0.components.2.parameters.1",
-        value: "InternetGatewayDevice.DeviceInfo.SoftwareVersion"
+        value: "InternetGatewayDevice.DeviceInfo.SoftwareVersion",
       },
       {
         _id: "ui.device.2.parameters.0.components.2.parameters.2",
         value:
-          "InternetGatewayDevice.WANDevice.*.WANConnectionDevice.*.WANIPConnection.*.MACAddress"
+          "InternetGatewayDevice.WANDevice.*.WANConnectionDevice.*.WANIPConnection.*.MACAddress",
       },
       {
         _id: "ui.device.2.parameters.0.components.2.parameters.3",
         value:
-          "InternetGatewayDevice.WANDevice.*.WANConnectionDevice.*.WANIPConnection.*.ExternalIPAddress"
+          "InternetGatewayDevice.WANDevice.*.WANConnectionDevice.*.WANIPConnection.*.ExternalIPAddress",
       },
       {
         _id: "ui.device.2.parameters.0.components.2.parameters.4",
-        value: "InternetGatewayDevice.LANDevice.*.WLANConfiguration.*.SSID"
+        value: "InternetGatewayDevice.LANDevice.*.WLANConfiguration.*.SSID",
       },
       {
         _id: "ui.device.2.parameters.0.components.2.parameters.5",
         value:
-          "InternetGatewayDevice.LANDevice.*.WLANConfiguration.*.KeyPassphrase"
+          "InternetGatewayDevice.LANDevice.*.WLANConfiguration.*.KeyPassphrase",
       },
       {
         _id: "ui.device.2.parameters.0.components.2.parameters.6",
-        value: "InternetGatewayDevice.LANDevice.*.Hosts.Host.*.HostName"
+        value: "InternetGatewayDevice.LANDevice.*.Hosts.Host.*.HostName",
       },
       {
         _id: "ui.device.2.parameters.0.components.2.parameters.7",
-        value: "InternetGatewayDevice.LANDevice.*.Hosts.Host.*.IPAddress"
+        value: "InternetGatewayDevice.LANDevice.*.Hosts.Host.*.IPAddress",
       },
       {
         _id: "ui.device.2.parameters.0.components.2.parameters.8",
-        value: "InternetGatewayDevice.LANDevice.*.Hosts.Host.*.MACAddress"
+        value: "InternetGatewayDevice.LANDevice.*.Hosts.Host.*.MACAddress",
       },
       {
         _id: "ui.device.2.parameters.0.parameter",
-        value: "DATE_STRING(Events.Inform)"
+        value: "DATE_STRING(Events.Inform)",
       },
       { _id: "ui.device.2.parameters.1.label", value: "'Serial number'" },
       {
         _id: "ui.device.2.parameters.1.parameter",
-        value: "DeviceID.SerialNumber"
+        value: "DeviceID.SerialNumber",
       },
       { _id: "ui.device.2.parameters.2.label", value: "'Product class'" },
       {
         _id: "ui.device.2.parameters.2.parameter",
-        value: "DeviceID.ProductClass"
+        value: "DeviceID.ProductClass",
       },
       { _id: "ui.device.2.parameters.3.label", value: "'OUI'" },
       {
         _id: "ui.device.2.parameters.3.parameter",
-        value: "DeviceID.OUI"
+        value: "DeviceID.OUI",
       },
       { _id: "ui.device.2.parameters.4.label", value: "'Manufacturer'" },
       {
         _id: "ui.device.2.parameters.4.parameter",
-        value: "DeviceID.Manufacturer"
+        value: "DeviceID.Manufacturer",
       },
       { _id: "ui.device.2.parameters.5.label", value: "'Hardware version'" },
       {
         _id: "ui.device.2.parameters.5.parameter",
-        value: "InternetGatewayDevice.DeviceInfo.HardwareVersion"
+        value: "InternetGatewayDevice.DeviceInfo.HardwareVersion",
       },
       { _id: "ui.device.2.parameters.6.label", value: "'Software version'" },
       {
         _id: "ui.device.2.parameters.6.parameter",
-        value: "InternetGatewayDevice.DeviceInfo.SoftwareVersion"
+        value: "InternetGatewayDevice.DeviceInfo.SoftwareVersion",
       },
       { _id: "ui.device.2.parameters.7.label", value: "'MAC'" },
       {
         _id: "ui.device.2.parameters.7.parameter",
         value:
-          "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.MACAddress"
+          "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.MACAddress",
       },
       { _id: "ui.device.2.parameters.8.label", value: "'IP'" },
       {
         _id: "ui.device.2.parameters.8.parameter",
         value:
-          "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.ExternalIPAddress"
+          "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.ExternalIPAddress",
       },
       { _id: "ui.device.2.parameters.9.label", value: "'WLAN SSID'" },
       {
         _id: "ui.device.2.parameters.9.parameter",
-        value: "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID"
+        value: "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID",
       },
       { _id: "ui.device.2.parameters.10.label", value: "'WLAN passphrase'" },
       {
         _id: "ui.device.2.parameters.10.parameter",
         value:
-          "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.KeyPassphrase"
+          "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.KeyPassphrase",
       },
       { _id: "ui.device.3.type", value: "'parameter-table'" },
       { _id: "ui.device.3.label", value: "'WLAN hosts'" },
       {
         _id: "ui.device.3.parameter",
-        value: "InternetGatewayDevice.LANDevice.1.Hosts.Host"
+        value: "InternetGatewayDevice.LANDevice.1.Hosts.Host",
       },
       { _id: "ui.device.3.childParameters.0.label", value: "'Host name'" },
       { _id: "ui.device.3.childParameters.0.parameter", value: "HostName" },
@@ -278,12 +278,12 @@ export async function seed(options): Promise<void> {
       { _id: "ui.device.5.element", value: "'div.container-full-width'" },
       {
         _id: "ui.device.5.components.0.components.0",
-        value: "'All parameters'"
+        value: "'All parameters'",
       },
       { _id: "ui.device.5.components.0.element", value: "'h3'" },
       { _id: "ui.device.5.components.0.type", value: "'container'" },
       { _id: "ui.device.5.components.1.type", value: "'all-parameters'" },
-      { _id: "ui.device.6.type", value: "'device-actions'" }
+      { _id: "ui.device.6.type", value: "'device-actions'" },
     ]);
   }
 
@@ -298,18 +298,18 @@ export async function seed(options): Promise<void> {
       { _id: "ui.index.2.label", value: "'Software version'" },
       {
         _id: "ui.index.2.parameter",
-        value: "InternetGatewayDevice.DeviceInfo.SoftwareVersion"
+        value: "InternetGatewayDevice.DeviceInfo.SoftwareVersion",
       },
       { _id: "ui.index.3.label", value: "'IP'" },
       {
         _id: "ui.index.3.parameter",
         value:
-          "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.ExternalIPAddress"
+          "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.ExternalIPAddress",
       },
       { _id: "ui.index.4.label", value: "'SSID'" },
       {
         _id: "ui.index.4.parameter",
-        value: "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID"
+        value: "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID",
       },
       { _id: "ui.index.5.type", value: "'container'" },
       { _id: "ui.index.5.label", value: "'Last inform'" },
@@ -322,7 +322,7 @@ export async function seed(options): Promise<void> {
       { _id: "ui.index.6.label", value: "'Tags'" },
       { _id: "ui.index.6.parameter", value: "Tags" },
       { _id: "ui.index.6.unsortable", value: "true" },
-      { _id: "ui.index.6.writable", value: "false" }
+      { _id: "ui.index.6.writable", value: "false" },
     ]);
   }
 
@@ -331,43 +331,44 @@ export async function seed(options): Promise<void> {
       { _id: "ui.overview.charts.online.label", value: "'Online status'" },
       {
         _id: "ui.overview.charts.online.slices.1_onlineNow.color",
-        value: "'#31a354'"
+        value: "'#31a354'",
       },
       {
         _id: "ui.overview.charts.online.slices.1_onlineNow.filter",
-        value: "Events.Inform > NOW() - 5 * 60 * 1000"
+        value: "Events.Inform > NOW() - 5 * 60 * 1000",
       },
       {
         _id: "ui.overview.charts.online.slices.1_onlineNow.label",
-        value: "'Online now'"
+        value: "'Online now'",
       },
       {
         _id: "ui.overview.charts.online.slices.2_past24.color",
-        value: "'#a1d99b'"
+        value: "'#a1d99b'",
       },
       {
         _id: "ui.overview.charts.online.slices.2_past24.filter",
         value:
-          "Events.Inform > (NOW() - 5 * 60 * 1000) - (24 * 60 * 60 * 1000) AND Events.Inform < (NOW() - 5 * 60 * 1000)"
+          "Events.Inform > (NOW() - 5 * 60 * 1000) - (24 * 60 * 60 * 1000) AND Events.Inform < (NOW() - 5 * 60 * 1000)",
       },
       {
         _id: "ui.overview.charts.online.slices.2_past24.label",
-        value: "'Past 24 hours'"
+        value: "'Past 24 hours'",
       },
       {
         _id: "ui.overview.charts.online.slices.3_others.color",
-        value: "'#e5f5e0'"
+        value: "'#e5f5e0'",
       },
       {
         _id: "ui.overview.charts.online.slices.3_others.filter",
-        value: "Events.Inform < (NOW() - 5 * 60 * 1000) - (24 * 60 * 60 * 1000)"
+        value:
+          "Events.Inform < (NOW() - 5 * 60 * 1000) - (24 * 60 * 60 * 1000)",
       },
       {
         _id: "ui.overview.charts.online.slices.3_others.label",
-        value: "'Others'"
+        value: "'Others'",
       },
       { _id: "ui.overview.groups.online.label", value: "''" },
-      { _id: "ui.overview.groups.online.charts.0", value: "'online'" }
+      { _id: "ui.overview.groups.online.charts.0", value: "'online'" },
     ]);
   }
 
@@ -378,16 +379,16 @@ export async function seed(options): Promise<void> {
         weight: 0,
         channel: "bootstrap",
         events: "0 BOOTSTRAP",
-        provision: "bootstrap"
+        provision: "bootstrap",
       },
       { _id: "default", weight: 0, channel: "default", provision: "default" },
-      { _id: "inform", weight: 0, channel: "inform", provision: "inform" }
+      { _id: "inform", weight: 0, channel: "inform", provision: "inform" },
     ];
 
     resources["provisions"] = [
       { _id: "bootstrap", script: BOOTSTRAP_SCRIPT },
       { _id: "default", script: DEFAULT_SCRIPT },
-      { _id: "inform", script: INFORM_SCRIPT }
+      { _id: "inform", script: INFORM_SCRIPT },
     ];
   }
 

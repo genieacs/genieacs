@@ -35,7 +35,7 @@ const PAGE_SIZE = config.ui.pageSize || 10;
 
 const memoizedParse = memoize(parse);
 const memoizedJsonParse = memoize(JSON.parse);
-const memoizedGetSortable = memoize(p => {
+const memoizedGetSortable = memoize((p) => {
   const expressionParams = extractParams(p);
   if (expressionParams.length === 1) {
     const param = evaluate(expressionParams[0]);
@@ -49,19 +49,21 @@ const getDownloadUrl = memoize((filter, indexParameters) => {
   for (const p of indexParameters) columns[p.label] = stringify(p.parameter);
   return `api/devices.csv?${m.buildQueryString({
     filter: stringify(filter),
-    columns: JSON.stringify(columns)
+    columns: JSON.stringify(columns),
   })}`;
 });
 
-const unpackSmartQuery = memoize(query => {
-  return expressionParser.map(query, e => {
+const unpackSmartQuery = memoize((query) => {
+  return expressionParser.map(query, (e) => {
     if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "Q")
       return smartQuery.unpack("devices", e[2], e[3]);
     return e;
   });
 });
 
-export function init(args): Promise<{}> {
+export function init(
+  args: Record<string, unknown>
+): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     if (!window.authorizer.hasAccess("devices", 2))
       return void reject(new Error("You are not authorized to view this page"));
@@ -72,14 +74,14 @@ export function init(args): Promise<{}> {
     if (!indexParameters.length) {
       indexParameters.push({
         label: "ID",
-        parameter: ["PARAM", "DeviceID.ID"]
+        parameter: ["PARAM", "DeviceID.ID"],
       });
     }
     resolve({ filter, indexParameters, sort });
   });
 }
 
-function renderActions(selected): Children {
+function renderActions(selected: Set<string>): Children {
   const buttons = [];
 
   buttons.push(
@@ -92,10 +94,10 @@ function renderActions(selected): Children {
           for (const d of selected) {
             taskQueue.queueTask({
               name: "reboot",
-              device: d
+              device: d,
             });
           }
-        }
+        },
       },
       "Reboot"
     )
@@ -111,10 +113,10 @@ function renderActions(selected): Children {
           for (const d of selected) {
             taskQueue.queueTask({
               name: "factoryReset",
-              device: d
+              device: d,
             });
           }
-        }
+        },
       },
       "Reset"
     )
@@ -139,13 +141,13 @@ function renderActions(selected): Children {
                 notifications.push("success", `${id}: Deleted`);
                 if (--counter === 0) store.fulfill(0, Date.now());
               })
-              .catch(err => {
+              .catch((err) => {
                 notifications.push("error", `${id}: ${err.message}`);
                 if (--counter === 0) store.fulfill(0, Date.now());
               });
           }
           if (--counter === 0) store.fulfill(0, Date.now());
-        }
+        },
       },
       "Delete"
     )
@@ -171,13 +173,13 @@ function renderActions(selected): Children {
                 notifications.push("success", `${id}: Tags updated`);
                 if (--counter === 0) store.fulfill(0, Date.now());
               })
-              .catch(err => {
+              .catch((err) => {
                 notifications.push("error", `${id}: ${err.message}`);
                 if (--counter === 0) store.fulfill(0, Date.now());
               });
           }
           if (--counter === 0) store.fulfill(0, Date.now());
-        }
+        },
       },
       "Tag"
     )
@@ -205,13 +207,13 @@ function renderActions(selected): Children {
                 notifications.push("success", `${id}: Tags updated`);
                 if (--counter === 0) store.fulfill(0, Date.now());
               })
-              .catch(err => {
+              .catch((err) => {
                 notifications.push("error", `${id}: ${err.message}`);
                 if (--counter === 0) store.fulfill(0, Date.now());
               });
           }
           if (--counter === 0) store.fulfill(0, Date.now());
-        }
+        },
       },
       "Untag"
     )
@@ -222,7 +224,7 @@ function renderActions(selected): Children {
 
 export const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       document.title = "Devices - GenieACS";
       const attributes = vnode.attrs["indexParameters"];
 
@@ -273,7 +275,7 @@ export const component: ClosureComponent = (): Component => {
 
       const devs = store.fetch("devices", filter, {
         limit: vnode.state["showCount"] || PAGE_SIZE,
-        sort: sort
+        sort: sort,
       });
       const count = store.count("devices", filter);
 
@@ -302,7 +304,7 @@ export const component: ClosureComponent = (): Component => {
           {
             href: `#!/devices/${encodeURIComponent(
               device["DeviceID.ID"].value[0]
-            )}`
+            )}`,
           },
           "Show"
         );
@@ -319,8 +321,8 @@ export const component: ClosureComponent = (): Component => {
       return [
         m("h1", "Listing devices"),
         m(filterComponent, filterAttrs),
-        m(indexTableComponent, attrs)
+        m(indexTableComponent, attrs),
       ];
-    }
+    },
   };
 };

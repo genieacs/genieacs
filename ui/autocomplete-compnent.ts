@@ -17,11 +17,13 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+type AutocompleteCallback = (
+  value: string,
+  callback: (suggestions: { value: string; tip?: string }[]) => void
+) => void;
+
 export default class Autocomplete {
-  private callback: (
-    value: string,
-    callback: (suggestions: { value: string; tip?: string }[]) => void
-  ) => void;
+  private callback: AutocompleteCallback;
   private element: HTMLInputElement;
   private hideTimeout: NodeJS.Timeout;
   private visible: boolean;
@@ -29,7 +31,7 @@ export default class Autocomplete {
   private selection: number;
   private container: HTMLElement;
 
-  public constructor(className, callback) {
+  public constructor(className: string, callback: AutocompleteCallback) {
     this.callback = callback;
     this.element = null;
     this.hideTimeout = null;
@@ -44,7 +46,7 @@ export default class Autocomplete {
     this.container.className = className;
   }
 
-  public attach(el): void {
+  public attach(el: HTMLInputElement): void {
     el.setAttribute("autocomplete", "off");
 
     el.addEventListener("focus", () => {
@@ -62,7 +64,7 @@ export default class Autocomplete {
       this.hide();
     });
 
-    el.addEventListener("keydown", e => {
+    el.addEventListener("keydown", (e) => {
       if (this.element !== el) return;
       if (e.key === "Escape") {
         if (this.visible) this.hide();
@@ -108,7 +110,7 @@ export default class Autocomplete {
   private update(): void {
     const el = this.element;
 
-    this.callback(el.value, suggestions => {
+    this.callback(el.value, (suggestions) => {
       if (this.element !== el) return;
       this.default = null;
 
@@ -154,7 +156,7 @@ export default class Autocomplete {
 
         const t = document.createTextNode(suggestion.value);
         e.appendChild(t);
-        e.addEventListener("mousedown", ev => {
+        e.addEventListener("mousedown", (ev) => {
           ev.preventDefault();
           el.value = suggestion.value;
           if (this.element === el) this.update();

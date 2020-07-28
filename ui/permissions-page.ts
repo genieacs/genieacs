@@ -51,21 +51,21 @@ const attributes = [
       "users",
       "presets",
       "provisions",
-      "virtualParameters"
-    ]
+      "virtualParameters",
+    ],
   },
   { id: "filter", label: "Filter", type: "textarea" },
   {
     id: "access",
     label: "Access",
     type: "combo",
-    options: ["1: count", "2: read", "3: write"]
+    options: ["1: count", "2: read", "3: write"],
   },
-  { id: "validate", label: "Validate", type: "textarea" }
+  { id: "validate", label: "Validate", type: "textarea" },
 ];
 
-const unpackSmartQuery = memoize(query => {
-  return map(query, e => {
+const unpackSmartQuery = memoize((query) => {
+  return map(query, (e) => {
     if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "Q")
       return smartQuery.unpack("permissions", e[2], e[3]);
     return e;
@@ -96,7 +96,7 @@ function putActionHandler(action, _object): Promise<ValidationErrors> {
           object.filter = stringify(memoizedParse(object.filter));
         } catch (err) {
           return void resolve({
-            filter: "Filter must be valid expression"
+            filter: "Filter must be valid expression",
           });
         }
       }
@@ -106,7 +106,7 @@ function putActionHandler(action, _object): Promise<ValidationErrors> {
           object.validate = stringify(memoizedParse(object.validate));
         } catch (err) {
           return void resolve({
-            validate: "Validate must be valid expression"
+            validate: "Validate must be valid expression",
           });
         }
       }
@@ -115,7 +115,7 @@ function putActionHandler(action, _object): Promise<ValidationErrors> {
 
       store
         .resourceExists("permissions", id)
-        .then(exists => {
+        .then((exists) => {
           if (exists) {
             store.fulfill(0, Date.now());
             return void resolve({ _id: "Permission already exists" });
@@ -139,7 +139,7 @@ function putActionHandler(action, _object): Promise<ValidationErrors> {
           store.fulfill(0, Date.now());
           resolve();
         })
-        .catch(err => {
+        .catch((err) => {
           store.fulfill(0, Date.now());
           reject(err);
         });
@@ -151,19 +151,21 @@ function putActionHandler(action, _object): Promise<ValidationErrors> {
 
 const formData = {
   resource: "permissions",
-  attributes: attributes
+  attributes: attributes,
 };
 
-const getDownloadUrl = memoize(filter => {
+const getDownloadUrl = memoize((filter) => {
   const cols = {};
   for (const attr of attributes) cols[attr.label] = attr.id;
   return `api/permissions.csv?${m.buildQueryString({
     filter: stringify(filter),
-    columns: JSON.stringify(cols)
+    columns: JSON.stringify(cols),
   })}`;
 });
 
-export function init(args): Promise<{}> {
+export function init(
+  args: Record<string, unknown>
+): Promise<Record<string, unknown>> {
   if (!window.authorizer.hasAccess("permissions", 2)) {
     return Promise.reject(
       new Error("You are not authorized to view this page")
@@ -176,7 +178,7 @@ export function init(args): Promise<{}> {
 
 export const component: ClosureComponent = (): Component => {
   return {
-    view: vnode => {
+    view: (vnode) => {
       document.title = "Permissions - GenieACS";
 
       function showMore(): void {
@@ -222,7 +224,7 @@ export const component: ClosureComponent = (): Component => {
 
       const permissions = store.fetch("permissions", filter, {
         limit: vnode.state["showCount"] || PAGE_SIZE,
-        sort: sort
+        sort: sort,
       });
 
       const count = store.count("permissions", filter);
@@ -252,7 +254,7 @@ export const component: ClosureComponent = (): Component => {
       attrs["downloadUrl"] = downloadUrl;
 
       if (window.authorizer.hasAccess("permissions", 3)) {
-        attrs["recordActionsCallback"] = permission => {
+        attrs["recordActionsCallback"] = (permission) => {
           return [
             m(
               "button",
@@ -266,17 +268,17 @@ export const component: ClosureComponent = (): Component => {
                   )
                     return;
 
-                  putActionHandler("delete", permission).catch(err => {
+                  putActionHandler("delete", permission).catch((err) => {
                     notifications.push("error", err.message);
                   });
-                }
+                },
               },
               getIcon("remove")
-            )
+            ),
           ];
         };
 
-        attrs["actionsCallback"] = (selected): Children => {
+        attrs["actionsCallback"] = (selected: Set<string>): Children => {
           return [
             m(
               "button.primary",
@@ -289,9 +291,9 @@ export const component: ClosureComponent = (): Component => {
                       Object.assign(
                         {
                           actionHandler: (action, object) => {
-                            return new Promise(resolve => {
+                            return new Promise((resolve) => {
                               putActionHandler(action, object)
-                                .then(errors => {
+                                .then((errors) => {
                                   const errorList = errors
                                     ? Object.values(errors)
                                     : [];
@@ -303,19 +305,19 @@ export const component: ClosureComponent = (): Component => {
                                   }
                                   resolve();
                                 })
-                                .catch(err => {
+                                .catch((err) => {
                                   notifications.push("error", err.message);
                                   resolve();
                                 });
                             });
-                          }
+                          },
                         },
                         formData
                       )
                     );
                   };
                   overlay.open(cb);
-                }
+                },
               },
               "New"
             ),
@@ -324,7 +326,7 @@ export const component: ClosureComponent = (): Component => {
               {
                 title: "Delete selected permissions",
                 disabled: !selected.size,
-                onclick: e => {
+                onclick: (e) => {
                   if (
                     !confirm(
                       `Deleting ${selected.size} permissions. Are you sure?`
@@ -335,25 +337,25 @@ export const component: ClosureComponent = (): Component => {
                   e.redraw = false;
                   e.target.disabled = true;
                   Promise.all(
-                    Array.from(selected).map(id =>
+                    Array.from(selected).map((id) =>
                       store.deleteResource("permissions", id)
                     )
                   )
-                    .then(res => {
+                    .then((res) => {
                       notifications.push(
                         "success",
                         `${res.length} permissions deleted`
                       );
                       store.fulfill(0, Date.now());
                     })
-                    .catch(err => {
+                    .catch((err) => {
                       notifications.push("error", err.message);
                       store.fulfill(0, Date.now());
                     });
-                }
+                },
               },
               "Delete"
-            )
+            ),
           ];
         };
       }
@@ -366,8 +368,8 @@ export const component: ClosureComponent = (): Component => {
       return [
         m("h1", "Listing permissions"),
         m(filterComponent, filterAttrs),
-        m(indexTableComponent, attrs)
+        m(indexTableComponent, attrs),
       ];
-    }
+    },
   };
 };
