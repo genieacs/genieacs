@@ -21,9 +21,11 @@ import * as path from "path";
 import * as fs from "fs";
 import { promisify } from "util";
 import { rollup, WarningHandler } from "rollup";
-import rollupJson from "rollup-plugin-json";
-import typescript from "rollup-plugin-typescript";
+import rollupJson from "@rollup/plugin-json";
+import typescript from "@rollup/plugin-typescript";
 import { terser } from "rollup-plugin-terser";
+import nodeResolve from "@rollup/plugin-node-resolve";
+import commonjs from "@rollup/plugin-commonjs";
 import webpack from "webpack";
 import postcss from "postcss";
 import postcssImport from "postcss-import";
@@ -251,11 +253,12 @@ async function generateBackendJs(): Promise<void> {
       },
       treeshake: {
         propertyReadSideEffects: false,
-        pureExternalModules: true,
+        moduleSideEffects: false,
       },
       plugins: [
         rollupJson({ preferConst: true }),
         {
+          name: "",
           resolveId: (importee, importer) => {
             if (importee.endsWith("/package.json")) {
               const p = path.resolve(path.dirname(importer), importee);
@@ -292,17 +295,20 @@ async function generateFrontendJs(): Promise<void> {
   const inputFile = path.resolve(INPUT_DIR, "ui/app.ts");
   const outputFile = path.resolve(OUTPUT_DIR, "public/app.js");
 
+  const inlineDeps = ["mithril", "parsimmon"];
   const bundle = await rollup({
     input: inputFile,
-    external: externals,
+    external: externals.filter((e) => !inlineDeps.includes(e)),
     plugins: [
       rollupJson({ preferConst: true }),
       typescript({ tsconfig: "./tsconfig.json" }),
+      nodeResolve(),
+      commonjs(),
     ],
     inlineDynamicImports: true,
     treeshake: {
       propertyReadSideEffects: false,
-      pureExternalModules: true,
+      moduleSideEffects: false,
     },
     onwarn: ((warning, warn) => {
       // Ignore circular dependency warnings
@@ -312,7 +318,7 @@ async function generateFrontendJs(): Promise<void> {
 
   await bundle.write({
     preferConst: true,
-    format: "esm",
+    format: "es",
     sourcemap: "inline",
     sourcemapExcludeSources: true,
     file: outputFile,
