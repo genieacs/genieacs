@@ -80,6 +80,8 @@ const externals = [
   "codemirror/mode/javascript/javascript",
   "codemirror/mode/yaml/yaml",
   "ipaddr.js",
+  "jsbi",
+  "yebool",
 ];
 
 function rmDirSync(dirPath): void {
@@ -295,12 +297,22 @@ async function generateFrontendJs(): Promise<void> {
   const inputFile = path.resolve(INPUT_DIR, "ui/app.ts");
   const outputFile = path.resolve(OUTPUT_DIR, "public/app.js");
 
-  const inlineDeps = ["mithril", "parsimmon"];
+  const inlineDeps = ["mithril", "parsimmon", "jsbi", "yebool"];
   const bundle = await rollup({
     input: inputFile,
     external: externals.filter((e) => !inlineDeps.includes(e)),
     plugins: [
       rollupJson({ preferConst: true }),
+      {
+        name: "",
+        resolveId: function (importee, importer) {
+          if (importee.endsWith("/bigint"))
+            return this.resolve(importee + "-jsbi", importer);
+          else if (importee === "yebool")
+            return this.resolve("yebool/dist/yebool-jsbi.mjs", importer);
+          return null;
+        },
+      },
       typescript({ tsconfig: "./tsconfig.json" }),
       nodeResolve(),
       commonjs(),

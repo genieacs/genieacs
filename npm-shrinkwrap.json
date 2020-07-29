@@ -5302,6 +5302,11 @@
         "esprima": "^4.0.0"
       }
     },
+    "jsbi": {
+      "version": "3.1.3",
+      "resolved": "https://registry.npmjs.org/jsbi/-/jsbi-3.1.3.tgz",
+      "integrity": "sha512-nBJqA0C6Qns+ZxurbEoIR56wyjiUszpNy70FHvxO5ervMoCbZVE3z3kxr5nKGhlxr/9MhKTSUBs7cAwwuf3g9w=="
+    },
     "jsesc": {
       "version": "2.5.2",
       "resolved": "https://registry.npmjs.org/jsesc/-/jsesc-2.5.2.tgz",
@@ -10472,6 +10477,14 @@
       "dev": true,
       "requires": {
         "camelcase": "^4.1.0"
+      }
+    },
+    "yebool": {
+      "version": "1.0.1",
+      "resolved": "https://registry.npmjs.org/yebool/-/yebool-1.0.1.tgz",
+      "integrity": "sha512-PrD+4pRGLSS3c8Z+l4V1EUPGUxtqpCDOobldAijBDAgdRHVtrIcDeZ6BFZDKk6QMmGTCCZhbQYdFKSz5fdBXAw==",
+      "requires": {
+        "jsbi": "^3.1.3"
       }
     },
     "ylru": {

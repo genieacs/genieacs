@@ -17,7 +17,7 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import * as parsimmon from "parsimmon";
+import parsimmon from "parsimmon";
 import { Expression } from "../types";
 
 // Turn escaped characters into real ones (e.g. "\\n" becomes "\n").

@@ -33,7 +33,8 @@
     "mongodb": "^3.2.6",
     "parsimmon": "^1.13.0",
     "seedrandom": "^3.0.1",
-    "yaml": "^1.6.0"
+    "yaml": "^1.6.0",
+    "yebool": "^1.0.1"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^14.0.0",
@@ -58,6 +59,7 @@
     "eslint": "^7.5.0",
     "eslint-config-prettier": "^6.11.0",
     "esm": "^3.2.25",
+    "jsbi": "^3.1.3",
     "mithril": "^2.0.3",
     "postcss": "^7.0.17",
     "postcss-import": "^12.0.1",

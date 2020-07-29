@@ -18,8 +18,6 @@
  */
 
 import { map, mapAsync, parseLikePattern } from "./expression-parser";
-import { booleanCnf } from "./expression-cnf";
-import { naiveDpll } from "./sat-solver";
 import { Expression } from "../types";
 
 const isArray = Array.isArray;
@@ -315,18 +313,6 @@ export function or(exp1: Expression, exp2: Expression): Expression {
   else res.push(exp2);
 
   return res;
-}
-
-export function not(exp: Expression): Expression {
-  if (isArray(exp) && exp[0] === "NOT") return exp[1];
-  return ["NOT", exp];
-}
-
-export function subset(exp1: Expression, exp2: Expression): boolean {
-  const e = evaluate(["NOT", ["OR", ["NOT", exp1], exp2]]);
-  if (!isArray(e)) return !e;
-  const { vars, clauses } = booleanCnf(e);
-  return !naiveDpll(clauses, vars);
 }
 
 export function extractParams(exp: Expression): Expression[] {

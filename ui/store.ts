@@ -19,13 +19,14 @@
 
 import m from "mithril";
 import { stringify } from "../lib/common/expression-parser";
-import { or, and, not, evaluate, subset } from "../lib/common/expression";
+import { or, and, evaluate } from "../lib/common/expression";
 import memoize from "../lib/common/memoize";
 import { QueryOptions, Expression } from "../lib/types";
 import * as notifications from "./notifications";
 import { configSnapshot, genieacsVersion } from "./config";
 import { QueueTask } from "./task-queue";
 import { PingResult } from "../lib/ping";
+import { unionDiff, covers } from "../lib/common/boolean-expression";
 
 const memoizedStringify = memoize(stringify);
 const memoizedEvaluate = memoize(evaluate);
@@ -230,25 +231,13 @@ function limitFilter(filter, sort, bookmark): Expression {
             and(["IS NULL", ["PARAM", param]], cur)
           );
         }
-
         let f = null;
-
-        if (typeof bookmark[param] !== "string")
-          f = or(f, [">=", ["PARAM", param], ""]);
-
         f = or(f, [">", ["PARAM", param], bookmark[param]]);
         return or(f, and(["=", ["PARAM", param], bookmark[param]], cur));
       } else {
         let f: Expression = ["IS NULL", ["PARAM", param]];
         if (bookmark[param] == null) return and(f, cur);
-
-        if (typeof bookmark[param] !== "number") {
-          f = or(f, [">=", ["PARAM", param], 0]);
-          f = or(f, ["<", ["PARAM", param], 0]);
-        }
-
         f = or(f, ["<", ["PARAM", param], bookmark[param]]);
-
         return or(f, and(["=", ["PARAM", param], bookmark[param]], cur));
       }
     }, true as Expression)
@@ -314,10 +303,7 @@ function inferQuery(resourceType, queryResponse): void {
   const sort = queries.sort.get(queryResponse);
   if (bookmark || !limit) {
     if (bookmark) filter = limitFilter(filter, sort, bookmark);
-    if (
-      resources[resourceType].combinedFilter &&
-      subset(filter, resources[resourceType].combinedFilter)
-    )
+    if (covers(resources[resourceType].combinedFilter, filter))
       queries.fulfilled.set(queryResponse, fulfillTimestamp);
   }
 
@@ -475,51 +461,49 @@ export function fulfill(
     Promise.all(allPromises)
       .then(() => {
         const allPromises2 = [];
-        for (let [resourceType, toFetch] of Object.entries(toFetchAll)) {
+        for (const [resourceType, toFetch] of Object.entries(toFetchAll)) {
           let combinedFilter = null;
 
-          toFetch = toFetch.filter((queryResponse) => {
+          for (const queryResponse of toFetch) {
             let filter = queries.filter.get(queryResponse);
-            filter = unpackExpression(filter);
-            const limit = queries.limit.get(queryResponse);
+            filter = memoizedEvaluate(filter, null, fulfillTimestamp);
             const bookmark = queries.bookmark.get(queryResponse);
             const sort = queries.sort.get(queryResponse);
             if (bookmark) filter = limitFilter(filter, sort, bookmark);
+            combinedFilter = or(combinedFilter, filter);
+          }
 
-            if (
-              resources[resourceType].combinedFilter &&
-              subset(filter, resources[resourceType].combinedFilter)
-            ) {
+          const [union, diff] = unionDiff(
+            resources[resourceType].combinedFilter,
+            combinedFilter
+          );
+
+          if (!diff) {
+            for (const queryResponse of toFetch) {
+              let filter = queries.filter.get(queryResponse);
+              filter = memoizedEvaluate(filter, null, fulfillTimestamp);
+              const limit = queries.limit.get(queryResponse);
+              const bookmark = queries.bookmark.get(queryResponse);
+              const sort = queries.sort.get(queryResponse);
+              if (bookmark) filter = limitFilter(filter, sort, bookmark);
+
               queries.value.set(
                 queryResponse,
                 findMatches(resourceType, filter, sort, limit)
               );
               queries.fulfilled.set(queryResponse, fulfillTimestamp);
               queries.fulfilling.delete(queryResponse);
-              return false;
             }
+            continue;
+          }
 
-            combinedFilter = or(combinedFilter, filter);
-            return true;
-          });
-
-          if (combinedFilter == null) continue;
+          const combinedFilterDiff = diff;
+          resources[resourceType].combinedFilter = union;
 
           updated = true;
           let deleted = new Set<string>();
           if (!resources[resourceType].combinedFilter)
             deleted = new Set(resources[resourceType].objects.keys());
-          let combinedFilterDiff = combinedFilter;
-          if (resources[resourceType].combinedFilter) {
-            combinedFilterDiff = and(
-              combinedFilterDiff,
-              not(resources[resourceType].combinedFilter)
-            );
-          }
-          resources[resourceType].combinedFilter = or(
-            combinedFilter,
-            resources[resourceType].combinedFilter
-          );
 
           allPromises2.push(
             new Promise((resolve2, reject2) => {
