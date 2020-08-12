@@ -50,6 +50,7 @@ export let client: MongoClient;
 export async function connect(): Promise<void> {
   clientPromise = MongoClient.connect("" + get("MONGODB_CONNECTION_URL"), {
     useNewUrlParser: true,
+    useUnifiedTopology: true,
   });
 
   client = await clientPromise;

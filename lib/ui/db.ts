@@ -46,7 +46,7 @@ function getClient(): Promise<MongoClient> {
       const CONNECTION_URL = "" + config.get("MONGODB_CONNECTION_URL");
       MongoClient.connect(
         CONNECTION_URL,
-        { useNewUrlParser: true },
+        { useNewUrlParser: true, useUnifiedTopology: true },
         (err, client) => {
           if (err) return void reject(err);
           ensureIndexes(client);

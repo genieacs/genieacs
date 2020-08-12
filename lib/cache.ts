@@ -30,6 +30,7 @@ export async function connect(): Promise<void> {
   const MONGODB_CONNECTION_URL = "" + config.get("MONGODB_CONNECTION_URL");
   clientPromise = MongoClient.connect(MONGODB_CONNECTION_URL, {
     useNewUrlParser: true,
+    useUnifiedTopology: true,
   });
   const db = (await clientPromise).db();
   mongoCollection = db.collection("cache");
