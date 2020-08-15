@@ -72,124 +72,162 @@ export function likePatternToRegExp(pat: string, esc = "", flags = ""): RegExp {
   return new RegExp(chars.join(""), flags);
 }
 
-function evalExp(e: Expression): Expression {
-  if (e[0] === "AND") {
-    return reduce(e, (a, b) => {
-      if (!isArray(a)) return a ? b : a;
-      if (!isArray(b)) return b ? a : b;
-      return REDUCE_SKIP;
-    });
-  } else if (e[0] === "OR") {
-    return reduce(e, (a, b) => {
-      if (!isArray(a)) return a ? a : b;
-      if (!isArray(b)) return b ? b : a;
-      return REDUCE_SKIP;
-    });
-  } else if (e[0] === "NOT") {
-    if (!isArray(e[1])) return !e[1];
-    else if (e[1][0] === "NOT") return e[1][1];
-  } else if (e[0] === "IS NULL") {
-    if (isArray(e[1])) return e;
-    else if (e[1] == null) return true;
+function compare(
+  a: boolean | number | string,
+  b: boolean | number | string
+): number {
+  if (typeof a === "boolean") a = +a;
+  if (typeof b === "boolean") b = +b;
+  if (typeof a !== typeof b) return typeof a === "string" ? 1 : -1;
+  return a > b ? 1 : a < b ? -1 : 0;
+}
+
+function toNumber(a: boolean | number | string): number {
+  switch (typeof a) {
+    case "number":
+      return a;
+    case "boolean":
+      return +a;
+    case "string":
+      return parseFloat(a) || 0;
+  }
+}
+
+export function evaluateCallback(exp: Expression): Expression {
+  if (!Array.isArray(exp)) return exp;
+  if (exp[0] === "CASE") {
+    for (let i = 1; i < exp.length; i += 2) {
+      if (Array.isArray(exp[i])) return exp;
+      if (exp[i]) return exp[i + 1];
+    }
+    return null;
+  } else if (exp[0] === "AND") {
+    for (let i = 1; i < exp.length; ++i)
+      if (!Array.isArray(exp[i]) && exp[i] != null && !exp[i]) return false;
+    const args: Expression[] = [];
+    for (let i = 1; i < exp.length; ++i) {
+      const ee = exp[i];
+      if (ee == null) return null;
+      if (Array.isArray(ee)) {
+        if (ee[0] === "AND") args.push(...ee.slice(1));
+        else args.push(ee);
+      }
+    }
+    if (!args.length) return true;
+    if (args.length === 1) args.push(true);
+    return ["AND", ...args];
+  } else if (exp[0] === "OR") {
+    const args: Expression[] = [];
+    for (let i = 1; i < exp.length; ++i) {
+      const ee = exp[i];
+      if (Array.isArray(ee)) {
+        if (ee[0] === "OR") args.push(...ee.slice(1));
+        else args.push(ee);
+      } else if (ee) {
+        return true;
+      }
+    }
+    if (!args.length) return exp.some((ee) => ee == null) ? null : false;
+    if (args.length === 1) args.push(false);
+    return ["OR", ...args];
+  } else if (exp[0] === "NOT") {
+    if (exp[1] == null) return null;
+    if (!isArray(exp[1])) return !exp[1];
+    else if (exp[1][0] === "NOT") return exp[1][1];
+  } else if (exp[0] === "IS NULL") {
+    if (isArray(exp[1])) return exp;
+    else if (exp[1] == null) return true;
     else return null;
-  } else if (e[0] === "IS NOT NULL") {
-    if (isArray(e[1])) return e;
-    else if (e[1] != null) return true;
+  } else if (exp[0] === "IS NOT NULL") {
+    if (isArray(exp[1])) return exp;
+    else if (exp[1] != null) return true;
     else return null;
-  } else if (e[0] === "LIKE") {
-    if (isArray(e[1]) || isArray(e[2]) || isArray(e[3])) return e;
+  } else if (exp[0] === "LIKE") {
+    if (isArray(exp[1]) || isArray(exp[2]) || isArray(exp[3])) return exp;
     else if (
-      e[1] == null ||
-      e[2] == null ||
-      ((e as any[]).length >= 4 && e[3] == null)
+      exp[1] == null ||
+      exp[2] == null ||
+      ((exp as any[]).length >= 4 && exp[3] == null)
     )
       return null;
-    let r = regExpCache.get(e as any[]);
+    let r = regExpCache.get(exp as any[]);
     if (!r) {
-      r = likePatternToRegExp(e[2], e[3]);
-      regExpCache.set(e as any[], r);
+      r = likePatternToRegExp(exp[2], exp[3]);
+      regExpCache.set(exp as any[], r);
     }
-    return r.test(e[1]);
-  } else if (e[0] === "NOT LIKE") {
-    if (isArray(e[1]) || isArray(e[2]) || isArray(e[3])) return e;
+    return r.test(exp[1]);
+  } else if (exp[0] === "NOT LIKE") {
+    if (isArray(exp[1]) || isArray(exp[2]) || isArray(exp[3])) return exp;
     else if (
-      e[1] == null ||
-      e[2] == null ||
-      ((e as any[]).length >= 4 && e[3] == null)
+      exp[1] == null ||
+      exp[2] == null ||
+      ((exp as any[]).length >= 4 && exp[3] == null)
     )
       return null;
-    let r = regExpCache.get(e as any[]);
+    let r = regExpCache.get(exp as any[]);
     if (!r) {
-      r = likePatternToRegExp(e[2], e[3]);
-      regExpCache.set(e as any[], r);
+      r = likePatternToRegExp(exp[2], exp[3]);
+      regExpCache.set(exp as any[], r);
     }
-    return !r.test(e[1]);
-  } else if (e[0] === "=") {
-    if (isArray(e[1]) || isArray(e[2])) return e;
-    if (e[1] == null || e[2] == null) return null;
-    return e[1] === e[2];
-  } else if (e[0] === "<>") {
-    if (isArray(e[1]) || isArray(e[2])) return e;
-    if (e[1] == null || e[2] == null) return null;
-    return e[1] !== e[2];
-  } else if (e[0] === ">") {
-    if (isArray(e[1]) || isArray(e[2])) return e;
-    if (e[1] == null || e[2] == null) return null;
-    return e[1] > e[2];
-  } else if (e[0] === ">=") {
-    if (isArray(e[1]) || isArray(e[2])) return e;
-    if (e[1] == null || e[2] == null) return null;
-    return e[1] >= e[2];
-  } else if (e[0] === "<") {
-    if (isArray(e[1]) || isArray(e[2])) return e;
-    if (e[1] == null || e[2] == null) return null;
-    return e[1] < e[2];
-  } else if (e[0] === "<=") {
-    if (isArray(e[1]) || isArray(e[2])) return e;
-    if (e[1] == null || e[2] == null) return null;
-    return e[1] <= e[2];
-  } else if (e[0] === "*") {
-    return reduce(e, (a, b) => {
-      if (!isArray(a) && !isArray(b)) {
-        if (a == null || b == null) return null;
-        return a * b;
-      }
+    return !r.test(exp[1]);
+  } else if (exp[0] === "=") {
+    if (exp[1] == null || exp[2] == null) return null;
+    if (isArray(exp[1]) || isArray(exp[2])) return exp;
+    return compare(exp[1], exp[2]) === 0;
+  } else if (exp[0] === "<>") {
+    if (exp[1] == null || exp[2] == null) return null;
+    if (isArray(exp[1]) || isArray(exp[2])) return exp;
+    return compare(exp[1], exp[2]) !== 0;
+  } else if (exp[0] === ">") {
+    if (exp[1] == null || exp[2] == null) return null;
+    if (isArray(exp[1]) || isArray(exp[2])) return exp;
+    return compare(exp[1], exp[2]) > 0;
+  } else if (exp[0] === ">=") {
+    if (exp[1] == null || exp[2] == null) return null;
+    if (isArray(exp[1]) || isArray(exp[2])) return exp;
+    return compare(exp[1], exp[2]) >= 0;
+  } else if (exp[0] === "<") {
+    if (exp[1] == null || exp[2] == null) return null;
+    if (isArray(exp[1]) || isArray(exp[2])) return exp;
+    return compare(exp[1], exp[2]) < 0;
+  } else if (exp[0] === "<=") {
+    if (exp[1] == null || exp[2] == null) return null;
+    if (isArray(exp[1]) || isArray(exp[2])) return exp;
+    return compare(exp[1], exp[2]) <= 0;
+  } else if (exp[0] === "*") {
+    return reduce(exp, (a, b) => {
+      if (a == null || b == null) return null;
+      if (!isArray(a) && !isArray(b)) return toNumber(a) * toNumber(b);
       return REDUCE_SKIP;
     });
-  } else if (e[0] === "/") {
-    return reduce(e, (a, b, i) => {
-      if (!isArray(a) && !isArray(b)) {
-        if (a == null || b == null) return null;
-        return i === 0 ? a / b : a * b;
-      }
+  } else if (exp[0] === "/") {
+    return reduce(exp, (a, b, i) => {
+      if (a == null || b == null) return null;
+      if (!isArray(a) && !isArray(b))
+        return i === 0 ? toNumber(a) / toNumber(b) : toNumber(a) * toNumber(b);
       return REDUCE_SKIP;
     });
-  } else if (e[0] === "+") {
-    return reduce(e, (a, b) => {
-      if (!isArray(a) && !isArray(b)) {
-        if (a == null || b == null) return null;
-        return a + b;
-      }
+  } else if (exp[0] === "+") {
+    return reduce(exp, (a, b) => {
+      if (a == null || b == null) return null;
+      if (!isArray(a) && !isArray(b)) return toNumber(a) + toNumber(b);
       return REDUCE_SKIP;
     });
-  } else if (e[0] === "-") {
-    return reduce(e, (a, b, i) => {
-      if (!isArray(a) && !isArray(b)) {
-        if (a == null || b == null) return null;
-        return i === 0 ? a - b : a + b;
-      }
+  } else if (exp[0] === "-") {
+    return reduce(exp, (a, b, i) => {
+      if (a == null || b == null) return null;
+      if (!isArray(a) && !isArray(b))
+        return i === 0 ? toNumber(a) - toNumber(b) : toNumber(a) + toNumber(b);
       return REDUCE_SKIP;
     });
-  } else if (e[0] === "||") {
-    return reduce(e, (a, b) => {
-      if (!isArray(a) && !isArray(b)) {
-        if (a == null || b == null) return null;
-        return `${a}${b}`;
-      }
+  } else if (exp[0] === "||") {
+    return reduce(exp, (a, b) => {
+      if (a == null || b == null) return null;
+      if (!isArray(a) && !isArray(b)) return `${a}${b}`;
       return REDUCE_SKIP;
     });
   }
-  return e;
+  return exp;
 }
 
 export function evaluate(
@@ -236,7 +274,7 @@ export function evaluate(
         return v;
       }
     }
-    return evalExp(e);
+    return evaluateCallback(e);
   });
 }
 
@@ -281,35 +319,47 @@ export async function evaluateAsync(
         return v as Expression;
       }
     }
-    return evalExp(e);
+    return evaluateCallback(e);
   });
 }
 
 export function and(exp1: Expression, exp2: Expression): Expression {
-  if (!isArray(exp1)) return exp1 ? exp2 : exp1;
-  if (!isArray(exp2)) return exp2 ? exp1 : exp2;
+  if (exp1 != null && !exp1) return false;
+  if (exp2 != null && !exp2) return false;
+  if (!Array.isArray(exp1) && !Array.isArray(exp2)) {
+    if (exp1 == null || exp2 == null) return null;
+    return true;
+  }
+  if (!Array.isArray(exp2) && exp1[0] === "AND") return exp1;
+  if (!Array.isArray(exp1) && exp2[0] === "AND") return exp2;
 
-  let res: Expression = ["AND"];
+  const res: Expression = ["AND"];
 
-  if (exp1[0] === "AND") res = res.concat(exp1.slice(1));
+  if (Array.isArray(exp1) && exp1[0] === "AND") res.push(...exp1.slice(1));
   else res.push(exp1);
 
-  if (exp2[0] === "AND") res = res.concat(exp2.slice(1));
+  if (Array.isArray(exp2) && exp2[0] === "AND") res.push(...exp2.slice(1));
   else res.push(exp2);
 
   return res;
 }
 
 export function or(exp1: Expression, exp2: Expression): Expression {
-  if (!isArray(exp1)) return exp1 ? exp1 : exp2;
-  if (!isArray(exp2)) return exp2 ? exp2 : exp1;
+  if (!Array.isArray(exp1) && exp1) return true;
+  if (!Array.isArray(exp2) && exp2) return true;
+  if (!Array.isArray(exp1) && !Array.isArray(exp2)) {
+    if (exp1 == null || exp2 == null) return null;
+    return false;
+  }
+  if (!Array.isArray(exp2) && exp1[0] === "OR") return exp1;
+  if (!Array.isArray(exp1) && exp2[0] === "OR") return exp2;
 
-  let res: Expression = ["OR"];
+  const res: Expression = ["OR"];
 
-  if (exp1[0] === "OR") res = res.concat(exp1.slice(1));
+  if (Array.isArray(exp1) && exp1[0] === "OR") res.push(...exp1.slice(1));
   else res.push(exp1);
 
-  if (exp2[0] === "OR") res = res.concat(exp2.slice(1));
+  if (Array.isArray(exp2) && exp2[0] === "OR") res.push(...exp2.slice(1));
   else res.push(exp2);
 
   return res;

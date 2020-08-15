@@ -34,7 +34,7 @@
     "parsimmon": "^1.13.0",
     "seedrandom": "^3.0.1",
     "yaml": "^1.6.0",
-    "yebool": "^1.0.1"
+    "yebool": "^1.0.2"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^14.0.0",

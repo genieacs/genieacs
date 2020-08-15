@@ -137,6 +137,10 @@ export function filterToMongoQuery(exp: Expression): Record<string, unknown> {
     const op = filter[0];
 
     if (ops[op] === 0) {
+      if (op === "AND") filter = filter.filter((f) => f !== true);
+      if (op === "OR") filter = filter.filter((f) => f !== false);
+      if (filter.length === 2) return recursive(filter[1], negate, res);
+
       for (let i = 1; i < filter.length; ++i) {
         if (!isArray(filter[i]) || ops[filter[i][0]] == null)
           throw new Error(`Invalid expression in ${op} clause`);

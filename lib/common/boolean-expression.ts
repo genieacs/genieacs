@@ -21,6 +21,7 @@ import * as BI from "./bigint";
 import { espresso, complement, tautology } from "yebool";
 import { Expression } from "../types";
 import { map } from "./expression-parser";
+import { and, evaluateCallback } from "./expression";
 
 const ZERO = BI.BigInt(0);
 const ONE = BI.BigInt(1);
@@ -420,20 +421,42 @@ class OrSynth extends BoolExprSynth {
   private exprSynths: BoolExprSynth[];
   public constructor(...e: BoolExprSynth[]) {
     super();
-    this.exprSynths = e;
+    this.exprSynths = e.filter((ee) => !(ee instanceof FalseSynth));
+    const unpacked: BoolExprSynth[] = [];
+    this.exprSynths = this.exprSynths.filter((ee) => {
+      if (ee instanceof OrSynth) {
+        unpacked.push(...ee.exprSynths);
+        return false;
+      }
+      return true;
+    });
+    this.exprSynths.push(...unpacked);
   }
   public true(context: Context): Minterm[] {
+    if (this.exprSynths.length === 0) return [];
+    if (this.exprSynths.length === 1) return this.exprSynths[0].true(context);
+    if (this.exprSynths.some((e) => e instanceof TrueSynth)) return [[]];
     return this.exprSynths.map((e) => e.true(context)).flat();
   }
   public false(context: Context): Minterm[] {
+    if (this.exprSynths.length === 0) return [[]];
+    if (this.exprSynths.length === 1) return this.exprSynths[0].false(context);
+    if (
+      this.exprSynths.some(
+        (e) => e instanceof TrueSynth || e instanceof NullSynth
+      )
+    )
+      return [];
     return complement(
       this.exprSynths.map((e) => complement(e.false(context))).flat()
     );
   }
   public null(context: Context): Minterm[] {
+    if (this.exprSynths.length === 0) return [];
+    if (this.exprSynths.length === 1) return this.exprSynths[0].null(context);
+    const n = this.exprSynths.map((e) => e.null(context)).flat();
     const t = this.exprSynths.map((e) => e.true(context)).flat();
-    const f = this.exprSynths.map((e) => e.false(context)).flat();
-    return complement([...t, ...f]);
+    return complement([...complement(n), ...t]);
   }
 }
 
@@ -441,20 +464,109 @@ class AndSynth extends BoolExprSynth {
   private exprSynths: BoolExprSynth[];
   public constructor(...e: BoolExprSynth[]) {
     super();
-    this.exprSynths = e;
+    this.exprSynths = e.filter((ee) => !(ee instanceof TrueSynth));
+    const unpacked: BoolExprSynth[] = [];
+    this.exprSynths = this.exprSynths.filter((ee) => {
+      if (ee instanceof AndSynth) {
+        unpacked.push(...ee.exprSynths);
+        return false;
+      }
+      return true;
+    });
+    this.exprSynths.push(...unpacked);
   }
   public true(context: Context): Minterm[] {
+    if (this.exprSynths.length === 0) return [[]];
+    if (this.exprSynths.length === 1) return this.exprSynths[0].true(context);
+    if (
+      this.exprSynths.some(
+        (e) => e instanceof FalseSynth || e instanceof NullSynth
+      )
+    )
+      return [];
     return complement(
       this.exprSynths.map((e) => complement(e.true(context))).flat()
     );
   }
   public false(context: Context): Minterm[] {
+    if (this.exprSynths.length === 0) return [];
+    if (this.exprSynths.length === 1) return this.exprSynths[0].false(context);
+    if (this.exprSynths.some((e) => e instanceof FalseSynth)) return [[]];
     return this.exprSynths.map((e) => e.false(context)).flat();
   }
   public null(context: Context): Minterm[] {
-    const t = this.exprSynths.map((e) => e.true(context)).flat();
+    if (this.exprSynths.length === 0) return [];
+    if (this.exprSynths.length === 1) return this.exprSynths[0].null(context);
+    const n = this.exprSynths.map((e) => e.null(context)).flat();
     const f = this.exprSynths.map((e) => e.false(context)).flat();
-    return complement([...t, ...f]);
+    return complement([...complement(n), ...f]);
+  }
+}
+
+class CaseSynth extends BoolExprSynth {
+  private exprSynths: BoolExprSynth[];
+  public constructor(e: BoolExprSynth[]) {
+    super();
+    this.exprSynths = e;
+  }
+  public true(context: Context): Minterm[] {
+    const minterms: Minterm[] = [];
+    const cumulative: Minterm[] = [];
+    for (let i = 0; i < this.exprSynths.length; i += 2) {
+      const w = this.exprSynths[i].true(context);
+      const t = this.exprSynths[i + 1].true(context);
+      minterms.push(
+        ...complement([...cumulative, ...complement(w), ...complement(t)])
+      );
+      if (i < this.exprSynths.length - 2) {
+        cumulative.push(
+          ...complement([
+            ...this.exprSynths[i].false(context),
+            ...this.exprSynths[i].null(context),
+          ])
+        );
+      }
+    }
+    return minterms;
+  }
+  public false(context: Context): Minterm[] {
+    const minterms: Minterm[] = [];
+    const cumulative: Minterm[] = [];
+    for (let i = 0; i < this.exprSynths.length; i += 2) {
+      const w = this.exprSynths[i].true(context);
+      const t = this.exprSynths[i + 1].false(context);
+      minterms.push(
+        ...complement([...cumulative, ...complement(w), ...complement(t)])
+      );
+      if (i < this.exprSynths.length - 2) {
+        cumulative.push(
+          ...complement([
+            ...this.exprSynths[i].false(context),
+            ...this.exprSynths[i].null(context),
+          ])
+        );
+      }
+    }
+    return minterms;
+  }
+  public null(context: Context): Minterm[] {
+    const minterms: Minterm[] = [];
+    const cumulative: Minterm[] = [];
+    for (let i = 0; i < this.exprSynths.length; i += 2) {
+      const w = this.exprSynths[i].true(context);
+      const t = this.exprSynths[i + 1].null(context);
+      minterms.push(
+        ...complement([...cumulative, ...complement(w), ...complement(t)])
+      );
+      cumulative.push(
+        ...complement([
+          ...this.exprSynths[i].false(context),
+          ...this.exprSynths[i].null(context),
+        ])
+      );
+    }
+    minterms.push(...complement([...cumulative]));
+    return minterms;
   }
 }
 
@@ -470,134 +582,203 @@ const SWAPPED_OPS = {
   "<=": ">=",
 };
 
-export function normalize(expr: Expression): Expression {
-  expr = map(expr, (exp) => {
-    if (!Array.isArray(exp)) return exp;
-    const op = exp[0];
+function normalizeCallback(exp: Expression): Expression {
+  if (!Array.isArray(exp)) return exp;
+  const op = exp[0];
 
-    if (op === "+") {
-      const args = exp.slice(1).map((e) => {
-        if (e instanceof Polynomial) return e;
-        else if (typeof e === "number") return Polynomial.fromConstant(e);
-        else return Polynomial.fromIndeterminate(e);
-      });
-      return (args.reduce(
-        (previousValue, currentValue) => previousValue.add(currentValue),
-        ADDITIVE_IDENTITY
-      ) as unknown) as Expression;
-    } else if (op === "*") {
-      const args = exp.slice(1).map((e) => {
-        if (e instanceof Polynomial) return e;
-        else if (typeof e === "number") return Polynomial.fromConstant(e);
-        else return Polynomial.fromIndeterminate(e);
-      });
-
-      return (args.reduce(
-        (previousValue, currentValue) => previousValue.multiply(currentValue),
-        MULTIPLICATIVE_IDENTITY
-      ) as unknown) as Expression;
-    } else if (op === "-") {
-      const args = exp.slice(1).map((e) => {
-        if (e instanceof Polynomial) return e;
-        else if (typeof e === "number") return Polynomial.fromConstant(e);
-        else return Polynomial.fromIndeterminate(e);
-      });
-      return (args.reduce((previousValue, currentValue) =>
-        previousValue.subtract(currentValue)
-      ) as unknown) as Expression;
-    } else if (op === "/") {
-      const args = exp.slice(1).map((e) => {
-        if (e instanceof Polynomial) return e;
-        else if (typeof e === "number") return Polynomial.fromConstant(e);
-        else return Polynomial.fromIndeterminate(e);
-      });
-      return (args.reduce((previousValue, currentValue) =>
-        previousValue.divide(currentValue)
-      ) as unknown) as Expression;
-    } else if (["=", "<>", ">", ">=", "<", "<="].includes(op)) {
-      let lhs: Polynomial, rhs: Polynomial;
-      if (exp[1] instanceof Polynomial) lhs = exp[1];
-      else if (typeof exp[1] === "number")
-        lhs = Polynomial.fromConstant(exp[1]);
-
-      if (exp[2] instanceof Polynomial) rhs = exp[2];
-      else if (typeof exp[2] === "number")
-        rhs = Polynomial.fromConstant(exp[2]);
-
-      if (lhs || rhs) {
-        if (!lhs) lhs = Polynomial.fromIndeterminate(exp[1]);
-        if (!rhs) rhs = Polynomial.fromIndeterminate(exp[2]);
-
-        lhs = lhs.subtract(rhs);
-        rhs = lhs.constant().negation();
-        lhs = lhs.add(rhs);
-
-        if (!lhs.terms.length) {
-          exp = [op, JSON.parse(lhs.toString()), JSON.parse(rhs.toString())];
-
-          if (op === "=") return exp[1] === exp[2];
-          else if (op === "<>") return exp[1] !== exp[2];
-          else if (op === ">") return exp[1] > exp[2];
-          else if (op === ">=") return exp[1] >= exp[2];
-          else if (op === "<") return exp[1] < exp[2];
-          else if (op === "<=") return exp[1] <= exp[2];
-        } else {
-          let flipOp = 1;
-
-          const n = lhs.terms[0].coefficientNumerator;
-          const d = lhs.terms[0].coefficientDenominator;
-
-          if (BI.lt(n, ZERO) || BI.lt(d, ZERO)) flipOp *= -1;
-
-          const reciprocal = new Polynomial([
-            {
-              indeterminates: new Indeterminates(),
-              coefficientNumerator: d,
-              coefficientDenominator: n,
-            },
-          ]);
-
-          lhs = lhs.multiply(reciprocal);
-          rhs = rhs.multiply(reciprocal);
-
-          const keys = lhs.terms[0].indeterminates.sortedKeys;
-          let invert =
-            lhs.terms[0].indeterminates.map.get(keys[0]) < 0 ? -1 : 0;
-
-          for (const t of lhs.terms)
-            for (const v of t.indeterminates.map.values()) invert += v;
-
-          if (invert < 0) {
-            flipOp *= -1;
-            lhs = lhs.reciprocal();
-            rhs = rhs.reciprocal();
-          }
-
-          if (flipOp < 0) exp = [SWAPPED_OPS[op], lhs, rhs];
-          else exp = [op, lhs, rhs];
-        }
+  if (op === "CASE") {
+    const res = [] as [Expression, Expression][];
+    for (let i = 1; i < exp.length; i += 2) {
+      let w = exp[i];
+      if (w instanceof Polynomial) w = JSON.parse(w.toString());
+      if (!Array.isArray(w) && !w) continue;
+      const t = exp[i + 1];
+      if (!Array.isArray(t) || t[0] !== "CASE") {
+        res.push([w, t]);
+        continue;
       }
+      for (let j = 1; j < t.length; j += 2) res.push([and(w, t[j]), t[j + 1]]);
+      res.push([w, null]);
+      if (!Array.isArray(w) && w) break;
+    }
+    while (res[res.length - 1][1] == null) res.pop();
+    return ["CASE", ...res.flat()];
+  }
+
+  const permutations: Map<number, [Expression, Expression][]> = new Map();
+  for (const [i, e] of exp.entries()) {
+    if (!Array.isArray(e)) continue;
+    if (e[0] !== "CASE") continue;
+    const perms: [Expression, Expression][] = [];
+    for (let j = 1; j < e.length; j += 2) perms.push([e[j], e[j + 1]]);
+    permutations.set(i, perms);
+  }
+
+  if (permutations.size) {
+    let res: [Expression, Expression][] = [[true, exp]];
+    for (const [i, perms] of permutations) {
+      const res2: [Expression, Expression][] = [];
+      for (const [w, t] of perms) {
+        res2.push(
+          ...res.map((r) => {
+            const e = (r[1] as Expression[]).slice();
+            e[i] = t;
+            return [and(w, r[0]), e] as [Expression, Expression];
+          })
+        );
+      }
+      res = res2;
     }
 
-    // Restore polynomial expressions
-    exp = exp.map((e) =>
-      e instanceof Polynomial ? JSON.parse(e.toString()) : e
-    );
+    for (const r of res) r[1] = normalizeCallback(r[1]);
 
-    return exp;
-  });
+    if (res[0][0] === true) return res[0][1];
+    while (res[res.length - 1][1] == null) res.pop();
 
+    return ["CASE", ...res.flat()];
+  }
+
+  function toPolynomial(e: Expression): Polynomial {
+    if (e == null) return null;
+    if (e instanceof Polynomial) return e;
+    if (typeof e === "number") return Polynomial.fromConstant(e);
+    if (typeof e === "string")
+      return Polynomial.fromConstant(parseFloat(e) || 0);
+    if (typeof e === "boolean") return Polynomial.fromConstant(+e);
+    return Polynomial.fromIndeterminate(e);
+  }
+
+  if (op === "+") {
+    const args: Polynomial[] = [];
+    for (let i = 1; i < exp.length; ++i) {
+      const p = toPolynomial(exp[i]);
+      if (p == null) return null;
+      args.push(p);
+    }
+    return (args.reduce(
+      (previousValue, currentValue) => previousValue.add(currentValue),
+      ADDITIVE_IDENTITY
+    ) as unknown) as Expression;
+  } else if (op === "*") {
+    const args: Polynomial[] = [];
+    for (let i = 1; i < exp.length; ++i) {
+      const p = toPolynomial(exp[i]);
+      if (p == null) return null;
+      args.push(p);
+    }
+    return (args.reduce(
+      (previousValue, currentValue) => previousValue.multiply(currentValue),
+      MULTIPLICATIVE_IDENTITY
+    ) as unknown) as Expression;
+  } else if (op === "-") {
+    const args: Polynomial[] = [];
+    for (let i = 1; i < exp.length; ++i) {
+      const p = toPolynomial(exp[i]);
+      if (p == null) return null;
+      args.push(p);
+    }
+    return (args.reduce((previousValue, currentValue) =>
+      previousValue.subtract(currentValue)
+    ) as unknown) as Expression;
+  } else if (op === "/") {
+    const args: Polynomial[] = [];
+    for (let i = 1; i < exp.length; ++i) {
+      const p = toPolynomial(exp[i]);
+      if (p == null) return null;
+      args.push(p);
+    }
+    return (args.reduce((previousValue, currentValue) =>
+      previousValue.divide(currentValue)
+    ) as unknown) as Expression;
+  } else if (["=", "<>", ">", ">=", "<", "<="].includes(op)) {
+    if (exp[1] == null || exp[2] == null) return null;
+    let lhs: Polynomial, rhs: Polynomial;
+    if (exp[1] instanceof Polynomial) lhs = exp[1];
+    else if (typeof exp[1] === "number") lhs = Polynomial.fromConstant(exp[1]);
+
+    if (exp[2] instanceof Polynomial) rhs = exp[2];
+    else if (typeof exp[2] === "number") rhs = Polynomial.fromConstant(exp[2]);
+
+    if (lhs || rhs) {
+      if (!lhs) lhs = Polynomial.fromIndeterminate(exp[1]);
+      if (!rhs) rhs = Polynomial.fromIndeterminate(exp[2]);
+
+      lhs = lhs.subtract(rhs);
+      rhs = lhs.constant().negation();
+      lhs = lhs.add(rhs);
+
+      if (!lhs.terms.length) {
+        exp = [op, JSON.parse(lhs.toString()), JSON.parse(rhs.toString())];
+
+        if (op === "=") return exp[1] === exp[2];
+        else if (op === "<>") return exp[1] !== exp[2];
+        else if (op === ">") return exp[1] > exp[2];
+        else if (op === ">=") return exp[1] >= exp[2];
+        else if (op === "<") return exp[1] < exp[2];
+        else if (op === "<=") return exp[1] <= exp[2];
+      } else {
+        let flipOp = 1;
+
+        const n = lhs.terms[0].coefficientNumerator;
+        const d = lhs.terms[0].coefficientDenominator;
+
+        if (BI.lt(n, ZERO) || BI.lt(d, ZERO)) flipOp *= -1;
+
+        const reciprocal = new Polynomial([
+          {
+            indeterminates: new Indeterminates(),
+            coefficientNumerator: d,
+            coefficientDenominator: n,
+          },
+        ]);
+
+        lhs = lhs.multiply(reciprocal);
+        rhs = rhs.multiply(reciprocal);
+
+        const keys = lhs.terms[0].indeterminates.sortedKeys;
+        let invert = lhs.terms[0].indeterminates.map.get(keys[0]) < 0 ? -1 : 0;
+
+        for (const t of lhs.terms)
+          for (const v of t.indeterminates.map.values()) invert += v;
+
+        if (invert < 0) {
+          flipOp *= -1;
+          lhs = lhs.reciprocal();
+          rhs = rhs.reciprocal();
+        }
+
+        if (flipOp < 0) exp = [SWAPPED_OPS[op], lhs, rhs];
+        else exp = [op, lhs, rhs];
+      }
+    }
+  }
+
+  // Restore polynomial expressions
+  exp = exp.map((e) =>
+    e instanceof Polynomial ? JSON.parse(e.toString()) : e
+  );
+
+  exp = evaluateCallback(exp);
+
+  return exp;
+}
+
+export function normalize(expr: Expression): Expression {
+  expr = map(expr, normalizeCallback);
   if (expr instanceof Polynomial) expr = JSON.parse(expr.toString());
-
   return expr;
 }
 
 function toBoolExprSynth(e: Expression | BoolExprSynth): BoolExprSynth {
   if (e instanceof BoolExprSynth) return e;
-  else if (Array.isArray(e)) return new VarSynth(e);
-  else if (e == null) return new NullSynth();
-  else if (e) return new TrueSynth();
-  else return new FalseSynth();
+  if (Array.isArray(e)) {
+    if (e[0] === "CASE")
+      return new CaseSynth(e.slice(1).map((ee) => toBoolExprSynth(ee)));
+    return new VarSynth(e);
+  }
+  if (e == null) return new NullSynth();
+  if (e) return new TrueSynth();
+  return new FalseSynth();
 }
 
 function sopToExpression(
@@ -608,7 +789,7 @@ function sopToExpression(
   const res: Expression[] = [];
   for (const s of sop) {
     if (!s.length) return true;
-    const and: Expression[] = [];
+    const conjs: Expression[] = [];
     for (const i of s) {
       let expr = expressions.get(i >>> 2);
       if (!(i & 1) !== !(i & 2)) expr = ["NOT", expr];
@@ -624,10 +805,10 @@ function sopToExpression(
         else if (e[0] === "NOT") expr = e[1];
         else expr = ["NOT", e];
       }
-      and.push(expr);
+      conjs.push(expr);
     }
-    if (and.length > 1) res.push(["AND" as any].concat(and));
-    else res.push(and[0]);
+    if (conjs.length > 1) res.push(["AND" as any].concat(conjs));
+    else res.push(conjs[0]);
   }
   if (res.length > 1) return ["OR" as any].concat(res);
   return res[0];
@@ -825,25 +1006,20 @@ function boolExprSynthToExpression(boolExpr: BoolExprSynth): Expression {
   const { dcSet, isNull } = generateDcSetAndIsNull(variables);
   minterms = sanitizeMinterms(minterms, isNull);
 
-  function canRaise(idx: number, set: Set<number>): boolean {
-    if (set.size === 1) return true;
-    const i = idx >>> 2;
-    const n = isNull.get(i);
-    if (n == null) {
-      for (const [k, v] of isNull) {
-        if (v !== i) continue;
-        if (set.has((k << 2) ^ 1) || set.has((k << 2) ^ 3)) return true;
-      }
-      return false;
-    }
-    return (idx & 1) === 0 || set.has((n << 2) ^ 2) || set.has((n << 2) ^ 3);
-  }
+  const canRaise = (idx: number, set: Set<number>): boolean =>
+    !isNull.has(idx >> 2) || !(idx & 1) || !set.has(idx ^ 3);
   minterms = espresso(minterms, dcSet, { canRaise });
   return sopToExpression(minterms, variables);
 }
 
-function mapCallback(exp: Expression): Expression {
-  if (!Array.isArray(exp)) return exp;
+function mapCallback(exp: Expression | BoolExprSynth): Expression {
+  if (!Array.isArray(exp)) return exp as Expression;
+  if (exp[0] === "CASE") {
+    exp = exp.slice();
+    for (let i = 1; i < exp.length; i += 2) exp[i] = toBoolExprSynth(exp[i]);
+    return exp;
+  }
+
   const op = exp[0];
   if (op === "IS NULL")
     return (new IsNullSynth(toBoolExprSynth(exp[1])) as unknown) as Expression;
@@ -864,16 +1040,53 @@ function mapCallback(exp: Expression): Expression {
     ) as unknown) as Expression;
   }
   for (let i = 1; i < exp.length; ++i) {
-    if (exp[i] instanceof BoolExprSynth)
+    if (exp[i] instanceof BoolExprSynth) {
       exp[i] = boolExprSynthToExpression(exp[i]);
+    } else if (Array.isArray(exp[i]) && exp[i][0] === "CASE") {
+      for (let j = 2; j < exp[i].length; j += 2) {
+        if (exp[i][j] instanceof BoolExprSynth)
+          exp[i][j] = boolExprSynthToExpression(exp[i][j]);
+      }
+    }
   }
   return exp;
 }
 
-export function minimize(expr: Expression): Expression {
+export function minimize(expr: Expression, boolean = false): Expression {
   expr = normalize(expr);
   expr = map(expr, mapCallback);
-  if (expr instanceof BoolExprSynth) return boolExprSynthToExpression(expr);
+  if (Array.isArray(expr) && expr[0] === "CASE") {
+    if (!boolean) {
+      const context: Map<string, number> = new Map();
+      const whens = expr.filter((e, i) => i % 2).map((e) => e.true(context));
+      const variables = new Map(
+        Array.from(context).map(([k, v]) => [v, JSON.parse(k) as Expression])
+      );
+      const { dcSet, isNull } = generateDcSetAndIsNull(variables);
+      const canRaise = (idx: number, set: Set<number>): boolean =>
+        !isNull.has(idx >> 2) || !(idx & 1) || !set.has(idx ^ 3);
+      const res: Expression = ["CASE"];
+      for (let i = 1; i < expr.length; i += 2) {
+        let minterms = sanitizeMinterms(whens[(i - 1) / 2], isNull);
+        minterms = espresso(minterms, dcSet, { canRaise });
+        if (!minterms.length) continue;
+        const w = sopToExpression(minterms, variables);
+        let t = expr[i + 1];
+        if (t instanceof BoolExprSynth) t = boolExprSynthToExpression(t);
+        res.push(w, t);
+        if (w === true) break;
+        dcSet.push(...minterms);
+      }
+      while (res[res.length - 1] == null) res.splice(-2);
+      if (res.length < 3) return null;
+      return res;
+    }
+    expr = (toBoolExprSynth(expr) as unknown) as Expression;
+  }
+
+  if (boolean) expr = (toBoolExprSynth(expr) as unknown) as Expression;
+
+  if (expr instanceof BoolExprSynth) expr = boolExprSynthToExpression(expr);
   return expr;
 }
 
@@ -888,6 +1101,8 @@ export function unionDiff(
   expr2 = map(expr2, mapCallback);
 
   if (!expr1) {
+    if (Array.isArray(expr2) && expr2[0] === "CASE")
+      expr2 = (toBoolExprSynth(expr2) as unknown) as Expression;
     if (expr2 instanceof BoolExprSynth)
       expr2 = boolExprSynthToExpression(expr2);
     return [expr2, expr2];
@@ -921,19 +1136,8 @@ export function unionDiff(
     isNull
   );
 
-  function canRaise(idx: number, set: Set<number>): boolean {
-    if (set.size === 1) return true;
-    const i = idx >>> 2;
-    const n = isNull.get(i);
-    if (n == null) {
-      for (const [k, v] of isNull) {
-        if (v !== i) continue;
-        if (set.has((k << 2) ^ 1) || set.has((k << 2) ^ 3)) return true;
-      }
-      return false;
-    }
-    return (idx & 1) === 0 || set.has((n << 2) ^ 2) || set.has((n << 2) ^ 3);
-  }
+  const canRaise = (idx: number, set: Set<number>): boolean =>
+    !isNull.has(idx >> 2) || !(idx & 1) || !set.has(idx ^ 3);
 
   const union = espresso(unionMinterms, dcSet, { canRaise });
   const diff = espresso(diffMinterms, dcSet, { canRaise });

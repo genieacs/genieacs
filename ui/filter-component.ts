@@ -24,6 +24,7 @@ import Autocomplete from "./autocomplete-compnent";
 import * as smartQuery from "./smart-query";
 import { filterToMongoQuery } from "../lib/mongodb-functions";
 import { Expression } from "../lib/types";
+import { normalize } from "../lib/common/boolean-expression";
 
 const getAutocomplete = memoize((resource) => {
   const labels = smartQuery.getLabels(resource);
@@ -41,6 +42,12 @@ const getAutocomplete = memoize((resource) => {
   return autocomplete;
 });
 
+function validateQuery(q: Expression): void {
+  q = normalize(q);
+  if (Array.isArray(q) && q[0] === "CASE") q = ["AND", ...q.slice(1)];
+  filterToMongoQuery(q);
+}
+
 function parseFilter(resource, f): Expression {
   let exp;
   if (/^[\s0-9a-zA-Z]+:/.test(f)) {
@@ -51,11 +58,13 @@ function parseFilter(resource, f): Expression {
     exp = parse(f);
   }
 
-  // Throw exception if invalid Mongo query
-  filterToMongoQuery(
+  // Throws exception if invalid Mongo query
+  validateQuery(
     map(exp, (e) => {
-      if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "Q")
-        return smartQuery.unpack(resource, e[2], e[3]);
+      if (Array.isArray(e) && e[0] === "FUNC") {
+        if (e[1] === "Q") return smartQuery.unpack(resource, e[2], e[3]);
+        else if (e[1] === "NOW") return Date.now();
+      }
       return e;
     })
   );

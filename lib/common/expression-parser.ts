@@ -187,6 +187,7 @@ const lang = parsimmon.createLanguage({
   NumberValue: function () {
     return parsimmon
       .regexp(/-?(0|[1-9][0-9]*)([.][0-9]+)?([eE][+-]?[0-9]+)?/)
+      .notFollowedBy(parsimmon.regexp(/[a-zA-Z0-9_]/))
       .skip(parsimmon.optWhitespace)
       .map(Number)
       .desc("number");
@@ -223,6 +224,48 @@ const lang = parsimmon.createLanguage({
       (f, args) => ["FUNC", f.toUpperCase()].concat(args)
     );
   },
+  WhenPair: function (r) {
+    return parsimmon.seq(
+      parsimmon
+        .regexp(/when/i)
+        .notFollowedBy(parsimmon.regexp(/[a-zA-Z0-9_]/))
+        .skip(parsimmon.optWhitespace)
+        .desc("WHEN")
+        .then(r.Expression),
+      parsimmon
+        .regexp(/then/i)
+        .notFollowedBy(parsimmon.regexp(/[a-zA-Z0-9_]/))
+        .skip(parsimmon.optWhitespace)
+        .desc("THEN")
+        .then(r.Expression)
+    );
+  },
+  CaseStatement: function (r) {
+    return parsimmon.seqMap(
+      parsimmon
+        .regexp(/case/i)
+        .result("CASE")
+        .notFollowedBy(parsimmon.regexp(/[a-zA-Z0-9_]/))
+        .skip(parsimmon.optWhitespace)
+        .desc("CASE"),
+      r.WhenPair.many(),
+      parsimmon
+        .regexp(/else/i)
+        .notFollowedBy(parsimmon.regexp(/[a-zA-Z0-9_]/))
+        .skip(parsimmon.optWhitespace)
+        .desc("ELSE")
+        .then(r.Expression)
+        .map((e) => [[true, e]])
+        .fallback(null)
+        .skip(
+          parsimmon
+            .regex(/end/i)
+            .notFollowedBy(parsimmon.regexp(/[a-zA-Z0-9_]/))
+        )
+        .skip(parsimmon.optWhitespace),
+      (...arr) => arr.flat(2)
+    );
+  },
   Value: function (r) {
     return parsimmon.alt(
       r.NullValue,
@@ -230,7 +273,8 @@ const lang = parsimmon.createLanguage({
       r.NumberValue,
       r.StringValueSql,
       r.StringValueJs,
-      r.FuncValue
+      r.FuncValue,
+      r.CaseStatement
     );
   },
   ValueExpression: function (r) {
@@ -378,6 +422,17 @@ export function stringify(exp: Expression, level = 0): string {
         )}`
       );
     }
+  } else if (op === "CASE") {
+    const parts: string[] = ["CASE"];
+    for (let i = 1; i < exp.length - 1; i += 2) {
+      if (!Array.isArray(exp[i]) && exp[i]) {
+        if (exp[i + 1] != null) parts.push("ELSE", stringify(exp[i + 1]));
+        break;
+      }
+      parts.push("WHEN", stringify(exp[i]), "THEN", stringify(exp[i + 1]));
+    }
+    parts.push("END");
+    return parts.join(" ");
   } else if (op in opLevels) {
     const parts = exp.slice(1).map((e, i) => {
       return stringify(e, opLevels[exp[0]] + Math.min(i - 1, 0));

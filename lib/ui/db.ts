@@ -24,6 +24,7 @@ import * as mongodbFunctions from "../mongodb-functions";
 import * as expression from "../common/expression";
 import { QueryOptions, Expression } from "../types";
 import { Readable } from "stream";
+import { minimize } from "../common/boolean-expression";
 
 const CACHE_TTL = 300000;
 
@@ -105,6 +106,7 @@ export function query(
   options = options || {};
   let q;
   filter = expression.evaluate(filter, null, Date.now());
+  filter = minimize(filter, true);
 
   if (Array.isArray(filter)) {
     if (resource === "devices") {
@@ -204,6 +206,7 @@ export function query(
 export function count(resource: string, filter: Expression): Promise<number> {
   let q;
   filter = expression.evaluate(filter, null, Date.now());
+  filter = minimize(filter, true);
 
   if (Array.isArray(filter)) {
     if (resource === "devices")
