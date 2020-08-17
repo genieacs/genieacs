@@ -93,6 +93,17 @@ function toNumber(a: boolean | number | string): number {
   }
 }
 
+function toString(a: boolean | number | string): string {
+  switch (typeof a) {
+    case "string":
+      return a;
+    case "number":
+      return a.toString();
+    case "boolean":
+      return (+a).toString();
+  }
+}
+
 export function evaluateCallback(exp: Expression): Expression {
   if (!Array.isArray(exp)) return exp;
   if (exp[0] === "CASE") {
@@ -101,6 +112,17 @@ export function evaluateCallback(exp: Expression): Expression {
       if (exp[i]) return exp[i + 1];
     }
     return null;
+  } else if (exp[0] === "FUNC" && exp[1] === "COALESCE") {
+    const args: Expression[] = [];
+    for (let i = 2; i < exp.length; ++i) {
+      const e = exp[i];
+      if (e == null) continue;
+      args.push(e);
+      if (!Array.isArray(e)) break;
+    }
+    if (!args.length) return null;
+    if (args.length === 1) return args[0];
+    return ["FUNC", "COALESCE", ...args];
   } else if (exp[0] === "AND") {
     for (let i = 1; i < exp.length; ++i)
       if (!Array.isArray(exp[i]) && exp[i] != null && !exp[i]) return false;
@@ -223,7 +245,7 @@ export function evaluateCallback(exp: Expression): Expression {
   } else if (exp[0] === "||") {
     return reduce(exp, (a, b) => {
       if (a == null || b == null) return null;
-      if (!isArray(a) && !isArray(b)) return `${a}${b}`;
+      if (!isArray(a) && !isArray(b)) return toString(a) + toString(b);
       return REDUCE_SKIP;
     });
   }

@@ -215,7 +215,7 @@ const lang = parsimmon.createLanguage({
         .regexp(/([a-zA-Z0-9_]+)/, 1)
         .skip(parsimmon.optWhitespace)
         .desc("function"),
-      r.ValueExpression.sepBy(
+      r.Expression.sepBy(
         parsimmon.string(",").skip(parsimmon.optWhitespace)
       ).wrap(
         parsimmon.string("(").skip(parsimmon.optWhitespace),

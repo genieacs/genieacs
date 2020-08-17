@@ -586,6 +586,13 @@ function normalizeCallback(exp: Expression): Expression {
   if (!Array.isArray(exp)) return exp;
   const op = exp[0];
 
+  if (op === "FUNC" && exp[1] === "COALESCE") {
+    const res: Expression[] = ["CASE"];
+    for (let i = 2; i < exp.length; ++i)
+      res.push(normalizeCallback(["IS NOT NULL", exp[i]]), exp[i]);
+    return normalizeCallback(res);
+  }
+
   if (op === "CASE") {
     const res = [] as [Expression, Expression][];
     for (let i = 1; i < exp.length; i += 2) {
@@ -765,7 +772,13 @@ function normalizeCallback(exp: Expression): Expression {
 
 export function normalize(expr: Expression): Expression {
   expr = map(expr, normalizeCallback);
-  if (expr instanceof Polynomial) expr = JSON.parse(expr.toString());
+  if (expr instanceof Polynomial) {
+    expr = JSON.parse(expr.toString());
+  } else if (Array.isArray(expr) && expr[0] === "CASE") {
+    expr = expr.map((e) =>
+      e instanceof Polynomial ? JSON.parse(e.toString()) : e
+    );
+  }
   return expr;
 }
 
