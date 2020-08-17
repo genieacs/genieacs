@@ -18,8 +18,8 @@ differences between the scripts of provisions and virtual parameters are:
 
 .. code:: javascript
 
-  // [<current attr timestamps>, <current attr values>, <declared attr timestamps, declared attr values>]
-  [{path: 1559840000000, value: 1559840000000}, {value: ["cur val", "xsd:string"]}, {path: 1559849387191, value: 1559849387191}, {value: ["new val", "xsd:string"]}]
+  // [<declared attr timestamps, declared attr values>, <current attr timestamps>, <current attr values>]
+  [{path: 1559849387191, value: 1559849387191}, {value: ["new val", "xsd:string"]}, {path: 1559840000000, value: 1559840000000}, {value: ["cur val", "xsd:string"]}]
 
 - Virtual parameter scripts must return an object containing the attributes of
   this parameter.
