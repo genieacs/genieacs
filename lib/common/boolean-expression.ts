@@ -1065,6 +1065,29 @@ function mapCallback(exp: Expression | BoolExprSynth): Expression {
   return exp;
 }
 
+function getCanRaiseCallback(
+  isNull: Map<number, number>
+): (idx: number, set: Set<number>) => boolean {
+  return (idx: number, set: Set<number>): boolean => {
+    const i = idx >> 2;
+    const n = isNull.get(i);
+    if (n != null) {
+      if (!(idx & 1)) return true;
+      if (set.has((n << 2) ^ 2)) return true;
+      if (set.has((n << 2) ^ 3)) return true;
+      return !set.has(idx ^ 3);
+    }
+    for (const [k, v] of isNull) {
+      if (v !== i) continue;
+      if (set.has((k << 2) ^ 1)) continue;
+      if (set.has((k << 2) ^ 3)) continue;
+      if (set.has((k << 2) ^ 0)) return false;
+      if (set.has((k << 2) ^ 2)) return false;
+    }
+    return true;
+  };
+}
+
 export function minimize(expr: Expression, boolean = false): Expression {
   expr = normalize(expr);
   expr = map(expr, mapCallback);
@@ -1076,8 +1099,7 @@ export function minimize(expr: Expression, boolean = false): Expression {
         Array.from(context).map(([k, v]) => [v, JSON.parse(k) as Expression])
       );
       const { dcSet, isNull } = generateDcSetAndIsNull(variables);
-      const canRaise = (idx: number, set: Set<number>): boolean =>
-        !isNull.has(idx >> 2) || !(idx & 1) || !set.has(idx ^ 3);
+      const canRaise = getCanRaiseCallback(isNull);
       const res: Expression = ["CASE"];
       for (let i = 1; i < expr.length; i += 2) {
         let minterms = sanitizeMinterms(whens[(i - 1) / 2], isNull);
@@ -1149,8 +1171,7 @@ export function unionDiff(
     isNull
   );
 
-  const canRaise = (idx: number, set: Set<number>): boolean =>
-    !isNull.has(idx >> 2) || !(idx & 1) || !set.has(idx ^ 3);
+  const canRaise = getCanRaiseCallback(isNull);
 
   const union = espresso(unionMinterms, dcSet, { canRaise });
   const diff = espresso(diffMinterms, dcSet, { canRaise });
