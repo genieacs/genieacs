@@ -43,7 +43,7 @@ const attributes = [
   { id: "events", label: "Events" },
   { id: "precondition", label: "Precondition", type: "textarea" },
   { id: "provision", label: "Provision", type: "combo" },
-  { id: "provisionArgs", label: "Arguments" },
+  { id: "provisionArgs", label: "Arguments", type: "textarea" },
 ];
 
 const unpackSmartQuery = memoize((query) => {

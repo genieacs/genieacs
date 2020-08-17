@@ -45,6 +45,7 @@ import {
   SoapMessage,
   InformRequest,
   AcsResponse,
+  Preset,
 } from "./types";
 import { IncomingMessage, ServerResponse } from "http";
 import { Readable } from "stream";
@@ -431,7 +432,7 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
   }
 
   const parameters: { [name: string]: Path } = {};
-  const filteredPresets = [];
+  const filteredPresets: Preset[] = [];
 
   for (const preset of presets) {
     if (whiteList != null) {
@@ -460,10 +461,23 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
     }
 
     filteredPresets.push(preset);
-    for (const k of extractParams(preset.precondition)) {
+    for (const k of extractParams(
+      evaluate(preset.precondition, null, sessionContext.timestamp)
+    )) {
       // Mark channel in case of fault during fetching precondition
       sessionContext.channels[preset.channel] = 0;
       if (typeof k === "string") parameters[k] = Path.parse(k);
+    }
+    for (const prov of preset.provisions) {
+      for (const arg of prov.slice(1)) {
+        for (const k of extractParams(
+          evaluate(arg, null, sessionContext.timestamp)
+        )) {
+          // Mark channel in case of fault during fetching precondition
+          sessionContext.channels[preset.channel] = 0;
+          if (typeof k === "string") parameters[k] = Path.parse(k);
+        }
+      }
     }
   }
 
@@ -501,12 +515,22 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
         session.configContextCallback(sessionContext, e)
       )
     ) {
+      const provs = p.provisions.map((pp) => [
+        pp[0],
+        ...pp
+          .slice(1)
+          .map((arg) =>
+            evaluate(arg, {}, sessionContext.timestamp, (e) =>
+              session.configContextCallback(sessionContext, e)
+            )
+          ),
+      ]);
       if (blackList[p.channel] === 2) {
         appendProvisionsToFaults[p.channel] = (
           appendProvisionsToFaults[p.channel] || []
-        ).concat(p.provisions);
+        ).concat(provs);
       } else {
-        session.addProvisions(sessionContext, p.channel, p.provisions);
+        session.addProvisions(sessionContext, p.channel, provs);
       }
     }
   }

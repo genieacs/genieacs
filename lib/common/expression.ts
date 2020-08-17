@@ -112,17 +112,25 @@ export function evaluateCallback(exp: Expression): Expression {
       if (exp[i]) return exp[i + 1];
     }
     return null;
-  } else if (exp[0] === "FUNC" && exp[1] === "COALESCE") {
-    const args: Expression[] = [];
-    for (let i = 2; i < exp.length; ++i) {
-      const e = exp[i];
-      if (e == null) continue;
-      args.push(e);
-      if (!Array.isArray(e)) break;
+  } else if (exp[0] === "FUNC") {
+    if (exp[1] === "COALESCE") {
+      const args: Expression[] = [];
+      for (let i = 2; i < exp.length; ++i) {
+        const e = exp[i];
+        if (e == null) continue;
+        args.push(e);
+        if (!Array.isArray(e)) break;
+      }
+      if (!args.length) return null;
+      if (args.length === 1) return args[0];
+      return ["FUNC", "COALESCE", ...args];
+    } else if (exp[1] === "UPPER") {
+      if (exp[2] == null) return null;
+      if (!isArray(exp[2])) return toString(exp[2]).toUpperCase();
+    } else if (exp[1] === "LOWER") {
+      if (exp[2] == null) return null;
+      if (!isArray(exp[2])) return toString(exp[2]).toLowerCase();
     }
-    if (!args.length) return null;
-    if (args.length === 1) return args[0];
-    return ["FUNC", "COALESCE", ...args];
   } else if (exp[0] === "AND") {
     for (let i = 1; i < exp.length; ++i)
       if (!Array.isArray(exp[i]) && exp[i] != null && !exp[i]) return false;
@@ -274,16 +282,8 @@ export function evaluate(
     if (cb) e = cb(e);
     if (!isArray(e)) return e;
 
-    if (e[0] === "FUNC") {
-      if (e[1] === "NOW") {
-        if (now) return now;
-      } else if (e[1] === "UPPER") {
-        if (e[2] == null) return null;
-        if (!isArray(e[2])) return `${e[2]}`.toUpperCase();
-      } else if (e[1] === "LOWER") {
-        if (e[2] == null) return null;
-        if (!isArray(e[2])) return `${e[2]}`.toLowerCase();
-      }
+    if (e[0] === "FUNC" && e[1] === "NOW") {
+      if (now) return now;
     } else if (e[0] === "PARAM") {
       if (e[1] == null) return null;
       if (obj && !isArray(e[1])) {

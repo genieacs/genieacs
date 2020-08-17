@@ -323,7 +323,7 @@ export interface Preset {
   schedule?: { md5: string; duration: number; schedule: any };
   events?: { [event: string]: boolean };
   precondition?: Expression;
-  provisions: string[][];
+  provisions: [string, ...Expression[]][];
 }
 
 export interface Provisions {

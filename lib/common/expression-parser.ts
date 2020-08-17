@@ -215,9 +215,7 @@ const lang = parsimmon.createLanguage({
         .regexp(/([a-zA-Z0-9_]+)/, 1)
         .skip(parsimmon.optWhitespace)
         .desc("function"),
-      r.Expression.sepBy(
-        parsimmon.string(",").skip(parsimmon.optWhitespace)
-      ).wrap(
+      r.ExpressionList.wrap(
         parsimmon.string("(").skip(parsimmon.optWhitespace),
         parsimmon.string(")").skip(parsimmon.optWhitespace)
       ),
@@ -330,6 +328,11 @@ const lang = parsimmon.createLanguage({
       )
     );
   },
+  ExpressionList: function (r) {
+    return r.Expression.sepBy(
+      parsimmon.string(",").skip(parsimmon.optWhitespace)
+    );
+  },
   Expression: function (r) {
     function unary(operatorsParser, nextParser): parsimmon.Parser<unknown> {
       return parsimmon.seq(operatorsParser, nextParser).or(nextParser);
@@ -348,6 +351,11 @@ const lang = parsimmon.createLanguage({
 export function parse(str: string): Expression {
   if (!str) return null;
   return lang.Expression.tryParse(str);
+}
+
+export function parseList(str: string): Expression[] {
+  if (!str) return [];
+  return lang.ExpressionList.tryParse(str);
 }
 
 export function stringify(exp: Expression, level = 0): string {

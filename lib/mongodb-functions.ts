@@ -18,7 +18,7 @@
  */
 
 import { ObjectID } from "mongodb";
-import { map, parse, stringify } from "./common/expression-parser";
+import { map, parse, stringify, parseList } from "./common/expression-parser";
 import { likePatternToRegExp, evaluate } from "./common/expression";
 import { Expression, Fault, Task } from "./types";
 
@@ -593,7 +593,7 @@ export function flattenPreset(
   ) {
     p.provision = provision.name;
     p.provisionArgs = provision.args
-      ? JSON.stringify(provision.args).slice(1, -1)
+      ? provision.args.map((a) => stringify(a)).join(", ")
       : "";
   }
 
@@ -650,7 +650,7 @@ export function preProcessPreset(
   };
 
   if (preset.provisionArgs)
-    configuration.args = JSON.parse(`[${preset.provisionArgs}]`);
+    configuration.args = parseList(preset.provisionArgs as string);
 
   delete preset.provision;
   delete preset.provisionArgs;
