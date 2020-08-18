@@ -124,7 +124,8 @@ export default class Authorizer {
             if (value == null) break;
           }
         } else if (object[entry]) {
-          value = object[entry][paramName];
+          if (paramName) value = object[entry][paramName];
+          else value = object[entry];
         }
 
         return value;
