@@ -304,19 +304,30 @@ function parseDate(d: Date): number | string {
   return isNaN(n) ? "" + d : n;
 }
 
+interface FlatAttributes {
+  object?: boolean;
+  objectTimestamp?: number;
+  writable?: boolean;
+  writableTimestamp?: number;
+  value?: [string | number | boolean, string];
+  valueTimestamp?: number;
+  notification?: number;
+  notificationTimestamp?: number;
+  accessList?: string[];
+  accessListTimestamp?: number;
+}
+
 interface FlatDevice {
-  [param: string]: {
-    object: boolean;
-    objectTimestamp: number;
-    writable: boolean;
-    writableTimestamp: number;
-    value: [string | number | boolean, string];
-    valueTimestamp: number;
-  };
+  [param: string]: FlatAttributes;
 }
 
 export function flattenDevice(device: Record<string, unknown>): FlatDevice {
-  function recursive(input, root, output, timestamp): void {
+  function recursive(
+    input,
+    root: string,
+    output: FlatDevice,
+    timestamp: number
+  ): void {
     for (const [name, tree] of Object.entries(input)) {
       if (!root) {
         if (name === "_lastInform") {
@@ -357,7 +368,7 @@ export function flattenDevice(device: Record<string, unknown>): FlatDevice {
           };
         } else if (name === "_id") {
           output["DeviceID.ID"] = {
-            value: [tree, "xsd:string"],
+            value: [tree as string, "xsd:string"],
             valueTimestamp: timestamp,
             writable: false,
             writableTimestamp: timestamp,
@@ -426,34 +437,44 @@ export function flattenDevice(device: Record<string, unknown>): FlatDevice {
       else if (+input["_timestamp"] > timestamp)
         childrenTimestamp = +input["_timestamp"];
 
-      const attrs = {};
+      const attrs: FlatAttributes = {};
       if (tree["_value"] != null) {
-        attrs["value"] = [
+        attrs.value = [
           tree["_value"] instanceof Date ? +tree["_value"] : tree["_value"],
           tree["_type"],
         ];
-        attrs["valueTimestamp"] = +(tree["_timestamp"] || childrenTimestamp);
-        attrs["object"] = false;
-        attrs["objectTimestamp"] = childrenTimestamp;
+        attrs.valueTimestamp = +(tree["_timestamp"] || childrenTimestamp);
+        attrs.object = false;
+        attrs.objectTimestamp = childrenTimestamp;
       } else if (tree["_object"] != null) {
-        attrs["object"] = tree["_object"];
-        attrs["objectTimestamp"] = childrenTimestamp;
+        attrs.object = tree["_object"];
+        attrs.objectTimestamp = childrenTimestamp;
       }
 
       if (tree["_writable"] != null) {
-        attrs["writable"] = tree["_writable"];
-        attrs["writableTimestamp"] = childrenTimestamp;
+        attrs.writable = tree["_writable"];
+        attrs.writableTimestamp = childrenTimestamp;
+      }
+
+      if (tree["_notification"] != null) {
+        attrs.notification = tree["_notification"];
+        attrs.notificationTimestamp = +tree["_attributesTimestamp"] || 1;
+      }
+
+      if (tree["_accessList"] != null) {
+        attrs.accessList = tree["_accessList"];
+        attrs.accessListTimestamp = +tree["_attributesTimestamp"] || 1;
       }
 
       const r = root ? `${root}.${name}` : name;
       output[r] = attrs;
 
-      if (attrs["object"] || tree["object"] == null)
+      if (attrs.object || tree["object"] == null)
         recursive(tree, r, output, childrenTimestamp);
     }
   }
 
-  const newDevice = {};
+  const newDevice: FlatDevice = {};
   const timestamp = new Date((device["_lastInform"] as Date) || 1).getTime();
   recursive(device, "", newDevice, timestamp);
   return newDevice;

@@ -52,18 +52,24 @@ export interface Attributes {
   object?: [number, 1 | 0];
   writable?: [number, 1 | 0];
   value?: [number, [string | number | boolean, string]];
+  notification?: [number, number];
+  accessList?: [number, string[]];
 }
 
 export interface AttributeTimestamps {
   object?: number;
   writable?: number;
   value?: number;
+  notification?: number;
+  accessList?: number;
 }
 
 export interface AttributeValues {
   object?: boolean;
   writable?: boolean;
   value?: [string | number | boolean, string?];
+  notification?: number;
+  accessList?: string[];
 }
 
 export interface DeviceData {
@@ -76,12 +82,21 @@ export interface DeviceData {
 
 export type VirtualParameterDeclaration = [
   Path,
-  { path?: number; object?: number; writable?: number; value?: number }?,
+  {
+    path?: number;
+    object?: number;
+    writable?: number;
+    value?: number;
+    notification?: number;
+    accessList?: number;
+  }?,
   {
     path?: [number, number];
     object?: boolean;
     writable?: boolean;
     value?: [string | number | boolean, string?];
+    notification?: number;
+    accessList?: string[];
   }?
 ];
 
@@ -91,8 +106,11 @@ export interface SyncState {
     object: Set<Path>;
     writable: Set<Path>;
     value: Set<Path>;
+    notification: Set<Path>;
+    accessList: Set<Path>;
   };
   spv: Map<Path, [string | number | boolean, string]>;
+  spa: Map<Path, { notification: number; accessList: string[] }>;
   gpn: Set<Path>;
   gpnPatterns: Map<Path, number>;
   tags: Map<Path, boolean>;
@@ -161,6 +179,7 @@ export interface Task {
   fileName?: string;
   targetFileName?: string;
   expiry?: number;
+  provisions?: (string | number | boolean)[][];
 }
 
 export interface Operation {
@@ -183,7 +202,7 @@ export interface AcsRequest {
 }
 
 export interface GetAcsRequest extends AcsRequest {
-  name: "GetParameterNames" | "GetParameterValues";
+  name: "GetParameterNames" | "GetParameterValues" | "GetParameterAttributes";
   objectName?: string;
   parameterNames?: string[];
   parameterPath?: string;
@@ -194,12 +213,15 @@ export interface GetAcsRequest extends AcsRequest {
 export interface SetAcsRequest extends AcsRequest {
   name:
     | "SetParameterValues"
+    | "SetParameterAttributes"
     | "AddObject"
     | "DeleteObject"
     | "FactoryReset"
     | "Reboot"
     | "Download";
-  parameterList?: [string, string | number | boolean, string][];
+  parameterList?:
+    | [string, string | number | boolean, string][]
+    | [string, number, string[]][];
   instanceValues?: { [param: string]: string | number | boolean };
   objectName?: string;
   DATETIME_MILLISECONDS?: boolean;
@@ -236,15 +258,20 @@ export interface CpeFault {
 }
 
 export interface CpeGetResponse extends CpeResponse {
-  name: "GetParameterNamesResponse" | "GetParameterValuesResponse";
+  name:
+    | "GetParameterNamesResponse"
+    | "GetParameterValuesResponse"
+    | "GetParameterAttributesResponse";
   parameterList?:
     | [string, boolean][]
-    | [string, string | number | boolean, string][];
+    | [string, string | number | boolean, string][]
+    | [string, number, string[]][];
 }
 
 export interface CpeSetResponse extends CpeResponse {
   name:
     | "SetParameterValuesResponse"
+    | "SetParameterAttributesResponse"
     | "AddObjectResponse"
     | "DeleteObjectResponse"
     | "RebootResponse"
@@ -301,11 +328,19 @@ export interface Declaration {
   path: Path;
   pathGet: number;
   pathSet?: number | [number, number];
-  attrGet?: { object?: number; writable?: number; value?: number };
+  attrGet?: {
+    object?: number;
+    writable?: number;
+    value?: number;
+    notification?: number;
+    accessList?: number;
+  };
   attrSet?: {
     object?: boolean;
     writable?: boolean;
     value?: [string | number | boolean, string?];
+    notification?: number;
+    accessList?: string[];
   };
   defer: boolean;
 }
@@ -313,7 +348,13 @@ export interface Declaration {
 export type Clear = [
   Path,
   number,
-  { object?: number; writable?: number; value?: number }?,
+  {
+    object?: number;
+    writable?: number;
+    value?: number;
+    notification?: number;
+    accessList?: number;
+  }?,
   number?
 ];
 

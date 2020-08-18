@@ -268,6 +268,19 @@ function sanitizeTask(task): void {
       )
         throw new Error("Invalid 'targetFileName' property");
       break;
+
+    case "provisions":
+      if (
+        !Array.isArray(task.provisions) ||
+        !task.provisions.every((arr) =>
+          arr.every(
+            (s) =>
+              s == null || ["boolean", "number", "string"].includes(typeof s)
+          )
+        )
+      )
+        throw new Error("Invalid 'provisions' property");
+      break;
   }
 
   return task;
