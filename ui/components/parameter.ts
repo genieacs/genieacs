@@ -28,25 +28,43 @@ import { getIcon } from "../icons";
 
 const evaluateParam = memoize((exp, obj, now: number) => {
   let timestamp = now;
-  const params = new Set();
-  const value = expression.evaluate(exp, obj, now, (e) => {
-    if (Array.isArray(e)) {
-      if (e[0] === "PARAM") {
-        params.add(e[1]);
-        if (!Array.isArray(e[1])) {
-          const p = obj[e[1]];
-          if (p && p.valueTimestamp)
-            timestamp = Math.min(timestamp, p.valueTimestamp);
+  exp = expression.evaluate(exp, null, now, (e) => {
+    if (!Array.isArray(e)) return e;
+    for (let i = 1; i < e.length; ++i) {
+      if (
+        Array.isArray(e[i]) &&
+        e[i][0] === "PARAM" &&
+        !Array.isArray(e[i][1])
+      ) {
+        let v = null;
+        const p = obj[e[i][1]];
+        if (p && p.value) {
+          v = p.value[0];
+          timestamp = Math.min(timestamp, p.valueTimestamp);
         }
+        e = e.slice();
+        e[i] = v;
       }
-      if (e[0] === "FUNC" && e[1] === "DATE_STRING" && !Array.isArray(e[2]))
-        return new Date(e[2]).toLocaleString();
     }
+    if (e[0] === "FUNC" && e[1] === "DATE_STRING" && !Array.isArray(e[2]))
+      return new Date(e[2]).toLocaleString();
     return e;
   });
 
-  let parameter = params.size === 1 ? params.values().next().value : null;
-  if (Array.isArray(parameter)) parameter = null;
+  let parameter = null;
+  let value = null;
+
+  if (!Array.isArray(exp)) {
+    value = exp;
+  } else if (exp[0] === "PARAM") {
+    const p = obj[exp[1]];
+    if (p && p.value) {
+      timestamp = p.valueTimestamp;
+      value = p.value[0];
+      parameter = exp[1];
+    }
+  }
+
   return { value, timestamp, parameter };
 });
 
