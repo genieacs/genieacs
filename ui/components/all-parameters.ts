@@ -30,6 +30,26 @@ function escapeRegExp(str): string {
   return str.replace(/[-[\]/{}()*+?.\\^$|]/g, "\\$&");
 }
 
+const keysByDepth: WeakMap<Record<string, unknown>, string[][]> = new WeakMap();
+
+function orderKeysByDepth(device: Record<string, unknown>): string[][] {
+  if (keysByDepth.has(device)) return keysByDepth.get(device);
+  const res: string[][] = [];
+  for (const key of Object.keys(device)) {
+    let count = 0;
+    for (
+      let i = key.lastIndexOf(".", key.length - 2);
+      i >= 0;
+      i = key.lastIndexOf(".", i - 1)
+    )
+      ++count;
+    while (res.length <= count) res.push([]);
+    res[count].push(key);
+  }
+  keysByDepth.set(device, res);
+  return res;
+}
+
 const component: ClosureComponent = (): Component => {
   return {
     view: (vnode) => {
@@ -56,86 +76,97 @@ const component: ClosureComponent = (): Component => {
           re = new RegExp(keywords.map((s) => escapeRegExp(s)).join(".*"), "i");
       }
 
-      const rows = Object.keys(device)
-        .sort()
-        .map((k) => {
+      const filteredKeys: string[] = [];
+      const allKeys = orderKeysByDepth(device);
+      let count = 0;
+      for (const keys of allKeys) {
+        let c = 0;
+        for (const k of keys) {
           const p = device[k];
-          const val = [];
-          const attrs = {};
-          if (re) {
-            const str = p.value && p.value[0] ? `${k} ${p.value[0]}` : k;
-            if (!re.test(str)) attrs["style"] = "display: none;";
-          }
+          const str = p.value && p.value[0] ? `${k} ${p.value[0]}` : k;
+          if (re && !re.test(str)) continue;
+          ++c;
+          if (count < 100) filteredKeys.push(k);
+        }
+        count += c;
+      }
 
-          if (p.object === false) {
-            val.push(
-              m(
-                "parameter",
-                Object.assign({ device: device, parameter: memoizedParse(k) })
-              )
-            );
-          } else if (p.object && p.writable) {
-            if (instanceRegex.test(k)) {
-              val.push(
-                m(
-                  "button",
-                  {
-                    title: "Delete this instance",
-                    onclick: () => {
-                      taskQueue.queueTask({
-                        name: "deleteObject",
-                        device: device["DeviceID.ID"].value[0],
-                        objectName: k,
-                      });
-                    },
-                  },
-                  getIcon("delete-instance")
-                )
-              );
-            } else {
-              val.push(
-                m(
-                  "button",
-                  {
-                    title: "Create a new instance",
-                    onclick: () => {
-                      taskQueue.queueTask({
-                        name: "addObject",
-                        device: device["DeviceID.ID"].value[0],
-                        objectName: k,
-                      });
-                    },
-                  },
-                  getIcon("add-instance")
-                )
-              );
-            }
-          }
+      filteredKeys.sort();
 
+      const rows = filteredKeys.map((k) => {
+        const p = device[k];
+        const val = [];
+        const attrs = { key: k };
+
+        if (p.object === false) {
           val.push(
             m(
-              "button",
-              {
-                title: "Refresh tree",
-                onclick: () => {
-                  taskQueue.queueTask({
-                    name: "getParameterValues",
-                    device: device["DeviceID.ID"].value[0],
-                    parameterNames: [k],
-                  });
-                },
-              },
-              getIcon("refresh")
+              "parameter",
+              Object.assign({ device: device, parameter: memoizedParse(k) })
             )
           );
+        } else if (p.object && p.writable) {
+          if (instanceRegex.test(k)) {
+            val.push(
+              m(
+                "button",
+                {
+                  title: "Delete this instance",
+                  onclick: () => {
+                    taskQueue.queueTask({
+                      name: "deleteObject",
+                      device: device["DeviceID.ID"].value[0],
+                      objectName: k,
+                    });
+                  },
+                },
+                getIcon("delete-instance")
+              )
+            );
+          } else {
+            val.push(
+              m(
+                "button",
+                {
+                  title: "Create a new instance",
+                  onclick: () => {
+                    taskQueue.queueTask({
+                      name: "addObject",
+                      device: device["DeviceID.ID"].value[0],
+                      objectName: k,
+                    });
+                  },
+                },
+                getIcon("add-instance")
+              )
+            );
+          }
+        }
 
-          return m(
-            "tr",
-            attrs,
-            m("td.left", m("long-text", { text: k })),
-            m("td.right", val)
-          );
-        });
+        val.push(
+          m(
+            "button",
+            {
+              title: "Refresh tree",
+              onclick: () => {
+                taskQueue.queueTask({
+                  name: "getParameterValues",
+                  device: device["DeviceID.ID"].value[0],
+                  parameterNames: [k],
+                });
+              },
+            },
+            getIcon("refresh")
+          )
+        );
+
+        return m(
+          "tr",
+          attrs,
+          m("td.left", m("long-text", { text: k })),
+          m("td.right", val)
+        );
+      });
 
       return m(
         ".all-parameters",
@@ -151,7 +182,14 @@ const component: ClosureComponent = (): Component => {
           "Download"
         ),
         search,
-        m(".parameter-list", m("table", m("tbody", rows)))
+        m(
+          ".parameter-list",
+          m("table", m("tbody", rows)),
+          m(
+            "m",
+            `Displaying ${filteredKeys.length} out of ${count} parameters.`
+          )
+        )
       );
     },
   };
