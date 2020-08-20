@@ -131,6 +131,8 @@ export function evaluateCallback(exp: Expression): Expression {
       if (exp[2] == null) return null;
       if (!isArray(exp[2])) return toString(exp[2]).toLowerCase();
     }
+  } else if (exp[0] === "PARAM") {
+    if (exp[1] == null) return null;
   } else if (exp[0] === "AND") {
     for (let i = 1; i < exp.length; ++i)
       if (!Array.isArray(exp[i]) && exp[i] != null && !exp[i]) return false;

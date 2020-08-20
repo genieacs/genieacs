@@ -84,7 +84,7 @@ export async function connectionRequest(
 
   const evalCallback = (exp): Expression => {
     if (!Array.isArray(exp)) return exp;
-    if (exp[0] === "PARAM") {
+    if (exp[0] === "PARAM" && typeof exp[1] === "string") {
       let name = exp[1];
       if (name === "id") name = "DeviceID.ID";
       else if (name === "serialNumber") name = "DeviceID.SerialNumber";
