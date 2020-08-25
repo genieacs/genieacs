@@ -196,47 +196,84 @@ export interface Operation {
   };
 }
 
-export interface AcsRequest {
-  name: string;
-  next?: string;
+export type AcsRequest =
+  | GetParameterNames
+  | GetParameterValues
+  | GetParameterAttributes
+  | SetParameterValues
+  | SetParameterAttributes
+  | AddObject
+  | DeleteObject
+  | FactoryReset
+  | Reboot
+  | Download;
+
+export interface GetParameterNames {
+  name: "GetParameterNames";
+  parameterPath: string;
+  nextLevel: boolean;
 }
 
-export interface GetAcsRequest extends AcsRequest {
-  name: "GetParameterNames" | "GetParameterValues" | "GetParameterAttributes";
-  objectName?: string;
-  parameterNames?: string[];
-  parameterPath?: string;
-  nextLevel?: boolean;
-  instanceValues?: { [name: string]: string };
+export interface GetParameterValues {
+  name: "GetParameterValues";
+  parameterNames: string[];
 }
 
-export interface SetAcsRequest extends AcsRequest {
-  name:
-    | "SetParameterValues"
-    | "SetParameterAttributes"
-    | "AddObject"
-    | "DeleteObject"
-    | "FactoryReset"
-    | "Reboot"
-    | "Download";
-  parameterList?:
-    | [string, string | number | boolean, string][]
-    | [string, number, string[]][];
-  instanceValues?: { [param: string]: string | number | boolean };
-  objectName?: string;
+export interface GetParameterAttributes {
+  name: "GetParameterAttributes";
+  parameterNames: string[];
+}
+
+export interface SetParameterValues {
+  name: "SetParameterValues";
+  parameterList: [string, boolean | number | string, string][];
+  parameterKey?: string;
   DATETIME_MILLISECONDS?: boolean;
   BOOLEAN_LITERAL?: boolean;
-  commandKey?: string;
-  instance?: string;
-  fileType?: string;
-  fileSize?: number;
-  url?: string;
-  fileName?: string;
-  targetFileName?: string;
 }
 
-export interface CpeResponse {
-  name: string;
+export interface SetParameterAttributes {
+  name: "SetParameterAttributes";
+  parameterList: [string, number, string[]][];
+}
+
+export interface AddObject {
+  name: "AddObject";
+  objectName: string;
+  parameterKey?: string;
+  instanceValues: Record<string, string>;
+}
+
+export interface DeleteObject {
+  name: "DeleteObject";
+  objectName: string;
+  parameterKey?: string;
+}
+
+export interface FactoryReset {
+  name: "FactoryReset";
+  commandKey?: string;
+}
+
+export interface Reboot {
+  name: "Reboot";
+  commandKey?: string;
+}
+
+export interface Download {
+  name: "Download";
+  commandKey: string;
+  instance: string;
+  fileType: string;
+  fileName?: string;
+  url?: string;
+  username?: string;
+  password?: string;
+  fileSize?: number;
+  targetFileName?: string;
+  delaySecods?: number;
+  successUrl?: string;
+  failureUrl?: string;
 }
 
 export interface SpvFault {
@@ -257,38 +294,75 @@ export interface CpeFault {
   detail?: FaultStruct;
 }
 
-export interface CpeGetResponse extends CpeResponse {
-  name:
-    | "GetParameterNamesResponse"
-    | "GetParameterValuesResponse"
-    | "GetParameterAttributesResponse";
-  parameterList?:
-    | [string, boolean][]
-    | [string, string | number | boolean, string][]
-    | [string, number, string[]][];
+export type CpeResponse =
+  | GetParameterNamesResponse
+  | GetParameterValuesResponse
+  | GetParameterAttributesResponse
+  | SetParameterValuesResponse
+  | SetParameterAttributesResponse
+  | AddObjectResponse
+  | DeleteObjectResponse
+  | RebootResponse
+  | FactoryResetResponse
+  | DownloadResponse;
+
+export interface GetParameterNamesResponse {
+  name: "GetParameterNamesResponse";
+  parameterList: [string, boolean][];
 }
 
-export interface CpeSetResponse extends CpeResponse {
-  name:
-    | "SetParameterValuesResponse"
-    | "SetParameterAttributesResponse"
-    | "AddObjectResponse"
-    | "DeleteObjectResponse"
-    | "RebootResponse"
-    | "FactoryResetResponse"
-    | "DownloadResponse";
-  status?: number;
-  instanceNumber?: string;
+export interface GetParameterValuesResponse {
+  name: "GetParameterValuesResponse";
+  parameterList: [string, string | number | boolean, string][];
+}
+
+export interface GetParameterAttributesResponse {
+  name: "GetParameterAttributesResponse";
+  parameterList: [string, number, string[]][];
+}
+
+export interface SetParameterValuesResponse {
+  name: "SetParameterValuesResponse";
+  status: number;
+}
+
+export interface SetParameterAttributesResponse {
+  name: "SetParameterAttributesResponse";
+}
+
+export interface AddObjectResponse {
+  name: "AddObjectResponse";
+  instanceNumber: string;
+  status: number;
+}
+
+export interface DeleteObjectResponse {
+  name: "DeleteObjectResponse";
+  status: number;
+}
+
+export interface RebootResponse {
+  name: "RebootResponse";
+}
+
+export interface FactoryResetResponse {
+  name: "FactoryResetResponse";
+}
+
+export interface DownloadResponse {
+  name: "DownloadResponse";
+  status: number;
   startTime?: number;
   completeTime?: number;
 }
 
-export interface CpeRequest {
-  name: string;
-  fileType?: string;
-}
+export type CpeRequest =
+  | InformRequest
+  | TransferCompleteRequest
+  | GetRPCMethodsRequest
+  | RequestDownloadRequest;
 
-export interface InformRequest extends CpeRequest {
+export interface InformRequest {
   name: "Inform";
   deviceId: {
     Manufacturer: string;
@@ -301,7 +375,7 @@ export interface InformRequest extends CpeRequest {
   parameterList: [string, string | number | boolean, string][];
 }
 
-export interface TransferCompleteRequest extends CpeRequest {
+export interface TransferCompleteRequest {
   name: "TransferComplete";
   commandKey?: string;
   faultStruct?: FaultStruct;
@@ -309,10 +383,36 @@ export interface TransferCompleteRequest extends CpeRequest {
   completeTime?: number;
 }
 
-export interface AcsResponse {
-  name: string;
-  commandKey?: string;
-  faultStruct?: FaultStruct;
+export interface GetRPCMethodsRequest {
+  name: "GetRPCMethods";
+}
+
+export interface RequestDownloadRequest {
+  name: "RequestDownload";
+  fileType: string;
+}
+
+export type AcsResponse =
+  | InformResponse
+  | GetRPCMethodsResponse
+  | TransferCompleteResponse
+  | RequestDownloadResponse;
+
+export interface InformResponse {
+  name: "InformResponse";
+}
+
+export interface GetRPCMethodsResponse {
+  name: "GetRPCMethodsResponse";
+  methodList: string[];
+}
+
+export interface TransferCompleteResponse {
+  name: "TransferCompleteResponse";
+}
+
+export interface RequestDownloadResponse {
+  name: "RequestDownloadResponse";
 }
 
 export interface QueryOptions {

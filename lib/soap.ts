@@ -27,17 +27,27 @@ import {
 import memoize from "./common/memoize";
 import { version as VERSION } from "../package.json";
 import {
-  CpeGetResponse,
-  CpeSetResponse,
   InformRequest,
-  AcsResponse,
-  CpeRequest,
   FaultStruct,
   SpvFault,
   CpeFault,
   SoapMessage,
   TransferCompleteRequest,
   AcsRequest,
+  GetParameterNamesResponse,
+  GetParameterValuesResponse,
+  GetParameterAttributesResponse,
+  SetParameterValuesResponse,
+  SetParameterAttributesResponse,
+  AddObjectResponse,
+  DeleteObject,
+  DeleteObjectResponse,
+  RebootResponse,
+  FactoryResetResponse,
+  DownloadResponse,
+  GetRPCMethodsRequest,
+  RequestDownloadRequest,
+  AcsResponse,
 } from "./types";
 
 const SERVER_NAME = `GenieACS/${VERSION}`;
@@ -118,7 +128,7 @@ function parameterInfoList(xml: Element): [string, boolean][] {
 
       let parsed: boolean = parseBool(value);
 
-      if (parsed === null) {
+      if (parsed == null) {
         warnings.push({
           message: "Invalid writable attribute",
           parameter: param,
@@ -160,7 +170,7 @@ function parameterValueList(
       let parsed: string | number | boolean = value;
       if (valueType === "xsd:boolean") {
         parsed = parseBool(value);
-        if (parsed === null) {
+        if (parsed == null) {
           warnings.push({
             message: "Invalid value attribute",
             parameter: param,
@@ -236,7 +246,7 @@ function GetParameterNames(methodRequest): string {
   }</ParameterPath><NextLevel>${+methodRequest.nextLevel}</NextLevel></cwmp:GetParameterNames>`;
 }
 
-function GetParameterNamesResponse(xml): CpeGetResponse {
+function GetParameterNamesResponse(xml): GetParameterNamesResponse {
   return {
     name: "GetParameterNamesResponse",
     parameterList: parameterInfoList(
@@ -253,7 +263,7 @@ function GetParameterValues(methodRequest): string {
     .join("")}</ParameterNames></cwmp:GetParameterValues>`;
 }
 
-function GetParameterValuesResponse(xml: Element): CpeGetResponse {
+function GetParameterValuesResponse(xml: Element): GetParameterValuesResponse {
   return {
     name: "GetParameterValuesResponse",
     parameterList: parameterValueList(
@@ -270,7 +280,9 @@ function GetParameterAttributes(methodRequest): string {
     .join("")}</ParameterNames></cwmp:GetParameterAttributes>`;
 }
 
-function GetParameterAttributesResponse(xml: Element): CpeGetResponse {
+function GetParameterAttributesResponse(
+  xml: Element
+): GetParameterAttributesResponse {
   return {
     name: "GetParameterAttributesResponse",
     parameterList: parameterAttributeList(
@@ -301,7 +313,7 @@ function SetParameterValues(methodRequest): string {
   }</ParameterKey></cwmp:SetParameterValues>`;
 }
 
-function SetParameterValuesResponse(xml: Element): CpeSetResponse {
+function SetParameterValuesResponse(xml: Element): SetParameterValuesResponse {
   return {
     name: "SetParameterValuesResponse",
     status: parseInt(xml.children.find((n) => n.localName === "Status").text),
@@ -332,7 +344,7 @@ function SetParameterAttributes(methodRequest): string {
   }]">${params.join("")}</ParameterList></cwmp:SetParameterAttributes>`;
 }
 
-function SetParameterAttributesResponse(): CpeSetResponse {
+function SetParameterAttributesResponse(): SetParameterAttributesResponse {
   return {
     name: "SetParameterAttributesResponse",
   };
@@ -346,7 +358,7 @@ function AddObject(methodRequest): string {
   }</ParameterKey></cwmp:AddObject>`;
 }
 
-function AddObjectResponse(xml: Element): CpeSetResponse {
+function AddObjectResponse(xml: Element): AddObjectResponse {
   let instanceNumber, status;
   for (const c of xml.children) {
     switch (c.localName) {
@@ -374,7 +386,7 @@ function DeleteObject(methodRequest): string {
   }</ParameterKey></cwmp:DeleteObject>`;
 }
 
-function DeleteObjectResponse(xml: Element): CpeSetResponse {
+function DeleteObjectResponse(xml: Element): DeleteObjectResponse {
   return {
     name: "DeleteObjectResponse",
     status: parseInt(xml.children.find((n) => n.localName === "Status").text),
@@ -387,7 +399,7 @@ function Reboot(methodRequest): string {
   }</CommandKey></cwmp:Reboot>`;
 }
 
-function RebootResponse(): CpeSetResponse {
+function RebootResponse(): RebootResponse {
   return {
     name: "RebootResponse",
   };
@@ -397,7 +409,7 @@ function FactoryReset(): string {
   return "<cwmp:FactoryReset></cwmp:FactoryReset>";
 }
 
-function FactoryResetResponse(): CpeSetResponse {
+function FactoryResetResponse(): FactoryResetResponse {
   return {
     name: "FactoryResetResponse",
   };
@@ -425,7 +437,7 @@ function Download(methodRequest): string {
   )}</FailureURL></cwmp:Download>`;
 }
 
-function DownloadResponse(xml: Element): CpeSetResponse {
+function DownloadResponse(xml: Element): DownloadResponse {
   let status, startTime, completeTime;
   for (const c of xml.children) {
     switch (c.localName) {
@@ -491,7 +503,7 @@ function InformResponse(): string {
   return "<cwmp:InformResponse><MaxEnvelopes>1</MaxEnvelopes></cwmp:InformResponse>";
 }
 
-function GetRPCMethods(): AcsResponse {
+function GetRPCMethods(): GetRPCMethodsRequest {
   return { name: "GetRPCMethods" };
 }
 
@@ -535,7 +547,7 @@ function TransferCompleteResponse(): string {
   return "<cwmp:TransferCompleteResponse></cwmp:TransferCompleteResponse>";
 }
 
-function RequestDownload(xml: Element): CpeRequest {
+function RequestDownload(xml: Element): RequestDownloadRequest {
   return {
     name: "RequestDownload",
     fileType: xml.children.find((n) => n.localName === "FileType").text,
@@ -789,7 +801,11 @@ export function response(rpc: {
         body = RequestDownloadResponse();
         break;
       default:
-        throw new Error(`Unknown method response type ${rpc.acsResponse.name}`);
+        throw new Error(
+          `Unknown method response type ${
+            (rpc.acsResponse as AcsResponse).name
+          }`
+        );
     }
   } else if (rpc.acsRequest) {
     switch (rpc.acsRequest.name) {
@@ -824,7 +840,9 @@ export function response(rpc: {
         body = Download(rpc.acsRequest);
         break;
       default:
-        throw new Error(`Unknown method request ${rpc.acsRequest.name}`);
+        throw new Error(
+          `Unknown method request ${(rpc.acsRequest as AcsRequest).name}`
+        );
     }
   }
 

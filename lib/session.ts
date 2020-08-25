@@ -31,8 +31,6 @@ import {
   SessionContext,
   DeviceData,
   VirtualParameterDeclaration,
-  GetAcsRequest,
-  SetAcsRequest,
   AttributeTimestamps,
   AttributeValues,
   Fault,
@@ -40,8 +38,6 @@ import {
   Clear,
   CpeResponse,
   CpeFault,
-  CpeSetResponse,
-  CpeGetResponse,
   AcsRequest,
   AcsResponse,
   InformRequest,
@@ -49,6 +45,18 @@ import {
   Operation,
   ScriptResult,
   Expression,
+  GetParameterValues,
+  GetParameterAttributes,
+  GetParameterNames,
+  SetParameterValues,
+  SetParameterAttributes,
+  AddObject,
+  DeleteObject,
+  Download,
+  Reboot,
+  FactoryReset,
+  AddObjectResponse,
+  GetParameterValuesResponse,
 } from "./types";
 import { getRequestOrigin } from "./forwarded";
 
@@ -1495,7 +1503,9 @@ export async function rpcRequest(
   return rpcRequest(sessionContext, null);
 }
 
-function generateGetRpcRequest(sessionContext: SessionContext): GetAcsRequest {
+function generateGetRpcRequest(
+  sessionContext: SessionContext
+): GetParameterNames | GetParameterValues | GetParameterAttributes {
   const syncState = sessionContext.syncState;
   if (!syncState) return null;
 
@@ -1590,7 +1600,7 @@ function generateGetRpcRequest(sessionContext: SessionContext): GetAcsRequest {
     }
 
     if (path) {
-      let nextLevel;
+      let nextLevel: boolean;
       let est = 0;
       if (path.length >= GPN_NEXT_LEVEL) {
         const patterns: [Path, number][] = [[path, 0]];
@@ -1708,7 +1718,17 @@ function compareAccessLists(list1: string[], list2: string[]): boolean {
   return true;
 }
 
-function generateSetRpcRequest(sessionContext: SessionContext): SetAcsRequest {
+function generateSetRpcRequest(
+  sessionContext: SessionContext
+): (
+  | SetParameterValues
+  | SetParameterAttributes
+  | AddObject
+  | DeleteObject
+  | FactoryReset
+  | Reboot
+  | Download
+) & { next?: string } {
   const syncState = sessionContext.syncState;
   if (!syncState) return null;
 
@@ -2379,15 +2399,16 @@ export async function rpcResponse(
   ++sessionContext.rpcCount;
 
   const rpcRes = _rpcRes;
-  const rpcReq = sessionContext.rpcRequest;
+  const rpcReq: typeof sessionContext.rpcRequest & { next?: string } =
+    sessionContext.rpcRequest;
 
   if (!rpcReq.next) {
     sessionContext.rpcRequest = null;
   } else if (rpcReq.next === "getInstanceKeys") {
     const parameterNames = [];
-    const instanceValues = {};
-    const req = rpcReq as GetAcsRequest;
-    const res = rpcRes as CpeSetResponse;
+    const instanceValues: Record<string, string> = {};
+    const req = rpcReq as AddObject;
+    const res = rpcRes as AddObjectResponse;
     for (const [k, v] of Object.entries(req.instanceValues)) {
       const n = `${req.objectName}${res.instanceNumber}.${k}`;
       parameterNames.push(n);
@@ -2397,7 +2418,10 @@ export async function rpcResponse(
     if (!parameterNames.length) {
       sessionContext.rpcRequest = null;
     } else {
-      const r: GetAcsRequest = {
+      const r: GetParameterValues & {
+        next: "setInstanceKeys";
+        instanceValues: Record<string, string>;
+      } = {
         name: "GetParameterValues",
         parameterNames: parameterNames,
         next: "setInstanceKeys",
@@ -2406,8 +2430,10 @@ export async function rpcResponse(
       sessionContext.rpcRequest = r;
     }
   } else if (rpcReq.next === "setInstanceKeys") {
-    const req = rpcReq as GetAcsRequest;
-    const res = rpcRes as CpeGetResponse;
+    const req = rpcReq as GetParameterValues & {
+      instanceValues: Record<string, string>;
+    };
+    const res = rpcRes as GetParameterValuesResponse;
     const parameterList: [string, string | number | boolean, string][] = [];
     for (const p of res.parameterList) {
       if (p[1] !== req.instanceValues[p[0]]) {
@@ -2438,7 +2464,7 @@ export async function rpcResponse(
         (e) => configContextCallback(sessionContext, e)
       );
 
-      const r: SetAcsRequest = {
+      const r: SetParameterValues = {
         name: "SetParameterValues",
         parameterList: parameterList,
         DATETIME_MILLISECONDS: DATETIME_MILLISECONDS,
@@ -2462,12 +2488,10 @@ export async function rpcResponse(
     wildcardPath: Path;
 
   if (rpcRes.name === "GetParameterValuesResponse") {
-    const req = rpcReq as GetAcsRequest;
-    const res = rpcRes as CpeGetResponse;
-    if (req.name !== "GetParameterValues")
+    if (rpcReq.name !== "GetParameterValues")
       throw new Error("Response name does not match request name");
 
-    for (const p of res.parameterList) {
+    for (const p of rpcRes.parameterList) {
       toClear = device.set(
         sessionContext.deviceData,
         Path.parse(p[0]),
@@ -2480,12 +2504,10 @@ export async function rpcResponse(
       );
     }
   } else if (rpcRes.name === "GetParameterAttributesResponse") {
-    const req = rpcReq as GetAcsRequest;
-    const res = rpcRes as CpeGetResponse;
-    if (req.name !== "GetParameterAttributes")
+    if (rpcReq.name !== "GetParameterAttributes")
       throw new Error("Response name does not match request name");
 
-    for (const p of res.parameterList) {
+    for (const p of rpcRes.parameterList) {
       toClear = device.set(
         sessionContext.deviceData,
         Path.parse(p[0]),
@@ -2498,15 +2520,12 @@ export async function rpcResponse(
       );
     }
   } else if (rpcRes.name === "GetParameterNamesResponse") {
-    const req = rpcReq as GetAcsRequest;
-    const res = rpcRes as CpeGetResponse;
-
-    if (req.name !== "GetParameterNames")
+    if (rpcReq.name !== "GetParameterNames")
       throw new Error("Response name does not match request name");
 
-    if (req.parameterPath.endsWith("."))
-      root = Path.parse(req.parameterPath.slice(0, -1));
-    else root = Path.parse(req.parameterPath);
+    if (rpcReq.parameterPath.endsWith("."))
+      root = Path.parse(rpcReq.parameterPath.slice(0, -1));
+    else root = Path.parse(rpcReq.parameterPath);
 
     wildcardPath = Path.parse("*");
     params = [[root.concat(wildcardPath), timestamp]];
@@ -2514,15 +2533,16 @@ export async function rpcResponse(
     // Some clients don't report all ancestors explicitly
     missing = {};
 
-    for (const p of res.parameterList) {
+    for (const p of rpcRes.parameterList) {
       let i = p[0].length - 1;
-      while ((i = p[0].lastIndexOf(".", i - 1)) > req.parameterPath.length)
+      while ((i = p[0].lastIndexOf(".", i - 1)) > rpcReq.parameterPath.length)
         missing[p[0].slice(0, i)] |= 0;
 
       if (p[0].endsWith(".")) {
         missing[p[0].slice(0, -1)] |= 1;
         const path = Path.parse(p[0].slice(0, -1));
-        if (!req.nextLevel) params.push([path.concat(wildcardPath), timestamp]);
+        if (!rpcReq.nextLevel)
+          params.push([path.concat(wildcardPath), timestamp]);
 
         params.push([
           path,
@@ -2590,12 +2610,10 @@ export async function rpcResponse(
       );
     }
   } else if (rpcRes.name === "SetParameterValuesResponse") {
-    const req = rpcReq as SetAcsRequest;
-
-    if (req.name !== "SetParameterValues")
+    if (rpcReq.name !== "SetParameterValues")
       throw new Error("Response name does not match request name");
 
-    for (const p of req.parameterList) {
+    for (const p of rpcReq.parameterList) {
       toClear = device.set(
         sessionContext.deviceData,
         Path.parse(p[0]),
@@ -2612,11 +2630,10 @@ export async function rpcResponse(
       );
     }
   } else if (rpcRes.name === "SetParameterAttributesResponse") {
-    const req = rpcReq as SetAcsRequest;
-    if (req.name !== "SetParameterAttributes")
+    if (rpcReq.name !== "SetParameterAttributes")
       throw new Error("Response name does not match request name");
 
-    for (const p of req.parameterList) {
+    for (const p of rpcReq.parameterList) {
       let attrs;
 
       if (p[1] != null && p[2] != null) {
@@ -2643,25 +2660,31 @@ export async function rpcResponse(
       );
     }
   } else if (rpcRes.name === "AddObjectResponse") {
-    const req = rpcReq as SetAcsRequest;
-    const res = rpcRes as CpeSetResponse;
+    if (rpcReq.name !== "AddObject")
+      throw new Error("Response name does not match request name");
+
     toClear = device.set(
       sessionContext.deviceData,
-      Path.parse(req.objectName + res.instanceNumber),
+      Path.parse(rpcReq.objectName + rpcRes.instanceNumber),
       timestamp + 1,
       { object: [timestamp + 1, 1] },
       toClear
     );
   } else if (rpcRes.name === "DeleteObjectResponse") {
-    const req = rpcReq as SetAcsRequest;
+    if (rpcReq.name !== "DeleteObject")
+      throw new Error("Response name does not match request name");
+
     toClear = device.set(
       sessionContext.deviceData,
-      Path.parse(req.objectName.slice(0, -1)),
+      Path.parse(rpcReq.objectName.slice(0, -1)),
       timestamp + 1,
       null,
       toClear
     );
   } else if (rpcRes.name === "RebootResponse") {
+    if (rpcReq.name !== "Reboot")
+      throw new Error("Response name does not match request name");
+
     toClear = device.set(
       sessionContext.deviceData,
       Path.parse("Reboot"),
@@ -2670,6 +2693,9 @@ export async function rpcResponse(
       toClear
     );
   } else if (rpcRes.name === "FactoryResetResponse") {
+    if (rpcReq.name !== "FactoryReset")
+      throw new Error("Response name does not match request name");
+
     toClear = device.set(
       sessionContext.deviceData,
       Path.parse("FactoryReset"),
@@ -2678,20 +2704,21 @@ export async function rpcResponse(
       toClear
     );
   } else if (rpcRes.name === "DownloadResponse") {
-    const req = rpcReq as SetAcsRequest;
-    const res = rpcRes as CpeSetResponse;
+    if (rpcReq.name !== "Download")
+      throw new Error("Response name does not match request name");
+
     toClear = device.set(
       sessionContext.deviceData,
-      Path.parse(`Downloads.${req.instance}.Download`),
+      Path.parse(`Downloads.${rpcReq.instance}.Download`),
       timestamp + 1,
       { value: [timestamp + 1, [sessionContext.timestamp, "xsd:dateTime"]] },
       toClear
     );
 
-    if (res.status === 0) {
+    if (rpcRes.status === 0) {
       toClear = device.set(
         sessionContext.deviceData,
-        Path.parse(`Downloads.${req.instance}.LastDownload`),
+        Path.parse(`Downloads.${rpcReq.instance}.LastDownload`),
         timestamp + 1,
         {
           value: [timestamp + 1, [sessionContext.timestamp, "xsd:dateTime"]],
@@ -2701,41 +2728,41 @@ export async function rpcResponse(
 
       toClear = device.set(
         sessionContext.deviceData,
-        Path.parse(`Downloads.${req.instance}.LastFileType`),
+        Path.parse(`Downloads.${rpcReq.instance}.LastFileType`),
         timestamp + 1,
-        { value: [timestamp + 1, [req.fileType, "xsd:string"]] },
+        { value: [timestamp + 1, [rpcReq.fileType, "xsd:string"]] },
         toClear
       );
 
       toClear = device.set(
         sessionContext.deviceData,
-        Path.parse(`Downloads.${req.instance}.LastFileName`),
+        Path.parse(`Downloads.${rpcReq.instance}.LastFileName`),
         timestamp + 1,
-        { value: [timestamp + 1, [req.fileType, "xsd:string"]] },
+        { value: [timestamp + 1, [rpcReq.fileType, "xsd:string"]] },
         toClear
       );
 
       toClear = device.set(
         sessionContext.deviceData,
-        Path.parse(`Downloads.${req.instance}.LastTargetFileName`),
+        Path.parse(`Downloads.${rpcReq.instance}.LastTargetFileName`),
         timestamp + 1,
-        { value: [timestamp + 1, [req.fileType, "xsd:string"]] },
+        { value: [timestamp + 1, [rpcReq.fileType, "xsd:string"]] },
         toClear
       );
 
       toClear = device.set(
         sessionContext.deviceData,
-        Path.parse(`Downloads.${req.instance}.StartTime`),
+        Path.parse(`Downloads.${rpcReq.instance}.StartTime`),
         timestamp + 1,
-        { value: [timestamp + 1, [+res.startTime, "xsd:dateTime"]] },
+        { value: [timestamp + 1, [+rpcRes.startTime, "xsd:dateTime"]] },
         toClear
       );
 
       toClear = device.set(
         sessionContext.deviceData,
-        Path.parse(`Downloads.${req.instance}.CompleteTime`),
+        Path.parse(`Downloads.${rpcReq.instance}.CompleteTime`),
         timestamp + 1,
-        { value: [timestamp + 1, [+res.completeTime, "xsd:dateTime"]] },
+        { value: [timestamp + 1, [+rpcRes.completeTime, "xsd:dateTime"]] },
         toClear
       );
     } else {
@@ -2746,10 +2773,10 @@ export async function rpcResponse(
         channels: sessionContext.channels,
         retries: {},
         args: {
-          instance: req.instance,
-          fileType: req.fileType,
-          fileName: req.fileName,
-          targetFileName: req.targetFileName,
+          instance: rpcReq.instance,
+          fileType: rpcReq.fileType,
+          fileName: rpcReq.fileName,
+          targetFileName: rpcReq.targetFileName,
         },
       };
 
@@ -2758,10 +2785,10 @@ export async function rpcResponse(
           operation.retries[channel] = sessionContext.retries[channel];
       }
 
-      sessionContext.operations[req.commandKey] = operation;
+      sessionContext.operations[rpcReq.commandKey] = operation;
       if (!sessionContext.operationsTouched)
         sessionContext.operationsTouched = {};
-      sessionContext.operationsTouched[req.commandKey] = 1;
+      sessionContext.operationsTouched[rpcReq.commandKey] = 1;
     }
   } else {
     throw new Error("Response name not recognized");
@@ -2778,7 +2805,7 @@ export async function rpcFault(
   id: string,
   faultResponse: CpeFault
 ): Promise<Fault> {
-  const rpcReq = sessionContext.rpcRequest as GetAcsRequest | SetAcsRequest;
+  const rpcReq = sessionContext.rpcRequest;
   delete sessionContext.syncState;
   delete sessionContext.rpcRequest;
   ++sessionContext.rpcCount;

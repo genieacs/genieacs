@@ -36,7 +36,6 @@ import * as extensions from "./extensions";
 import {
   SessionContext,
   AcsRequest,
-  SetAcsRequest,
   SessionFault,
   Operation,
   Fault,
@@ -44,8 +43,8 @@ import {
   Task,
   SoapMessage,
   InformRequest,
-  AcsResponse,
   Preset,
+  GetRPCMethodsResponse,
 } from "./types";
 import { IncomingMessage, ServerResponse } from "http";
 import { Readable } from "stream";
@@ -806,9 +805,8 @@ async function sendAcsRequest(
     return writeResponse(sessionContext, soap.response(null), true);
 
   if (acsRequest.name === "Download") {
-    const downloadRequest = acsRequest as SetAcsRequest;
-    downloadRequest.fileSize = 0;
-    if (!downloadRequest.url) {
+    acsRequest.fileSize = 0;
+    if (!acsRequest.url) {
       let prefix = "" + config.get("FS_URL_PREFIX");
 
       if (!prefix) {
@@ -820,11 +818,11 @@ async function sendAcsRequest(
         prefix = (ssl ? "https" : "http") + `://${hostname}:${FS_PORT}/`;
       }
 
-      downloadRequest.url = prefix + encodeURI(downloadRequest.fileName);
+      acsRequest.url = prefix + encodeURI(acsRequest.fileName);
 
       const files = localCache.getFiles(sessionContext.cacheSnapshot);
-      if (files[downloadRequest.fileName])
-        downloadRequest.fileSize = files[downloadRequest.fileName].length;
+      if (files[acsRequest.fileName])
+        acsRequest.fileSize = files[acsRequest.fileName].length;
     }
   }
 
@@ -1147,7 +1145,7 @@ async function processRequest(
         acsResponse: {
           name: "GetRPCMethodsResponse",
           methodList: ["Inform", "GetRPCMethods", "TransferComplete"],
-        } as AcsResponse,
+        } as GetRPCMethodsResponse,
         cwmpVersion: sessionContext.cwmpVersion,
       });
       return writeResponse(sessionContext, res);
