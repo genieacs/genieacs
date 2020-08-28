@@ -192,7 +192,7 @@ export async function inform(
   ];
 
   for (const p of rpcReq.parameterList) {
-    const path = Path.parse(p[0]);
+    const path = p[0];
     params.push([
       path,
       timestamp,
@@ -2436,12 +2436,12 @@ export async function rpcResponse(
     const res = rpcRes as GetParameterValuesResponse;
     const parameterList: [string, string | number | boolean, string][] = [];
     for (const p of res.parameterList) {
-      if (p[1] !== req.instanceValues[p[0]]) {
+      if (p[1] !== req.instanceValues[p[0].toString()]) {
         const v = device.sanitizeParameterValue([
-          req.instanceValues[p[0]],
+          req.instanceValues[p[0].toString()],
           p[2] as string,
         ]);
-        parameterList.push([p[0], v[0], v[1]]);
+        parameterList.push([p[0].toString(), v[0], v[1]]);
       }
     }
 
@@ -2481,11 +2481,7 @@ export async function rpcResponse(
   sessionContext.deviceData.timestamps.revision = revision;
   sessionContext.deviceData.attributes.revision = revision;
 
-  let toClear,
-    root: Path,
-    missing,
-    params: [Path, number, Attributes?][],
-    wildcardPath: Path;
+  let toClear: Clear[];
 
   if (rpcRes.name === "GetParameterValuesResponse") {
     if (rpcReq.name !== "GetParameterValues")
@@ -2494,7 +2490,7 @@ export async function rpcResponse(
     for (const p of rpcRes.parameterList) {
       toClear = device.set(
         sessionContext.deviceData,
-        Path.parse(p[0]),
+        p[0],
         timestamp,
         {
           object: [timestamp, 0],
@@ -2510,7 +2506,7 @@ export async function rpcResponse(
     for (const p of rpcRes.parameterList) {
       toClear = device.set(
         sessionContext.deviceData,
-        Path.parse(p[0]),
+        p[0],
         timestamp,
         {
           notification: [timestamp, p[1] as number],
@@ -2523,66 +2519,40 @@ export async function rpcResponse(
     if (rpcReq.name !== "GetParameterNames")
       throw new Error("Response name does not match request name");
 
+    let root: Path;
     if (rpcReq.parameterPath.endsWith("."))
       root = Path.parse(rpcReq.parameterPath.slice(0, -1));
     else root = Path.parse(rpcReq.parameterPath);
 
-    wildcardPath = Path.parse("*");
-    params = [[root.concat(wildcardPath), timestamp]];
-
-    // Some clients don't report all ancestors explicitly
-    missing = {};
-
-    for (const p of rpcRes.parameterList) {
-      let i = p[0].length - 1;
-      while ((i = p[0].lastIndexOf(".", i - 1)) > rpcReq.parameterPath.length)
-        missing[p[0].slice(0, i)] |= 0;
-
-      if (p[0].endsWith(".")) {
-        missing[p[0].slice(0, -1)] |= 1;
-        const path = Path.parse(p[0].slice(0, -1));
-        if (!rpcReq.nextLevel)
-          params.push([path.concat(wildcardPath), timestamp]);
-
-        params.push([
-          path,
-          timestamp,
-          { object: [timestamp, 1], writable: [timestamp, p[1] ? 1 : 0] },
-        ]);
-      } else {
-        missing[p[0]] |= 1;
-        params.push([
-          Path.parse(p[0]),
-          timestamp,
-          { object: [timestamp, 0], writable: [timestamp, p[1] ? 1 : 0] },
-        ]);
+    // Sort to help fill in missing params
+    rpcRes.parameterList.sort((a, b) => {
+      const pa = a[0];
+      const pb = b[0];
+      const l = Math.min(pa.length, pb.length);
+      for (let i = 0; i < l; ++i) {
+        if (pa.segments[i] > pb.segments[i]) return 1;
+        if (pa.segments[i] < pb.segments[i]) return -1;
       }
-    }
-
-    for (const [k, v] of Object.entries(missing)) {
-      if (v === 0) {
-        // TODO consider showing a warning
-        const path = Path.parse(k);
-        params.push([
-          path,
-          timestamp,
-          { object: [timestamp, 1], writable: [timestamp, 0] },
-        ]);
-        params.push([path.concat(wildcardPath), timestamp]);
-      }
-    }
-
-    // Sort such that:
-    // - Longer params come first in order to work around client issue
-    //   where object paths can have no trailing dot.
-    // - Parameters come before wildcard paths.
-    params.sort((a, b) => {
-      let al = a[0].length;
-      let bl = b[0].length;
-      if (b[0].segments[bl - 1] === "*") bl *= -1;
-      if (a[0].segments[al - 1] === "*") al *= -1;
-      return bl - al;
+      return pa.length - pb.length;
     });
+
+    // Fill in missing unreported parent params
+    for (let idx = 1; idx < rpcRes.parameterList.length; ++idx) {
+      const prev = rpcRes.parameterList[idx - 1][0];
+      const cur = rpcRes.parameterList[idx][0];
+      let offset = 0;
+      for (let i = cur.length - 2; i >= 0; --i) {
+        if (i < prev.length && prev.segments[i] === cur.segments[i]) {
+          // Set object to true in case CPE didn't indicate that it's an object
+          if (i === prev.length - 1) rpcRes.parameterList[idx - 1][1] = true;
+          break;
+        }
+        // TODO consider showing a warning
+        rpcRes.parameterList.splice(idx, 0, [cur.slice(0, i + 1), true, true]);
+        ++offset;
+      }
+      idx += offset;
+    }
 
     if (!root.length) {
       for (const n of [
@@ -2600,12 +2570,31 @@ export async function rpcResponse(
       }
     }
 
-    for (const p of params) {
+    const wildcardPath = Path.parse("*");
+    const wildcardParams: Path[] = [root.concat(wildcardPath)];
+
+    for (const [path, object, writable] of rpcRes.parameterList) {
+      if (object && !rpcReq.nextLevel)
+        wildcardParams.push(path.concat(wildcardPath));
+
       toClear = device.set(
         sessionContext.deviceData,
-        p[0],
-        p[1],
-        p[2],
+        path,
+        timestamp,
+        {
+          object: [timestamp, object ? 1 : 0],
+          writable: [timestamp, writable ? 1 : 0],
+        },
+        toClear
+      );
+    }
+
+    for (const path of wildcardParams) {
+      toClear = device.set(
+        sessionContext.deviceData,
+        path,
+        timestamp,
+        null,
         toClear
       );
     }
@@ -2870,13 +2859,13 @@ export async function rpcFault(
 export async function deserialize(
   sessionContextString: string
 ): Promise<SessionContext> {
-  const sessionContext = JSON.parse(sessionContextString);
+  const sessionContext = JSON.parse(sessionContextString) as SessionContext;
 
   for (const decs of sessionContext.declarations)
-    for (const d of decs) d.path = Path.parse(d.path);
+    for (const d of decs) d.path = Path.parse((d.path as unknown) as string);
 
   const deviceData = initDeviceData();
-  for (const r of sessionContext.deviceData) {
+  for (const r of (sessionContext.deviceData as unknown) as any[]) {
     const path = deviceData.paths.add(Path.parse(r[0]));
 
     if (r[1]) deviceData.trackers.set(path, r[1]);

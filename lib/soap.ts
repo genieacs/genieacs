@@ -49,6 +49,7 @@ import {
   RequestDownloadRequest,
   AcsResponse,
 } from "./types";
+import Path from "./common/path";
 
 const SERVER_NAME = `GenieACS/${VERSION}`;
 
@@ -94,26 +95,22 @@ let warnings: Record<string, unknown>[];
 
 const memoizedParseAttrs = memoize(parseAttrs);
 
-function parseBool(v): boolean {
-  v = "" + v;
-  if (v === "true" || v === "TRUE" || v === "True" || v === "1") return true;
-  else if (v === "false" || v === "FALSE" || v === "False" || v === "0")
-    return false;
-  else return null;
+function parseBool(v: string): boolean {
+  if (v === "true" || v === "1") return true;
+  if (v === "false" || v === "0") return false;
+  return null;
 }
 
 function event(xml: Element): string[] {
   return xml.children
     .filter((n) => n.localName === "EventStruct")
-    .map((c) =>
-      c.children.find((n) => n.localName === "EventCode").text.trim()
-    );
+    .map((c) => c.children.find((n) => n.localName === "EventCode").text);
 }
 
-function parameterInfoList(xml: Element): [string, boolean][] {
+function parameterInfoList(xml: Element): [Path, boolean, boolean][] {
   return xml.children
     .filter((e) => e.localName === "ParameterInfoStruct")
-    .map<[string, boolean]>((e) => {
+    .map<[Path, boolean, boolean]>((e) => {
       let param: string, value: string;
       for (const c of e.children) {
         switch (c.localName) {
@@ -136,22 +133,25 @@ function parameterInfoList(xml: Element): [string, boolean][] {
         parsed = false;
       }
 
-      return [param, parsed];
+      if (param && !param.endsWith("."))
+        return [Path.parse(param), false, parsed];
+      else return [Path.parse(param.slice(0, -1)), true, parsed];
     });
 }
 
-const getValueType = memoize((str: string) =>
-  parseAttrs(str)
-    .find((s) => s.localName === "type")
-    .value.trim()
-);
+const getValueType = memoize((str: string) => {
+  const attrs = parseAttrs(str);
+  for (const attr of attrs) if (attr.localName === "type") return attr.value;
+
+  return null;
+});
 
 function parameterValueList(
   xml: Element
-): [string, string | number | boolean, string][] {
+): [Path, string | number | boolean, string][] {
   return xml.children
     .filter((e) => e.localName === "ParameterValueStruct")
-    .map<[string, string | number | boolean, string]>((e) => {
+    .map<[Path, string | number | boolean, string]>((e) => {
       let valueElement: Element, param: string;
       for (const c of e.children) {
         switch (c.localName) {
@@ -164,7 +164,14 @@ function parameterValueList(
         }
       }
 
-      const valueType = getValueType(valueElement.attrs);
+      let valueType = getValueType(valueElement.attrs);
+      if (!valueType) {
+        warnings.push({
+          message: "Invalid value type attribute",
+          parameter: param,
+        });
+        valueType = "xsd:string";
+      }
 
       const value = decodeEntities(valueElement.text);
       let parsed: string | number | boolean = value;
@@ -197,14 +204,14 @@ function parameterValueList(
         }
       }
 
-      return [param, parsed, valueType];
+      return [Path.parse(param), parsed, valueType];
     });
 }
 
-function parameterAttributeList(xml: Element): [string, number, string[]][] {
+function parameterAttributeList(xml: Element): [Path, number, string[]][] {
   return xml.children
     .filter((e) => e.localName === "ParameterAttributeStruct")
-    .map<[string, number, string[]]>((e) => {
+    .map<[Path, number, string[]]>((e) => {
       let notificationElement: Element,
         accessListElement: Element,
         param: string;
@@ -222,21 +229,20 @@ function parameterAttributeList(xml: Element): [string, number, string[]][] {
         }
       }
 
-      const notification = decodeEntities(notificationElement.text);
-      const notif = +notification;
-
-      if (notif !== parseInt(notification)) {
+      let notification = parseInt(notificationElement.text);
+      if (isNaN(notification)) {
         warnings.push({
           message: "Invalid notification attribute",
           parameter: param,
         });
+        notification = 0;
       }
 
       const accessList = accessListElement.children
         .filter((c) => c.localName === "string")
         .map((c) => decodeEntities(c.text));
 
-      return [param, notif, accessList];
+      return [Path.parse(param), notification, accessList];
     });
 }
 
@@ -314,9 +320,24 @@ function SetParameterValues(methodRequest): string {
 }
 
 function SetParameterValuesResponse(xml: Element): SetParameterValuesResponse {
+  let status: number;
+
+  for (const c of xml.children) {
+    switch (c.localName) {
+      case "Status":
+        status = parseInt(c.text);
+        break;
+    }
+  }
+
+  if (!(status >= 0)) {
+    warnings.push({ message: "Invalid SetParameterValuesResponse status" });
+    status = 0;
+  }
+
   return {
     name: "SetParameterValuesResponse",
-    status: parseInt(xml.children.find((n) => n.localName === "Status").text),
+    status: status,
   };
 }
 
@@ -359,16 +380,21 @@ function AddObject(methodRequest): string {
 }
 
 function AddObjectResponse(xml: Element): AddObjectResponse {
-  let instanceNumber, status;
+  let instanceNumber: string, status: number;
   for (const c of xml.children) {
     switch (c.localName) {
       case "InstanceNumber":
-        instanceNumber = parseInt(c.text);
+        instanceNumber = c.text;
         break;
       case "Status":
         status = parseInt(c.text);
         break;
     }
+  }
+
+  if (!(status >= 0)) {
+    warnings.push({ message: "Invalid AddObjectResponse status" });
+    status = 0;
   }
 
   return {
@@ -387,9 +413,24 @@ function DeleteObject(methodRequest): string {
 }
 
 function DeleteObjectResponse(xml: Element): DeleteObjectResponse {
+  let status: number;
+
+  for (const c of xml.children) {
+    switch (c.localName) {
+      case "Status":
+        status = parseInt(c.text);
+        break;
+    }
+  }
+
+  if (!(status >= 0)) {
+    warnings.push({ message: "Invalid DeleteObjectResponse status" });
+    status = 0;
+  }
+
   return {
     name: "DeleteObjectResponse",
-    status: parseInt(xml.children.find((n) => n.localName === "Status").text),
+    status: status,
   };
 }
 
@@ -438,7 +479,7 @@ function Download(methodRequest): string {
 }
 
 function DownloadResponse(xml: Element): DownloadResponse {
-  let status, startTime, completeTime;
+  let status: number, startTime: number, completeTime: number;
   for (const c of xml.children) {
     switch (c.localName) {
       case "Status":
@@ -453,6 +494,11 @@ function DownloadResponse(xml: Element): DownloadResponse {
     }
   }
 
+  if (!(status >= 0)) {
+    warnings.push({ message: "Invalid DownloadResponse status" });
+    status = 0;
+  }
+
   return {
     name: "DownloadResponse",
     status: status,
@@ -462,7 +508,8 @@ function DownloadResponse(xml: Element): DownloadResponse {
 }
 
 function Inform(xml: Element): InformRequest {
-  let retryCount, evnt, parameterList;
+  let retryCount: number, evnt: string[];
+  let parameterList: [Path, string | number | boolean, string][];
   const deviceId = {
     Manufacturer: null,
     OUI: null,

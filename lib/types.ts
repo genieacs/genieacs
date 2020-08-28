@@ -308,17 +308,17 @@ export type CpeResponse =
 
 export interface GetParameterNamesResponse {
   name: "GetParameterNamesResponse";
-  parameterList: [string, boolean][];
+  parameterList: [Path, boolean, boolean][];
 }
 
 export interface GetParameterValuesResponse {
   name: "GetParameterValuesResponse";
-  parameterList: [string, string | number | boolean, string][];
+  parameterList: [Path, string | number | boolean, string][];
 }
 
 export interface GetParameterAttributesResponse {
   name: "GetParameterAttributesResponse";
-  parameterList: [string, number, string[]][];
+  parameterList: [Path, number, string[]][];
 }
 
 export interface SetParameterValuesResponse {
@@ -372,7 +372,7 @@ export interface InformRequest {
   };
   event: string[];
   retryCount: number;
-  parameterList: [string, string | number | boolean, string][];
+  parameterList: [Path, string | number | boolean, string][];
 }
 
 export interface TransferCompleteRequest {

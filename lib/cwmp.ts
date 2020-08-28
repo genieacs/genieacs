@@ -1376,8 +1376,14 @@ async function listenerAsync(
     httpResponse.setHeader("Content-Length", Buffer.byteLength(msg));
     httpResponse.writeHead(400, { Connection: "close" });
     if (sessionContext) {
-      if (sessionContext.debug)
+      if (sessionContext.debug) {
+        debug.incomingHttpRequest(
+          httpRequest,
+          sessionContext.deviceId,
+          body.toString()
+        );
         debug.outgoingHttpResponse(httpResponse, sessionContext.deviceId, msg);
+      }
     } else {
       const cacheSnapshot = await localCache.getCurrentSnapshot();
       const d = !!localCache.getConfig(
@@ -1393,7 +1399,10 @@ async function listenerAsync(
           return e;
         }
       );
-      if (d) debug.outgoingHttpResponse(httpResponse, null, msg);
+      if (d) {
+        debug.incomingHttpRequest(httpRequest, null, body.toString());
+        debug.outgoingHttpResponse(httpResponse, null, msg);
+      }
     }
     httpResponse.end(msg);
     return;
@@ -1420,6 +1429,11 @@ async function listenerAsync(
     httpResponse.writeHead(400, { Connection: "close" });
     if (sessionContext) {
       if (sessionContext.debug) {
+        debug.incomingHttpRequest(
+          httpRequest,
+          sessionContext.deviceId,
+          bodyStr
+        );
         debug.outgoingHttpResponse(
           httpResponse,
           sessionContext.deviceId,
@@ -1441,7 +1455,10 @@ async function listenerAsync(
           return e;
         }
       );
-      if (d) debug.outgoingHttpResponse(httpResponse, null, error.message);
+      if (d) {
+        debug.incomingHttpRequest(httpRequest, null, bodyStr);
+        debug.outgoingHttpResponse(httpResponse, null, error.message);
+      }
     }
     httpResponse.end(error.message);
     return;
