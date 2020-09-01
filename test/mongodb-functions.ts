@@ -56,7 +56,7 @@ ava("mongoQueryToFilter", (t) => {
     const func = (): void => {
       mongodbFunctions.mongoQueryToFilter(test[0] as Record<string, unknown>);
     };
-    const error = t.throws(func, Error);
+    const error = t.throws(func, { instanceOf: Error });
     t.is(error.message, test[1]);
   }
 });
