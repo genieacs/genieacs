@@ -1,5 +1,27 @@
 # Change Log
 
+## 1.2.0 (2020-09-01)
+
+- Support GetParameterAttributes and SetParameterAttributes TR-069 methods.
+- Support CASE statement and COALESCE function in expressions.
+- Provision arguments can now be a list of expressions that are dynamically
+evaluated.
+- Support Forwarded HTTP header to display in the logs the correct IP of CPEs
+behind a reverse proxy. Must be configured using FORWARDED_HEADER option.
+- Config expressions can now access all available device parameters, not only
+serial number, product class, and OUI.
+- Use relative URLs throughout the UI to allow serving from a subdirectory
+using a reverse proxy.
+- Make Date.parse() and Date.UTC() available to provision scripts.
+- libxmljs has been entirely removed in favor of our bespoke XML parser.
+- Removed the config option CWMP_KEEP_ALIVE_TIMEOUT. SESSION_TIMEOUT is now
+used to determine the TCP connection timeout.
+- The all-parameters component now limits the number of parameters displayed
+for better performance.
+- The process genieacs-cwmp is now much less likely to throw exceptions as a
+result of invalid requests from CPE.
+- A large number of bug fixes and stability improvements.
+
 ## 1.2.0-beta.0 (2019-07-30)
 
 - A brand new UI superseding genieacs-gui.
