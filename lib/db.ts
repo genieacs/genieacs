@@ -640,7 +640,7 @@ export async function getDueTasks(
   deviceId: string,
   timestamp: number
 ): Promise<[Task[], number]> {
-  const cur = tasksCollection.find({ device: deviceId }).sort(["timestamp"]);
+  const cur = tasksCollection.find({ device: deviceId }).sort({ timestamp: 1 });
   const tasks = [] as Task[];
 
   for await (const task of cur) {
