@@ -31,7 +31,7 @@
     "koa-static": "^5.0.0",
     "later": "^1.2.0",
     "mongodb": "^3.6.0",
-    "parsimmon": "^1.13.0",
+    "parsimmon": "^1.16.0",
     "seedrandom": "^3.0.1",
     "yaml": "^1.6.0",
     "yebool": "^1.0.2"
@@ -48,7 +48,7 @@
     "@types/koa-static": "^4.0.1",
     "@types/mithril": "^2.0.0",
     "@types/mongodb": "^3.5.26",
-    "@types/parsimmon": "^1.10.0",
+    "@types/parsimmon": "^1.10.2",
     "@types/seedrandom": "^2.4.28",
     "@types/svgo": "^1.2.1",
     "@typescript-eslint/eslint-plugin": "^3.7.0",

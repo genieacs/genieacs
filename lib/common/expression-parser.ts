@@ -76,7 +76,10 @@ export async function mapAsync(
   return callback(clone || exp);
 }
 
-function binaryLeft(operatorsParser, nextParser): parsimmon.Parser<unknown> {
+function binaryLeft(
+  operatorsParser: parsimmon.Parser<string>,
+  nextParser: parsimmon.Parser<Expression>
+): parsimmon.Parser<Expression> {
   return parsimmon.seqMap(
     nextParser,
     parsimmon.seq(operatorsParser, nextParser).many(),
@@ -334,7 +337,10 @@ const lang = parsimmon.createLanguage({
     );
   },
   Expression: function (r) {
-    function unary(operatorsParser, nextParser): parsimmon.Parser<unknown> {
+    function unary(
+      operatorsParser: parsimmon.Parser<string>,
+      nextParser: parsimmon.Parser<Expression>
+    ): parsimmon.Parser<Expression> {
       return parsimmon.seq(operatorsParser, nextParser).or(nextParser);
     }
 
