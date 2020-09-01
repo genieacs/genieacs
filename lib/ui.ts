@@ -251,7 +251,12 @@ router.get("/", async (ctx) => {
 
 koa.use(
   koaCompress({
-    flush: Z_SYNC_FLUSH,
+    gzip: {
+      flush: Z_SYNC_FLUSH,
+    },
+    deflate: {
+      flush: Z_SYNC_FLUSH,
+    },
   })
 );
 
