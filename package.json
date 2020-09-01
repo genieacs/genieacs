@@ -74,7 +74,7 @@
     "webpack": "^4.44.1"
   },
   "engines": {
-    "node": ">=8.14.0"
+    "node": ">=12.13.0"
   },
   "scripts": {
     "test": "ava --verbose --color",
