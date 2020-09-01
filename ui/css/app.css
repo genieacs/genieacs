@@ -460,7 +460,7 @@ input {
   margin-bottom: 0.5em;
   & > input {
     font-size: 90%;
-    width: 30em;
+    width: 35em;
     margin: 2px;
     padding: 2px;
   }
@@ -562,7 +562,7 @@ span.na {
     font-family: monospace;
     margin-bottom: 2px;
     padding: 4px;
-    width: 600px;
+    width: 700px;
   }
 
   & > .parameter-list {
