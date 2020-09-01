@@ -37,9 +37,9 @@
     "yebool": "^1.0.2"
   },
   "devDependencies": {
-    "@rollup/plugin-commonjs": "^14.0.0",
+    "@rollup/plugin-commonjs": "^15.0.0",
     "@rollup/plugin-json": "^4.1.0",
-    "@rollup/plugin-node-resolve": "^8.4.0",
+    "@rollup/plugin-node-resolve": "^9.0.0",
     "@rollup/plugin-typescript": "^5.0.2",
     "@types/jsonwebtoken": "^8.5.0",
     "@types/koa": "^2.11.4",
@@ -50,7 +50,7 @@
     "@types/mongodb": "^3.5.26",
     "@types/parsimmon": "^1.10.2",
     "@types/seedrandom": "^2.4.28",
-    "@types/svgo": "^1.2.1",
+    "@types/svgo": "^1.3.3",
     "@typescript-eslint/eslint-plugin": "^3.10.1",
     "@typescript-eslint/parser": "^3.10.1",
     "ava": "^3.12.1",
@@ -61,17 +61,17 @@
     "esm": "^3.2.25",
     "jsbi": "^3.1.3",
     "mithril": "^2.0.3",
-    "postcss": "^7.0.17",
+    "postcss": "^7.0.32",
     "postcss-import": "^12.0.1",
     "postcss-preset-env": "^6.7.0",
     "prettier": "^2.1.1",
-    "rollup": "^2.23.0",
-    "rollup-plugin-terser": "^6.1.0",
-    "source-map-loader": "^1.0.1",
-    "svgo": "^1.3.0",
+    "rollup": "^2.26.9",
+    "rollup-plugin-terser": "^7.0.1",
+    "source-map-loader": "^1.1.0",
+    "svgo": "^1.3.2",
     "ts-node": "^9.0.0",
     "typescript": "^4.0.2",
-    "webpack": "^4.44.0"
+    "webpack": "^4.44.1"
   },
   "engines": {
     "node": ">=8.14.0"
