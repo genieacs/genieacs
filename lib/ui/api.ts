@@ -147,8 +147,9 @@ for (const [resource, flags] of Object.entries(resources)) {
     // Exclude temporary tasks and faults
     if (resource === "tasks" || resource === "faults") {
       filter = and(filter, [
-        "NOT",
-        ["<", ["PARAM", "expiry"], Date.now() + 60000],
+        "OR",
+        [">=", ["PARAM", "expiry"], Date.now() + 60000],
+        ["IS NULL", ["PARAM", "expiry"]],
       ]);
     }
 
@@ -195,8 +196,9 @@ for (const [resource, flags] of Object.entries(resources)) {
     // Exclude temporary tasks and faults
     if (resource === "tasks" || resource === "faults") {
       filter = and(filter, [
-        "NOT",
-        ["<", ["PARAM", "expiry"], Date.now() + 60000],
+        "OR",
+        [">=", ["PARAM", "expiry"], Date.now() + 60000],
+        ["IS NULL", ["PARAM", "expiry"]],
       ]);
     }
 
@@ -254,8 +256,9 @@ for (const [resource, flags] of Object.entries(resources)) {
     // Exclude temporary tasks and faults
     if (resource === "tasks" || resource === "faults") {
       filter = and(filter, [
-        "NOT",
-        ["<", ["PARAM", "expiry"], Date.now() + 60000],
+        "OR",
+        [">=", ["PARAM", "expiry"], Date.now() + 60000],
+        ["IS NULL", ["PARAM", "expiry"]],
       ]);
     }
 
