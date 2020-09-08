@@ -22,7 +22,7 @@ import * as crypto from "crypto";
 import * as config from "./config";
 import * as db from "./db";
 import * as cache from "./cache";
-import { mongoQueryToFilter } from "./mongodb-functions";
+import { convertOldPrecondition } from "./mongodb-functions";
 import * as logger from "./logger";
 import * as scheduling from "./scheduling";
 import * as expression from "./common/expression";
@@ -173,7 +173,9 @@ async function fetchPresets(): Promise<Preset[]> {
       try {
         precondition = parse(preset["precondition"]);
       } catch (error) {
-        precondition = mongoQueryToFilter(JSON.parse(preset["precondition"]));
+        precondition = convertOldPrecondition(
+          JSON.parse(preset["precondition"])
+        );
       }
 
       // Simplify expression

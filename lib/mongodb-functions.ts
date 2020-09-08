@@ -19,7 +19,7 @@
 
 import { ObjectID } from "mongodb";
 import { map, parse, stringify, parseList } from "./common/expression-parser";
-import { likePatternToRegExp, evaluate } from "./common/expression";
+import { likePatternToRegExp } from "./common/expression";
 import { Expression, Fault, Task } from "./types";
 
 const isArray = Array.isArray;
@@ -44,12 +44,10 @@ export function processDeviceFilter(filter: Expression): Expression {
       exp[1][1].startsWith("Tags.")
     ) {
       const t = exp[1][1].slice(5);
-      if (exp[0] === "IS NULL") return ["<>", ["PARAM", "_tags"], t];
-      else if (exp[0] === "IS NOT NULL") return ["=", ["PARAM", "_tags"], t];
-      else if (exp[0] === "=" && exp[2] === true)
-        return ["=", ["PARAM", "_tags"], t];
-      else if (exp[0] === "<>" && exp[2] !== true)
-        return ["=", ["PARAM", "_tags"], t];
+      if (exp[0] === "IS NULL") return ["_tags", t, false];
+      else if (exp[0] === "IS NOT NULL") return ["_tags", t, true];
+      else if (exp[0] === "=" && exp[2] === true) return ["_tags", t, true];
+      else if (exp[0] === "<>" && exp[2] !== true) return ["_tags", t, true];
     } else if (
       [
         "=",
@@ -117,140 +115,131 @@ export function processFaultsFilter(filter: Expression): Expression {
 }
 
 export function filterToMongoQuery(exp: Expression): Record<string, unknown> {
-  const ops = {
-    OR: 0,
-    AND: 0,
-    NOT: 0,
-    "=": 1,
-    "<>": 1,
-    ">": 1,
-    ">=": 1,
-    "<": 1,
-    "<=": 1,
-    LIKE: 1,
-    "NOT LIKE": 1,
-    "IS NULL": 1,
-    "IS NOT NULL": 1,
-  };
-
-  function recursive(filter, negate, res = {}): Record<string, unknown> {
+  function recursive(filter, negate): Record<string, unknown> {
     const op = filter[0];
 
-    if (ops[op] === 0) {
-      if (op === "AND") filter = filter.filter((f) => f !== true);
-      if (op === "OR") filter = filter.filter((f) => f !== false);
-      if (filter.length === 2) return recursive(filter[1], negate, res);
-
-      for (let i = 1; i < filter.length; ++i) {
-        if (!isArray(filter[i]) || ops[filter[i][0]] == null)
-          throw new Error(`Invalid expression in ${op} clause`);
-      }
-
-      if ((!negate && op === "AND") || (negate && op === "OR")) {
-        res["$and"] = res["$and"] || [];
-        for (let i = 1; i < filter.length; ++i)
-          res["$and"].push(recursive(filter[i], negate));
-      } else if ((!negate && op === "OR") || (negate && op === "AND")) {
-        res["$or"] = res["$or"] || [];
-
-        for (let i = 1; i < filter.length; ++i)
-          res["$or"].push(recursive(filter[i], negate));
-      } else if (op === "NOT") {
-        recursive(filter[1], !negate, res);
-      }
-    } else if (ops[op] === 1) {
-      if (isArray(filter[2])) {
-        throw new Error(`Right operand of ${op} clause is not a primitive`);
-      } else if (
-        ["LIKE", "NOT LIKE"].includes(op) &&
-        isArray(filter[1]) &&
-        filter[1][0] === "FUNC" &&
-        ["UPPER", "LOWER"].includes(filter[1][1])
-      ) {
-        if (
-          (filter[1][1] === "UPPER" && filter[2] !== filter[2].toUpperCase()) ||
-          (filter[1][1] === "LOWER" && filter[2] !== filter[2].toLowerCase())
-        ) {
-          throw new Error(
-            `Cannot compare ${
-              filter[1][1]
-            }() against non-${filter[1][1].toLowerCase()}case pattern`
-          );
-        }
-      } else if (!isArray(filter[1]) || filter[1][0] !== "PARAM") {
-        throw new Error(`Left operand of ${op} clause is not a parameter`);
-      }
-
-      if (op === "=") {
-        const param = filter[1][1];
-        const p = (res[param] = res[param] || {});
-        if (negate) p["$ne"] = filter[2];
-        else p["$eq"] = filter[2];
-      } else if (op === "<>") {
-        const param = filter[1][1];
-        let p = (res[param] = res[param] || {});
-        if (negate) p = p["$not"] = p["$not"] || {};
-        p["$ne"] = filter[2];
-        if (param !== "_tags") p["$exists"] = true;
-      } else if (op === ">") {
-        const param = filter[1][1];
-        let p = (res[param] = res[param] || {});
-        if (negate) p = p["$not"] = p["$not"] || {};
-        p["$gt"] = filter[2];
-      } else if (op === ">=") {
-        const param = filter[1][1];
-        let p = (res[param] = res[param] || {});
-        if (negate) p = p["$not"] = p["$not"] || {};
-        p["$gte"] = filter[2];
-      } else if (op === "<") {
-        const param = filter[1][1];
-        let p = (res[param] = res[param] || {});
-        if (negate) p = p["$not"] = p["$not"] || {};
-        p["$lt"] = filter[2];
-      } else if (op === "<=") {
-        const param = filter[1][1];
-        let p = (res[param] = res[param] || {});
-        if (negate) p = p["$not"] = p["$not"] || {};
-        p["$lte"] = filter[2];
-      } else if (op === "IS NULL") {
-        const param = filter[1][1];
-        res[param] = { $exists: negate };
-      } else if (op === "IS NOT NULL") {
-        const param = filter[1][1];
-        res[param] = { $exists: !negate };
-      } else {
-        if (op === "NOT LIKE") negate = !negate;
-        let param;
-        let flags;
-        if (filter[1][0] === "FUNC" && filter[1][1] === "UPPER") {
-          param = filter[1][2][1];
-          flags = "i";
-        } else if (filter[1][0] === "FUNC" && filter[1][1] === "LOWER") {
-          param = filter[1][2][1];
-          flags = "i";
-        } else {
-          param = filter[1][1];
-          flags = "";
-        }
-        const r = likePatternToRegExp(filter[2], filter[3], flags);
-        if (negate) res[param] = { $not: r };
-        else res[param] = r;
-      }
-    } else {
-      throw new Error(`Unrecognized operator ${op}`);
+    if (op === "AND") {
+      filter = filter.filter((f) => f !== true);
+      if (filter.length === 2) return recursive(filter[1], negate);
     }
 
-    return res;
+    if (op === "OR") {
+      filter = filter.filter((f) => f !== false);
+      if (filter.length === 2) return recursive(filter[1], negate);
+    }
+
+    if ((!negate && op === "AND") || (negate && op === "OR"))
+      return { $and: filter.slice(1).map((f) => recursive(f, negate)) };
+
+    if ((!negate && op === "OR") || (negate && op === "AND"))
+      return { $or: filter.slice(1).map((f) => recursive(f, negate)) };
+
+    if (op === "NOT") return recursive(filter[1], !negate);
+
+    if (isArray(filter[2]))
+      throw new Error(`Invalid RHS operand of ${op} clause`);
+
+    if (op === "LIKE" || op === "NOT LIKE") {
+      if (op === "NOT LIKE") negate = !negate;
+      let param;
+      let flags;
+      if (!Array.isArray(filter[1]))
+        throw new Error(`Invalid LHS operand of ${op} clause`);
+      if (filter[1][0] === "FUNC" && filter[1][1] === "UPPER") {
+        if (filter[2] !== filter[2].toUpperCase())
+          throw new Error(`Invalid RHS operand of ${op} clause`);
+        param = filter[1][2][1];
+        flags = "i";
+      } else if (filter[1][0] === "FUNC" && filter[1][1] === "LOWER") {
+        if (filter[2] !== filter[2].toLowerCase())
+          throw new Error(`Invalid RHS operand of ${op} clause`);
+        param = filter[1][2][1];
+        flags = "i";
+      } else if (filter[1][0] === "PARAM") {
+        param = filter[1][1];
+        flags = "";
+      } else {
+        throw new Error(`Invalid LHS operand of ${op} clause`);
+      }
+      const r = likePatternToRegExp(filter[2], filter[3], flags);
+      if (negate) return { [param]: { $nin: [r, null] } };
+      else return { [param]: r };
+    }
+
+    if (op === "_tags") {
+      let t = filter[2];
+      if (negate) t = !t;
+      if (t) return { _tags: filter[1] };
+      else return { _tags: { $ne: filter[1] } };
+    }
+
+    if (!isArray(filter[1]) || filter[1][0] !== "PARAM")
+      throw new Error(`Invalid LHS operand of ${op} clause`);
+
+    if (op === "IS NULL") {
+      const p = filter[1][1];
+      return { [p]: null };
+    }
+
+    if (op === "IS NOT NULL") {
+      const p = filter[1][1];
+      return { [p]: { $ne: null } };
+    }
+
+    if (isArray(filter[2]) || filter[2] == null)
+      throw new Error(`Invalid RHS operand of ${op} clause`);
+
+    if (op === "=") {
+      const p = filter[1][1];
+      const v = filter[2];
+      if (!negate) return { [p]: v };
+      else return { [p]: { $nin: [v, null] } };
+    }
+
+    if (op === "<>") {
+      const p = filter[1][1];
+      const v = filter[2];
+      if (negate) return { [p]: v };
+      else return { [p]: { $nin: [v, null] } };
+    }
+
+    if (op === ">") {
+      const p = filter[1][1];
+      const v = filter[2];
+      if (negate) return { [p]: { $lte: v } };
+      else return { [p]: { $gt: v } };
+    }
+
+    if (op === ">=") {
+      const p = filter[1][1];
+      const v = filter[2];
+      if (negate) return { [p]: { $lt: v } };
+      else return { [p]: { $gte: v } };
+    }
+
+    if (op === "<") {
+      const p = filter[1][1];
+      const v = filter[2];
+      if (negate) return { [p]: { $gte: v } };
+      else return { [p]: { $lt: v } };
+    }
+
+    if (op === "<=") {
+      const p = filter[1][1];
+      const v = filter[2];
+      if (negate) return { [p]: { $gt: v } };
+      else return { [p]: { $lte: v } };
+    }
+
+    throw new Error(`Unrecognized operator ${op}`);
   }
 
-  const _exp = evaluate(exp, null, Date.now());
-
-  if (!isArray(_exp)) {
-    if (_exp === true) return {};
+  if (!isArray(exp)) {
+    if (exp === true) return {};
     throw new Error("Primitives are not valid queries");
   }
 
-  return recursive(_exp, false);
+  return recursive(exp, false);
 }
 
 export function processDeviceProjection(
@@ -495,7 +484,9 @@ export function flattenTask(task: unknown): Task {
   return t;
 }
 
-export function mongoQueryToFilter(query: Record<string, unknown>): Expression {
+export function convertOldPrecondition(
+  query: Record<string, unknown>
+): Expression {
   function recursive(_query): Expression {
     const expressions: Expression[] = [];
     for (const [k, v] of Object.entries(_query)) {
@@ -514,12 +505,22 @@ export function mongoQueryToFilter(query: Record<string, unknown>): Expression {
       } else if (k === "_tags") {
         if (typeof v === "object") {
           if (isArray(v)) throw new Error(`Invalid type`);
-
-          if (v.hasOwnProperty("$ne"))
-            expressions.push(["IS NULL", ["PARAM", `Tags.${v["$ne"]}`]]);
-          else if (v.hasOwnProperty("$eq"))
-            expressions.push(["IS NOT NULL", ["PARAM", `Tags.${v["$eq"]}`]]);
-          else throw new Error(`Invalid tag query`);
+          const conjs: Expression[] = [];
+          for (const [op, val] of Object.entries(v)) {
+            if (op === "$ne") {
+              if (typeof v["$ne"] !== "string")
+                throw new Error("Only string values are allowed for _tags");
+              conjs.push(["IS NULL", ["PARAM", `Tags.${val}`]]);
+            } else if (op === "$eq") {
+              if (typeof v["$eq"] !== "string")
+                throw new Error("Only string values are allowed for _tags");
+              conjs.push(["IS NOT NULL", ["PARAM", `Tags.${val}`]]);
+            } else {
+              throw new Error(`Invalid tag query`);
+            }
+          }
+          if (conjs.length === 1) expressions.push(conjs[0]);
+          else if (conjs.length > 1) expressions.push(["AND", ...conjs]);
         } else {
           expressions.push(["IS NOT NULL", ["PARAM", `Tags.${v}`]]);
         }
@@ -537,34 +538,31 @@ export function mongoQueryToFilter(query: Record<string, unknown>): Expression {
 
         const exps: Expression[] = [];
         for (const [kk, vv] of Object.entries(v)) {
-          let op;
-          switch (kk) {
-            case "$eq":
-              op = "=";
-              break;
-            case "$ne":
-              op = "<>";
-              break;
-            case "$lt":
-              op = "<";
-              break;
-            case "$lte":
-              op = "<=";
-              break;
-            case "$gt":
-              op = ">";
-              break;
-            case "$gte":
-              op = ">=";
-              break;
-            default:
-              throw new Error(`Operator ${kk} not supported`);
+          if (kk === "$eq") {
+            exps.push(["=", ["PARAM", k], vv]);
+          } else if (kk === "$ne") {
+            exps.push([
+              "OR",
+              ["<>", ["PARAM", k], vv],
+              ["IS NULL", ["PARAM", k]],
+            ]);
+          } else if (kk === "$lt") {
+            exps.push(["<", ["PARAM", k], vv]);
+          } else if (kk === "$lte") {
+            exps.push(["<=", ["PARAM", k], vv]);
+          } else if (kk === "$gt") {
+            exps.push([">", ["PARAM", k], vv]);
+          } else if (kk === "$gte") {
+            exps.push([">=", ["PARAM", k], vv]);
+          } else {
+            throw new Error(`Operator ${kk} not supported`);
           }
-          exps.push([op, ["PARAM", k], vv]);
+          if (!["string", "number", "boolean"].includes(typeof vv))
+            throw new Error(`Invalid value for ${kk} operator`);
         }
         if (exps.length === 1) {
           expressions.push(exps[0]);
-        } else {
+        } else if (exps.length > 1) {
           const and: Expression = ["AND"];
           expressions.push(and.concat(exps));
         }
@@ -573,8 +571,8 @@ export function mongoQueryToFilter(query: Record<string, unknown>): Expression {
       }
     }
     if (expressions.length === 1) return expressions[0];
-    const and: Expression = ["AND"];
-    return and.concat(expressions);
+    if (expressions.length === 0) return true;
+    return ["AND", ...expressions];
   }
 
   // empty filter
@@ -592,7 +590,9 @@ export function flattenPreset(
       // Try parse to check expression validity
       parse(p.precondition as string);
     } catch (error) {
-      p.precondition = mongoQueryToFilter(JSON.parse(p.precondition as string));
+      p.precondition = convertOldPrecondition(
+        JSON.parse(p.precondition as string)
+      );
       p.precondition = (p.precondition as string).length
         ? stringify(p.precondition as Expression)
         : "";
