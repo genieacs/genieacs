@@ -497,13 +497,13 @@ export function fulfill(
             continue;
           }
 
-          const combinedFilterDiff = diff;
-          resources[resourceType].combinedFilter = union;
-
           updated = true;
           let deleted = new Set<string>();
           if (!resources[resourceType].combinedFilter)
             deleted = new Set(resources[resourceType].objects.keys());
+
+          const combinedFilterDiff = diff;
+          resources[resourceType].combinedFilter = union;
 
           allPromises2.push(
             new Promise((resolve2, reject2) => {
