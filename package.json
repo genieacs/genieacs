@@ -20,6 +20,7 @@
     "tools": "tools"
   },
   "dependencies": {
+    "espresso-iisojs": "^1.0.3",
     "iconv-lite": "^0.6.2",
     "ipaddr.js": "^2.0.0",
     "jsonwebtoken": "^8.5.1",
@@ -33,8 +34,7 @@
     "mongodb": "^3.6.0",
     "parsimmon": "^1.16.0",
     "seedrandom": "^3.0.5",
-    "yaml": "^1.10.0",
-    "yebool": "^1.0.2"
+    "yaml": "^1.10.0"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^15.0.0",

@@ -18,7 +18,7 @@
  */
 
 import * as BI from "./bigint";
-import { espresso, complement, tautology } from "yebool";
+import { espresso, complement, tautology } from "espresso-iisojs";
 import { Expression } from "../types";
 import { map } from "./expression-parser";
 import { and, evaluateCallback } from "./expression";

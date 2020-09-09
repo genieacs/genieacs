@@ -81,7 +81,7 @@ const externals = [
   "codemirror/mode/yaml/yaml",
   "ipaddr.js",
   "jsbi",
-  "yebool",
+  "espresso-iisojs",
 ];
 
 function rmDirSync(dirPath): void {
@@ -297,7 +297,7 @@ async function generateFrontendJs(): Promise<void> {
   const inputFile = path.resolve(INPUT_DIR, "ui/app.ts");
   const outputFile = path.resolve(OUTPUT_DIR, "public/app.js");
 
-  const inlineDeps = ["mithril", "parsimmon", "jsbi", "yebool"];
+  const inlineDeps = ["mithril", "parsimmon", "jsbi", "espresso-iisojs"];
   const bundle = await rollup({
     input: inputFile,
     external: externals.filter((e) => !inlineDeps.includes(e)),
@@ -306,10 +306,14 @@ async function generateFrontendJs(): Promise<void> {
       {
         name: "",
         resolveId: function (importee, importer) {
-          if (importee.endsWith("/bigint"))
+          if (importee.endsWith("/bigint")) {
             return this.resolve(importee + "-jsbi", importer);
-          else if (importee === "yebool")
-            return this.resolve("yebool/dist/yebool-jsbi.mjs", importer);
+          } else if (importee === "espresso-iisojs") {
+            return this.resolve(
+              "espresso-iisojs/dist/espresso-iisojs-jsbi.mjs",
+              importer
+            );
+          }
           return null;
         },
       },
