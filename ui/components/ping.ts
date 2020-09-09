@@ -27,23 +27,28 @@ const component: ClosureComponent = (vn): Component => {
   let interval: ReturnType<typeof setInterval>;
   let host: string;
 
-  const refresh = async (): Promise<void> => {
-    let status = "";
-    if (host) {
-      try {
-        const res = await store.ping(host);
-        if (res["avg"] != null) status = `${Math.trunc(res["avg"])} ms`;
-        else status = "Unreachable";
-      } catch (err) {
-        setTimeout(() => {
-          throw err;
-        }, 0);
-      }
+  const refresh = (): void => {
+    if (!host) {
+      const dom = (vn as VnodeDOM).dom;
+      if (dom) dom.innerHTML = "";
+      return;
     }
 
-    const dom = (vn as VnodeDOM).dom;
-
-    if (dom) dom.innerHTML = `Pinging ${host}: ${status}`;
+    let status = "";
+    store
+      .ping(host)
+      .then((res) => {
+        if (res["avg"] != null) status = `${Math.trunc(res["avg"])} ms`;
+        else status = "Unreachable";
+      })
+      .catch(() => {
+        status = "Error!";
+        clearInterval(interval);
+      })
+      .finally(() => {
+        const dom = (vn as VnodeDOM).dom;
+        if (dom) dom.innerHTML = `Pinging ${host}: ${status}`;
+      });
   };
 
   return {

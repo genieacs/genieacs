@@ -152,6 +152,8 @@ function checkConnection(): void {
         }
       }
     },
+  }).catch((err) => {
+    notifications.push("error", err.message);
   });
 }
 
@@ -169,11 +171,25 @@ export async function xhrRequest(
   ): any => {
     if (typeof extract === "function") return extract(xhr, _options);
 
+    // https://mithril.js.org/request.html#error-handling
+    if (xhr.status !== 304 && Math.floor(xhr.status / 100) !== 2) {
+      const err = new Error();
+      err["message"] =
+        xhr.status === 0
+          ? "Server is unrachable"
+          : `Unexpected response status code ${xhr.status}`;
+      err["code"] = xhr.status;
+      err["response"] = xhr.responseText;
+      throw err;
+    }
+
     let response: any;
     if (typeof deserialize === "function") {
       response = deserialize(xhr.responseText);
     } else if (
-      xhr.getResponseHeader("content-type").startsWith("application/json")
+      (xhr.getResponseHeader("content-type") || "").startsWith(
+        "application/json"
+      )
     ) {
       try {
         response = xhr.responseText ? JSON.parse(xhr.responseText) : null;
@@ -182,15 +198,6 @@ export async function xhrRequest(
       }
     } else {
       response = xhr.responseText;
-    }
-
-    // https://mithril.js.org/request.html#error-handling
-    if (xhr.status !== 304 && Math.floor(xhr.status / 100) !== 2) {
-      const err = new Error();
-      err["message"] = xhr.responseText;
-      err["code"] = xhr.status;
-      err["response"] = response;
-      throw err;
     }
 
     return response;
@@ -340,7 +347,7 @@ export function fetch(
   return queryResponse;
 }
 
-export function fulfill(
+function _fulfill(
   accessTimestamp: number,
   _fulfillTimestamp: number
 ): Promise<boolean> {
@@ -377,7 +384,16 @@ export function fulfill(
                 m.buildQueryString({
                   filter: memoizedStringify(filter),
                 }),
-              extract: (xhr) => +xhr.getResponseHeader("x-total-count"),
+              extract: (xhr) => {
+                if (!xhr.status) {
+                  throw new Error("Server is unrachable");
+                } else if (xhr.status !== 200) {
+                  throw new Error(
+                    `Unexpected response status code ${xhr.status}`
+                  );
+                }
+                return +xhr.getResponseHeader("x-total-count");
+              },
               background: true,
             })
               .then((c) => {
@@ -560,6 +576,17 @@ export function fulfill(
   });
 }
 
+export function fulfill(
+  accessTimestamp: number,
+  _fulfillTimestamp: number,
+  callback?: (updated: boolean) => void
+): void {
+  _fulfill(accessTimestamp, _fulfillTimestamp).then(callback, (err) => {
+    notifications.push("error", err.message);
+    if (callback) callback(false);
+  });
+}
+
 export function getTimestamp(): number {
   return fulfillTimestamp;
 }
@@ -647,7 +674,12 @@ export function resourceExists(resource: string, id: string): Promise<number> {
       m.buildQueryString({
         filter: memoizedStringify(filter),
       }),
-    extract: (xhr) => +xhr.getResponseHeader("x-total-count"),
+    extract: (xhr) => {
+      if (!xhr.status) throw new Error("Server is unrachable");
+      else if (xhr.status !== 200)
+        throw new Error(`Unexpected response status code ${xhr.status}`);
+      return +xhr.getResponseHeader("x-total-count");
+    },
     background: true,
   });
 }

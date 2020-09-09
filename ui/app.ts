@@ -71,7 +71,7 @@ let fulfillTimeout = null;
 function fulfill(): void {
   clearTimeout(fulfillTimeout);
   fulfillTimeout = setTimeout(() => {
-    store.fulfill(lastRenderTimestamp, pageVisitTimestamp).then((updated) => {
+    store.fulfill(lastRenderTimestamp, pageVisitTimestamp, (updated) => {
       if (updated) m.redraw();
     });
   }, 100);

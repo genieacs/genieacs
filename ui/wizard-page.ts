@@ -87,16 +87,24 @@ export const component: ClosureComponent = (vnode): Component => {
               })
                 .then(() => {
                   setTimeout(() => {
-                    m.request({ url: "init" }).then((o) => {
-                      e.target.disabled = false;
-                      options = o;
-                      notifications.push("success", "Initialization complete", {
-                        "Open Sesame!": () => {
-                          m.route.set("/login");
-                          window.location.reload();
-                        },
+                    m.request({ url: "init" })
+                      .then((o) => {
+                        e.target.disabled = false;
+                        options = o;
+                        notifications.push(
+                          "success",
+                          "Initialization complete",
+                          {
+                            "Open Sesame!": () => {
+                              m.route.set("/login");
+                              window.location.reload();
+                            },
+                          }
+                        );
+                      })
+                      .catch((err) => {
+                        notifications.push("error", err.message);
                       });
-                    });
                   }, 3000);
                   if (opts["users"]) {
                     alert(

@@ -110,7 +110,7 @@ export async function postTasks(
   try {
     await connectionRequest(deviceId, device);
   } catch (err) {
-    for (const t of statuses) db.deleteTask(new ObjectID(t._id));
+    await Promise.all(statuses.map((t) => db.deleteTask(new ObjectID(t._id))));
     return {
       connectionRequest: err.message,
       tasks: statuses,
@@ -138,8 +138,9 @@ export async function postTasks(
       r.status = "fault";
       r["fault"] = res[i * 2 + 1][0];
     }
-    db.deleteTask(new ObjectID(r._id));
   }
+
+  await Promise.all(statuses.map((t) => db.deleteTask(new ObjectID(t._id))));
 
   return { connectionRequest: "OK", tasks: statuses };
 }

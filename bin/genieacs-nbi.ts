@@ -43,7 +43,7 @@ function exitWorkerGracefully(): void {
 }
 
 function exitWorkerUngracefully(): void {
-  extensions.killAll().then(() => {
+  extensions.killAll().finally(() => {
     process.exit(1);
   });
 }

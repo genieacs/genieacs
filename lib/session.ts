@@ -299,7 +299,7 @@ export async function transferComplete(
   sessionContext.operationsTouched[commandKey] = 1;
 
   if (rpcReq.faultStruct && rpcReq.faultStruct.faultCode !== "0") {
-    await revertDownloadParameters(sessionContext, operation.args.instance);
+    revertDownloadParameters(sessionContext, operation.args.instance);
 
     const fault: Fault = {
       code: `cwmp.${rpcReq.faultStruct.faultCode}`,
@@ -398,10 +398,10 @@ export async function transferComplete(
   };
 }
 
-async function revertDownloadParameters(
+function revertDownloadParameters(
   sessionContext: SessionContext,
   instance
-): Promise<void> {
+): void {
   const timestamp = sessionContext.timestamp + sessionContext.iteration + 1;
 
   let p;

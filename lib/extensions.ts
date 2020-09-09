@@ -58,6 +58,7 @@ export function run(args: string[]): Promise<{ fault: Fault; value: any }> {
             });
           }
 
+          // eslint-disable-next-line @typescript-eslint/no-floating-promises
           kill(processes[scriptName]);
           delete processes[scriptName];
         }

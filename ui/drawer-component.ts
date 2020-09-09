@@ -441,6 +441,9 @@ const component: ClosureComponent = (): Component => {
                   )
                   .then(() => {
                     store.fulfill(0, Date.now());
+                  })
+                  .catch((err) => {
+                    throw err;
                   });
               },
             },

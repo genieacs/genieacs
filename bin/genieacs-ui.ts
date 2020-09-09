@@ -45,7 +45,7 @@ function exitWorkerGracefully(): void {
 }
 
 function exitWorkerUngracefully(): void {
-  extensions.killAll().then(() => {
+  extensions.killAll().finally(() => {
     process.exit(1);
   });
 }
@@ -99,7 +99,9 @@ if (!cluster.worker) {
 
   const _listener = (req, res): void => {
     if (stopping) res.setHeader("Connection", "close");
-    listener(req, res);
+    listener(req, res).catch((err) => {
+      throw err;
+    });
   };
 
   const initPromise = Promise.all([db2.connect(), cache.connect()])

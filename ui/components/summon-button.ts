@@ -79,6 +79,9 @@ const component: ClosureComponent = (): Component => {
               .then(() => {
                 e.target.disabled = false;
                 store.fulfill(0, Date.now());
+              })
+              .catch((err) => {
+                throw err;
               });
           },
         },
