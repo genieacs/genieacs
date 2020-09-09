@@ -1,5 +1,12 @@
 # Change Log
 
+## 1.2.1 (2020-09-08)
+- Fix bug causing faults to not be displayed in the UI.
+- Fix bug where deleting objects does not get reflected immediately in the UI.
+- Improve conversion between filters written in the expression format and
+MongoDB queries. There should now be fewer edge cases where the two are not
+equisatisfiable.
+
 ## 1.2.0 (2020-09-01)
 
 - Support GetParameterAttributes and SetParameterAttributes TR-069 methods.
