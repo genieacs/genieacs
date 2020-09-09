@@ -498,9 +498,9 @@
       "dev": true
     },
     "@types/mongodb": {
-      "version": "3.5.26",
-      "resolved": "https://registry.npmjs.org/@types/mongodb/-/mongodb-3.5.26.tgz",
-      "integrity": "sha512-p0X2VJgIBNHfNBdZdzzG8eQ/3bf6mQoXDT0UhVyVEdSzXEa1+2pFcwGvEZp72sjztyBwfRKlgrXMjCVavLcuGg==",
+      "version": "3.5.27",
+      "resolved": "https://registry.npmjs.org/@types/mongodb/-/mongodb-3.5.27.tgz",
+      "integrity": "sha512-1jxKDgdfJEOO9zp+lv43p8jOqRs02xPrdUTzAZIVK9tVEySfCEmktL2jEu9A3wOBEOs18yKzpVIKUh8b8ALk3w==",
       "dev": true,
       "requires": {
         "@types/bson": "*",
@@ -1417,9 +1417,9 @@
       "dev": true
     },
     "bl": {
-      "version": "2.2.0",
-      "resolved": "https://registry.npmjs.org/bl/-/bl-2.2.0.tgz",
-      "integrity": "sha512-wbgvOpqopSr7uq6fJrLH8EsvYMJf9gzfo2jCsL2eTy75qXPukA4pCgHamOQkZtY5vmfVtjB+P3LNlMHW5CEZXA==",
+      "version": "2.2.1",
+      "resolved": "https://registry.npmjs.org/bl/-/bl-2.2.1.tgz",
+      "integrity": "sha512-6Pesp1w0DEX1N550i/uGV/TqucVL4AM/pgThFSN/Qq9si1/DF9aIHs1BxD8V/QU0HoeHO6cQRTAuYnLPKq1e4g==",
       "requires": {
         "readable-stream": "^2.3.5",
         "safe-buffer": "^5.1.1"
@@ -5404,9 +5404,9 @@
       }
     },
     "mongodb": {
-      "version": "3.6.0",
-      "resolved": "https://registry.npmjs.org/mongodb/-/mongodb-3.6.0.tgz",
-      "integrity": "sha512-/XWWub1mHZVoqEsUppE0GV7u9kanLvHxho6EvBxQbShXTKYF9trhZC2NzbulRGeG7xMJHD8IOWRcdKx5LPjAjQ==",
+      "version": "3.6.1",
+      "resolved": "https://registry.npmjs.org/mongodb/-/mongodb-3.6.1.tgz",
+      "integrity": "sha512-uH76Zzr5wPptnjEKJRQnwTsomtFOU/kQEU8a9hKHr2M7y9qVk7Q4Pkv0EQVp88742z9+RwvsdTw6dRjDZCNu1g==",
       "requires": {
         "bl": "^2.2.0",
         "bson": "^1.1.4",
