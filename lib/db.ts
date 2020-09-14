@@ -692,10 +692,15 @@ export async function getOperations(
     const commandKey = r._id.slice(deviceId.length + 1);
     delete r._id;
     r.timestamp = +r.timestamp;
-    if (r.args) r.args = JSON.parse(r.args);
-    r.provisions = JSON.parse(r.provisions);
-    r.retries = JSON.parse(r.retries);
-    operations[commandKey] = r;
+    try {
+      if (r.args) r.args = JSON.parse(r.args);
+      r.provisions = JSON.parse(r.provisions);
+      r.retries = JSON.parse(r.retries);
+    } catch (e) {
+      //Dont panic, r.args is already javascript
+    } finally {
+      operations[commandKey] = r;
+    }
   }
   return operations;
 }
