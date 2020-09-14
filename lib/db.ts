@@ -691,6 +691,11 @@ export async function getOperations(
   for (const r of res) {
     const commandKey = r._id.slice(deviceId.length + 1);
     delete r._id;
+    // Workaround for a bug in v1.2.1 where operation object is saved without deserialization
+    if (typeof r.provisions !== "string") {
+      operations[commandKey] = r;
+      continue;
+    }
     r.timestamp = +r.timestamp;
     if (r.args) r.args = JSON.parse(r.args);
     r.provisions = JSON.parse(r.provisions);
@@ -712,7 +717,7 @@ export async function saveOperation(
   o["provisions"] = JSON.stringify(operation.provisions);
   o["retries"] = JSON.stringify(operation.retries);
   o["args"] = JSON.stringify(operation.args);
-  await operationsCollection.replaceOne({ _id: id }, operation, {
+  await operationsCollection.replaceOne({ _id: id }, o, {
     upsert: true,
   });
 }
