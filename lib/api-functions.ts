@@ -236,6 +236,10 @@ function sanitizeTask(task): void {
       break;
 
     case "refreshObject":
+      if (typeof task.objectName !== "string")
+        throw new Error("Missing 'objectName' property");
+      break;
+
     case "deleteObject":
       if (typeof task.objectName !== "string" || !task.objectName.length)
         throw new Error("Missing 'objectName' property");
