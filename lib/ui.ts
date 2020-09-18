@@ -60,7 +60,9 @@ const getAuthorizer = memoize(
 );
 
 koa.on("error", async (err) => {
-  throw err;
+  setTimeout(() => {
+    throw err;
+  });
 });
 
 koa.use(async (ctx, next) => {

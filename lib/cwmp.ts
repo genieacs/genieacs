@@ -1211,12 +1211,17 @@ export function listener(
     })
     .catch((err) => {
       currentSessions.delete(httpResponse.connection);
-      httpResponse.writeHead(500, { Connection: "close" });
-      httpResponse.end(`${err.name}: ${err.message}`);
       stats.concurrentRequests -= 1;
       setTimeout(() => {
         throw err;
       });
+      try {
+        httpResponse.connection.unref();
+        httpResponse.writeHead(500, { Connection: "close" });
+        httpResponse.end(`${err.name}: ${err.message}`);
+      } catch (err) {
+        // Ignore
+      }
     });
 }
 
