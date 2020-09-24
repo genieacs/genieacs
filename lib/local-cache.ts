@@ -188,7 +188,7 @@ async function fetchPresets(): Promise<Preset[]> {
     for (const c of preset["configurations"]) {
       switch (c.type) {
         case "age":
-          _provisions.push(["refresh", c.name, c.age]);
+          _provisions.push(["refresh", c.name, +c.age]);
           break;
 
         case "value":
