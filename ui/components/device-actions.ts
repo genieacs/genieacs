@@ -70,7 +70,7 @@ const component: ClosureComponent = (): Component => {
             onclick: () => {
               taskQueue.stageDownload({
                 name: "download",
-                device: device["DeviceID.ID"].value[0],
+                devices: [device["DeviceID.ID"].value[0]],
               });
             },
           },

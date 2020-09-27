@@ -90,7 +90,7 @@ const component: ClosureComponent = (): Component => {
             onclick: () => {
               taskQueue.stageSpv({
                 name: "setParameterValues",
-                device: device["DeviceID.ID"].value[0],
+                devices: [device["DeviceID.ID"].value[0]],
                 parameterValues: [
                   [
                     parameter,

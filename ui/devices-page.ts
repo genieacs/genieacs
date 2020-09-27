@@ -124,6 +124,23 @@ function renderActions(selected: Set<string>): Children {
 
   buttons.push(
     m(
+      "button.critical",
+      {
+        title: "Push a firmware or a config file",
+        disabled: !selected.size,
+        onclick: () => {
+          taskQueue.stageDownload({
+            name: "download",
+            devices: [...selected],
+          });
+        },
+      },
+      "Push file"
+    )
+  );
+
+  buttons.push(
+    m(
       "button.primary",
       {
         title: "Delete selected devices",

@@ -24,10 +24,21 @@ import m, {
   Component,
   VnodeDOM,
 } from "mithril";
-import * as taskQueue from "./task-queue";
 import * as store from "./store";
 import * as notifications from "./notifications";
 import { getIcon } from "./icons";
+import {
+  clear,
+  commit,
+  deleteTask,
+  getQueue,
+  getStaging,
+  QueueTask,
+  queueTask,
+  StageTask,
+} from "./task-queue";
+
+const invalid: WeakSet<StageTask> = new WeakSet();
 
 function mparam(param): Children {
   return m("span.parameter", { title: param }, `${param}`);
@@ -37,7 +48,7 @@ function mval(val): Children {
   return m("span.value", { title: val }, `${val}`);
 }
 
-function renderStagingSpv(task, queueFunc, cancelFunc): Children {
+function renderStagingSpv(task: StageTask, queueFunc, cancelFunc): Children {
   function keydown(e): void {
     if (e.keyCode === 13) queueFunc();
     else if (e.keyCode === 27) cancelFunc();
@@ -90,13 +101,24 @@ function renderStagingSpv(task, queueFunc, cancelFunc): Children {
   return [m("span", "Editing ", mparam(task.parameterValues[0][0])), input];
 }
 
-function renderStagingDownload(task): Children {
-  task.invalid = !task.fileName || !task.fileType;
+function renderStagingDownload(task: StageTask): Children {
+  if (!task.fileName || !task.fileType) invalid.add(task);
+  else invalid.delete(task);
   const files = store.fetch("files", true);
-  const idParts = task.device.split("-");
-  const oui = decodeURIComponent(idParts[0]);
-  const productClass =
-    idParts.length === 3 ? decodeURIComponent(idParts[1]) : "";
+  let oui = "";
+  let productClass = "";
+  for (const d of task.devices) {
+    const parts = d.split("-");
+    if (oui === "") oui = parts[0];
+    else if (oui !== parts[0]) oui = null;
+    if (parts.length === 3) {
+      if (productClass === "") productClass = parts[1];
+      else if (productClass !== parts[1]) productClass = null;
+    }
+  }
+
+  if (oui) oui = decodeURIComponent(oui);
+  if (productClass) productClass = decodeURIComponent(productClass);
 
   const typesList = [
     "",
@@ -162,13 +184,17 @@ function renderStagingDownload(task): Children {
   ];
 }
 
-function renderStaging(staging): Child[] {
+function renderStaging(staging: Set<StageTask>): Child[] {
   const elements: Child[] = [];
 
   for (const s of staging) {
     const queueFunc = (): void => {
       staging.delete(s);
-      taskQueue.queueTask(s);
+      for (const d of s.devices) {
+        const t = Object.assign({ device: d }, s);
+        delete t.devices;
+        queueTask(t);
+      }
     };
     const cancelFunc = (): void => {
       staging.delete(s);
@@ -181,7 +207,7 @@ function renderStaging(staging): Child[] {
 
     const queue = m(
       "button.primary",
-      { title: "Queue task", onclick: queueFunc, disabled: s.invalid },
+      { title: "Queue task", onclick: queueFunc, disabled: invalid.has(s) },
       "Queue"
     );
     const cancel = m(
@@ -195,7 +221,7 @@ function renderStaging(staging): Child[] {
   return elements;
 }
 
-function renderQueue(queue): Child[] {
+function renderQueue(queue: Set<QueueTask>): Child[] {
   const details: Child[] = [];
   const devices: { [deviceId: string]: any[] } = {};
   for (const t of queue) {
@@ -215,7 +241,7 @@ function renderQueue(queue): Child[] {
             {
               title: "Retry this task",
               onclick: () => {
-                taskQueue.queueTask(t);
+                queueTask(t);
               },
             },
             getIcon("retry")
@@ -229,7 +255,7 @@ function renderQueue(queue): Child[] {
           {
             title: "Remove this task",
             onclick: () => {
-              taskQueue.deleteTask(t);
+              deleteTask(t);
             },
           },
           getIcon("remove")
@@ -347,8 +373,8 @@ function renderNotifications(notifs): Child[] {
 const component: ClosureComponent = (): Component => {
   return {
     view: (vnode) => {
-      const queue = taskQueue.getQueue();
-      const staging = taskQueue.getStaging();
+      const queue = getQueue();
+      const staging = getStaging();
       const notifs = notifications.getNotifications();
 
       let drawerElement, statusElement;
@@ -394,51 +420,50 @@ const component: ClosureComponent = (): Component => {
               title: "Commit queued tasks",
               disabled: !statusCount.queued,
               onclick: () => {
-                const tasks = Array.from(taskQueue.getQueue()).filter(
+                const tasks = Array.from(getQueue()).filter(
                   (t) => t["status"] === "queued"
                 );
-                taskQueue
-                  .commit(
-                    tasks,
-                    (deviceId, err, connectionRequestStatus, tasks2) => {
-                      if (err) {
-                        notifications.push(
-                          "error",
-                          `${deviceId}: ${err.message}`
-                        );
-                        return;
-                      }
-
-                      if (connectionRequestStatus !== "OK") {
-                        notifications.push(
-                          "error",
-                          `${deviceId}: ${connectionRequestStatus}`
-                        );
-                        return;
-                      }
-
-                      for (const t of tasks2) {
-                        if (t.status === "stale") {
-                          notifications.push(
-                            "error",
-                            `${deviceId}: No contact from device`
-                          );
-                          return;
-                        } else if (t.status === "fault") {
-                          notifications.push(
-                            "error",
-                            `${deviceId}: Task(s) faulted`
-                          );
-                          return;
-                        }
-                      }
-
+                commit(
+                  tasks,
+                  (deviceId, err, connectionRequestStatus, tasks2) => {
+                    if (err) {
                       notifications.push(
-                        "success",
-                        `${deviceId}: Task(s) committed`
+                        "error",
+                        `${deviceId}: ${err.message}`
                       );
+                      return;
                     }
-                  )
+
+                    if (connectionRequestStatus !== "OK") {
+                      notifications.push(
+                        "error",
+                        `${deviceId}: ${connectionRequestStatus}`
+                      );
+                      return;
+                    }
+
+                    for (const t of tasks2) {
+                      if (t.status === "stale") {
+                        notifications.push(
+                          "error",
+                          `${deviceId}: No contact from device`
+                        );
+                        return;
+                      } else if (t.status === "fault") {
+                        notifications.push(
+                          "error",
+                          `${deviceId}: Task(s) faulted`
+                        );
+                        return;
+                      }
+                    }
+
+                    notifications.push(
+                      "success",
+                      `${deviceId}: Task(s) committed`
+                    );
+                  }
+                )
                   .then(() => {
                     store.fulfill(0, Date.now());
                   })
@@ -453,7 +478,7 @@ const component: ClosureComponent = (): Component => {
             "button",
             {
               title: "Clear tasks",
-              onclick: taskQueue.clear,
+              onclick: clear,
               disabled: !queueElements.length,
             },
             "Clear"

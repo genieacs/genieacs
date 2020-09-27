@@ -22,20 +22,22 @@ import { Task } from "../lib/types";
 
 export interface QueueTask extends Task {
   status?: string;
-  device?: string;
+  device: string;
+}
+
+export interface StageTask extends Task {
+  devices: string[];
 }
 
 const queue: Set<QueueTask> = new Set();
-const staging: Set<QueueTask> = new Set();
+const staging: Set<StageTask> = new Set();
 
 export function queueTask(task: QueueTask): void {
-  staging.delete(task);
   task.status = "queued";
   queue.add(task);
 }
 
 export function deleteTask(task: QueueTask): void {
-  staging.delete(task);
   queue.delete(task);
 }
 
@@ -47,7 +49,7 @@ export function clear(): void {
   queue.clear();
 }
 
-export function getStaging(): Set<QueueTask> {
+export function getStaging(): Set<StageTask> {
   return staging;
 }
 
@@ -55,11 +57,11 @@ export function clearStaging(): void {
   staging.clear();
 }
 
-export function stageSpv(task: QueueTask): void {
+export function stageSpv(task: StageTask): void {
   staging.add(task);
 }
 
-export function stageDownload(task: QueueTask): void {
+export function stageDownload(task: StageTask): void {
   staging.add(task);
 }
 
