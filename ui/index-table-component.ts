@@ -27,6 +27,8 @@ interface Attribute {
   type?: string;
 }
 
+const MAX_PAGE_SIZE = 200;
+
 function renderTable(
   attributes: Attribute[],
   data: Record<string, any>[],
@@ -180,7 +182,8 @@ function renderTable(
       {
         title: "Show more records",
         onclick: showMoreCallback,
-        disabled: !data.length || records.length >= total,
+        disabled:
+          !data.length || records.length >= Math.min(MAX_PAGE_SIZE, total),
       },
       "More"
     )
