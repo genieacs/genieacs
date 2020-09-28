@@ -178,6 +178,8 @@ body {
       }
 
       & > .queue {
+        max-height: 400px;
+        overflow-y: auto;
         & > .pending {
           animation: 0.5s linear 0s infinite alternate pending-blink;
           border-radius: 0.4em;
