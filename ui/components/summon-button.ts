@@ -81,7 +81,8 @@ const component: ClosureComponent = (): Component => {
                 store.fulfill(0, Date.now());
               })
               .catch((err) => {
-                throw err;
+                e.target.disabled = false;
+                notifications.push("error", err.message);
               });
           },
         },

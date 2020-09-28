@@ -19,6 +19,7 @@
 
 import * as store from "./store";
 import { Task } from "../lib/types";
+import * as notifications from "./notifications";
 
 export interface QueueTask extends Task {
   status?: string;
@@ -29,12 +30,27 @@ export interface StageTask extends Task {
   devices: string[];
 }
 
+const MAX_QUEUE = 100;
+
 const queue: Set<QueueTask> = new Set();
 const staging: Set<StageTask> = new Set();
 
-export function queueTask(task: QueueTask): void {
-  task.status = "queued";
-  queue.add(task);
+function canQueue(tasks: QueueTask[]): boolean {
+  let count = queue.size;
+  for (const task of tasks) if (!queue.has(task)) ++count;
+  return count <= MAX_QUEUE;
+}
+
+export function queueTask(...tasks: QueueTask[]): void {
+  if (!canQueue(tasks)) {
+    notifications.push("error", "Too many tasks in queue");
+    return;
+  }
+
+  for (const task of tasks) {
+    task.status = "queued";
+    queue.add(task);
+  }
 }
 
 export function deleteTask(task: QueueTask): void {
@@ -58,10 +74,18 @@ export function clearStaging(): void {
 }
 
 export function stageSpv(task: StageTask): void {
+  if (queue.size + task.devices.length > MAX_QUEUE) {
+    notifications.push("error", "Too many tasks in queue");
+    return;
+  }
   staging.add(task);
 }
 
 export function stageDownload(task: StageTask): void {
+  if (queue.size + task.devices.length > MAX_QUEUE) {
+    notifications.push("error", "Too many tasks in queue");
+    return;
+  }
   staging.add(task);
 }
 
@@ -75,10 +99,15 @@ export function commit(
   ) => void
 ): Promise<void> {
   const devices: { [deviceId: string]: any[] } = {};
+
+  if (!canQueue(tasks))
+    return Promise.reject(new Error("Too many tasks in queue"));
+
   for (const t of tasks) {
     devices[t.device] = devices[t.device] || [];
     devices[t.device].push(t);
-    queueTask(t);
+    t.status = "queued";
+    queue.add(t);
   }
 
   return new Promise((resolve) => {

@@ -23,7 +23,7 @@ import config from "./config";
 import indexTableComponent from "./index-table-component";
 import filterComponent from "./filter-component";
 import * as store from "./store";
-import * as taskQueue from "./task-queue";
+import { queueTask, stageDownload } from "./task-queue";
 import * as notifications from "./notifications";
 import { parse, stringify } from "../lib/common/expression-parser";
 import { evaluate, extractParams } from "../lib/common/expression";
@@ -91,12 +91,11 @@ function renderActions(selected: Set<string>): Children {
         title: "Reboot selected devices",
         disabled: !selected.size,
         onclick: () => {
-          for (const d of selected) {
-            taskQueue.queueTask({
-              name: "reboot",
-              device: d,
-            });
-          }
+          const tasks = [...selected].map((s) => ({
+            name: "reboot",
+            device: s,
+          }));
+          queueTask(...tasks);
         },
       },
       "Reboot"
@@ -110,12 +109,11 @@ function renderActions(selected: Set<string>): Children {
         title: "Factory reset selected devices",
         disabled: !selected.size,
         onclick: () => {
-          for (const d of selected) {
-            taskQueue.queueTask({
-              name: "factoryReset",
-              device: d,
-            });
-          }
+          const tasks = [...selected].map((s) => ({
+            name: "factoryReset",
+            device: s,
+          }));
+          queueTask(...tasks);
         },
       },
       "Reset"
@@ -129,7 +127,7 @@ function renderActions(selected: Set<string>): Children {
         title: "Push a firmware or a config file",
         disabled: !selected.size,
         onclick: () => {
-          taskQueue.stageDownload({
+          stageDownload({
             name: "download",
             devices: [...selected],
           });
