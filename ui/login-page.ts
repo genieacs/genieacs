@@ -81,7 +81,7 @@ export const component: ClosureComponent = (): Component => {
                       location.reload();
                     })
                     .catch((err) => {
-                      notifications.push("error", err.message);
+                      notifications.push("error", err.response || err.message);
                       e.target.disabled = false;
                     });
                   return false;
