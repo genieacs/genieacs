@@ -42,6 +42,35 @@ export function flattenConfig(config: Record<string, unknown>): any {
   return flatten;
 }
 
+// Order keys such that nested objects come last
+function orderKeys(config: any): number {
+  let res = 1;
+  if (typeof config !== "object") return res;
+  if (Array.isArray(config)) {
+    for (const c of config) res += orderKeys(c);
+    return res;
+  }
+
+  const weights: [string, number][] = Object.entries(config).map(([k, v]) => [
+    k,
+    orderKeys(v),
+  ]);
+
+  weights.sort((a, b) => {
+    if (a[1] !== b[1]) return a[1] - b[1];
+    if (b[0] > a[0]) return -1;
+    else return 1;
+  });
+
+  for (const [k, w] of weights) {
+    res += w;
+    const v = config[k];
+    delete config[k];
+    config[k] = v;
+  }
+  return res;
+}
+
 export function structureConfig(config: Config[]): any {
   config.sort((a, b) => (a._id > b._id ? 1 : a._id < b._id ? -1 : 0));
   const _config = {};
@@ -93,7 +122,9 @@ export function structureConfig(config: Config[]): any {
     return object;
   };
 
-  return toArray(_config);
+  const res = toArray(_config);
+  orderKeys(res);
+  return res;
 }
 
 export function diffConfig(
