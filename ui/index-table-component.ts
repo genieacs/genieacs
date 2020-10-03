@@ -39,7 +39,7 @@ function renderTable(
   onSortChange: (obj: Record<string, number>) => void,
   downloadUrl?: string,
   valueCallback?: (attr: Attribute, record: Record<string, any>) => Children,
-  actionsCallback?: Children | ((selected: Set<string>) => Children),
+  actionsCallback?: Children | ((sel: Set<string>) => Children),
   recordActionsCallback?: Children | ((record: Record<string, any>) => Children)
 ): Children {
   const records = data || [];

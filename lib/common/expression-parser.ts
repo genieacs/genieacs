@@ -42,7 +42,7 @@ function interpretEscapes(str): string {
 
 export function map(
   exp: Expression,
-  callback: (exp: Expression) => Expression
+  callback: (e: Expression) => Expression
 ): Expression {
   if (!Array.isArray(exp)) return callback(exp);
 
@@ -60,7 +60,7 @@ export function map(
 
 export async function mapAsync(
   exp: Expression,
-  callback: (exp: Expression) => Promise<Expression>
+  callback: (e: Expression) => Promise<Expression>
 ): Promise<Expression> {
   if (!Array.isArray(exp)) return callback(exp);
 

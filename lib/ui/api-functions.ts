@@ -145,16 +145,6 @@ export async function postTasks(
   return { connectionRequest: "OK", tasks: statuses };
 }
 
-interface PingResponse {
-  packetsTransmitted: number;
-  packetsReceived: number;
-  packetLoss: string;
-  min: number;
-  avg: number;
-  max: number;
-  mdev: number;
-}
-
 export async function putResource(
   resource: string,
   id: string,
