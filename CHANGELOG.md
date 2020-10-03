@@ -1,5 +1,13 @@
 # Change Log
 
+## 1.2.2 (2020-10-03)
+- Added button to push files to selected devices from device listing page.
+- A few minor UI improvements.
+- Fix exception that can happen and persist after a Download request.
+- Fix validation bug preventing running refreshObject task on data model root.
+- Fix invalid arguments fault in refresh preset configuration when upgrading
+from v1.1.
+
 ## 1.2.1 (2020-09-08)
 - Fix bug causing faults to not be displayed in the UI.
 - Fix bug where deleting objects does not get reflected immediately in the UI.
