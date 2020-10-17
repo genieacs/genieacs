@@ -1019,8 +1019,7 @@ function boolExprSynthToExpression(boolExpr: BoolExprSynth): Expression {
   const { dcSet, isNull } = generateDcSetAndIsNull(variables);
   minterms = sanitizeMinterms(minterms, isNull);
 
-  const canRaise = (idx: number, set: Set<number>): boolean =>
-    !isNull.has(idx >> 2) || !(idx & 1) || !set.has(idx ^ 3);
+  const canRaise = getCanRaiseCallback(isNull);
   minterms = espresso(minterms, dcSet, { canRaise });
   return sopToExpression(minterms, variables);
 }
