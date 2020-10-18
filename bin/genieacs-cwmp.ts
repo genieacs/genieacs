@@ -77,9 +77,16 @@ if (!cluster.worker) {
     cluster.stop();
   });
 } else {
-  const ssl = {
-    key: config.get("CWMP_SSL_KEY") as string,
-    cert: config.get("CWMP_SSL_CERT") as string,
+  const key = config.get("CWMP_SSL_KEY") as string;
+  const cert = config.get("CWMP_SSL_CERT") as string;
+
+  const options = {
+    port: SERVICE_PORT,
+    host: SERVICE_ADDRESS,
+    ssl: key && cert ? { key, cert } : null,
+    onConnection: cwmp.onConnection,
+    timeout: 30000,
+    keepAliveTimeout: 0,
   };
 
   process.on("uncaughtException", (err) => {
@@ -94,14 +101,7 @@ if (!cluster.worker) {
 
   const initPromise = Promise.all([db.connect(), cache.connect()])
     .then(() => {
-      server.start(
-        SERVICE_PORT,
-        SERVICE_ADDRESS,
-        ssl,
-        cwmp.listener,
-        cwmp.onConnection,
-        0
-      );
+      server.start(options, cwmp.listener);
     })
     .catch((err) => {
       setTimeout(() => {

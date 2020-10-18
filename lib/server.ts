@@ -52,35 +52,43 @@ function closeServer(timeout, callback): void {
   });
 }
 
+interface ServerOptions {
+  port?: number;
+  host?: string;
+  ssl?: { key: string; cert: string };
+  timeout?: number;
+  keepAliveTimeout?: number;
+  onConnection?: (socket: Socket) => void;
+}
+
 export function start(
-  port: number,
-  networkInterface: string,
-  ssl: { key: string; cert: string },
-  _listener: http.RequestListener,
-  onConnection?: (socket: Socket) => void,
-  keepAliveTimeout = -1
+  options: ServerOptions,
+  _listener: http.RequestListener
 ): void {
   listener = _listener;
 
-  if (ssl && ssl.key && ssl.cert) {
-    const options = {
-      key: ssl.key
+  if (options.ssl) {
+    const opts = {
+      key: options.ssl.key
         .split(":")
         .map((f) => fs.readFileSync(path.resolve(ROOT_DIR, f.trim()))),
-      cert: ssl.cert
+      cert: options.ssl.cert
         .split(":")
         .map((f) => fs.readFileSync(path.resolve(ROOT_DIR, f.trim()))),
     };
 
-    server = https.createServer(options, listener);
-    if (onConnection != null) server.on("secureConnection", onConnection);
+    server = https.createServer(opts, listener);
+    if (options.onConnection)
+      server.on("secureConnection", options.onConnection);
   } else {
     server = http.createServer(listener);
-    if (onConnection != null) server.on("connection", onConnection);
+    if (options.onConnection) server.on("connection", options.onConnection);
   }
 
-  if (keepAliveTimeout >= 0) server.keepAliveTimeout = keepAliveTimeout;
-  server.listen(port, networkInterface);
+  server.timeout = options.timeout || 0;
+  if (options.keepAliveTimeout != null)
+    server.keepAliveTimeout = options.keepAliveTimeout;
+  server.listen({ port: options.port, host: options.host });
 }
 
 export function stop(): Promise<void> {

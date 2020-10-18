@@ -840,8 +840,11 @@ async function sendAcsRequest(
   return writeResponse(sessionContext, res);
 }
 
-async function getSession(connection, sessionId): Promise<SessionContext> {
-  const sessionContext = currentSessions.get(connection);
+async function getSession(
+  connection: Socket,
+  sessionId: string
+): Promise<SessionContext> {
+  let sessionContext = currentSessions.get(connection);
   if (sessionContext) {
     currentSessions.delete(connection);
     return sessionContext;
@@ -853,7 +856,9 @@ async function getSession(connection, sessionId): Promise<SessionContext> {
 
   const sessionContextString = await cache.pop(`session_${sessionId}`);
   if (!sessionContextString) return null;
-  return session.deserialize(sessionContextString);
+  sessionContext = await session.deserialize(sessionContextString);
+  connection.setTimeout(sessionContext.timeout);
+  return sessionContext;
 }
 
 // Only needed to prevent tree shaking from removing the remoteAddress
@@ -1067,6 +1072,8 @@ async function processRequest(
         (e) => session.configContextCallback(sessionContext, e)
       );
     }
+
+    sessionContext.httpRequest.socket.setTimeout(sessionContext.timeout * 1000);
 
     if (sessionContext.debug) {
       debug.incomingHttpRequest(
@@ -1412,7 +1419,7 @@ async function listenerAsync(
   }
 
   const parseWarnings = [];
-  let rpc;
+  let rpc: SoapMessage;
   try {
     rpc = soap.request(
       bodyStr,
@@ -1517,7 +1524,6 @@ async function listenerAsync(
   _sessionContext.httpRequest = httpRequest;
   _sessionContext.httpResponse = httpResponse;
   _sessionContext.sessionId = crypto.randomBytes(8).toString("hex");
-  httpRequest.socket.setTimeout(_sessionContext.timeout * 1000);
 
   const {
     tasks: dueTasks,

@@ -79,9 +79,13 @@ if (!cluster.worker) {
     cluster.stop();
   });
 } else {
-  const ssl = {
-    key: config.get("UI_SSL_KEY") as string,
-    cert: config.get("UI_SSL_CERT") as string,
+  const key = config.get("UI_SSL_KEY") as string;
+  const cert = config.get("UI_SSL_CERT") as string;
+  const options = {
+    port: SERVICE_PORT,
+    host: SERVICE_ADDRESS,
+    ssl: key && cert ? { key, cert } : null,
+    timeout: 30000,
   };
 
   let stopping = false;
@@ -106,7 +110,7 @@ if (!cluster.worker) {
 
   const initPromise = Promise.all([db2.connect(), cache.connect()])
     .then(() => {
-      server.start(SERVICE_PORT, SERVICE_ADDRESS, ssl, _listener);
+      server.start(options, _listener);
     })
     .catch((err) => {
       setTimeout(() => {
