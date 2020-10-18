@@ -49,7 +49,7 @@ export function incomingHttpRequest(
 ): void {
   if (!DEBUG_FILE) return;
   const now = new Date();
-  const con = httpRequest.connection;
+  const con = httpRequest.socket;
   const msg = {
     event: "incoming HTTP request",
     timestamp: now,
@@ -77,7 +77,7 @@ export function outgoingHttpResponse(
 ): void {
   if (!DEBUG_FILE) return;
   const now = new Date();
-  const con = httpResponse.connection;
+  const con = httpResponse.socket;
   const msg = {
     event: "outgoing HTTP response",
     timestamp: now,
@@ -104,7 +104,7 @@ export function outgoingHttpRequest(
 ): void {
   if (!DEBUG_FILE) return;
   const now = new Date();
-  const con = httpRequest.connection;
+  const con = httpRequest.socket;
   const msg = {
     event: "outgoing HTTP request",
     timestamp: now,
@@ -160,13 +160,13 @@ export function incomingHttpResponse(
 ): void {
   if (!DEBUG_FILE) return;
   const now = new Date();
-  const con = httpResponse.connection;
+  const con = httpResponse.socket;
   const msg = {
     event: "incoming HTTP response",
     timestamp: now,
     remoteAddress: con.remoteAddress,
     deviceId: deviceId,
-    connection: getConnectionTimestamp(httpResponse.connection),
+    connection: getConnectionTimestamp(httpResponse.socket),
     statusCode: httpResponse.statusCode,
     headers: httpResponse.headers,
     body: body,

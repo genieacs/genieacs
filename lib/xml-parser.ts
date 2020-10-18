@@ -53,7 +53,8 @@ export interface Element {
 }
 
 export function parseXmlDeclaration(buffer: Buffer): Attribute[] {
-  for (const enc of ["utf16le", "utf8", "latin1", "ascii"]) {
+  const encodings: BufferEncoding[] = ["utf16le", "utf8", "latin1", "ascii"];
+  for (const enc of encodings) {
     let str = buffer.toString(enc, 0, 150);
     if (str.startsWith("<?xml")) {
       str = str.split("\n")[0].trim();
