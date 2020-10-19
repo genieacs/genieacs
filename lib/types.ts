@@ -289,8 +289,8 @@ export interface FaultStruct {
 }
 
 export interface CpeFault {
-  faultCode: string;
-  faultString: string;
+  faultCode: "Client" | "Server";
+  faultString: "CWMP fault";
   detail?: FaultStruct;
 }
 

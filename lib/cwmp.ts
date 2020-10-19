@@ -1045,7 +1045,6 @@ async function processRequest(
 ): Promise<void> {
   for (const w of parseWarnings) {
     w.sessionContext = sessionContext;
-    w.rpc = rpc;
     logger.accessWarn(w);
   }
 

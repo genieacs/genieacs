@@ -127,7 +127,8 @@ function parameterInfoList(xml: Element): [Path, boolean, boolean][] {
 
       if (parsed == null) {
         warnings.push({
-          message: "Invalid writable attribute",
+          message: "Missing or invalid XML node",
+          element: "Writable",
           parameter: param,
         });
         parsed = false;
@@ -167,7 +168,8 @@ function parameterValueList(
       let valueType = getValueType(valueElement.attrs);
       if (!valueType) {
         warnings.push({
-          message: "Invalid value type attribute",
+          message: "Missing or invalid XML node",
+          attribute: "type",
           parameter: param,
         });
         valueType = "xsd:string";
@@ -179,7 +181,8 @@ function parameterValueList(
         parsed = parseBool(value);
         if (parsed == null) {
           warnings.push({
-            message: "Invalid value attribute",
+            message: "Missing or invalid XML node",
+            element: "Value",
             parameter: param,
           });
           parsed = value;
@@ -188,7 +191,8 @@ function parameterValueList(
         parsed = parseInt(value);
         if (isNaN(parsed)) {
           warnings.push({
-            message: "Invalid value attribute",
+            message: "Missing or invalid XML node",
+            element: "Value",
             parameter: param,
           });
           parsed = value;
@@ -197,7 +201,8 @@ function parameterValueList(
         parsed = Date.parse(value);
         if (isNaN(parsed)) {
           warnings.push({
-            message: "Invalid value attribute",
+            message: "Missing or invalid XML node",
+            element: "Value",
             parameter: param,
           });
           parsed = value;
@@ -232,7 +237,8 @@ function parameterAttributeList(xml: Element): [Path, number, string[]][] {
       let notification = parseInt(notificationElement.text);
       if (isNaN(notification)) {
         warnings.push({
-          message: "Invalid notification attribute",
+          message: "Missing or invalid XML node",
+          element: "Notification",
           parameter: param,
         });
         notification = 0;
@@ -331,7 +337,10 @@ function SetParameterValuesResponse(xml: Element): SetParameterValuesResponse {
   }
 
   if (!(status >= 0)) {
-    warnings.push({ message: "Invalid SetParameterValuesResponse status" });
+    warnings.push({
+      message: "Missing or invalid XML node",
+      element: "Status",
+    });
     status = 0;
   }
 
@@ -392,8 +401,14 @@ function AddObjectResponse(xml: Element): AddObjectResponse {
     }
   }
 
+  if (!/^[0-9]+$/.test(instanceNumber))
+    throw new Error("Missing or invalid instance number");
+
   if (!(status >= 0)) {
-    warnings.push({ message: "Invalid AddObjectResponse status" });
+    warnings.push({
+      message: "Missing or invalid XML node",
+      element: "Status",
+    });
     status = 0;
   }
 
@@ -424,7 +439,10 @@ function DeleteObjectResponse(xml: Element): DeleteObjectResponse {
   }
 
   if (!(status >= 0)) {
-    warnings.push({ message: "Invalid DeleteObjectResponse status" });
+    warnings.push({
+      message: "Missing or invalid XML node",
+      element: "Status",
+    });
     status = 0;
   }
 
@@ -495,8 +513,27 @@ function DownloadResponse(xml: Element): DownloadResponse {
   }
 
   if (!(status >= 0)) {
-    warnings.push({ message: "Invalid DownloadResponse status" });
+    warnings.push({
+      message: "Missing or invalid XML node",
+      element: "Status",
+    });
     status = 0;
+  }
+
+  if (startTime == null || isNaN(startTime)) {
+    warnings.push({
+      message: "Missing or invalid XML node",
+      element: "StartTime",
+    });
+    startTime = Date.parse("0001-01-01T00:00:00Z");
+  }
+
+  if (completeTime == null || isNaN(completeTime)) {
+    warnings.push({
+      message: "Missing or invalid XML node",
+      element: "CompleteTime",
+    });
+    completeTime = Date.parse("0001-01-01T00:00:00Z");
   }
 
   return {
@@ -537,6 +574,30 @@ function Inform(xml: Element): InformRequest {
     }
   }
 
+  if (!deviceId || !deviceId.SerialNumber || !deviceId.OUI)
+    throw new Error("Missing or invalid DeviceId element");
+
+  if (!parameterList) {
+    warnings.push({
+      message: "Missing or invalid XML node",
+      element: "ParameterList",
+    });
+    parameterList = [];
+  }
+
+  if (!evnt) {
+    warnings.push({ message: "Missing or invalid XML node", element: "Event" });
+    evnt = [];
+  }
+
+  if (retryCount == null || isNaN(retryCount)) {
+    warnings.push({
+      message: "Missing or invalid XML node",
+      element: "RetryCount",
+    });
+    retryCount = 0;
+  }
+
   return {
     name: "Inform",
     parameterList: parameterList,
@@ -563,7 +624,10 @@ function GetRPCMethodsResponse(methodResponse): string {
 }
 
 function TransferComplete(xml: Element): TransferCompleteRequest {
-  let commandKey, _faultStruct, startTime, completeTime;
+  let commandKey: string,
+    _faultStruct: FaultStruct,
+    startTime: number,
+    completeTime: number;
   for (const c of xml.children) {
     switch (c.localName) {
       case "CommandKey":
@@ -579,6 +643,38 @@ function TransferComplete(xml: Element): TransferCompleteRequest {
         completeTime = Date.parse(c.text);
         break;
     }
+  }
+
+  if (commandKey == null) {
+    warnings.push({
+      message: "Missing or invalid XML node",
+      element: "CommandKey",
+    });
+    commandKey = "";
+  }
+
+  if (!_faultStruct) {
+    warnings.push({
+      message: "Missing or invalid XML node",
+      element: "FaultStruct",
+    });
+    _faultStruct = { faultCode: "0", faultString: "" };
+  }
+
+  if (startTime == null || isNaN(startTime)) {
+    warnings.push({
+      message: "Missing or invalid XML node",
+      element: "StartTime",
+    });
+    startTime = Date.parse("0001-01-01T00:00:00Z");
+  }
+
+  if (completeTime == null || isNaN(completeTime)) {
+    warnings.push({
+      message: "Missing or invalid XML node",
+      element: "CompleteTime",
+    });
+    completeTime = Date.parse("0001-01-01T00:00:00Z");
   }
 
   return {
@@ -606,7 +702,12 @@ function RequestDownloadResponse(): string {
 }
 
 function faultStruct(xml: Element): FaultStruct {
-  let faultCode, faultString, setParameterValuesFault: SpvFault[], pn, fc, fs;
+  let faultCode: string,
+    faultString: string,
+    setParameterValuesFault: SpvFault[],
+    pn: string,
+    fc: string,
+    fs: string;
   for (const c of xml.children) {
     switch (c.localName) {
       case "FaultCode":
@@ -617,6 +718,7 @@ function faultStruct(xml: Element): FaultStruct {
         break;
       case "SetParameterValuesFault":
         setParameterValuesFault = setParameterValuesFault || [];
+        pn = fc = fs = null;
         for (const cc of c.children) {
           switch (cc.localName) {
             case "ParameterName":
@@ -638,11 +740,27 @@ function faultStruct(xml: Element): FaultStruct {
     }
   }
 
+  if (faultCode == null) {
+    warnings.push({
+      message: "Missing or invalid XML node",
+      element: "FaultCode",
+    });
+    faultCode = "";
+  }
+
+  if (faultString == null) {
+    warnings.push({
+      message: "Missing or invalid XML node",
+      element: "FaultString",
+    });
+    faultString = "";
+  }
+
   return { faultCode, faultString, setParameterValuesFault };
 }
 
 function fault(xml: Element): CpeFault {
-  let faultCode, faultString, detail;
+  let faultCode: string, faultString: string, detail: FaultStruct;
   for (const c of xml.children) {
     switch (c.localName) {
       case "faultcode":
@@ -657,7 +775,25 @@ function fault(xml: Element): CpeFault {
     }
   }
 
-  return { faultCode, faultString, detail };
+  if (!detail) throw new Error("Missing detail element");
+
+  if (faultCode == null) {
+    warnings.push({
+      message: "Missing or invalid XML node",
+      element: "faultcode",
+    });
+    faultCode = "Client";
+  }
+
+  if (faultString == null) {
+    warnings.push({
+      message: "Missing or invalid XML node",
+      element: "faultstring",
+    });
+    faultString = "CWMP fault";
+  }
+
+  return { faultCode, faultString, detail } as CpeFault;
 }
 
 export function request(
