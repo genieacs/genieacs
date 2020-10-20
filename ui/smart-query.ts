@@ -19,6 +19,7 @@
 
 import config from "./config";
 import { Expression } from "../lib/types";
+import { encodeTag } from "../lib/common";
 
 const resources = {
   devices: {},
@@ -138,7 +139,7 @@ function queryMac(param, value): Expression {
 }
 
 function queryTag(tag: string): Expression {
-  const t = tag.replace(/[^a-zA-Z0-9-]+/g, "_");
+  const t = encodeTag(tag);
   return ["IS NOT NULL", ["PARAM", `Tags.${t}`]];
 }
 

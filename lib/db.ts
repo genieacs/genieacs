@@ -19,7 +19,7 @@
 
 import { MongoClient, ObjectID, Collection } from "mongodb";
 import { get } from "./config";
-import { escapeRegExp } from "./common";
+import { encodeTag, escapeRegExp } from "./common";
 import { parse } from "./common/expression-parser";
 import {
   DeviceData,
@@ -234,10 +234,9 @@ export async function fetchDevice(
           ]);
         }
 
-        for (let t of v as string[]) {
-          t = t.replace(/[^a-zA-Z0-9-]+/g, "_");
+        for (const t of v as string[]) {
           res.push([
-            Path.parse("Tags." + t),
+            Path.parse("Tags." + encodeTag(t)),
             timestamp,
             {
               object: [timestamp, 0],

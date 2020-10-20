@@ -31,6 +31,7 @@ import { del } from "../cache";
 import Authorizer from "../common/authorizer";
 import { ping } from "../ping";
 import * as url from "url";
+import { decodeTag } from "../common";
 
 const router = new Router();
 export default router;
@@ -280,7 +281,7 @@ for (const [resource, flags] of Object.entries(resources)) {
                 if (e[1] === "Tags") {
                   const tags = [];
                   for (const p in obj)
-                    if (p.startsWith("Tags.")) tags.push(p.slice(5));
+                    if (p.startsWith("Tags.")) tags.push(decodeTag(p.slice(5)));
 
                   return tags.join(", ");
                 }

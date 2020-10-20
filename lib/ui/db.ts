@@ -237,39 +237,27 @@ export function count(resource: string, filter: Expression): Promise<number> {
   });
 }
 
-export function updateDeviceTags(
+export async function updateDeviceTags(
   deviceId: string,
   tags: Record<string, boolean>
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const add = [];
-    const pull = [];
+  const add = [];
+  const pull = [];
 
-    const regex = /^[0-9a-zA-Z_]+$/;
-    for (let [tag, onOff] of Object.entries(tags)) {
-      tag = tag.trim();
-      if (onOff) {
-        if (!tag.match(regex))
-          return void reject(new Error(`Invalid tag '${tag}'`));
-        add.push(tag);
-      } else {
-        pull.push(tag);
-      }
-    }
-    getClient()
-      .then((client) => {
-        const collection = client.db().collection("devices");
+  for (let [tag, onOff] of Object.entries(tags)) {
+    tag = tag.trim();
+    if (onOff) add.push(tag);
+    else pull.push(tag);
+  }
 
-        const object = {};
-        if (add && add.length) object["$addToSet"] = { _tags: { $each: add } };
-        if (pull && pull.length) object["$pullAll"] = { _tags: pull };
-        collection.updateOne({ _id: deviceId }, object, (err) => {
-          if (err) return void reject(err);
-          resolve();
-        });
-      })
-      .catch(reject);
-  });
+  const client = await getClient();
+  const collection = client.db().collection("devices");
+  const object = {};
+
+  if (add && add.length) object["$addToSet"] = { _tags: { $each: add } };
+  if (pull && pull.length) object["$pullAll"] = { _tags: pull };
+
+  await collection.updateOne({ _id: deviceId }, object);
 }
 
 function putResource(resource, id, object): Promise<void> {

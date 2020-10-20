@@ -47,3 +47,17 @@ export function generateDeviceId(
 export function escapeRegExp(str: string): string {
   return str.replace(/[-[\]/{}()*+?.\\^$|]/g, "\\$&");
 }
+
+export function encodeTag(tag: string): string {
+  return encodeURIComponent(tag)
+    .replace(
+      /[!~*'()]/g,
+      (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase()
+    )
+    .replace(/0x(?=[0-9A-Z]{2})/g, "0%78")
+    .replace(/%/g, "0x");
+}
+
+export function decodeTag(tag: string): string {
+  return decodeURIComponent(tag.replace(/0x(?=[0-9A-Z]{2})/g, "%"));
+}

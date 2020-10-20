@@ -22,6 +22,7 @@ import { m } from "../components";
 import * as notifications from "../notifications";
 import * as store from "../store";
 import { getIcon } from "../icons";
+import { decodeTag } from "../../lib/common";
 
 const component: ClosureComponent = (): Component => {
   return {
@@ -32,7 +33,7 @@ const component: ClosureComponent = (): Component => {
 
       const tags = [];
       for (const p of Object.keys(device))
-        if (p.startsWith("Tags.")) tags.push(p.slice(5));
+        if (p.startsWith("Tags.")) tags.push(decodeTag(p.slice(5)));
 
       tags.sort();
 
