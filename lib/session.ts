@@ -1734,20 +1734,35 @@ function generateSetRpcRequest(
 
   const deviceData = sessionContext.deviceData;
 
+  const SKIP_WRITABLE_CHECK = !!localCache.getConfig(
+    sessionContext.cacheSnapshot,
+    "cwmp.skipWritableCheck",
+    {},
+    sessionContext.timestamp,
+    (e) => configContextCallback(sessionContext, e)
+  );
+
+  const canWrite = (attrs: Attributes): boolean =>
+    SKIP_WRITABLE_CHECK || (attrs.writable && !!attrs.writable[1]);
+
   // Delete instance
   for (const instances of syncState.instancesToDelete.values()) {
-    const instance = instances.values().next().value;
-    if (instance && sessionContext.deviceData.attributes.has(instance)) {
-      return {
-        name: "DeleteObject",
-        objectName: instance.toString() + ".",
-      };
+    for (const instance of instances) {
+      const attrs = sessionContext.deviceData.attributes.get(instance);
+      if (attrs && canWrite(attrs)) {
+        instances.delete(instance);
+        return {
+          name: "DeleteObject",
+          objectName: instance.toString() + ".",
+        };
+      }
     }
   }
 
   // Create instance
   for (const [param, instances] of syncState.instancesToCreate) {
-    if (sessionContext.deviceData.attributes.has(param)) {
+    const attrs = sessionContext.deviceData.attributes.get(param);
+    if (attrs && canWrite(attrs)) {
       const instance = instances.values().next().value;
       if (instance) {
         instances.delete(instance);
@@ -1791,7 +1806,7 @@ function generateSetRpcRequest(
     syncState.spv.delete(k);
     const attrs = sessionContext.deviceData.attributes.get(k);
     const curVal = attrs.value ? attrs.value[1] : null;
-    if (curVal && attrs.writable && attrs.writable[1]) {
+    if (curVal && canWrite(attrs)) {
       const val = v.slice() as [string | number | boolean, string];
       if (!val[1]) val[1] = curVal[1];
       device.sanitizeParameterValue(val);
@@ -2609,7 +2624,6 @@ export async function rpcResponse(
         timestamp + 1,
         {
           object: [timestamp + 1, 0],
-          writable: [timestamp + 1, 1],
           value: [
             timestamp + 1,
             p.slice(1) as [string | number | boolean, string],
