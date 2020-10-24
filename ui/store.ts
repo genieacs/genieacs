@@ -173,6 +173,7 @@ export async function xhrRequest(
 
     // https://mithril.js.org/request.html#error-handling
     if (xhr.status !== 304 && Math.floor(xhr.status / 100) !== 2) {
+      if (xhr.status === 403) throw new Error("Not authorized");
       const err = new Error();
       err["message"] =
         xhr.status === 0
@@ -385,6 +386,7 @@ function _fulfill(
                   filter: memoizedStringify(filter),
                 }),
               extract: (xhr) => {
+                if (xhr.status === 403) throw new Error("Not authorized");
                 if (!xhr.status) {
                   throw new Error("Server is unrachable");
                 } else if (xhr.status !== 200) {
@@ -605,6 +607,7 @@ export function postTasks(
     url: `api/devices/${encodeURIComponent(deviceId)}/tasks`,
     body: tasks,
     extract: (xhr) => {
+      if (xhr.status === 403) throw new Error("Not authorized");
       if (xhr.status !== 200) throw new Error(xhr.response);
       const connectionRequestStatus = xhr.getResponseHeader(
         "Connection-Request"
@@ -675,6 +678,7 @@ export function resourceExists(resource: string, id: string): Promise<number> {
         filter: memoizedStringify(filter),
       }),
     extract: (xhr) => {
+      if (xhr.status === 403) throw new Error("Not authorized");
       if (!xhr.status) throw new Error("Server is unrachable");
       else if (xhr.status !== 200)
         throw new Error(`Unexpected response status code ${xhr.status}`);
