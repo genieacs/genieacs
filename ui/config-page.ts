@@ -147,37 +147,42 @@ function renderTable(confsResponse, searchString): Children {
       {
         title: "Edit config value",
         onclick: () => {
-          const cb = (): Children => {
-            return m(
-              putFormComponent,
-              Object.assign(
-                {
-                  base: conf,
-                  actionHandler: (action, object) => {
-                    return new Promise((resolve) => {
-                      putActionHandler(action, object, false)
-                        .then((errors) => {
-                          const ErrorList = errors ? Object.values(errors) : [];
-                          if (ErrorList.length) {
-                            for (const err of ErrorList)
-                              notifications.push("error", err);
-                          } else {
-                            overlay.close(cb);
-                          }
-                          resolve();
-                        })
-                        .catch((err) => {
-                          notifications.push("error", err.message);
-                          resolve();
-                        });
-                    });
-                  },
+          let cb: () => Children = null;
+          const comp = m(
+            putFormComponent,
+            Object.assign(
+              {
+                base: conf,
+                actionHandler: (action, object) => {
+                  return new Promise((resolve) => {
+                    putActionHandler(action, object, false)
+                      .then((errors) => {
+                        const ErrorList = errors ? Object.values(errors) : [];
+                        if (ErrorList.length) {
+                          for (const err of ErrorList)
+                            notifications.push("error", err);
+                        } else {
+                          overlay.close(cb);
+                        }
+                        resolve();
+                      })
+                      .catch((err) => {
+                        notifications.push("error", err.message);
+                        resolve();
+                      });
+                  });
                 },
-                formData
-              )
-            );
-          };
-          overlay.open(cb);
+              },
+              formData
+            )
+          );
+          cb = () => comp;
+          overlay.open(
+            cb,
+            () =>
+              !comp.state["current"]["modified"] ||
+              confirm("You have unsaved changes. Close anyway?")
+          );
         },
       },
       getIcon("edit")
@@ -244,38 +249,43 @@ export const component: ClosureComponent = (): Component => {
           {
             title: "Create new config",
             onclick: () => {
-              const cb = (): Children => {
-                return m(
-                  putFormComponent,
-                  Object.assign(
-                    {
-                      actionHandler: (action, object) => {
-                        return new Promise((resolve) => {
-                          putActionHandler(action, object, true)
-                            .then((errors) => {
-                              const errorList = errors
-                                ? Object.values(errors)
-                                : [];
-                              if (errorList.length) {
-                                for (const err of errorList)
-                                  notifications.push("error", err);
-                              } else {
-                                overlay.close(cb);
-                              }
-                              resolve();
-                            })
-                            .catch((err) => {
-                              notifications.push("error", err.message);
-                              resolve();
-                            });
-                        });
-                      },
+              let cb: () => Children = null;
+              const comp = m(
+                putFormComponent,
+                Object.assign(
+                  {
+                    actionHandler: (action, object) => {
+                      return new Promise((resolve) => {
+                        putActionHandler(action, object, true)
+                          .then((errors) => {
+                            const errorList = errors
+                              ? Object.values(errors)
+                              : [];
+                            if (errorList.length) {
+                              for (const err of errorList)
+                                notifications.push("error", err);
+                            } else {
+                              overlay.close(cb);
+                            }
+                            resolve();
+                          })
+                          .catch((err) => {
+                            notifications.push("error", err.message);
+                            resolve();
+                          });
+                      });
                     },
-                    formData
-                  )
-                );
-              };
-              overlay.open(cb);
+                  },
+                  formData
+                )
+              );
+              cb = () => comp;
+              overlay.open(
+                cb,
+                () =>
+                  !comp.state["current"]["modified"] ||
+                  confirm("You have unsaved changes. Close anyway?")
+              );
             },
           },
           "New config"
@@ -307,39 +317,44 @@ export const component: ClosureComponent = (): Component => {
               "button",
               {
                 onclick: () => {
-                  const cb = (): Children => {
-                    return m(
-                      uiConfigComponent,
-                      Object.assign(
-                        {
-                          onUpdate: (errs: string[]) => {
-                            const errors = errs ? Object.values(errs) : [];
-                            if (errors.length) {
-                              for (const err of errors)
-                                notifications.push("error", err);
-                            } else {
-                              notifications.push(
-                                "success",
-                                `${sub.name.replace(
-                                  /^[a-z]/,
-                                  sub.name[0].toUpperCase()
-                                )} config updated`
-                              );
-                              overlay.close(cb);
-                            }
-                            store.fulfill(0, Date.now());
-                          },
-                          onError: (err) => {
-                            notifications.push("error", err.message);
-                            store.fulfill(0, Date.now());
+                  let cb: () => Children = null;
+                  const comp = m(
+                    uiConfigComponent,
+                    Object.assign(
+                      {
+                        onUpdate: (errs: string[]) => {
+                          const errors = errs ? Object.values(errs) : [];
+                          if (errors.length) {
+                            for (const err of errors)
+                              notifications.push("error", err);
+                          } else {
+                            notifications.push(
+                              "success",
+                              `${sub.name.replace(
+                                /^[a-z]/,
+                                sub.name[0].toUpperCase()
+                              )} config updated`
+                            );
                             overlay.close(cb);
-                          },
+                          }
+                          store.fulfill(0, Date.now());
                         },
-                        attrs
-                      )
-                    );
-                  };
-                  overlay.open(cb);
+                        onError: (err) => {
+                          notifications.push("error", err.message);
+                          store.fulfill(0, Date.now());
+                          overlay.close(cb);
+                        },
+                      },
+                      attrs
+                    )
+                  );
+                  cb = () => comp;
+                  overlay.open(
+                    cb,
+                    () =>
+                      !comp.state["modified"] ||
+                      confirm("You have unsaved changes. Close anyway?")
+                  );
                 },
               },
               `Edit ${sub.name}`

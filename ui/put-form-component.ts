@@ -56,6 +56,7 @@ function createField(current, attr, focus): Children {
           : null,
         onchange: (e) => {
           current.object[attr.id] = e.target.value;
+          current.modified = true;
           e.redraw = false;
         },
       },
@@ -80,6 +81,7 @@ function createField(current, attr, focus): Children {
           if (e.target.checked) currentSelected.add(op);
           else currentSelected.delete(op);
           current.object[attr.id] = Array.from(currentSelected);
+          current.modified = true;
           e.redraw = false;
         },
       };
@@ -98,6 +100,7 @@ function createField(current, attr, focus): Children {
       },
       onChange: (value) => {
         current.object[attr.id] = value;
+        current.modified = true;
       },
     };
     return m(codeEditorComponent, attrs);
@@ -112,6 +115,7 @@ function createField(current, attr, focus): Children {
         : null,
       onchange: (e) => {
         current.object[attr.id] = e.target.files;
+        current.modified = true;
         e.redraw = false;
       },
     });
@@ -132,6 +136,7 @@ function createField(current, attr, focus): Children {
         : null,
       oninput: (e) => {
         current.object[attr.id] = e.target.value;
+        current.modified = true;
         e.redraw = false;
       },
       onkeypress: (e) => {
@@ -158,6 +163,7 @@ function createField(current, attr, focus): Children {
       : null,
     oninput: (e) => {
       current.object[attr.id] = e.target.value;
+      current.modified = true;
       e.redraw = false;
     },
   });
@@ -174,6 +180,7 @@ const component: ClosureComponent = (): Component => {
         vnode.state["current"] = {
           isNew: !base["_id"],
           object: Object.assign({}, base),
+          modified: false,
         };
       }
 

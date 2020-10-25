@@ -287,7 +287,38 @@ export const component: ClosureComponent = (): Component => {
             "a",
             {
               onclick: () => {
-                const cb = (): Children => {
+                let cb: () => Children = null;
+                const comp = m(
+                  putFormComponent,
+                  Object.assign(
+                    {
+                      base: preset,
+                      actionHandler: (action, object) => {
+                        return new Promise((resolve) => {
+                          putActionHandler(action, object, false)
+                            .then((errors) => {
+                              const errorList = errors
+                                ? Object.values(errors)
+                                : [];
+                              if (errorList.length) {
+                                for (const err of errorList)
+                                  notifications.push("error", err);
+                              } else {
+                                overlay.close(cb);
+                              }
+                              resolve();
+                            })
+                            .catch((err) => {
+                              notifications.push("error", err.message);
+                              resolve();
+                            });
+                        });
+                      },
+                    },
+                    formData
+                  )
+                );
+                cb = (): Children => {
                   if (!preset.provision) {
                     return m(
                       "div",
@@ -295,15 +326,37 @@ export const component: ClosureComponent = (): Component => {
                       "This UI only supports presets with a single 'provision' configuraiton. If this preset was originally created from the old UI (genieacs-gui), you must edit it there."
                     );
                   }
+                  return comp;
+                };
+                overlay.open(
+                  cb,
+                  () =>
+                    !comp.state["current"]["modified"] ||
+                    confirm("You have unsaved changes. Close anyway?")
+                );
+              },
+            },
+            "Show"
+          ),
+        ];
+      };
 
-                  return m(
+      if (window.authorizer.hasAccess("presets", 3)) {
+        attrs["actionsCallback"] = (selected: Set<string>): Children => {
+          return [
+            m(
+              "button.primary",
+              {
+                title: "Create new preset",
+                onclick: () => {
+                  let cb: () => Children = null;
+                  const comp = m(
                     putFormComponent,
                     Object.assign(
                       {
-                        base: preset,
                         actionHandler: (action, object) => {
                           return new Promise((resolve) => {
-                            putActionHandler(action, object, false)
+                            putActionHandler(action, object, true)
                               .then((errors) => {
                                 const errorList = errors
                                   ? Object.values(errors)
@@ -326,55 +379,13 @@ export const component: ClosureComponent = (): Component => {
                       formData
                     )
                   );
-                };
-                overlay.open(cb);
-              },
-            },
-            "Show"
-          ),
-        ];
-      };
-
-      if (window.authorizer.hasAccess("presets", 3)) {
-        attrs["actionsCallback"] = (selected: Set<string>): Children => {
-          return [
-            m(
-              "button.primary",
-              {
-                title: "Create new preset",
-                onclick: () => {
-                  const cb = (): Children => {
-                    return m(
-                      putFormComponent,
-                      Object.assign(
-                        {
-                          actionHandler: (action, object) => {
-                            return new Promise((resolve) => {
-                              putActionHandler(action, object, true)
-                                .then((errors) => {
-                                  const errorList = errors
-                                    ? Object.values(errors)
-                                    : [];
-                                  if (errorList.length) {
-                                    for (const err of errorList)
-                                      notifications.push("error", err);
-                                  } else {
-                                    overlay.close(cb);
-                                  }
-                                  resolve();
-                                })
-                                .catch((err) => {
-                                  notifications.push("error", err.message);
-                                  resolve();
-                                });
-                            });
-                          },
-                        },
-                        formData
-                      )
-                    );
-                  };
-                  overlay.open(cb);
+                  cb = () => comp;
+                  overlay.open(
+                    cb,
+                    () =>
+                      !comp.state["current"]["modified"] ||
+                      confirm("You have unsaved changes. Close anyway?")
+                  );
                 },
               },
               "New"

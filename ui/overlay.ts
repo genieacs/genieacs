@@ -20,16 +20,24 @@
 import m, { Children } from "mithril";
 
 type OverlayCallback = () => Children;
+type CloseCallback = () => boolean;
 
 let overlayCallback: OverlayCallback = null;
+let closeCallback: CloseCallback = null;
 
-export function open(callback: OverlayCallback): void {
+export function open(
+  callback: OverlayCallback,
+  closeCb: CloseCallback = null
+): void {
   overlayCallback = callback;
+  closeCallback = closeCb;
 }
 
-export function close(callback: OverlayCallback): boolean {
+export function close(callback: OverlayCallback, force = true): boolean {
   if (callback === overlayCallback) {
+    if (!force && closeCallback && !closeCallback()) return false;
     overlayCallback = null;
+    closeCallback = null;
     return true;
   }
 
@@ -43,7 +51,7 @@ export function render(): Children {
       {
         tabindex: 0,
         onclick: () => {
-          close(overlayCallback);
+          close(overlayCallback, false);
         },
         style: "opacity: 0",
         oncreate: (vnode) => {
@@ -75,9 +83,10 @@ export function render(): Children {
 }
 
 document.addEventListener("keydown", (e) => {
-  if (overlayCallback && e.keyCode === 27 && close(overlayCallback)) m.redraw();
+  if (overlayCallback && e.keyCode === 27 && close(overlayCallback, false))
+    m.redraw();
 });
 
 window.addEventListener("popstate", () => {
-  if (close(overlayCallback)) m.redraw();
+  if (close(overlayCallback, false)) m.redraw();
 });

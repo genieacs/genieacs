@@ -237,46 +237,46 @@ export const component: ClosureComponent = (): Component => {
             "a",
             {
               onclick: () => {
-                const cb = (): Children => {
-                  const children = [
-                    m(
-                      putFormComponent,
-                      Object.assign(
-                        {
-                          base: {
-                            _id: user._id,
-                            roles: user.roles.split(","),
-                          },
-                          actionHandler: (action, object) => {
-                            return new Promise((resolve) => {
-                              putActionHandler(action, object, false)
-                                .then((errors) => {
-                                  const errorList = errors
-                                    ? Object.values(errors)
-                                    : [];
-                                  if (errorList.length) {
-                                    for (const err of errorList)
-                                      notifications.push("error", err);
-                                  } else {
-                                    overlay.close(cb);
-                                  }
-                                  resolve();
-                                })
-                                .catch((err) => {
-                                  notifications.push("error", err.message);
-                                  resolve();
-                                });
+                let cb: () => Children = null;
+                const comp = m(
+                  putFormComponent,
+                  Object.assign(
+                    {
+                      base: {
+                        _id: user._id,
+                        roles: user.roles.split(","),
+                      },
+                      actionHandler: (action, object) => {
+                        return new Promise((resolve) => {
+                          putActionHandler(action, object, false)
+                            .then((errors) => {
+                              const errorList = errors
+                                ? Object.values(errors)
+                                : [];
+                              if (errorList.length) {
+                                for (const err of errorList)
+                                  notifications.push("error", err);
+                              } else {
+                                overlay.close(cb);
+                              }
+                              resolve();
+                            })
+                            .catch((err) => {
+                              notifications.push("error", err.message);
+                              resolve();
                             });
-                          },
-                        },
-                        {
-                          resource: "users",
-                          attributes: attributes,
-                        }
-                      )
-                    ),
-                  ];
+                        });
+                      },
+                    },
+                    {
+                      resource: "users",
+                      attributes: attributes,
+                    }
+                  )
+                );
 
+                cb = () => {
+                  const children: Children = [comp];
                   if (canWrite) {
                     children.push(m("hr"));
                     const _attrs = {
@@ -292,7 +292,13 @@ export const component: ClosureComponent = (): Component => {
 
                   return children;
                 };
-                overlay.open(cb);
+
+                overlay.open(
+                  cb,
+                  () =>
+                    !comp.state["current"]["modified"] ||
+                    confirm("You have unsaved changes. Close anyway?")
+                );
               },
             },
             "Show"
@@ -317,38 +323,43 @@ export const component: ClosureComponent = (): Component => {
               {
                 title: "Create new user",
                 onclick: () => {
-                  const cb = (): Children => {
-                    return m(
-                      putFormComponent,
-                      Object.assign(
-                        {
-                          actionHandler: (action, object) => {
-                            return new Promise((resolve) => {
-                              putActionHandler(action, object, true)
-                                .then((errors) => {
-                                  const errorList = errors
-                                    ? Object.values(errors)
-                                    : [];
-                                  if (errorList.length) {
-                                    for (const err of errorList)
-                                      notifications.push("error", err);
-                                  } else {
-                                    overlay.close(cb);
-                                  }
-                                  resolve();
-                                })
-                                .catch((err) => {
-                                  notifications.push("error", err.message);
-                                  resolve();
-                                });
-                            });
-                          },
+                  let cb: () => Children = null;
+                  const comp = m(
+                    putFormComponent,
+                    Object.assign(
+                      {
+                        actionHandler: (action, object) => {
+                          return new Promise((resolve) => {
+                            putActionHandler(action, object, true)
+                              .then((errors) => {
+                                const errorList = errors
+                                  ? Object.values(errors)
+                                  : [];
+                                if (errorList.length) {
+                                  for (const err of errorList)
+                                    notifications.push("error", err);
+                                } else {
+                                  overlay.close(cb);
+                                }
+                                resolve();
+                              })
+                              .catch((err) => {
+                                notifications.push("error", err.message);
+                                resolve();
+                              });
+                          });
                         },
-                        formData
-                      )
-                    );
-                  };
-                  overlay.open(cb);
+                      },
+                      formData
+                    )
+                  );
+                  cb = () => comp;
+                  overlay.open(
+                    cb,
+                    () =>
+                      !comp.state["current"]["modified"] ||
+                      confirm("You have unsaved changes. Close anyway?")
+                  );
                 },
               },
               "New"

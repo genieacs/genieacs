@@ -207,15 +207,67 @@ export const component: ClosureComponent = (): Component => {
             "a",
             {
               onclick: () => {
-                const cb = (): Children => {
-                  return m(
+                let cb: () => Children = null;
+                const comp = m(
+                  putFormComponent,
+                  Object.assign(
+                    {
+                      base: virtualParameter,
+                      actionHandler: (action, object) => {
+                        return new Promise((resolve) => {
+                          putActionHandler(action, object, false)
+                            .then((errors) => {
+                              const errorList = errors
+                                ? Object.values(errors)
+                                : [];
+                              if (errorList.length) {
+                                for (const err of errorList)
+                                  notifications.push("error", err);
+                              } else {
+                                overlay.close(cb);
+                              }
+                              resolve();
+                            })
+                            .catch((err) => {
+                              notifications.push("error", err.message);
+                              resolve();
+                            });
+                        });
+                      },
+                    },
+                    formData
+                  )
+                );
+                cb = () => comp;
+                overlay.open(
+                  cb,
+                  () =>
+                    !comp.state["current"]["modified"] ||
+                    confirm("You have unsaved changes. Close anyway?")
+                );
+              },
+            },
+            "Show"
+          ),
+        ];
+      };
+
+      if (window.authorizer.hasAccess("virtualParameters", 3)) {
+        attrs["actionsCallback"] = (selected: Set<string>): Children => {
+          return [
+            m(
+              "button.primary",
+              {
+                title: "Create new virtual parameter",
+                onclick: () => {
+                  let cb: () => Children = null;
+                  const comp = m(
                     putFormComponent,
                     Object.assign(
                       {
-                        base: virtualParameter,
                         actionHandler: (action, object) => {
                           return new Promise((resolve) => {
-                            putActionHandler(action, object, false)
+                            putActionHandler(action, object, true)
                               .then((errors) => {
                                 const errorList = errors
                                   ? Object.values(errors)
@@ -238,55 +290,13 @@ export const component: ClosureComponent = (): Component => {
                       formData
                     )
                   );
-                };
-                overlay.open(cb);
-              },
-            },
-            "Show"
-          ),
-        ];
-      };
-
-      if (window.authorizer.hasAccess("virtualParameters", 3)) {
-        attrs["actionsCallback"] = (selected: Set<string>): Children => {
-          return [
-            m(
-              "button.primary",
-              {
-                title: "Create new virtual parameter",
-                onclick: () => {
-                  const cb = (): Children => {
-                    return m(
-                      putFormComponent,
-                      Object.assign(
-                        {
-                          actionHandler: (action, object) => {
-                            return new Promise((resolve) => {
-                              putActionHandler(action, object, true)
-                                .then((errors) => {
-                                  const errorList = errors
-                                    ? Object.values(errors)
-                                    : [];
-                                  if (errorList.length) {
-                                    for (const err of errorList)
-                                      notifications.push("error", err);
-                                  } else {
-                                    overlay.close(cb);
-                                  }
-                                  resolve();
-                                })
-                                .catch((err) => {
-                                  notifications.push("error", err.message);
-                                  resolve();
-                                });
-                            });
-                          },
-                        },
-                        formData
-                      )
-                    );
-                  };
-                  overlay.open(cb);
+                  cb = () => comp;
+                  overlay.open(
+                    cb,
+                    () =>
+                      !comp.state["current"]["modified"] ||
+                      confirm("You have unsaved changes. Close anyway?")
+                  );
                 },
               },
               "New"

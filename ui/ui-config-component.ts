@@ -120,6 +120,7 @@ const component: ClosureComponent = (): Component => {
         },
         onChange: (value) => {
           vnode.state["updatedYaml"] = value;
+          vnode.state["modified"] = true;
         },
       };
 
