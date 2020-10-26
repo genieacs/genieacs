@@ -17,7 +17,7 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Z_SYNC_FLUSH } from "zlib";
+import { constants } from "zlib";
 import Koa from "koa";
 import Router from "koa-router";
 import * as jwt from "jsonwebtoken";
@@ -254,10 +254,10 @@ router.get("/", async (ctx) => {
 koa.use(
   koaCompress({
     gzip: {
-      flush: Z_SYNC_FLUSH,
+      flush: constants.Z_SYNC_FLUSH,
     },
     deflate: {
-      flush: Z_SYNC_FLUSH,
+      flush: constants.Z_SYNC_FLUSH,
     },
   })
 );

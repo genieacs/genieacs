@@ -83,7 +83,7 @@ export function render(): Children {
 }
 
 document.addEventListener("keydown", (e) => {
-  if (overlayCallback && e.keyCode === 27 && close(overlayCallback, false))
+  if (overlayCallback && e.key === "Escape" && close(overlayCallback, false))
     m.redraw();
 });
 
