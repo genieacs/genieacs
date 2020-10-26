@@ -19,14 +19,13 @@
 
 import * as path from "path";
 import * as fs from "fs";
-import { promisify } from "util";
 import { rollup, WarningHandler } from "rollup";
 import rollupJson from "@rollup/plugin-json";
 import typescript from "@rollup/plugin-typescript";
 import { terser } from "rollup-plugin-terser";
 import nodeResolve from "@rollup/plugin-node-resolve";
 import commonjs from "@rollup/plugin-commonjs";
-import webpack from "webpack";
+import webpack, { Configuration } from "webpack";
 import postcss from "postcss";
 import postcssImport from "postcss-import";
 import postcssPresetEnv from "postcss-preset-env";
@@ -340,8 +339,8 @@ async function generateFrontendJs(): Promise<void> {
     file: outputFile,
   });
 
-  const webpackConf = {
-    mode: MODE,
+  const webpackConf: Configuration = {
+    mode: MODE as "development" | "production",
     entry: outputFile,
     resolve: {
       aliasFields: ["module"],
@@ -362,8 +361,13 @@ async function generateFrontendJs(): Promise<void> {
     },
   };
 
-  const stats = await promisify(webpack)(webpackConf);
-  process.stdout.write(stats.toString({ colors: true }) + "\n");
+  return new Promise((resolve, reject) => {
+    webpack(webpackConf, (err, stats) => {
+      if (err) return reject(err);
+      process.stdout.write(stats.toString({ colors: true }) + "\n");
+      resolve();
+    });
+  });
 }
 
 async function generateIconsSprite(): Promise<void> {

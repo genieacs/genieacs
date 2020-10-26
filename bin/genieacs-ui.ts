@@ -103,9 +103,7 @@ if (!cluster.worker) {
 
   const _listener = (req, res): void => {
     if (stopping) res.setHeader("Connection", "close");
-    listener(req, res).catch((err) => {
-      throw err;
-    });
+    listener(req, res);
   };
 
   const initPromise = Promise.all([db2.connect(), cache.connect()])

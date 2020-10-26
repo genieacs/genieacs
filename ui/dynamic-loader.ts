@@ -51,7 +51,7 @@ export function loadCodeMirror(): Promise<void> {
     ];
     Promise.all(promises)
       .then((modules) => {
-        codeMirror = modules[0];
+        codeMirror = modules[0].default;
         resolve();
       })
       .catch((err) => {
