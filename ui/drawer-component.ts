@@ -49,10 +49,10 @@ function mval(val): Children {
 }
 
 function renderStagingSpv(task: StageTask, queueFunc, cancelFunc): Children {
-  function keydown(e): void {
-    if (e.keyCode === 13) queueFunc();
-    else if (e.keyCode === 27) cancelFunc();
-    else e.redraw = false;
+  function keydown(e: KeyboardEvent): void {
+    if (e.key === "Enter") queueFunc();
+    else if (e.key === "Escape") cancelFunc();
+    else e["redraw"] = false;
   }
 
   let input;
