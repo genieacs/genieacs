@@ -1,6 +1,24 @@
 # Change Log
 
+## 1.2.3 (2020-10-26)
+
+- New config option 'cwmp.skipWritableCheck' for when some CPEs incorrectly
+report writable parameters as non-writable. When set to true, the scripts will
+no longer respect the 'writable' attribute of the CPE parameters and will send
+a SetParamteerValues, AddObject, or DeleteObject request anyway.
+- Tags no longer restrict what characters are allowed. Any character other than
+alphanumeric characters, hyphen, or underscore is now encoded in the data
+model (i.e. Tags.\<tag>) using its hex value preceded by "0x".
+- Ask for a confirmation before closing a pop-up dialog with unsaved changes.
+- Better XML validation to avoid crashes caused by invalid CPE requests.
+- Fix confusing 404 error message when the user attempts to modify a resource
+when they don't have the necessary permissions.
+- Fix a rare issue where genieacs-cwmp stops accepting new connections after
+running for a few weeks.
+- Fix exception when IS NULL operator is used in certain situations.
+
 ## 1.2.2 (2020-10-03)
+
 - Added button to push files to selected devices from device listing page.
 - A few minor UI improvements.
 - Fix exception that can happen and persist after a Download request.
@@ -9,6 +27,7 @@
 from v1.1.
 
 ## 1.2.1 (2020-09-08)
+
 - Fix bug causing faults to not be displayed in the UI.
 - Fix bug where deleting objects does not get reflected immediately in the UI.
 - Improve conversion between filters written in the expression format and
