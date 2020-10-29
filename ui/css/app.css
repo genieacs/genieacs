@@ -106,7 +106,7 @@ body {
 
   & > .drawer-wrapper {
     position: fixed;
-    z-index: 10;
+    z-index: 101;
     width: 720px;
     margin-left: -360px;
     top: 0;

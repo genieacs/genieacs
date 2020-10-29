@@ -94,7 +94,9 @@ if (!cluster.worker) {
 
   const _listener = (req, res): void => {
     if (stopping) res.setHeader("Connection", "close");
-    listener(req, res);
+    listener(req, res).catch((err) => {
+      throw err;
+    });
   };
 
   const initPromise = db

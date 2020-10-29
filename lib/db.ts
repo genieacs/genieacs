@@ -17,7 +17,7 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MongoClient, ObjectID, Collection, Db } from "mongodb";
+import { MongoClient, ObjectID, Collection, Db, GridFSBucket } from "mongodb";
 import { get } from "./config";
 import { encodeTag, escapeRegExp } from "./common";
 import { parse } from "./common/expression-parser";
@@ -39,10 +39,12 @@ export let tasksCollection: Collection,
   virtualParametersCollection: Collection,
   faultsCollection: Collection,
   filesCollection: Collection,
+  uploadsCollection: Collection,
   operationsCollection: Collection,
   permissionsCollection: Collection,
   usersCollection: Collection,
-  configCollection: Collection;
+  configCollection: Collection,
+  uploadsBucket: GridFSBucket;
 
 let clientPromise: Promise<MongoClient>;
 
@@ -77,6 +79,7 @@ onConnect(async (db) => {
   presetsCollection = db.collection("presets");
   objectsCollection = db.collection("objects");
   filesCollection = db.collection("fs.files");
+  uploadsCollection = db.collection("uploads.files");
   provisionsCollection = db.collection("provisions");
   virtualParametersCollection = db.collection("virtualParameters");
   faultsCollection = db.collection("faults");
@@ -84,6 +87,7 @@ onConnect(async (db) => {
   permissionsCollection = db.collection("permissions");
   usersCollection = db.collection("users");
   configCollection = db.collection("config");
+  uploadsBucket = new GridFSBucket(db, { bucketName: "uploads" });
 });
 
 export async function disconnect(): Promise<void> {
@@ -439,6 +443,17 @@ export async function saveDevice(
 
         break;
       default:
+        if (
+          diff[0].segments[0] === "Uploads" &&
+          diff[0].segments[2] === "LastFileName" &&
+          value1 &&
+          value1 !== value2
+        ) {
+          uploadsBucket.delete(value1 as any, () => {
+            // Ignore error due to mising files
+          });
+        }
+
         if (!diff[2]) {
           update["$unset"][path.toString()] = 1;
           continue;
@@ -787,4 +802,15 @@ interface User {
 
 export async function getUsers(): Promise<User[]> {
   return usersCollection.find().toArray();
+}
+
+export async function deleteDeviceUploads(deviceId: string): Promise<void> {
+  const files = await uploadsCollection
+    .find({
+      _id: {
+        $regex: `^${escapeRegExp(deviceId)}\\/`,
+      },
+    })
+    .toArray();
+  await Promise.all(files.map((f) => uploadsBucket.delete(f["_id"])));
 }

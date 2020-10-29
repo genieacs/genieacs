@@ -184,6 +184,44 @@ function renderStagingDownload(task: StageTask): Children {
   ];
 }
 
+function renderStagingUpload(task: StageTask): Children {
+  if (!task.fileName || !task.fileType) invalid.add(task);
+  else invalid.delete(task);
+
+  const typesList = [
+    "",
+    "1 Vendor Configuration File",
+    "2 Vendor Log File",
+  ].map((t) =>
+    m(
+      "option",
+      { disabled: !t, value: t, selected: (task.fileType || "") === t },
+      t
+    )
+  );
+
+  return [
+    "Fetch ",
+    m(
+      "select",
+      {
+        onchange: (e) => {
+          task.fileType = e.target.value;
+          task.fileName = task.fileType.replace(/\s+/g, "_") + ".txt";
+        },
+      },
+      typesList
+    ),
+    " as ",
+    m("input", {
+      onchange: (e) => {
+        task.fileName = e.target.value;
+      },
+      value: task.fileName || "",
+    }),
+  ];
+}
+
 function renderStaging(staging: Set<StageTask>): Child[] {
   const elements: Child[] = [];
 
@@ -204,6 +242,7 @@ function renderStaging(staging: Set<StageTask>): Child[] {
     if (s.name === "setParameterValues")
       elms = renderStagingSpv(s, queueFunc, cancelFunc);
     else if (s.name === "download") elms = renderStagingDownload(s);
+    else if (s.name === "upload") elms = renderStagingUpload(s);
 
     const queue = m(
       "button.primary",
@@ -320,6 +359,14 @@ function renderQueue(queue: Set<QueueTask>): Child[] {
           m(
             `div.${t.status}`,
             `Push file: ${t.fileName} (${t.fileType})`,
+            m(".actions", actions)
+          )
+        );
+      } else if (t.name === "upload") {
+        details.push(
+          m(
+            `div.${t.status}`,
+            `Fetch file ${t.fileName} (${t.fileType})`,
             m(".actions", actions)
           )
         );

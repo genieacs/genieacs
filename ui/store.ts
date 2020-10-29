@@ -58,11 +58,11 @@ const resources: Resources = {};
 for (const r of [
   "devices",
   "faults",
-  "files",
   "presets",
   "provisions",
   "virtualParameters",
   "files",
+  "uploads",
   "config",
   "users",
   "permissions",
