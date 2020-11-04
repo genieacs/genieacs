@@ -184,20 +184,92 @@ function renderStagingDownload(task: StageTask): Children {
   ];
 }
 
+const uploadTypesForDevice: WeakMap<
+  Record<string, unknown>,
+  Record<string, string>
+> = new WeakMap();
+function getUploadTypesForDevice(
+  device: Record<string, unknown>
+): Record<string, string> {
+  if (uploadTypesForDevice.has(device)) return uploadTypesForDevice.get(device);
+  const instances: Set<string> = new Set();
+  const filenames: Record<string, string> = {};
+  const versions: Record<string, string> = {};
+
+  if (device) {
+    for (const [k, v] of Object.entries(device)) {
+      if (/DeviceInfo\.VendorConfigFile\.[0-9]+(\.Name|\.Version)?$/.test(k)) {
+        const p = k.split(".");
+        if (p[p.length - 1] === "Name") {
+          const n = `3 Vendor Configuration File ${p[p.length - 2]}`;
+          instances.add(n);
+          if (v["value"]) filenames[n] = v["value"][0];
+        } else if (p[p.length - 1] === "Version") {
+          const n = `3 Vendor Configuration File ${p[p.length - 2]}`;
+          instances.add(n);
+          if (v["value"]) versions[n] = v["value"][0];
+        } else {
+          const n = `3 Vendor Configuration File ${p[p.length - 1]}`;
+          instances.add(n);
+        }
+      } else if (/DeviceInfo\.VendorLogFile\.[0-9]+(\.Name)?$/.test(k)) {
+        const p = k.split(".");
+        if (p[p.length - 1] === "Name") {
+          const n = `4 Vendor Log File ${p[p.length - 2]}`;
+          instances.add(n);
+          if (v["value"]) filenames[n] = v["value"][0];
+        } else {
+          const n = `4 Vendor Log File ${p[p.length - 1]}`;
+          instances.add(n);
+        }
+      }
+    }
+  }
+
+  if (!instances.size) {
+    instances.add("1 Vendor Configuration File");
+    instances.add("2 Vendor Log File");
+  }
+
+  const res: Record<string, string> = {};
+
+  for (const i of instances) {
+    let n = filenames[i];
+    const v = versions[i];
+    if (!n) n = i.replace(/\s+/g, "_") + ".txt";
+    if (v) n = `${n}-${v}`;
+    res[i] = n;
+  }
+
+  uploadTypesForDevice.set(device, res);
+  return res;
+}
+
 function renderStagingUpload(task: StageTask): Children {
   if (!task.fileName || !task.fileType) invalid.add(task);
   else invalid.delete(task);
 
-  const typesList = [
-    "",
-    "1 Vendor Configuration File",
-    "2 Vendor Log File",
-  ].map((t) =>
-    m(
-      "option",
-      { disabled: !t, value: t, selected: (task.fileType || "") === t },
-      t
-    )
+  const commonTypes: Record<string, number> = {};
+
+  const filenames: Record<string, string> = {};
+
+  for (const d of task.devices) {
+    const dev = store.fetch("devices", ["=", ["PARAM", "DeviceID.ID"], d])
+      .value[0];
+    if (dev) {
+      const u = getUploadTypesForDevice(dev);
+      Object.assign(filenames, u);
+      for (const k of Object.keys(u))
+        commonTypes[k] = (commonTypes[k] || 0) + 1;
+    }
+  }
+
+  const typesList = [""];
+  typesList.push(
+    ...Object.entries(commonTypes)
+      .filter(([, c]) => c === task.devices.length)
+      .map(([k]) => k)
+      .sort()
   );
 
   return [
@@ -207,10 +279,16 @@ function renderStagingUpload(task: StageTask): Children {
       {
         onchange: (e) => {
           task.fileType = e.target.value;
-          task.fileName = task.fileType.replace(/\s+/g, "_") + ".txt";
+          task.fileName = filenames[task.fileType];
         },
       },
-      typesList
+      typesList.map((t) =>
+        m(
+          "option",
+          { disabled: !t, value: t, selected: (task.fileType || "") === t },
+          t
+        )
+      )
     ),
     " as ",
     m("input", {
