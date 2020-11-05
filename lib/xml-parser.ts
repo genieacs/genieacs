@@ -104,10 +104,12 @@ export function parseAttrs(string: string): Attribute[] {
         continue;
 
       case CHAR_COLON:
+        if (state) continue;
         if (idx >= colonIdx) colonIdx = i;
         continue;
 
       case CHAR_EQUAL:
+        if (state) continue;
         if (name) throw new Error(`Unexpected character at ${i}`);
         name = string.slice(idx, i).trim();
         // TODO validate name
