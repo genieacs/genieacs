@@ -57,9 +57,9 @@ export function parseXmlDeclaration(buffer: Buffer): Attribute[] {
   for (const enc of encodings) {
     let str = buffer.toString(enc, 0, 150);
     if (str.startsWith("<?xml")) {
-      str = str.split("\n")[0].trim();
+      str = str.slice(0, str.indexOf("?>"));
       try {
-        return parseAttrs(str.slice(5, -2));
+        return parseAttrs(str.slice(5));
       } catch (err) {
         // Ignore
       }
