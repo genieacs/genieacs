@@ -300,6 +300,10 @@ export class XmppClient extends EventEmitter {
   private _host: string;
   private _username: string;
   private _resource: string;
+  private _iqStanzaCallbacks: Map<
+    string,
+    (r: { rawRes: string; res: Element }) => void
+  >;
 
   private constructor() {
     super();
@@ -307,6 +311,7 @@ export class XmppClient extends EventEmitter {
     this._host = null;
     this._username = null;
     this._resource = null;
+    this._iqStanzaCallbacks = new Map();
   }
 
   static connect(opts: XmppClientOptions): Promise<XmppClient> {
@@ -371,7 +376,19 @@ export class XmppClient extends EventEmitter {
     try {
       const str = chunk.toString("utf8");
       const xml = parseXml(str);
-      for (const c of xml.children) this.emit("stanza", c);
+      const idx = xml.children.map((c) => c.bodyIndex);
+      for (const [i, c] of xml.children.entries()) {
+        const s = str.slice(idx[i], idx[i + 1]);
+        if (c.name === "iq") {
+          const attrs = parseAttrs(c.attrs);
+          const id = attrs.find((a) => a.name === "id");
+          if (id) {
+            const cb = this._iqStanzaCallbacks.get(id.value);
+            if (cb) cb({ rawRes: s, res: c });
+          }
+        }
+        this.emit("stanza", c, s);
+      }
     } catch (err) {
       this.emit("error", err);
     }
@@ -384,5 +401,29 @@ export class XmppClient extends EventEmitter {
 
   send(msg: string): void {
     this._socket.write(msg);
+  }
+
+  sendIqStanza(
+    from: string,
+    to: string,
+    type: string,
+    body: string,
+    timeout = 3000
+  ): Promise<{ rawReq: string; rawRes: string; res: Element }> {
+    return new Promise((resolve, reject) => {
+      const id = randomBytes(8).toString("base64");
+      const rawReq = `<iq from="${from}" to="${to}" id="${id}" type="${type}">${body}</iq>`;
+      this.send(rawReq);
+      const t = setTimeout(() => {
+        this._iqStanzaCallbacks.delete(id);
+        reject(
+          new Error("Did not receive IQ stanza response in a timely manner")
+        );
+      }, timeout);
+      this._iqStanzaCallbacks.set(id, (r) => {
+        clearTimeout(t);
+        resolve(Object.assign(r, { rawReq }));
+      });
+    });
   }
 }
