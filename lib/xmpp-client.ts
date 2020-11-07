@@ -295,14 +295,14 @@ interface XmppClientOptions {
   resource?: string;
 }
 
-export class XmppClient extends EventEmitter {
+export default class XmppClient extends EventEmitter {
   private _socket: net.Socket;
   private _host: string;
   private _username: string;
   private _resource: string;
   private _iqStanzaCallbacks: Map<
     string,
-    (r: { rawRes: string; res: Element }) => void
+    (err: Error, r?: { rawRes: string; res: Element }) => void
   >;
 
   private constructor() {
@@ -384,7 +384,7 @@ export class XmppClient extends EventEmitter {
           const id = attrs.find((a) => a.name === "id");
           if (id) {
             const cb = this._iqStanzaCallbacks.get(id.value);
-            if (cb) cb({ rawRes: s, res: c });
+            if (cb) cb(null, { rawRes: s, res: c });
           }
         }
         this.emit("stanza", c, s);
@@ -397,6 +397,7 @@ export class XmppClient extends EventEmitter {
   private _onError(err: Error): void {
     this._socket.end();
     this.emit("error", err);
+    for (const cb of this._iqStanzaCallbacks.values()) cb(err);
   }
 
   send(msg: string): void {
@@ -420,9 +421,11 @@ export class XmppClient extends EventEmitter {
           new Error("Did not receive IQ stanza response in a timely manner")
         );
       }, timeout);
-      this._iqStanzaCallbacks.set(id, (r) => {
+      this._iqStanzaCallbacks.set(id, (err, r) => {
+        this._iqStanzaCallbacks.delete(id);
         clearTimeout(t);
-        resolve(Object.assign(r, { rawReq }));
+        if (err) reject(err);
+        else resolve(Object.assign(r, { rawReq }));
       });
     });
   }

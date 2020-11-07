@@ -26,6 +26,10 @@ import { Expression } from "./types";
 import * as auth from "./auth";
 import * as extensions from "./extensions";
 import * as debug from "./debug";
+import XmppClient from "./xmpp-client";
+import * as config from "../lib/config";
+import { encodeEntities, parseAttrs, Element } from "./xml-parser";
+import * as logger from "../lib/logger";
 
 async function extractAuth(
   exp: Expression,
@@ -233,4 +237,88 @@ export async function udpConnectionRequest(
     [username, password, authExp] = await extractAuth(authExp, null);
   }
   client.close();
+}
+
+const XMPP_JID = config.get("XMPP_JID") as string;
+const XMPP_PASSWORD = config.get("XMPP_PASSWORD") as string;
+const XMPP_RESOURCE = crypto.randomBytes(8).toString("hex");
+
+let xmppClient: XmppClient;
+let xmppclientTimeout: NodeJS.Timeout;
+
+function xmppClientOnError(err: Error): void {
+  clearTimeout(xmppclientTimeout);
+  xmppClient.disconnect();
+  xmppClient = null;
+  logger.error({
+    message: "XMPP exception",
+    exception: err,
+    pid: process.pid,
+  });
+}
+
+function xmppClientTimeoutCallback(): void {
+  xmppClient.disconnect();
+  xmppClient = null;
+}
+
+export async function xmppConnectionRequest(
+  jid: string,
+  authExp: Expression,
+  timeout: number,
+  _debug: boolean,
+  deviceId: string
+): Promise<string> {
+  if (!xmppClient) {
+    const [host, username] = XMPP_JID.split("@").reverse();
+    xmppClient = await XmppClient.connect({
+      host,
+      username,
+      resource: XMPP_RESOURCE,
+      password: XMPP_PASSWORD,
+    });
+    xmppClient.on("error", xmppClientOnError);
+  }
+  clearTimeout(xmppclientTimeout);
+  setTimeout(xmppClientTimeoutCallback, 120000);
+
+  let username: string;
+  let password: string;
+
+  [username, password, authExp] = await extractAuth(authExp, null);
+  while (username != null && password != null) {
+    const msg = `<connectionRequest xmlns="urn:broadband-forum-org:cwmp:xmppConnReq-1-0"><username>${encodeEntities(
+      username
+    )}</username><password>${encodeEntities(
+      password
+    )}</password></connectionRequest>`;
+    let res: Element, rawRes: string, rawReq: string;
+    try {
+      ({ res, rawRes, rawReq } = await xmppClient.sendIqStanza(
+        XMPP_JID,
+        jid,
+        "get",
+        msg,
+        timeout
+      ));
+    } catch (err) {
+      return err.message;
+    }
+    if (_debug) {
+      debug.outgoingXmppStanza(deviceId, rawReq);
+      debug.incomingXmppStanza(deviceId, rawRes);
+    }
+    const attrs = parseAttrs(res.attrs);
+    const type = attrs.find((a) => a.name === "type");
+    if (type && type.value === "result") return "";
+    const error = res.children.find((c) => c.name === "error");
+    if (!error || !error.children[0])
+      return "Unexpected XMPP connection request response";
+    if (error.children[0].name === "service-unavailable")
+      return "Device is offline";
+    if (error.children[0].name !== "not-authorized")
+      return "Unexpected XMPP connection request response";
+    [username, password, authExp] = await extractAuth(authExp, null);
+  }
+  return "Incorrect connection request credentials";
 }
