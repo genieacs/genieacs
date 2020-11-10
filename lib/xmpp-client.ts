@@ -131,7 +131,29 @@ function saltPassword(
   return hi;
 }
 
-function* login(
+function* loginPlain(
+  socket: net.Socket,
+  username: string,
+  password: string
+): Generator<void, void, Element> {
+  socket.write(
+    `<auth xmlns="urn:ietf:params:xml:ns:xmpp-sasl" mechanism="PLAIN">${encodeBase64(
+      `\x00${username}\x00${password}`
+    )}</auth>`
+  );
+  const res1 = yield;
+
+  if (
+    res1.name === "failure" &&
+    res1.children.some((c) => c.name === "not-authorized")
+  )
+    throw new Error("Not authorized");
+
+  if (res1.name !== "success")
+    throw new Error(`Unexpected response ${res1.name}`);
+}
+
+function* loginScram(
   socket: net.Socket,
   username: string,
   password: string
@@ -263,9 +285,14 @@ function* init(
       const mechanisms: Set<string> = new Set(
         feature.children.map((c) => c.text)
       );
-      if (mechanisms.has("SCRAM-SHA-1")) {
-        yield* login(socket, username, password);
+      if (mechanisms.has("PLAIN")) {
+        yield* loginPlain(socket, username, password);
         return STATUS_RESTART_STREAM;
+      } else if (mechanisms.has("SCRAM-SHA-1")) {
+        yield* loginScram(socket, username, password);
+        return STATUS_RESTART_STREAM;
+      } else {
+        throw new Error("No supported SASL method");
       }
     } else if (feature.name === "bind") {
       if (feature.children.some((c) => c.name === "required")) {
@@ -293,6 +320,7 @@ interface XmppClientOptions {
   username?: string;
   password?: string;
   resource?: string;
+  timeout?: number;
 }
 
 export default class XmppClient extends EventEmitter {
@@ -343,8 +371,10 @@ export default class XmppClient extends EventEmitter {
           client._host = opts.host;
           client._username = opts.username;
           client._resource = opts.resource;
-          socket.on("data", client._onData);
-          socket.on("error", client._onError);
+          socket.on("data", client._onData.bind(client));
+          socket.on("error", client._onError.bind(client));
+          if (opts.timeout)
+            socket.setTimeout(opts.timeout, client.close.bind(client));
           resolve(client);
         } catch (err) {
           socket.destroy();
@@ -354,10 +384,16 @@ export default class XmppClient extends EventEmitter {
     });
   }
 
-  disconnect(): void {
-    this._socket.removeListener("data", this._onData);
-    this._socket.removeListener("error", this._onError);
-    this._socket.end();
+  close(): void {
+    this._socket.end("</stream>");
+  }
+
+  ref(): void {
+    this._socket.ref();
+  }
+
+  unref(): void {
+    this._socket.unref();
   }
 
   get host(): string {
@@ -374,7 +410,12 @@ export default class XmppClient extends EventEmitter {
 
   private _onData(chunk: Buffer): void {
     try {
-      const str = chunk.toString("utf8");
+      let close = false;
+      let str = chunk.toString("utf8");
+      if (str.endsWith("</stream:stream>")) {
+        str = str.slice(0, -16);
+        close = true;
+      }
       const xml = parseXml(str);
       const idx = xml.children.map((c) => c.bodyIndex);
       for (const [i, c] of xml.children.entries()) {
@@ -389,7 +430,14 @@ export default class XmppClient extends EventEmitter {
         }
         this.emit("stanza", c, s);
       }
+      if (close) {
+        this._socket.removeAllListeners("data");
+        this._socket.removeAllListeners("error");
+        this.emit("close");
+      }
     } catch (err) {
+      this._socket.removeAllListeners("data");
+      this._socket.removeAllListeners("error");
       this.emit("error", err);
     }
   }

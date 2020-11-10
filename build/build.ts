@@ -51,6 +51,8 @@ const externals = [
   "tls",
   "http",
   "https",
+  "net",
+  "events",
   "zlib",
   "crypto",
   "util",

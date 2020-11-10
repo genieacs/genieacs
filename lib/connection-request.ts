@@ -244,11 +244,8 @@ const XMPP_PASSWORD = config.get("XMPP_PASSWORD") as string;
 const XMPP_RESOURCE = crypto.randomBytes(8).toString("hex");
 
 let xmppClient: XmppClient;
-let xmppclientTimeout: NodeJS.Timeout;
 
 function xmppClientOnError(err: Error): void {
-  clearTimeout(xmppclientTimeout);
-  xmppClient.disconnect();
   xmppClient = null;
   logger.error({
     message: "XMPP exception",
@@ -257,8 +254,7 @@ function xmppClientOnError(err: Error): void {
   });
 }
 
-function xmppClientTimeoutCallback(): void {
-  xmppClient.disconnect();
+function xmppClientOnClose(): void {
   xmppClient = null;
 }
 
@@ -276,11 +272,12 @@ export async function xmppConnectionRequest(
       username,
       resource: XMPP_RESOURCE,
       password: XMPP_PASSWORD,
+      timeout: 120000,
     });
     xmppClient.on("error", xmppClientOnError);
+    xmppClient.on("close", xmppClientOnClose);
+    xmppClient.unref();
   }
-  clearTimeout(xmppclientTimeout);
-  setTimeout(xmppClientTimeoutCallback, 120000);
 
   let username: string;
   let password: string;
