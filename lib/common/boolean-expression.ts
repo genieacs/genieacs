@@ -362,6 +362,10 @@ class VarSynth extends BoolExprSynth {
         exp = exp.slice();
         exp[0] = ">";
         this.negate = true;
+      } else if (op === "NOT LIKE") {
+        exp = exp.slice();
+        exp[0] = "LIKE";
+        this.negate = true;
       }
     }
     this.expStr = JSON.stringify(exp);
@@ -809,6 +813,7 @@ function sopToExpression(
       if (Array.isArray(expr) && expr[0] === "NOT" && Array.isArray(expr[1])) {
         const e: Expression[] = expr[1];
         if (e[0] === "IS NULL") expr = ["IS NOT NULL", ...e.slice(1)];
+        else if (e[0] === "LIKE") expr = ["NOT LIKE", ...e.slice(1)];
         else if (e[0] === "=") expr = ["<>", ...e.slice(1)];
         else if (e[0] === "<>") expr = ["=", ...e.slice(1)];
         else if (e[0] === ">") expr = ["<=", ...e.slice(1)];
@@ -830,7 +835,6 @@ function sopToExpression(
 function generateDcSetAndIsNull(
   variables: Map<number, Expression>
 ): { dcSet: number[][]; isNull: Map<number, number> } {
-  // TODO support LIKE and NOT LIKE operators
   const relations: Map<
     string,
     { op: string; rhs: boolean | number | string; var: number }[]
@@ -843,6 +847,11 @@ function generateDcSetAndIsNull(
       let r = relations.get(lhs);
       if (!r) relations.set(lhs, (r = []));
       r.push({ op: op, rhs: e[2], var: n });
+    } else if (op === "LIKE" && !Array.isArray(e[2]) && !Array.isArray(e[3])) {
+      const lhs = JSON.stringify(e[1]);
+      let r = relations.get(lhs);
+      if (!r) relations.set(lhs, (r = []));
+      r.push({ op: "", rhs: null, var: n });
     } else {
       const lhs = JSON.stringify(e);
       let r = relations.get(lhs);
