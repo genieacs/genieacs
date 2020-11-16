@@ -123,7 +123,7 @@ export function query(
     }
 
     q = mongodbFunctions.filterToMongoQuery(filter);
-  } else if (filter != null && !filter) {
+  } else if (!filter) {
     return Promise.resolve([]);
   }
 
@@ -218,7 +218,7 @@ export function count(resource: string, filter: Expression): Promise<number> {
     else if (resource === "faults")
       filter = mongodbFunctions.processFaultsFilter(filter);
     q = mongodbFunctions.filterToMongoQuery(filter);
-  } else if (filter != null && !filter) {
+  } else if (!filter) {
     return Promise.resolve(0);
   }
 

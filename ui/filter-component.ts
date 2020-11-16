@@ -44,8 +44,12 @@ const getAutocomplete = memoize((resource) => {
 
 function validateQuery(q: Expression): void {
   q = normalize(q);
-  if (Array.isArray(q) && q[0] === "CASE") q = ["AND", ...q.slice(1)];
-  filterToMongoQuery(q);
+  if (Array.isArray(q) && q[0] === "CASE") {
+    q = q.slice(1).filter((a) => Array.isArray(a));
+    if (q.length > 1) q = ["AND", ...q];
+    else q = q[0];
+  }
+  if (Array.isArray(q)) filterToMongoQuery(q);
 }
 
 function parseFilter(resource, f): Expression {
