@@ -21,112 +21,98 @@ import { Collection } from "mongodb";
 import { onConnect } from "./db";
 import * as config from "./config";
 
+const CLOCK_SKEW_TOLERANCE = 30000;
 const MAX_CACHE_TTL = +config.get("MAX_CACHE_TTL");
 
-let mongoCollection: Collection;
-let mongoTimeOffset = 0;
+let cacheCollection: Collection;
 
 onConnect(async (db) => {
-  mongoCollection = db.collection("cache");
-  await mongoCollection.createIndex({ expire: 1 }, { expireAfterSeconds: 0 });
-  const now = Date.now();
-  const res = await db.command({ hostInfo: 1 });
-  mongoTimeOffset = res.system.currentTime.getTime() - now;
+  cacheCollection = db.collection("cache");
+  await cacheCollection.createIndex({ expire: 1 }, { expireAfterSeconds: 0 });
 });
 
-export async function get(key: string | string[]): Promise<any> {
-  const expire = new Date(Date.now() - mongoTimeOffset);
-  if (Array.isArray(key)) {
-    const res = await mongoCollection.find({ _id: { $in: key } }).toArray();
-
-    const indices = {};
-    key.forEach((v, i) => {
-      indices[v] = i;
-    });
-
-    const values = [];
-    res.forEach((r) => {
-      if (r["expire"] > expire) values[indices[r["_id"]]] = r["value"];
-    });
-
-    return values;
-  } else {
-    const res = await mongoCollection.findOne({ _id: { $in: [key] } });
-    if (res && res["expire"] > expire) return res["value"];
-    return null;
-  }
+export async function get(key: string): Promise<string> {
+  const res = await cacheCollection.findOne({ _id: key });
+  if (res) return res["value"];
+  return null;
 }
 
-export async function del(key: string | string[]): Promise<void> {
-  if (Array.isArray(key))
-    await mongoCollection.deleteMany({ _id: { $in: key } });
-  else await mongoCollection.deleteOne({ _id: key });
+export async function del(key: string): Promise<void> {
+  await cacheCollection.deleteOne({ _id: key });
 }
 
 export async function set(
   key: string,
-  value: string | number,
+  value: string,
   ttl: number = MAX_CACHE_TTL
 ): Promise<void> {
-  const expire = new Date(Date.now() - mongoTimeOffset + ttl * 1000);
-  await mongoCollection.replaceOne(
+  const timestamp = new Date();
+  const expire = new Date(
+    timestamp.getTime() + CLOCK_SKEW_TOLERANCE + ttl * 1000
+  );
+  await cacheCollection.replaceOne(
     { _id: key },
-    { _id: key, value: value, expire: expire },
+    { _id: key, value, expire, timestamp },
     { upsert: true }
   );
 }
 
 export async function pop(key: string): Promise<any> {
-  const res = await mongoCollection.findOneAndDelete({ _id: key });
-
-  if (
-    res &&
-    res["value"] &&
-    +res["value"]["expire"] - (Date.now() - mongoTimeOffset)
-  )
-    return res["value"]["value"];
-
+  const res = await cacheCollection.findOneAndDelete({ _id: key });
+  if (res && res["value"]) return res["value"]["value"];
   return null;
 }
 
-export async function lock(
+export async function acquireLock(
   lockName: string,
-  ttl: number
-): Promise<(extendTtl?: number) => Promise<void>> {
-  const token = Math.random().toString(36).slice(2);
-
-  async function unlockOrExtend(extendTtl?: number): Promise<void> {
-    if (!extendTtl) {
-      const res = await mongoCollection.deleteOne({
-        _id: lockName,
-        value: token,
-      });
-      if (res["result"]["n"] !== 1) throw new Error("Lock expired");
-    } else {
-      const expire = new Date(Date.now() - mongoTimeOffset + extendTtl * 1000);
-      const res = await mongoCollection.updateOne(
-        { _id: lockName, value: token },
-        { expire: expire }
-      );
-      if (res["result"]["n"] !== 1) throw new Error("Lock expired");
-    }
-  }
-
-  const expireTest = new Date(Date.now() - mongoTimeOffset);
-  const expireSet = new Date(Date.now() - mongoTimeOffset + ttl * 1000);
-
+  ttl: number,
+  timeout = 0,
+  token = Math.random().toString(36).slice(2)
+): Promise<string> {
   try {
-    await mongoCollection.updateOne(
-      { _id: lockName, expire: { $lte: expireTest } },
-      { $set: { value: token, expire: expireSet } },
-      { upsert: true }
+    const now = Date.now();
+    const r = await cacheCollection.findOneAndUpdate(
+      { _id: lockName, token },
+      {
+        $set: {
+          value: token,
+          expire: new Date(now + ttl + CLOCK_SKEW_TOLERANCE),
+        },
+        $currentDate: { timestamp: true },
+      },
+      { upsert: true, returnOriginal: false }
     );
+    const v = r.value;
+    if (Math.abs(v["timestamp"].getTime() - now) > CLOCK_SKEW_TOLERANCE)
+      throw new Error("Database clock skew too great");
   } catch (err) {
-    if (err && err.code === 11000) {
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      return lock(lockName, ttl);
+    if (err.code === 11000) {
+      if (timeout > 0) {
+        return new Promise((resolve, reject) => {
+          const w = 50 + Math.random() * 50;
+          setTimeout(() => {
+            acquireLock(lockName, ttl, timeout - w, token).then(
+              resolve,
+              reject
+            );
+          }, w);
+        });
+      }
+      throw new Error("Failed to acquire lock");
     }
+    throw err;
   }
 
-  return unlockOrExtend;
+  return token;
+}
+
+export async function releaseLock(
+  lockName: string,
+  token: string
+): Promise<void> {
+  const res = await cacheCollection.deleteOne({
+    _id: lockName,
+    value: token,
+  });
+  if (res["result"]["n"] !== 1) throw new Error("Lock expired");
 }
