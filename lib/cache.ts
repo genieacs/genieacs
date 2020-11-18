@@ -17,32 +17,22 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MongoClient, Collection } from "mongodb";
+import { Collection } from "mongodb";
+import { onConnect } from "./db";
 import * as config from "./config";
 
 const MAX_CACHE_TTL = +config.get("MAX_CACHE_TTL");
 
-let clientPromise: Promise<MongoClient>;
 let mongoCollection: Collection;
 let mongoTimeOffset = 0;
 
-export async function connect(): Promise<void> {
-  const MONGODB_CONNECTION_URL = "" + config.get("MONGODB_CONNECTION_URL");
-  clientPromise = MongoClient.connect(MONGODB_CONNECTION_URL, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  });
-  const db = (await clientPromise).db();
+onConnect(async (db) => {
   mongoCollection = db.collection("cache");
   await mongoCollection.createIndex({ expire: 1 }, { expireAfterSeconds: 0 });
   const now = Date.now();
   const res = await db.command({ hostInfo: 1 });
   mongoTimeOffset = res.system.currentTime.getTime() - now;
-}
-
-export async function disconnect(): Promise<void> {
-  if (clientPromise) await (await clientPromise).close();
-}
+});
 
 export async function get(key: string | string[]): Promise<any> {
   const expire = new Date(Date.now() - mongoTimeOffset);

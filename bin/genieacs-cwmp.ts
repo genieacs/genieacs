@@ -24,7 +24,6 @@ import * as server from "../lib/server";
 import * as cwmp from "../lib/cwmp";
 import * as db from "../lib/db";
 import * as extensions from "../lib/extensions";
-import * as cache from "../lib/cache";
 import { version as VERSION } from "../package.json";
 
 logger.init("cwmp", VERSION);
@@ -36,7 +35,6 @@ function exitWorkerGracefully(): void {
   setTimeout(exitWorkerUngracefully, 5000).unref();
   Promise.all([
     db.disconnect(),
-    cache.disconnect(),
     extensions.killAll(),
     cluster.worker.disconnect(),
   ]).catch(exitWorkerUngracefully);
@@ -99,7 +97,8 @@ if (!cluster.worker) {
     server.stop().then(exitWorkerGracefully).catch(exitWorkerUngracefully);
   });
 
-  const initPromise = Promise.all([db.connect(), cache.connect()])
+  const initPromise = db
+    .connect()
     .then(() => {
       server.start(options, cwmp.listener);
     })

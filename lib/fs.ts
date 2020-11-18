@@ -20,10 +20,18 @@
 import * as url from "url";
 import * as querystring from "querystring";
 import { IncomingMessage, ServerResponse } from "http";
-import { GridFSBucket } from "mongodb";
-import * as db from "./db";
+import { Collection, GridFSBucket } from "mongodb";
+import { onConnect } from "./db";
 import * as logger from "./logger";
 import { getRequestOrigin } from "./forwarded";
+
+let filesCollection: Collection;
+let filesBucket: GridFSBucket;
+
+onConnect(async (db) => {
+  filesCollection = db.collection("fs.files");
+  filesBucket = new GridFSBucket(db);
+});
 
 export function listener(
   request: IncomingMessage,
@@ -39,7 +47,7 @@ export function listener(
       remoteAddress: getRequestOrigin(request).remoteAddress,
     };
 
-    db.filesCollection.findOne({ _id: filename }, (err, file) => {
+    filesCollection.findOne({ _id: filename }, (err, file) => {
       if (err) throw err;
 
       if (!file) {
@@ -55,8 +63,7 @@ export function listener(
         "Content-Length": file.length,
       });
 
-      const bucket = new GridFSBucket(db.client.db());
-      const downloadStream = bucket.openDownloadStreamByName(filename);
+      const downloadStream = filesBucket.openDownloadStreamByName(filename);
       downloadStream.pipe(response);
 
       logger.accessInfo(log);

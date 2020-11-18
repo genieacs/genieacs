@@ -17,7 +17,7 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MongoClient, ObjectID, Collection } from "mongodb";
+import { MongoClient, ObjectID, Collection, Db } from "mongodb";
 import { get } from "./config";
 import { encodeTag, escapeRegExp } from "./common";
 import { parse } from "./common/expression-parser";
@@ -45,12 +45,17 @@ export let tasksCollection: Collection,
   configCollection: Collection;
 
 let clientPromise: Promise<MongoClient>;
-export let client: MongoClient;
 
 function compareAccessLists(list1: string[], list2: string[]): boolean {
   if (list1.length !== list2.length) return false;
   for (const [i, v] of list1.entries()) if (v !== list2[i]) return false;
   return true;
+}
+
+const onConnectCallbacks: ((db: Db) => Promise<void>)[] = [];
+
+export function onConnect(callback: (db: Db) => Promise<void>): void {
+  onConnectCallbacks.push(callback);
 }
 
 export async function connect(): Promise<void> {
@@ -59,9 +64,12 @@ export async function connect(): Promise<void> {
     useUnifiedTopology: true,
   });
 
-  client = await clientPromise;
+  const client = await clientPromise;
   const db = client.db();
+  await Promise.all(onConnectCallbacks.map((c) => c(db)));
+}
 
+onConnect(async (db) => {
   tasksCollection = db.collection("tasks");
   await tasksCollection.createIndex({ device: 1, timestamp: 1 });
 
@@ -76,7 +84,7 @@ export async function connect(): Promise<void> {
   permissionsCollection = db.collection("permissions");
   usersCollection = db.collection("users");
   configCollection = db.collection("config");
-}
+});
 
 export async function disconnect(): Promise<void> {
   if (clientPromise) await (await clientPromise).close();

@@ -18,11 +18,11 @@
  */
 
 import * as url from "url";
-import * as mongodb from "mongodb";
+import { Collection, GridFSBucket, ObjectId } from "mongodb";
 import * as querystring from "querystring";
 import * as vm from "vm";
 import * as config from "./config";
-import * as db from "./db";
+import { onConnect } from "./db";
 import * as query from "./query";
 import * as apiFunctions from "./api-functions";
 import { IncomingMessage, ServerResponse } from "http";
@@ -42,6 +42,23 @@ const DELETE_DEVICE_REGEX = /^\/devices\/([a-zA-Z0-9\-_%]+)\/?$/;
 const PROVISIONS_REGEX = /^\/provisions\/([a-zA-Z0-9\-_%]+)\/?$/;
 const VIRTUAL_PARAMETERS_REGEX = /^\/virtual_parameters\/([a-zA-Z0-9\-_%]+)\/?$/;
 const FAULTS_REGEX = /^\/faults\/([a-zA-Z0-9\-_%:]+)\/?$/;
+
+const collections = {
+  tasks: null as Collection,
+  devices: null as Collection,
+  presets: null as Collection,
+  objects: null as Collection,
+  "fs.files": null as Collection,
+  provisions: null as Collection,
+  virtualParameters: null as Collection,
+  faults: null as Collection,
+};
+let filesBucket: GridFSBucket;
+
+onConnect(async (db) => {
+  for (const k of Object.keys(collections)) collections[k] = db.collection(k);
+  filesBucket = new GridFSBucket(db);
+});
 
 function throwError(err: Error, httpResponse?: ServerResponse): never {
   if (httpResponse) {
@@ -85,7 +102,7 @@ export function listener(
       if (request.method === "PUT") {
         const preset = JSON.parse(body.toString());
         preset._id = presetName;
-        db.presetsCollection.replaceOne(
+        collections.presets.replaceOne(
           { _id: presetName },
           preset,
           { upsert: true },
@@ -106,7 +123,7 @@ export function listener(
           }
         );
       } else if (request.method === "DELETE") {
-        db.presetsCollection.deleteOne({ _id: presetName }, (err) => {
+        collections.presets.deleteOne({ _id: presetName }, (err) => {
           if (err) return void throwError(err, response);
 
           cache
@@ -132,7 +149,7 @@ export function listener(
       if (request.method === "PUT") {
         const object = JSON.parse(body.toString());
         object._id = objectName;
-        db.objectsCollection.replaceOne(
+        collections.objects.replaceOne(
           { _id: objectName },
           object,
           { upsert: true },
@@ -153,7 +170,7 @@ export function listener(
           }
         );
       } else if (request.method === "DELETE") {
-        db.objectsCollection.deleteOne({ _id: objectName }, (err) => {
+        collections.objects.deleteOne({ _id: objectName }, (err) => {
           if (err) return void throwError(err, response);
 
           cache
@@ -190,7 +207,7 @@ export function listener(
           return;
         }
 
-        db.provisionsCollection.replaceOne(
+        collections.provisions.replaceOne(
           { _id: provisionName },
           object,
           { upsert: true },
@@ -211,7 +228,7 @@ export function listener(
           }
         );
       } else if (request.method === "DELETE") {
-        db.provisionsCollection.deleteOne({ _id: provisionName }, (err) => {
+        collections.provisions.deleteOne({ _id: provisionName }, (err) => {
           if (err) return void throwError(err, response);
 
           cache
@@ -248,7 +265,7 @@ export function listener(
           return;
         }
 
-        db.virtualParametersCollection.replaceOne(
+        collections.virtualParameters.replaceOne(
           { _id: virtualParameterName },
           object,
           { upsert: true },
@@ -269,7 +286,7 @@ export function listener(
           }
         );
       } else if (request.method === "DELETE") {
-        db.virtualParametersCollection.deleteOne(
+        collections.virtualParameters.deleteOne(
           { _id: virtualParameterName },
           (err) => {
             if (err) return void throwError(err, response);
@@ -296,7 +313,7 @@ export function listener(
       const deviceId = querystring.unescape(r[1]);
       const tag = querystring.unescape(r[2]);
       if (request.method === "POST") {
-        db.devicesCollection.updateOne(
+        collections.devices.updateOne(
           { _id: deviceId },
           { $addToSet: { _tags: tag } },
           (err) => {
@@ -306,7 +323,7 @@ export function listener(
           }
         );
       } else if (request.method === "DELETE") {
-        db.devicesCollection.updateOne(
+        collections.devices.updateOne(
           { _id: deviceId },
           { $pull: { _tags: tag } },
           (err) => {
@@ -327,12 +344,12 @@ export function listener(
         );
         const deviceId = faultId.split(":", 1)[0];
         const channel = faultId.slice(deviceId.length + 1);
-        db.faultsCollection.deleteOne({ _id: faultId }, (err) => {
+        collections.faults.deleteOne({ _id: faultId }, (err) => {
           if (err) return void throwError(err, response);
 
           if (channel.startsWith("task_")) {
-            const objId = new mongodb.ObjectID(channel.slice(5));
-            return void db.tasksCollection.deleteOne({ _id: objId }, (err) => {
+            const objId = new ObjectId(channel.slice(5));
+            return void collections.tasks.deleteOne({ _id: objId }, (err) => {
               if (err) return void throwError(err, response);
 
               cache
@@ -404,7 +421,7 @@ export function listener(
                               );
                               response.end(JSON.stringify(task));
                             } else if (status === "fault") {
-                              db.tasksCollection.findOne(
+                              collections.tasks.findOne(
                                 { _id: task._id },
                                 (err, task2) => {
                                   if (err)
@@ -479,8 +496,8 @@ export function listener(
       const action = r[2];
       if (!action || action === "/") {
         if (request.method === "DELETE") {
-          db.tasksCollection.findOne(
-            { _id: new mongodb.ObjectID(taskId) },
+          collections.tasks.findOne(
+            { _id: new ObjectId(taskId) },
             { projection: { device: 1 } },
             (err, task) => {
               if (err) return void throwError(err, response);
@@ -492,12 +509,12 @@ export function listener(
               }
 
               const deviceId = task.device;
-              db.tasksCollection.deleteOne(
-                { _id: new mongodb.ObjectID(taskId) },
+              collections.tasks.deleteOne(
+                { _id: new ObjectId(taskId) },
                 (err) => {
                   if (err) return void throwError(err, response);
 
-                  db.faultsCollection.deleteOne(
+                  collections.faults.deleteOne(
                     { _id: `${deviceId}:task_${taskId}` },
                     (err) => {
                       if (err) return void throwError(err, response);
@@ -525,14 +542,14 @@ export function listener(
         }
       } else if (action === "/retry") {
         if (request.method === "POST") {
-          db.tasksCollection.findOne(
-            { _id: new mongodb.ObjectID(taskId) },
+          collections.tasks.findOne(
+            { _id: new ObjectId(taskId) },
             { projection: { device: 1 } },
             (err, task) => {
               if (err) return void throwError(err, response);
 
               const deviceId = task.device;
-              db.faultsCollection.deleteOne(
+              collections.faults.deleteOne(
                 { _id: `${deviceId}:task_${taskId}` },
                 (err) => {
                   if (err) return void throwError(err, response);
@@ -571,9 +588,8 @@ export function listener(
           productClass: request.headers.productclass,
           version: request.headers.version,
         };
-        const bucket = new mongodb.GridFSBucket(db.client.db());
-        bucket.delete((filename as unknown) as mongodb.ObjectId, () => {
-          const uploadStream = bucket.openUploadStreamWithId(
+        filesBucket.delete((filename as unknown) as ObjectId, () => {
+          const uploadStream = filesBucket.openUploadStreamWithId(
             filename,
             filename,
             {
@@ -591,8 +607,7 @@ export function listener(
           });
         });
       } else if (request.method === "DELETE") {
-        const bucket = new mongodb.GridFSBucket(db.client.db());
-        bucket.delete((filename as unknown) as mongodb.ObjectId, (err) => {
+        filesBucket.delete((filename as unknown) as ObjectId, (err) => {
           if (err) {
             if (err.message.startsWith("FileNotFound")) {
               response.writeHead(404);
@@ -669,7 +684,7 @@ export function listener(
         return;
       }
 
-      const collection = db[`${collectionName}Collection`];
+      const collection = collections[collectionName];
       if (!collection) {
         response.writeHead(404);
         response.end("404 Not Found");
@@ -693,7 +708,7 @@ export function listener(
           break;
         case "tasks":
           q = query.sanitizeQueryTypes(q, {
-            _id: (v) => new mongodb.ObjectID(v as string),
+            _id: (v) => new ObjectId(v as string),
             timestamp: (v) => new Date(v as number),
             retries: Number,
           });

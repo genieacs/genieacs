@@ -23,9 +23,7 @@ import * as cluster from "../lib/cluster";
 import * as server from "../lib/server";
 import { listener } from "../lib/ui";
 import * as extensions from "../lib/extensions";
-import * as db from "../lib/ui/db";
-import * as db2 from "../lib/db";
-import * as cache from "../lib/cache";
+import * as db from "../lib/db";
 import { version as VERSION } from "../package.json";
 
 logger.init("ui", VERSION);
@@ -37,8 +35,6 @@ function exitWorkerGracefully(): void {
   setTimeout(exitWorkerUngracefully, 5000).unref();
   Promise.all([
     db.disconnect(),
-    db2.disconnect(),
-    cache.disconnect(),
     extensions.killAll(),
     cluster.worker.disconnect(),
   ]).catch(exitWorkerUngracefully);
@@ -106,7 +102,8 @@ if (!cluster.worker) {
     listener(req, res);
   };
 
-  const initPromise = Promise.all([db2.connect(), cache.connect()])
+  const initPromise = db
+    .connect()
     .then(() => {
       server.start(options, _listener);
     })

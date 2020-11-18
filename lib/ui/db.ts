@@ -17,85 +17,24 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MongoClient, GridFSBucket, ObjectID } from "mongodb";
+import { Db, GridFSBucket, ObjectID } from "mongodb";
 import { Script } from "vm";
-import * as config from "../config";
+import { onConnect } from "../db";
 import * as mongodbFunctions from "../mongodb-functions";
 import * as expression from "../common/expression";
 import { QueryOptions, Expression } from "../types";
 import { Readable } from "stream";
 import { minimize } from "../common/boolean-expression";
 
-const CACHE_TTL = 300000;
-
-let clientPromise: Promise<MongoClient>;
-
 const RESOURCE_COLLECTION = {
   files: "fs.files",
 };
 
-function ensureIndexes(client): void {
-  client
-    .db()
-    .collection("cache")
-    .createIndex({ expire: 1 }, { expireAfterSeconds: 0 });
-}
+let db: Db;
 
-function getClient(): Promise<MongoClient> {
-  if (!clientPromise) {
-    clientPromise = new Promise((resolve, reject) => {
-      const CONNECTION_URL = "" + config.get("MONGODB_CONNECTION_URL");
-      MongoClient.connect(
-        CONNECTION_URL,
-        { useNewUrlParser: true, useUnifiedTopology: true },
-        (err, client) => {
-          if (err) return void reject(err);
-          ensureIndexes(client);
-          resolve(client);
-        }
-      );
-    });
-  }
-
-  return clientPromise;
-}
-
-export function cache<T>(
-  key: string,
-  valueGetter: () => Promise<T>,
-  ttl: number
-): Promise<T> {
-  return new Promise((resolve, reject) => {
-    getClient()
-      .then((client) => {
-        const collection = client.db().collection("cache");
-        collection.findOne({ _id: key }, (err, doc) => {
-          if (err) return void reject(err);
-          if (doc != null) return void resolve(JSON.parse(doc.value) as T);
-          valueGetter()
-            .then((res) => {
-              const expire = Date.now() + (ttl || CACHE_TTL);
-              const cacheDoc = {
-                _id: key,
-                value: JSON.stringify(res),
-                expire: new Date(expire),
-              };
-              collection.updateOne(
-                { _id: key },
-                { $set: cacheDoc },
-                { upsert: true },
-                (err) => {
-                  if (err) reject(err);
-                  else resolve(res);
-                }
-              );
-            })
-            .catch(reject);
-        });
-      })
-      .catch(reject);
-  });
-}
+onConnect(async (_db) => {
+  db = _db;
+});
 
 export function query(
   resource: string,
@@ -128,80 +67,73 @@ export function query(
   }
 
   return new Promise((resolve, reject) => {
-    getClient()
-      .then((client) => {
-        const collection = client
-          .db()
-          .collection(RESOURCE_COLLECTION[resource] || resource);
-        const cursor = collection.find(q);
-        if (options.projection) {
-          let projection = options.projection;
-          if (resource === "devices") {
-            projection = mongodbFunctions.processDeviceProjection(
-              options.projection
-            );
-          }
+    const collection = db.collection(RESOURCE_COLLECTION[resource] || resource);
+    const cursor = collection.find(q);
+    if (options.projection) {
+      let projection = options.projection;
+      if (resource === "devices") {
+        projection = mongodbFunctions.processDeviceProjection(
+          options.projection
+        );
+      }
 
-          if (resource === "presets") projection.configurations = 1;
-          cursor.project(projection);
+      if (resource === "presets") projection.configurations = 1;
+      cursor.project(projection);
+    }
+
+    if (resource === "users") cursor.project({ password: 0, salt: 0 });
+
+    if (options.skip) cursor.skip(options.skip);
+    if (options.limit) cursor.limit(options.limit);
+
+    if (options.sort) {
+      let s = Object.entries(options.sort)
+        .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+        .reduce(
+          (obj, [k, v]) =>
+            Object.assign(obj, { [k]: Math.min(Math.max(v, -1), 1) }),
+          {}
+        );
+
+      if (resource === "devices") s = mongodbFunctions.processDeviceSort(s);
+      cursor.sort(s);
+    }
+
+    if (!callback) {
+      cursor.toArray((err, docs) => {
+        if (err) return reject(err);
+        if (resource === "devices")
+          docs = docs.map((d) => mongodbFunctions.flattenDevice(d));
+        else if (resource === "faults")
+          docs = docs.map((d) => mongodbFunctions.flattenFault(d));
+        else if (resource === "tasks")
+          docs = docs.map((d) => mongodbFunctions.flattenTask(d));
+        else if (resource === "presets")
+          docs = docs.map((d) => mongodbFunctions.flattenPreset(d));
+        else if (resource === "files")
+          docs = docs.map((d) => mongodbFunctions.flattenFile(d));
+        return resolve(docs);
+      });
+    } else {
+      cursor.forEach(
+        (doc) => {
+          if (resource === "devices") doc = mongodbFunctions.flattenDevice(doc);
+          else if (resource === "faults")
+            doc = mongodbFunctions.flattenFault(doc);
+          else if (resource === "tasks")
+            doc = mongodbFunctions.flattenTask(doc);
+          else if (resource === "presets")
+            doc = mongodbFunctions.flattenPreset(doc);
+          else if (resource === "files")
+            doc = mongodbFunctions.flattenFile(doc);
+          callback(doc);
+        },
+        (err) => {
+          if (err) reject(err);
+          else resolve();
         }
-
-        if (resource === "users") cursor.project({ password: 0, salt: 0 });
-
-        if (options.skip) cursor.skip(options.skip);
-        if (options.limit) cursor.limit(options.limit);
-
-        if (options.sort) {
-          let s = Object.entries(options.sort)
-            .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
-            .reduce(
-              (obj, [k, v]) =>
-                Object.assign(obj, { [k]: Math.min(Math.max(v, -1), 1) }),
-              {}
-            );
-
-          if (resource === "devices") s = mongodbFunctions.processDeviceSort(s);
-          cursor.sort(s);
-        }
-
-        if (!callback) {
-          cursor.toArray((err, docs) => {
-            if (err) return reject(err);
-            if (resource === "devices")
-              docs = docs.map((d) => mongodbFunctions.flattenDevice(d));
-            else if (resource === "faults")
-              docs = docs.map((d) => mongodbFunctions.flattenFault(d));
-            else if (resource === "tasks")
-              docs = docs.map((d) => mongodbFunctions.flattenTask(d));
-            else if (resource === "presets")
-              docs = docs.map((d) => mongodbFunctions.flattenPreset(d));
-            else if (resource === "files")
-              docs = docs.map((d) => mongodbFunctions.flattenFile(d));
-            return resolve(docs);
-          });
-        } else {
-          cursor.forEach(
-            (doc) => {
-              if (resource === "devices")
-                doc = mongodbFunctions.flattenDevice(doc);
-              else if (resource === "faults")
-                doc = mongodbFunctions.flattenFault(doc);
-              else if (resource === "tasks")
-                doc = mongodbFunctions.flattenTask(doc);
-              else if (resource === "presets")
-                doc = mongodbFunctions.flattenPreset(doc);
-              else if (resource === "files")
-                doc = mongodbFunctions.flattenFile(doc);
-              callback(doc);
-            },
-            (err) => {
-              if (err) reject(err);
-              else resolve();
-            }
-          );
-        }
-      })
-      .catch(reject);
+      );
+    }
   });
 }
 
@@ -223,17 +155,11 @@ export function count(resource: string, filter: Expression): Promise<number> {
   }
 
   return new Promise((resolve, reject) => {
-    getClient()
-      .then((client) => {
-        const collection = client
-          .db()
-          .collection(RESOURCE_COLLECTION[resource] || resource);
-        collection.find(q).count((err, c) => {
-          if (err) reject(err);
-          else resolve(c);
-        });
-      })
-      .catch(reject);
+    const collection = db.collection(RESOURCE_COLLECTION[resource] || resource);
+    collection.find(q).count((err, c) => {
+      if (err) reject(err);
+      else resolve(c);
+    });
   });
 }
 
@@ -250,8 +176,7 @@ export async function updateDeviceTags(
     else pull.push(tag);
   }
 
-  const client = await getClient();
-  const collection = client.db().collection("devices");
+  const collection = db.collection("devices");
   const object = {};
 
   if (add && add.length) object["$addToSet"] = { _tags: { $each: add } };
@@ -262,17 +187,11 @@ export async function updateDeviceTags(
 
 function putResource(resource, id, object): Promise<void> {
   return new Promise((resolve, reject) => {
-    getClient()
-      .then((client) => {
-        const collection = client
-          .db()
-          .collection(RESOURCE_COLLECTION[resource] || resource);
-        collection.replaceOne({ _id: id }, object, { upsert: true }, (err) => {
-          if (err) return void reject(err);
-          resolve();
-        });
-      })
-      .catch(reject);
+    const collection = db.collection(RESOURCE_COLLECTION[resource] || resource);
+    collection.replaceOne({ _id: id }, object, { upsert: true }, (err) => {
+      if (err) return void reject(err);
+      resolve();
+    });
   });
 }
 
@@ -281,17 +200,11 @@ function deleteResource(
   id: string | ObjectID
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    getClient()
-      .then((client) => {
-        const collection = client
-          .db()
-          .collection(RESOURCE_COLLECTION[resource] || resource);
-        collection.deleteOne({ _id: id }, (err) => {
-          if (err) return void reject(err);
-          resolve();
-        });
-      })
-      .catch(reject);
+    const collection = db.collection(RESOURCE_COLLECTION[resource] || resource);
+    collection.deleteOne({ _id: id }, (err) => {
+      if (err) return void reject(err);
+      resolve();
+    });
   });
 }
 
@@ -368,21 +281,17 @@ export function putUser(
   object: Record<string, unknown>
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    getClient()
-      .then((client) => {
-        const collection = client.db().collection("users");
-        // update instead of replace to keep the password if not set by user
-        collection.updateOne(
-          { _id: id },
-          { $set: object },
-          { upsert: true },
-          (err) => {
-            if (err) return void reject(err);
-            resolve();
-          }
-        );
-      })
-      .catch(reject);
+    const collection = db.collection("users");
+    // update instead of replace to keep the password if not set by user
+    collection.updateOne(
+      { _id: id },
+      { $set: object },
+      { upsert: true },
+      (err) => {
+        if (err) return void reject(err);
+        resolve();
+      }
+    );
   });
 }
 
@@ -396,32 +305,24 @@ export function putFile(
   contentStream: Readable
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    getClient()
-      .then((client) => {
-        const bucket = new GridFSBucket(client.db());
-        const uploadStream = bucket.openUploadStreamWithId(filename, filename, {
-          metadata: metadata,
-        });
-        uploadStream.on("error", reject);
-        contentStream.on("error", reject);
-        uploadStream.on("finish", resolve);
-        contentStream.pipe(uploadStream);
-      })
-      .catch(reject);
+    const bucket = new GridFSBucket(db);
+    const uploadStream = bucket.openUploadStreamWithId(filename, filename, {
+      metadata: metadata,
+    });
+    uploadStream.on("error", reject);
+    contentStream.on("error", reject);
+    uploadStream.on("finish", resolve);
+    contentStream.pipe(uploadStream);
   });
 }
 
 export function deleteFile(filename: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    getClient()
-      .then((client) => {
-        const bucket = new GridFSBucket(client.db());
-        bucket.delete(filename as any, (err) => {
-          if (err) return void reject(err);
-          resolve();
-        });
-      })
-      .catch(reject);
+    const bucket = new GridFSBucket(db);
+    bucket.delete(filename as any, (err) => {
+      if (err) return void reject(err);
+      resolve();
+    });
   });
 }
 
@@ -431,8 +332,4 @@ export function deleteFault(id: string): Promise<void> {
 
 export function deleteTask(id: ObjectID): Promise<void> {
   return deleteResource("tasks", id);
-}
-
-export async function disconnect(): Promise<void> {
-  if (clientPromise) await (await clientPromise).close();
 }
