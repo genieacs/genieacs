@@ -163,6 +163,7 @@ export interface SessionContext {
   cacheUntil?: number;
   syncState?: SyncState;
   lastActivity?: number;
+  extendLock?: number;
   rpcRequest?: AcsRequest;
   operationsTouched?: { [commandKey: string]: 1 | 0 };
   provisionsRet?: any[];
