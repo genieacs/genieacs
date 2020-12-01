@@ -392,78 +392,97 @@ export function listener(
           task.device = deviceId;
           apiFunctions
             .insertTasks(task)
-            .then(() => {
-              cache
-                .del(`${deviceId}_tasks_faults_operations`)
-                .then(() => {
-                  if (urlParts.query.connection_request != null) {
-                    apiFunctions
-                      .connectionRequest(deviceId)
-                      .then(() => {
-                        const taskTimeout =
-                          (urlParts.query.timeout &&
-                            parseInt(urlParts.query.timeout as string)) ||
-                          (config.get(
-                            "DEVICE_ONLINE_THRESHOLD",
-                            deviceId
-                          ) as number);
-
-                        apiFunctions
-                          .watchTask(deviceId, task._id, taskTimeout)
-                          .then((status) => {
-                            if (status === "timeout") {
-                              response.writeHead(
-                                202,
-                                "Task queued but not processed",
-                                {
-                                  "Content-Type": "application/json",
-                                }
-                              );
-                              response.end(JSON.stringify(task));
-                            } else if (status === "fault") {
-                              collections.tasks.findOne(
-                                { _id: task._id },
-                                (err, task2) => {
-                                  if (err)
-                                    return void throwError(err, response);
-
-                                  response.writeHead(202, "Task faulted", {
-                                    "Content-Type": "application/json",
-                                  });
-                                  response.end(JSON.stringify(task2));
-                                }
-                              );
-                            } else {
-                              response.writeHead(200, {
-                                "Content-Type": "application/json",
-                              });
-                              response.end(JSON.stringify(task));
-                            }
-                          })
-                          .catch((err) => {
-                            setTimeout(() => {
-                              throwError(err, response);
-                            });
-                          });
-                      })
-                      .catch((err) => {
-                        response.writeHead(202, err.message, {
-                          "Content-Type": "application/json",
-                        });
-                        response.end(JSON.stringify(task));
-                      });
-                  } else {
-                    response.writeHead(202, {
-                      "Content-Type": "application/json",
-                    });
-                    response.end(JSON.stringify(task));
-                  }
-                })
-                .catch((err) => {
-                  setTimeout(() => {
-                    throwError(err, response);
-                  });
+            .then(async () => {
+              const lastInform = Date.now();
+              const notInSession = await apiFunctions.awaitSessionEnd(
+                deviceId,
+                30000
+              );
+              await cache.del(`${deviceId}_tasks_faults_operations`);
+              if (urlParts.query.connection_request == null) {
+                response.writeHead(202, {
+                  "Content-Type": "application/json",
                 });
+                response.end(JSON.stringify(task));
+                return;
+              }
+
+              if (!notInSession) {
+                response.writeHead(202, "Task queued but not processed", {
+                  "Content-Type": "application/json",
+                });
+                response.end(JSON.stringify(task));
+                return;
+              }
+
+              const status = await apiFunctions.connectionRequest(deviceId);
+
+              if (status) {
+                response.writeHead(202, status, {
+                  "Content-Type": "application/json",
+                });
+                response.end(JSON.stringify(task));
+                return;
+              }
+
+              const onlineThreshold =
+                (urlParts.query.timeout &&
+                  parseInt(urlParts.query.timeout as string)) ||
+                (config.get("DEVICE_ONLINE_THRESHOLD", deviceId) as number);
+
+              const sessionStarted = await apiFunctions.awaitSessionStart(
+                deviceId,
+                lastInform,
+                onlineThreshold
+              );
+              if (!sessionStarted) {
+                response.writeHead(202, "Task queued but not processed", {
+                  "Content-Type": "application/json",
+                });
+                response.end(JSON.stringify(task));
+                return;
+              }
+
+              const sessionEnded = await apiFunctions.awaitSessionEnd(
+                deviceId,
+                120000
+              );
+              if (!sessionEnded) {
+                response.writeHead(202, "Task queued but not processed", {
+                  "Content-Type": "application/json",
+                });
+                response.end(JSON.stringify(task));
+                return;
+              }
+
+              const prom1 = collections.tasks.findOne(
+                { _id: task._id },
+                { projection: { _id: 1 } }
+              );
+              const prom2 = collections.faults.findOne(
+                { _id: `${deviceId}:task_${task._id}` },
+                {
+                  projection: { _id: 1 },
+                }
+              );
+
+              const [t, f] = await Promise.all([prom1, prom2]);
+              if (f) {
+                response.writeHead(202, "Task faulted", {
+                  "Content-Type": "application/json",
+                });
+                response.end(JSON.stringify(t || task));
+              } else if (t) {
+                response.writeHead(202, "Task queued but not processed", {
+                  "Content-Type": "application/json",
+                });
+                response.end(JSON.stringify(t));
+              } else {
+                response.writeHead(200, {
+                  "Content-Type": "application/json",
+                });
+                response.end(JSON.stringify(task));
+              }
             })
             .catch((err) => {
               setTimeout(() => {

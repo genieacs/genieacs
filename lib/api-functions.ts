@@ -37,7 +37,7 @@ import { evaluate } from "./common/expression";
 export async function connectionRequest(
   deviceId: string,
   device?: Record<string, { value?: [boolean | number | string, string] }>
-): Promise<void> {
+): Promise<string> {
   if (!device) {
     const res = await db.devicesCollection.findOne({ _id: deviceId });
     if (!res) throw new Error("No such device");
@@ -156,43 +156,54 @@ export async function connectionRequest(
     );
   }
 
-  try {
-    await httpConnectionRequest(
-      connectionRequestUrl,
-      authExp,
-      CONNECTION_REQUEST_ALLOW_BASIC_AUTH,
-      CONNECTION_REQUEST_TIMEOUT,
-      debug,
-      deviceId
-    );
-  } catch (err) {
-    if (!udpProm) throw err;
+  const status = await httpConnectionRequest(
+    connectionRequestUrl,
+    authExp,
+    CONNECTION_REQUEST_ALLOW_BASIC_AUTH,
+    CONNECTION_REQUEST_TIMEOUT,
+    debug,
+    deviceId
+  );
+
+  if (udpProm) {
     await udpProm;
+    return "";
   }
+
+  return status;
 }
 
-export async function watchTask(
+export async function awaitSessionStart(
   deviceId: string,
-  taskId: string,
+  lastInform: number,
   timeout: number
-): Promise<string> {
-  await new Promise((resolve) => setTimeout(resolve, 500));
-
-  const task = await db.tasksCollection.findOne(
-    { _id: taskId },
-    { projection: { _id: 1 } }
+): Promise<boolean> {
+  const now = Date.now();
+  const device = await db.devicesCollection.findOne(
+    { _id: deviceId },
+    { projection: { _lastInform: 1 } }
   );
-  if (!task) return "completed";
+  const li = (device["_lastInform"] as Date).getTime();
+  if (li > lastInform) return true;
+  const token = await cache.get(`cwmp_session_${deviceId}`);
+  if (token) return true;
+  if (timeout < 500) return false;
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  timeout -= Date.now() - now;
+  return awaitSessionStart(deviceId, lastInform, timeout);
+}
 
-  const q = { _id: `${deviceId}:task_${taskId}` };
-  const fault = await db.faultsCollection.findOne(q, {
-    projection: { _id: 1 },
-  });
-  if (fault) return "fault";
-
-  if ((timeout -= 500) <= 0) return "timeout";
-
-  return watchTask(deviceId, taskId, timeout);
+export async function awaitSessionEnd(
+  deviceId: string,
+  timeout: number
+): Promise<boolean> {
+  const now = Date.now();
+  const token = await cache.get(`cwmp_session_${deviceId}`);
+  if (!token) return true;
+  if (timeout < 500) return false;
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  timeout -= Date.now() - now;
+  return awaitSessionEnd(deviceId, timeout);
 }
 
 function sanitizeTask(task): void {

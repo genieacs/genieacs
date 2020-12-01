@@ -24,7 +24,8 @@ import { getUsers } from "../local-cache";
 import { hashPassword } from "../auth";
 import {
   insertTasks,
-  watchTask,
+  awaitSessionEnd,
+  awaitSessionStart,
   connectionRequest,
   deleteDevice,
 } from "../api-functions";
@@ -104,23 +105,45 @@ export async function postTasks(
   const statuses = tasks.map((t) => {
     return { _id: t._id, status: "pending" };
   });
-
-  await del(`${deviceId}_tasks_faults_operations`);
-
-  try {
-    await connectionRequest(deviceId, device);
-  } catch (err) {
+  const lastInform = Date.now();
+  const notInSession = await awaitSessionEnd(deviceId, 30000);
+  if (!notInSession) {
     await Promise.all(statuses.map((t) => db.deleteTask(new ObjectID(t._id))));
     return {
-      connectionRequest: err.message,
+      connectionRequest: "Session took too long to complete",
       tasks: statuses,
     };
   }
 
-  const sample = tasks[tasks.length - 1];
+  await del(`${deviceId}_tasks_faults_operations`);
 
-  // Waiting for session to finish or timeout
-  await watchTask(deviceId, sample._id, timeout);
+  const status = await connectionRequest(deviceId, device);
+
+  if (status) {
+    await Promise.all(statuses.map((t) => db.deleteTask(new ObjectID(t._id))));
+    return {
+      connectionRequest: status,
+      tasks: statuses,
+    };
+  }
+
+  const sessionStarted = await awaitSessionStart(deviceId, lastInform, timeout);
+  if (!sessionStarted) {
+    await Promise.all(statuses.map((t) => db.deleteTask(new ObjectID(t._id))));
+    return {
+      connectionRequest: "No contact from CPE",
+      tasks: statuses,
+    };
+  }
+
+  const sessionEnded = await awaitSessionEnd(deviceId, 120000);
+  if (!sessionEnded) {
+    await Promise.all(statuses.map((t) => db.deleteTask(new ObjectID(t._id))));
+    return {
+      connectionRequest: "Session took too long to complete",
+      tasks: statuses,
+    };
+  }
 
   const promises = [];
   for (const s of statuses) {

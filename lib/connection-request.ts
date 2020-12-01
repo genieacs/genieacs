@@ -97,10 +97,10 @@ export async function httpConnectionRequest(
   timeout: number,
   _debug: boolean,
   deviceId: string
-): Promise<void> {
+): Promise<string> {
   const options: http.RequestOptions = parse(address);
   if (options.protocol !== "http:")
-    throw new Error("Invalid connection request URL or protocol");
+    return "Invalid connection request URL or protocol";
 
   options.agent = new http.Agent({
     maxSockets: 1,
@@ -115,8 +115,7 @@ export async function httpConnectionRequest(
     let opts = options;
     if (authHeader) {
       if (authHeader["method"] === "Basic") {
-        if (!allowBasicAuth)
-          throw new Error("Basic HTTP authentication not allowed");
+        if (!allowBasicAuth) return "Basic HTTP authentication not allowed";
 
         opts = Object.assign(
           {
@@ -143,7 +142,7 @@ export async function httpConnectionRequest(
           options
         );
       } else {
-        throw new Error("Unrecognized auth method");
+        return "Unrecognized auth method";
       }
     }
 
@@ -152,8 +151,8 @@ export async function httpConnectionRequest(
     // Workaround for some devices unexpectedly closing the connection
     if (res.statusCode === 0 && authHeader)
       res = await httpGet(opts, timeout, _debug, deviceId);
-    if (res.statusCode === 0) throw new Error("Device is offline");
-    if (res.statusCode === 200 || res.statusCode === 204) return;
+    if (res.statusCode === 0) return "Device is offline";
+    if (res.statusCode === 200 || res.statusCode === 204) return "";
 
     if (res.statusCode === 401 && res.headers["www-authenticate"]) {
       authHeader = auth.parseWwwAuthenticateHeader(
@@ -161,12 +160,10 @@ export async function httpConnectionRequest(
       );
       [username, password, authExp] = await extractAuth(authExp, false);
     } else {
-      throw new Error(
-        `Unexpected response code from device: ${res.statusCode}`
-      );
+      return `Unexpected response code from device: ${res.statusCode}`;
     }
   }
-  throw new Error("Incorrect connection request credentials");
+  return "Incorrect connection request credentials";
 }
 
 export async function udpConnectionRequest(
