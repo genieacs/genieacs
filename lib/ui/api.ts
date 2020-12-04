@@ -531,12 +531,20 @@ router.post("/devices/:id/tasks", async (ctx) => {
     }
   ) as number;
 
+  const socketTimeout: number = ctx.socket["timeout"];
+
+  // Disable socket timeout while waiting for postTasks()
+  if (socketTimeout) ctx.socket.setTimeout(0);
+
   const res = await apiFunctions.postTasks(
     ctx.params.id,
     ctx.request.body,
     onlineThreshold,
     device
   );
+
+  // Restore socket timeout
+  if (socketTimeout) ctx.socket.setTimeout(socketTimeout);
 
   log.tasks = res.tasks.map((t) => t._id).join(",");
 

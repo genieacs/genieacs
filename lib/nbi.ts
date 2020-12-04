@@ -394,12 +394,19 @@ export function listener(
             .insertTasks(task)
             .then(async () => {
               const lastInform = Date.now();
+
+              const socketTimeout: number = request.socket["timeout"];
+
+              // Disable socket timeout while waiting for session
+              if (socketTimeout) request.socket.setTimeout(0);
+
               const notInSession = await apiFunctions.awaitSessionEnd(
                 deviceId,
                 30000
               );
               await cache.del(`${deviceId}_tasks_faults_operations`);
               if (urlParts.query.connection_request == null) {
+                if (socketTimeout) request.socket.setTimeout(socketTimeout);
                 response.writeHead(202, {
                   "Content-Type": "application/json",
                 });
@@ -408,6 +415,7 @@ export function listener(
               }
 
               if (!notInSession) {
+                if (socketTimeout) request.socket.setTimeout(socketTimeout);
                 response.writeHead(202, "Task queued but not processed", {
                   "Content-Type": "application/json",
                 });
@@ -418,6 +426,7 @@ export function listener(
               const status = await apiFunctions.connectionRequest(deviceId);
 
               if (status) {
+                if (socketTimeout) request.socket.setTimeout(socketTimeout);
                 response.writeHead(202, status, {
                   "Content-Type": "application/json",
                 });
@@ -436,6 +445,7 @@ export function listener(
                 onlineThreshold
               );
               if (!sessionStarted) {
+                if (socketTimeout) request.socket.setTimeout(socketTimeout);
                 response.writeHead(202, "Task queued but not processed", {
                   "Content-Type": "application/json",
                 });
@@ -448,6 +458,7 @@ export function listener(
                 120000
               );
               if (!sessionEnded) {
+                if (socketTimeout) request.socket.setTimeout(socketTimeout);
                 response.writeHead(202, "Task queued but not processed", {
                   "Content-Type": "application/json",
                 });
@@ -467,6 +478,10 @@ export function listener(
               );
 
               const [t, f] = await Promise.all([prom1, prom2]);
+
+              // Restore socket timeout
+              if (socketTimeout) request.socket.setTimeout(socketTimeout);
+
               if (f) {
                 response.writeHead(202, "Task faulted", {
                   "Content-Type": "application/json",
