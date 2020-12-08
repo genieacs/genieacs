@@ -198,6 +198,7 @@ async function writeResponse(
     });
     await endSession(sessionContext);
   } else if (close) {
+    session.clearProvisions(sessionContext);
     await endSession(sessionContext);
   } else {
     const now = Date.now();
@@ -734,6 +735,17 @@ async function nextRpc(sessionContext: SessionContext): Promise<void> {
 async function endSession(sessionContext: SessionContext): Promise<void> {
   let saveCache = sessionContext.cacheUntil != null;
 
+  if (sessionContext.provisions.length) {
+    const fault = {
+      code: "session_terminated",
+      message: "The TR-069 session was unsuccessfully terminated",
+      timestamp: sessionContext.timestamp,
+    };
+    recordFault(sessionContext, fault);
+    // No need to save retryNow
+    for (const f of Object.values(sessionContext.faults)) delete f.retryNow;
+  }
+
   const promises = [];
 
   promises.push(
@@ -892,11 +904,11 @@ export function onConnection(socket: Socket): void {
     const now = Date.now();
 
     const lastActivity = sessionContext.lastActivity;
-    const timeoutMsg = logger.flatten({
+    const timeoutMsg = {
       sessionContext: sessionContext,
       message: "Session timeout",
       sessionTimestamp: sessionContext.timestamp,
-    });
+    };
 
     const timeout =
       sessionContext.lastActivity + sessionContext.timeout * 1000 - now;
@@ -916,7 +928,7 @@ export function onConnection(socket: Socket): void {
       const _sessionContext = await session.deserialize(sessionContextString);
       if (_sessionContext.lastActivity === lastActivity) {
         logger.accessError(timeoutMsg);
-        await endSession(_sessionContext);
+        await endSession(sessionContext);
       }
     }, timeout + 1000).unref();
 
