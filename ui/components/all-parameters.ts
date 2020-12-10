@@ -55,6 +55,8 @@ const component: ClosureComponent = (): Component => {
     view: (vnode) => {
       const device = vnode.attrs["device"];
 
+      const limit = vnode.attrs["limit"] > 0 ? vnode.attrs["limit"] : 100;
+
       const search = m("input", {
         type: "text",
         placeholder: "Search parameters",
@@ -86,7 +88,7 @@ const component: ClosureComponent = (): Component => {
           const str = p.value && p.value[0] ? `${k} ${p.value[0]}` : k;
           if (re && !re.test(str)) continue;
           ++c;
-          if (count < 100) filteredKeys.push(k);
+          if (count < limit) filteredKeys.push(k);
         }
         count += c;
       }
