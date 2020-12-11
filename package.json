@@ -14,7 +14,7 @@
   ],
   "author": "Zaid Abdulla <zaid@genieacs.com>",
   "license": "AGPL-3.0",
-  "preferGlobal": true,
+  "private": true,
   "directories": {
     "bin": "bin",
     "tools": "tools"

@@ -145,6 +145,7 @@ async function init(): Promise<void> {
     fs.readFileSync(path.resolve(INPUT_DIR, "package.json")).toString()
   );
   delete packageJson["devDependencies"];
+  delete packageJson["private"];
   packageJson["scripts"] = {
     install: packageJson["scripts"].install,
     configure: packageJson["scripts"].configure,
