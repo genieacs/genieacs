@@ -29,6 +29,7 @@ import { IncomingMessage, ServerResponse } from "http";
 import * as cache from "./cache";
 import { version as VERSION } from "../package.json";
 import { ping } from "./ping";
+import * as logger from "./logger";
 
 const DEVICE_TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-_%]+)\/tasks\/?$/;
 const TASKS_REGEX = /^\/tasks\/([a-zA-Z0-9\-_%]+)(\/[a-zA-Z_]*)?$/;
@@ -95,6 +96,14 @@ export function listener(
   request.addListener("end", () => {
     const body = getBody();
     const urlParts = url.parse(request.url, true);
+
+    logger.accessInfo(
+      Object.assign({}, urlParts.query, {
+        remoteAddress: request.connection.remoteAddress,
+        message: `${request.method} ${urlParts.pathname}`,
+      })
+    );
+
     if (PRESETS_REGEX.test(urlParts.pathname)) {
       const presetName = querystring.unescape(
         PRESETS_REGEX.exec(urlParts.pathname)[1]
