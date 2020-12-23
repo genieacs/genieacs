@@ -35,6 +35,7 @@ export function ping(
   callback: (err: Error, res?: PingResult, stdout?: string) => void
 ): void {
   let cmd: string, parseRegExp1: RegExp, parseRegExp2: RegExp;
+  host = host.replace("[", "").replace("]", "");
   switch (platform()) {
     case "linux":
       cmd = `ping -w 1 -i 0.2 -c 3 ${host}`;
