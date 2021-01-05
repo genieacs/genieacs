@@ -63,6 +63,7 @@ const externals = [
   "child_process",
   "dgram",
   "url",
+  "readline",
   "iconv-lite",
   "koa",
   "koa-router",

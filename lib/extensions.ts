@@ -22,6 +22,8 @@ import * as crypto from "crypto";
 import * as config from "./config";
 import { Fault } from "./types";
 import { ROOT_DIR } from "./config";
+import * as logger from "./logger";
+import readline from "readline";
 
 const TIMEOUT = +config.get("EXT_TIMEOUT");
 
@@ -45,7 +47,7 @@ export function run(args: string[]): Promise<{ fault: Fault; value: any }> {
 
     if (!processes[scriptName]) {
       const p = spawn(ROOT_DIR + "/bin/genieacs-ext", [scriptName], {
-        stdio: ["inherit", "inherit", "inherit", "ipc"],
+        stdio: ["ignore", "pipe", "pipe", "ipc"],
       });
       processes[scriptName] = p;
 
@@ -69,6 +71,16 @@ export function run(args: string[]): Promise<{ fault: Fault; value: any }> {
       });
 
       p.on("message", messageHandler);
+
+      const rlstdout = readline.createInterface(p.stdout);
+      rlstdout.on("line", (line) => {
+        logger.info({ message: `Ext ${scriptName}(${p.pid}): ${line}` });
+      });
+
+      const rlstderr = readline.createInterface(p.stderr);
+      rlstderr.on("line", (line) => {
+        logger.warn({ message: `Ext ${scriptName}(${p.pid}): ${line}` });
+      });
     }
 
     setTimeout(() => {
