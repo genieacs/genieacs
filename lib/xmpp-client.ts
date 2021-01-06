@@ -295,10 +295,8 @@ function* init(
         throw new Error("No supported SASL method");
       }
     } else if (feature.name === "bind") {
-      if (feature.children.some((c) => c.name === "required")) {
-        yield* bind(socket, resource);
-        return 0;
-      }
+      yield* bind(socket, resource);
+      return 0;
     }
   }
   return 0;
