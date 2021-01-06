@@ -63,9 +63,11 @@ const component: ClosureComponent = (vn): Component => {
         param = device["Device.ManagementServer.ConnectionRequestURL"];
 
       let h;
-      if (param && param.value) {
+      try {
         const url = new URL(param.value[0]);
         h = url.hostname;
+      } catch (err) {
+        // Ignore
       }
 
       if (host !== h) {
@@ -77,7 +79,7 @@ const component: ClosureComponent = (vn): Component => {
         }
       }
 
-      return m("div", `Pinging ${host}:`);
+      return m("div", host ? `Pinging ${host}:` : "");
     },
   };
 };
