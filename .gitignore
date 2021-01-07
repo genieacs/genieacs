@@ -1,6 +1,4 @@
 *~
 node_modules
 dist
-bin/.*.ts
-tools/.*.ts
 docs/_build

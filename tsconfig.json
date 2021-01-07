@@ -1,8 +1,6 @@
 {
   "compilerOptions": {
-    "lib": [
-      "esnext", "dom"
-    ],
+    "lib": ["esnext", "dom"],
     "module": "esnext",
     "moduleResolution": "node",
     "target": "esnext",
@@ -14,11 +12,11 @@
     "allowJs": true
   },
   "include": [
-      "./bin/*.ts",
-      "./lib/**/*",
-      "./ui/**/*",
-      "./test/**/*",
-      "./build/**/*",
-      "./tools/*.ts"
+    "./bin/*.ts",
+    "./lib/**/*",
+    "./ui/**/*",
+    "./test/**/*",
+    "./build/**/*",
+    "./tools/*.ts"
   ]
 }

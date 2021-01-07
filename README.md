@@ -20,7 +20,7 @@ Install GenieACS from NPM:
     sudo npm install -g --unsafe-perm genieacs
 
 To build from source instead, clone this repo or download the source archive
-then *cd* into the source directory then run:
+then _cd_ into the source directory then run:
 
     npm install
     npm run build
@@ -30,8 +30,8 @@ source):
 
 ### genieacs-cwmp
 
-This is the service that the CPEs will communicate with. It listens on port
-7547 by default. Configure the ACS URL in your devices accordingly.
+This is the service that the CPEs will communicate with. It listens on port 7547
+by default. Configure the ACS URL in your devices accordingly.
 
 You may optionally use [genieacs-sim](https://github.com/genieacs/genieacs-sim)
 as a dummy TR-069 simulator if you don't have a CPE at hand.
@@ -50,7 +50,7 @@ such. It listens on port 7567 by default.
 ### genieacs-ui
 
 This serves the web based user interface. It listens on port 3000 by default.
-You must pass *--ui-jwt-secret* argument to supply the secret key used for
+You must pass _--ui-jwt-secret_ argument to supply the secret key used for
 signing browser cookies:
 
     genieacs-ui --ui-jwt-secret secret
@@ -64,14 +64,13 @@ a complete installation guide for production deployments.
 
 ## Support
 
-The [forum](https://forum.genieacs.com) is a good place to get guidance and
-help from the community. Head on over and join the conversation!
+The [forum](https://forum.genieacs.com) is a good place to get guidance and help
+from the community. Head on over and join the conversation!
 
 For commercial support options, please visit
 [genieacs.com](https://genieacs.com/support/).
 
 ## License
 
-Copyright 2013-2020 GenieACS Inc. GenieACS is released under the [AGPLv3
-license
-terms](https://raw.githubusercontent.com/genieacs/genieacs/master/LICENSE).
+Copyright 2013-2020 GenieACS Inc. GenieACS is released under the
+[AGPLv3 license terms](https://raw.githubusercontent.com/genieacs/genieacs/master/LICENSE).

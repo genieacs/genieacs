@@ -5,8 +5,8 @@ tracker is strictly for bug reports.
 
 # Issues
 
-We use GitHub issues to track bugs. Please ensure your bug description is
-clear and has sufficient instructions to be able to reproduce the issue.
+We use GitHub issues to track bugs. Please ensure your bug description is clear
+and has sufficient instructions to be able to reproduce the issue.
 
 If you face interoperability issues with your CPE, more often than not it's a
 device related issue. Please consult the [forum] before submitting an Issue.
@@ -26,13 +26,14 @@ By submitting a pull request to this repository, you acknowledge that, while
 maintaining copyright, you grant Zaid Abdulla a perpetual, worldwide, non-
 exclusive, no-charge, royalty-free, irrevocable license to reproduce, prepare
 derivative works of, publicly display, publicly perform, sublicense, and
-distribute your contributions and such derivative works under the AGPLv3
-license or any other license terms, including, but not limited to, proprietary
-or commercial license terms.
+distribute your contributions and such derivative works under the AGPLv3 license
+or any other license terms, including, but not limited to, proprietary or
+commercial license terms.
 
-You confirm that you own or have rights to distribute and sublicense the
-source code contained therein, and that your content does not infringe upon
-the intellectual property rights of a third party.
+You confirm that you own or have rights to distribute and sublicense the source
+code contained therein, and that your content does not infringe upon the
+intellectual property rights of a third party.
 
-[commit-guidelines]: http://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html
+[commit-guidelines]:
+  http://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html
 [forum]: https://forum.genieacs.com
