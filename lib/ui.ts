@@ -259,6 +259,11 @@ koa.use(
     deflate: {
       flush: constants.Z_SYNC_FLUSH,
     },
+    br: {
+      params: {
+        [constants.BROTLI_PARAM_QUALITY]: 5,
+      },
+    },
   })
 );
 
