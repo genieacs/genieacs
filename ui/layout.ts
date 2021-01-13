@@ -23,6 +23,7 @@ import drawerComponent from "./drawer-component";
 import userMenu from "./user-menu";
 import adminMenu from "./admin-menu";
 import * as overlay from "./overlay";
+import { version as VERSION } from "../package.json";
 
 const adminPages = [
   "presets",
@@ -51,7 +52,11 @@ const component: ClosureComponent = (): Component => {
 
       return [
         m("#header", [
-          m("img.logo", { src: "logo.svg" }),
+          m(
+            "div.logo",
+            m("img", { src: "logo.svg" }),
+            m("span.version", "v" + VERSION)
+          ),
           m(userMenu),
           m(menu, attrs),
           m(drawerComponent),

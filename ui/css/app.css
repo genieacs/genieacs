@@ -285,9 +285,21 @@ body {
   }
 
   & > .logo {
-    margin: 10px;
-    display: inline;
-    height: 56px;
+    display: inline-block;
+    position: relative;
+    & > img {
+      margin: 10px;
+      height: 56px;
+    }
+
+    & > .version {
+      position: absolute;
+      bottom: 5px;
+      right: 10px;
+      font-family: monospace;
+      font-size: 10px;
+      color: #666;
+    }
   }
 
   & > .user-menu {
