@@ -1,0 +1,861 @@
+[
+  [
+    {
+      "name": "Mark McGwire",
+      "hr": 65,
+      "avg": 0.278
+    },
+    {
+      "name": "Sammy Sosa",
+      "hr": 63,
+      "avg": 0.288
+    }
+  ],
+  {
+    "top1": {
+      "key1": "scalar1"
+    },
+    "top2": {
+      "key2": "scalar2"
+    },
+    "top3": {
+      "scalar1": "scalar3"
+    },
+    "top4": {
+      "scalar2": "scalar4"
+    },
+    "top5": "scalar5",
+    "top6": {
+      "key6": "scalar6"
+    }
+  },
+  "text",
+  ["a", "b", 42, "d"],
+  {
+    "a!\"#$%&'()*+,-./09:;<=>?@AZ[\\]^_`az{|}~": "safe",
+    "?foo": "safe question mark",
+    ":foo": "safe colon",
+    "-foo": "safe dash",
+    "this is#not": "a comment"
+  },
+  {
+    "": "a"
+  },
+  "foo",
+  {
+    "key": "value",
+    "foo": "key"
+  },
+  [1, -2, 33],
+  {
+    "plain": "a b\nc"
+  },
+  [["s1_i1", "s1_i2"], "s2"],
+  {
+    "First occurrence": "Foo",
+    "Second occurrence": "Foo",
+    "Override anchor": "Bar",
+    "Reuse anchor": "Bar"
+  },
+  "k:#foo &a !t s",
+  ["a"],
+  {
+    "escaped slash": "a/b"
+  },
+  {
+    "plain": "This unquoted scalar spans many lines.",
+    "quoted": "So does this quoted scalar.\n"
+  },
+  "here's to \"quotes\"",
+  {
+    "foo": "bar"
+  },
+  "ab cd\nef\n\ngh\n",
+  ["detected\n", "\n\n# detected\n", " explicit\n", "detected\n"],
+  "foo: bar\": baz",
+  "plain\\value\\with\\backslashes",
+  {
+    "plain": "text lines",
+    "quoted": "text lines",
+    "block": "text\n \tlines\n"
+  },
+  "a",
+  {
+    "foo": "you",
+    "bar": "far"
+  },
+  {
+    "sequence": ["entry", ["nested"]],
+    "mapping": {
+      "foo": "bar"
+    }
+  },
+  {
+    "literal": "some\ntext\n",
+    "folded": "some text\n"
+  },
+  [
+    {
+      "one": "two",
+      "three": "four"
+    },
+    {
+      "five": "six",
+      "seven": "eight"
+    }
+  ],
+  {
+    "Folding": "Empty line\nas a line feed",
+    "Chomping": "Clipped empty lines\n"
+  },
+  [
+    ["one", "two"],
+    ["three", "four"]
+  ],
+  {
+    "foo": "bar"
+  },
+  {
+    "key": "value"
+  },
+  {
+    "explicit key": null,
+    "block key\n": ["one", "two"]
+  },
+  ["foo"],
+  [
+    {
+      "foo": "bar"
+    },
+    ["baz", "baz"]
+  ],
+  "ab\n\n \n",
+  {
+    "foo: bar\\": "baz'"
+  },
+  {
+    "Not indented": {
+      "By one space": "By four\n  spaces\n",
+      "Flow style": ["By two", "Also by two", "Still by two"]
+    }
+  },
+  "\\//||\\/||\n// ||  ||__\n",
+  {
+    "foo": [
+      "a",
+      {
+        "key": "value"
+      }
+    ]
+  },
+  {
+    "a": null,
+    "b": null
+  },
+  "foo",
+  {
+    "a": "b",
+    "": "a"
+  },
+  {
+    "foo\nbar:baz\tx \\$%^&*()x": 23,
+    "x\\ny:z\\tx $%^&*()x": 24
+  },
+  "Sammy Sosa completed another fine season with great stats.\n\n  63 Home Runs\n  0.288 Batting Average\n\nWhat a year!\n",
+  " foo\nbar\nbaz ",
+  { "matches %": 20 },
+  [
+    "flow in block",
+    "Block scalar\n",
+    {
+      "foo": "bar"
+    }
+  ],
+  {
+    "a": "b",
+    "c": 42,
+    "e": "f",
+    "g": "h",
+    "23": false
+  },
+  "ab",
+  " 1st non-empty\n2nd non-empty 3rd non-empty ",
+  {
+    "top1": {
+      "key1": "one"
+    },
+    "top2": {
+      "key2": "two"
+    },
+    "top3": {
+      "key3": "three"
+    },
+    "top4": {
+      "key4": "four"
+    },
+    "top5": {
+      "key5": "five"
+    },
+    "top6": "six",
+    "top7": "seven"
+  },
+  {
+    "hr": ["Mark McGwire", "Sammy Sosa"],
+    "rbi": ["Sammy Sosa", "Ken Griffey"]
+  },
+  "\nfolded line\nnext line\n  * bullet\n\n  * list\n  * lines\n\nlast line\n",
+  ["word1", "word2"],
+  {
+    "a": null,
+    "b": null,
+    "c": null
+  },
+  {
+    "nested sequences": [[[[]]], [[{}]]],
+    "key1": [],
+    "key2": {}
+  },
+  "---word1 word2",
+  {
+    "implicit block key": [
+      {
+        "implicit flow key": "value"
+      }
+    ]
+  },
+  {
+    "key ends with two colons::": "value"
+  },
+  [
+    {
+      "single line": null,
+      "a": "b"
+    },
+    {
+      "multi line": null,
+      "a": "b"
+    }
+  ],
+  "a",
+  {
+    "key": ["item1", "item2"]
+  },
+  [
+    "double quoted",
+    "single quoted",
+    "plain text",
+    ["nested"],
+    {
+      "single": "pair"
+    }
+  ],
+  ["unicode anchor"],
+  [
+    {
+      "key": "value",
+      "key2": "value2"
+    },
+    {
+      "key3": "value3"
+    }
+  ],
+  "trimmed\n\n\nas space",
+  "Mark McGwire's year was crippled by a knee injury.\n",
+  [
+    {
+      "single line": null,
+      "a": "b"
+    },
+    {
+      "multi line": null,
+      "a": "b"
+    }
+  ],
+  {
+    "a": {
+      "b": {
+        "c": "d"
+      },
+      "e": {
+        "f": "g"
+      }
+    },
+    "h": "i"
+  },
+  {
+    "foo": {
+      "bar": "baz"
+    }
+  },
+  [
+    {
+      "single line": "value"
+    },
+    {
+      "multi line": "value"
+    }
+  ],
+  {
+    "single": "text",
+    "double": "text"
+  },
+  " 1st non-empty\n2nd non-empty 3rd non-empty ",
+  [
+    {
+      "item": "Super Hoop",
+      "quantity": 1
+    },
+    {
+      "item": "Basketball",
+      "quantity": 4
+    },
+    {
+      "item": "Big Shoes",
+      "quantity": 1
+    }
+  ],
+  "a b c d\ne",
+  {
+    "a": ["b", ["c", "d"]]
+  },
+  {
+    "strip": "text",
+    "clip": "text\n",
+    "keep": "text\n"
+  },
+  {
+    "a": "b c",
+    "d": "e f"
+  },
+  ["single multiline - sequence entry"],
+  {
+    "1": [2, 3],
+    "4": 5
+  },
+  [
+    {
+      "bla\"keks": "foo"
+    },
+    {
+      "bla]keks": "foo"
+    }
+  ],
+  "folded text\n",
+  "foo",
+  {
+    "key": {
+      "a": "b"
+    }
+  },
+  {
+    "adjacent": "value",
+    "readable": "value",
+    "empty": null
+  },
+  [
+    {
+      "a": "b"
+    },
+    {
+      "c": "d"
+    },
+    {
+      "e": "f"
+    },
+    {
+      "g": "h"
+    }
+  ],
+  {
+    "tab": "\tstring"
+  },
+  [
+    {
+      "foo bar": "baz"
+    }
+  ],
+  {
+    "anchored": "value",
+    "alias": "value"
+  },
+  ["explicit indent and chomp", "chomp and explicit indent"],
+  {
+    "a": ["b", "c"]
+  },
+  {
+    "foo": "bar"
+  },
+  [
+    "::vector",
+    ": - ()",
+    "Up, up, and away!",
+    -123,
+    "http://example.com/foo#bar",
+    [
+      "::vector",
+      ": - ()",
+      "Up, up and away!",
+      -123,
+      "http://example.com/foo#bar"
+    ]
+  ],
+  {
+    "a": "b",
+    "seq": ["a"],
+    "c": "d"
+  },
+  ["foo", "bar", 42],
+  "line1 # no comment line3\n",
+  "\n\nliteral\n \n\ntext\n",
+  {
+    "a": "b"
+  },
+  {
+    "k": ["a", "b"]
+  },
+  "a b c d\ne",
+  "---word1 word2",
+  ["a", 2, 4, "d"],
+  {
+    "a": [
+      "b",
+      "c",
+      {
+        "d": ["e", "f"]
+      }
+    ]
+  },
+  {
+    "a": " more indented\nregular\n",
+    "b": "\n\n more indented\nregular\n"
+  },
+  {
+    "strip": "# text",
+    "clip": "# text\n",
+    "keep": "# text\n\n"
+  },
+  {
+    "safe": "a!\"#$%&'()*+,-./09:;<=>?@AZ[\\]^_`az{|}~ !\"#$%&'()*+,-./09:;<=>?@AZ[\\]^_`az{|}~",
+    "safe question mark": "?foo",
+    "safe colon": ":foo",
+    "safe dash": "-foo"
+  },
+  "line1 line2 line3\n",
+  ["Mark McGwire", "Sammy Sosa", "Ken Griffey"],
+  ["a"],
+  ["a", ["b", "c"]],
+  {
+    "unicode": "Sosa did fine.☺",
+    "control": "\b1998\t1999\t2000\n",
+    "hex esc": "\r\n is \r\n",
+    "single": "\"Howdy!\" he cried.",
+    "quoted": " # Not a 'comment'.",
+    "tie-fighter": "|\\-*-/|"
+  },
+  [["-", "-"]],
+  "folded text\n",
+  {
+    "a": 13,
+    "1.5": "d"
+  },
+  {
+    "foo": 1,
+    "bar": 2,
+    "text": "a\n  \nb\n\nc\n\nd\n"
+  },
+  {
+    "wanted": "love ♥ and peace ☮"
+  },
+  {
+    "name": "Mark McGwire",
+    "accomplishment": "Mark set a major league home run record in 1998.\n",
+    "stats": "65 Home Runs\n0.278 Batting Average\n"
+  },
+  {
+    "foo": "bar",
+    "baz": "foo"
+  },
+  "1st non-empty\n2nd non-empty 3rd non-empty",
+  {
+    "quoted": "Quoted \t",
+    "block": "void main() {\n\tprintf(\"Hello, world!\\n\");\n}\n"
+  },
+  {
+    "foo": "blue",
+    "bar": "arrr",
+    "baz": "jazz"
+  },
+  [
+    {
+      "Mark McGwire": 65
+    },
+    {
+      "Sammy Sosa": 63
+    },
+    {
+      "Ken Griffy": 58
+    }
+  ],
+  {
+    "1": 2,
+    "3": 4
+  },
+  {
+    "hr": ["Mark McGwire", "Sammy Sosa"],
+    "rbi": ["Sammy Sosa", "Ken Griffey"]
+  },
+  "k:#foo &a !t s",
+  {
+    "block sequence": [
+      "one",
+      {
+        "two": "three"
+      }
+    ]
+  },
+  {
+    "First occurrence": "Value",
+    "Second occurrence": "Value"
+  },
+  {
+    "a true": "null d",
+    "e 42": null
+  },
+  {
+    "foo": "bar"
+  },
+  ["foo", "bar", 42],
+  "trimmed\n\n\nas space",
+  "scalar",
+  {
+    "strip": "",
+    "clip": "",
+    "keep": "\n"
+  },
+  {
+    "foo": {
+      "bar": 1
+    },
+    "baz": 2
+  },
+  {
+    "a": 47,
+    "c": "d"
+  },
+  {
+    "implicit block key": [
+      {
+        "implicit flow key": "value"
+      }
+    ]
+  },
+  ["a", "b", "c", "c", ""],
+  [
+    ["a", "b", "c"],
+    {
+      "a": "b",
+      "c": "d",
+      "e": "f"
+    },
+    []
+  ],
+  {
+    "implicit block key": [
+      {
+        "implicit flow key": "value"
+      }
+    ]
+  },
+  {
+    "a": "ab\n\ncd\nef\n"
+  },
+  {
+    "literal": "value\n",
+    "folded": "value\n"
+  },
+  {
+    "a": [
+      "b",
+      "c",
+      {
+        "d": ["e", "f"]
+      }
+    ]
+  },
+  "literal\n\ttext\n",
+  "foo \n\n\t bar\n\nbaz\n",
+  [
+    {
+      "a": "b"
+    }
+  ],
+  "ab",
+  ["plain", "double quoted", "single quoted", "block\n", "plain again"],
+  {
+    "a": " ",
+    "b": " ",
+    "c": " ",
+    "d": " ",
+    "e": "\n",
+    "f": "\n",
+    "g": "\n\n",
+    "h": "\n\n"
+  },
+  {
+    "key": "value with\ntabs"
+  },
+  {
+    "": null
+  },
+  [
+    {
+      "single line": "value"
+    },
+    {
+      "multi line": "value"
+    }
+  ],
+  "folded to a space,\nto a line feed, or \t \tnon-content",
+  ["literal\n", " folded\n", "keep\n\n", " strip"],
+  {
+    "key": "value"
+  },
+  {
+    "american": ["Boston Red Sox", "Detroit Tigers", "New York Yankees"],
+    "national": ["New York Mets", "Chicago Cubs", "Atlanta Braves"]
+  },
+  " 1st non-empty\n2nd non-empty 3rd non-empty ",
+  {},
+  [
+    ["a", "b"],
+    {
+      "a": "b"
+    },
+    "a",
+    "b",
+    "c"
+  ],
+  "folded to a space,\nto a line feed, or \t \tnon-content",
+  [
+    {
+      "foo": "bar"
+    }
+  ],
+  ["detected\n", "\n\n# detected\n", " explicit\n", "\t\ndetected\n"],
+  {
+    "top1": [
+      "item1",
+      {
+        "key2": "value2"
+      },
+      "item3"
+    ],
+    "top2": "value2"
+  },
+  {
+    "foo": [42],
+    "bar": [44]
+  },
+  {
+    "23": "d",
+    "a": 4.2
+  },
+  "Document",
+  {
+    "Date": "2001-11-23 15:03:17 -5",
+    "User": "ed",
+    "Fatal": "Unknown variable \"bar\"",
+    "Stack": [
+      {
+        "file": "TopClass.py",
+        "line": 23,
+        "code": "x = MoreObject(\"345\\n\")\n"
+      },
+      { "file": "MoreClass.py", "line": 58, "code": "foo = bar" }
+    ]
+  },
+  {
+    "plain key": "in-line value",
+    "": null,
+    "quoted key": ["entry"]
+  },
+  ["12", 12, "12"],
+  {
+    "aaa": "bbb"
+  },
+  [":,"],
+  {
+    "sequence": ["one", "two"],
+    "mapping": {
+      "sky": "blue",
+      "sea": "green"
+    }
+  },
+  {
+    "seq": ["a", "b"]
+  },
+  "here's to \"quotes\"",
+  {
+    "hr": 65,
+    "avg": 0.278,
+    "rbi": 147
+  },
+  "\n\nliteral\n \n\ntext\n",
+  " 1st non-empty\n2nd non-empty 3rd non-empty ",
+  "literal\n\ttext\n",
+  {
+    "block mapping": {
+      "key": "value"
+    }
+  },
+  " foo\nbar\nbaz ",
+  "ab cd\nef\n\ngh\n",
+  "foo",
+  {
+    "top1": {
+      "key1": "one"
+    },
+    "top2": {
+      "key2": "two"
+    },
+    "top3": {
+      "key3": "three"
+    },
+    "top4": {
+      "key4": "four"
+    },
+    "top5": {
+      "key5": "five"
+    },
+    "top6": "six",
+    "top7": "seven"
+  },
+  [
+    {
+      "url": "http://example.org"
+    }
+  ],
+  {
+    "sequence": ["one", "two"],
+    "mapping": {
+      "sky": "blue",
+      "sea": "green"
+    }
+  },
+  {
+    "invoice": 34843,
+    "date": "2001-01-23",
+    "bill-to": {
+      "given": "Chris",
+      "family": "Dumars",
+      "address": {
+        "lines": "458 Walkman Dr.\nSuite #292\n",
+        "city": "Royal Oak",
+        "state": "MI",
+        "postal": 48046
+      }
+    },
+    "ship-to": {
+      "given": "Chris",
+      "family": "Dumars",
+      "address": {
+        "lines": "458 Walkman Dr.\nSuite #292\n",
+        "city": "Royal Oak",
+        "state": "MI",
+        "postal": 48046
+      }
+    },
+    "product": [
+      {
+        "sku": "BL394D",
+        "quantity": 4,
+        "description": "Basketball",
+        "price": 450
+      },
+      {
+        "sku": "BL4438H",
+        "quantity": 1,
+        "description": "Super Hoop",
+        "price": 2392
+      }
+    ],
+    "tax": 251.42,
+    "total": 4443.52,
+    "comments": "Late afternoon is best. Backup contact is Nancy Billsmer @ 338-4338."
+  },
+  ["a", "b", "a", "b"],
+  [
+    null,
+    "block node\n",
+    ["one", "two"],
+    {
+      "one": "two"
+    }
+  ],
+  {
+    "a": "scalar a",
+    "b": "scalar a"
+  },
+  {
+    "foo": "",
+    "": "bar"
+  },
+  {
+    "key": "value"
+  },
+  "scalar %YAML 1.2",
+  {
+    "Folding": "Empty line\nas a line feed",
+    "Chomping": "Clipped empty lines\n"
+  },
+  {
+    "key": "value"
+  },
+  [
+    ["name", "hr", "avg"],
+    ["Mark McGwire", 65, 0.278],
+    ["Sammy Sosa", 63, 0.288]
+  ],
+  {
+    "literal": "value\n",
+    "folded": "value\n"
+  },
+  {
+    "Mark McGwire": {
+      "hr": 65,
+      "avg": 0.278
+    },
+    "Sammy Sosa": {
+      "hr": 63,
+      "avg": 0.288
+    }
+  },
+  {
+    "a": "b",
+    "c": "d"
+  },
+  {
+    "key": [[["value"]]]
+  },
+  {
+    "a": 1,
+    "b": null,
+    "c": 3
+  },
+  {
+    "event": "outgoing HTTP response",
+    "timestamp": "2021-01-21T18:44:57.116Z",
+    "remoteAddress": "127.0.0.1",
+    "deviceId": "202BC1-BM632w-000000",
+    "connection": "2021-01-21T18:44:57.105Z",
+    "statusCode": 200,
+    "headers": {
+      "content-length": 528,
+      "server": "GenieACS/1.2.3+20210121000910",
+      "soapserver": "GenieACS/1.2.3+20210121000910",
+      "content-type": "text/xml; charset=\"utf-8\"",
+      "set-cookie": "session=ea31d97ccf6832fb"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<soap-env:Envelope xmlns:soap-enc=\"http://schemas.xmlsoap.org/soap/encoding/\" xmlns:soap-env=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:cwmp=\"urn:dslforum-org:cwmp-1-0\"><soap-env:Header><cwmp:ID soap-env:mustUnderstand=\"1\">wdsx50vq</cwmp:ID></soap-env:Header><soap-env:Body><cwmp:InformResponse><MaxEnvelopes>1</MaxEnvelopes></cwmp:InformResponse></soap-env:Body></soap-env:Envelope>"
+  }
+]

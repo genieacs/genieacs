@@ -27,7 +27,7 @@ import * as notifications from "./notifications";
 import memoize from "../lib/common/memoize";
 import * as smartQuery from "./smart-query";
 import { map, parse, stringify } from "../lib/common/expression-parser";
-import { loadYaml, yaml } from "./dynamic-loader";
+import { stringify as yamlStringify } from "../lib/common/yaml";
 
 const PAGE_SIZE = config.ui.pageSize || 10;
 
@@ -76,13 +76,7 @@ export function init(
 
   const sort = args.hasOwnProperty("sort") ? "" + args["sort"] : "";
   const filter = args.hasOwnProperty("filter") ? "" + args["filter"] : "";
-  return new Promise((resolve, reject) => {
-    loadYaml()
-      .then(() => {
-        resolve({ filter, sort });
-      })
-      .catch(reject);
-  });
+  return Promise.resolve({ filter, sort });
 }
 
 export const component: ClosureComponent = (): Component => {
@@ -147,8 +141,11 @@ export const component: ClosureComponent = (): Component => {
           return m("a", { href: deviceHref }, fault["device"]);
         }
 
+        if (attr.id === "message")
+          return m("long-text", { text: fault["message"] });
+
         if (attr.id === "detail")
-          return m("long-text", { text: yaml.stringify(fault["detail"]) });
+          return m("long-text", { text: yamlStringify(fault["detail"]) });
 
         if (attr.id === "timestamp")
           return new Date(fault["timestamp"]).toLocaleString();

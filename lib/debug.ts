@@ -25,7 +25,7 @@ import {
 } from "http";
 import { Socket } from "net";
 import { appendFileSync } from "fs";
-import * as yaml from "yaml";
+import { stringify } from "./common/yaml";
 import * as config from "./config";
 
 const DEBUG_FILE = "" + config.get("DEBUG_FILE");
@@ -64,7 +64,7 @@ export function incomingHttpRequest(
   };
 
   if (DEBUG_FORMAT === "yaml")
-    appendFileSync(DEBUG_FILE, "---\n" + yaml.stringify(msg));
+    appendFileSync(DEBUG_FILE, "---\n" + stringify(msg));
   else if (DEBUG_FORMAT === "json")
     appendFileSync(DEBUG_FILE, JSON.stringify(msg) + "\n");
   else throw new Error(`Unrecognized DEBUG_FORMAT option`);
@@ -90,7 +90,7 @@ export function outgoingHttpResponse(
   };
 
   if (DEBUG_FORMAT === "yaml")
-    appendFileSync(DEBUG_FILE, "---\n" + yaml.stringify(msg));
+    appendFileSync(DEBUG_FILE, "---\n" + stringify(msg));
   else if (DEBUG_FORMAT === "json")
     appendFileSync(DEBUG_FILE, JSON.stringify(msg) + "\n");
   else throw new Error(`Unrecognized DEBUG_FORMAT option`);
@@ -119,7 +119,7 @@ export function outgoingHttpRequest(
   };
 
   if (DEBUG_FORMAT === "yaml")
-    appendFileSync(DEBUG_FILE, "---\n" + yaml.stringify(msg));
+    appendFileSync(DEBUG_FILE, "---\n" + stringify(msg));
   else if (DEBUG_FORMAT === "json")
     appendFileSync(DEBUG_FILE, JSON.stringify(msg) + "\n");
   else throw new Error(`Unrecognized DEBUG_FORMAT option`);
@@ -147,7 +147,7 @@ export function outgoingHttpRequestError(
   };
 
   if (DEBUG_FORMAT === "yaml")
-    appendFileSync(DEBUG_FILE, "---\n" + yaml.stringify(msg));
+    appendFileSync(DEBUG_FILE, "---\n" + stringify(msg));
   else if (DEBUG_FORMAT === "json")
     appendFileSync(DEBUG_FILE, JSON.stringify(msg) + "\n");
   else throw new Error(`Unrecognized DEBUG_FORMAT option`);
@@ -173,7 +173,7 @@ export function incomingHttpResponse(
   };
 
   if (DEBUG_FORMAT === "yaml")
-    appendFileSync(DEBUG_FILE, "---\n" + yaml.stringify(msg));
+    appendFileSync(DEBUG_FILE, "---\n" + stringify(msg));
   else if (DEBUG_FORMAT === "json")
     appendFileSync(DEBUG_FILE, JSON.stringify(msg) + "\n");
   else throw new Error(`Unrecognized DEBUG_FORMAT option`);
@@ -197,7 +197,7 @@ export function outgoingUdpMessage(
   };
 
   if (DEBUG_FORMAT === "yaml")
-    appendFileSync(DEBUG_FILE, "---\n" + yaml.stringify(msg));
+    appendFileSync(DEBUG_FILE, "---\n" + stringify(msg));
   else if (DEBUG_FORMAT === "json")
     appendFileSync(DEBUG_FILE, JSON.stringify(msg) + "\n");
   else throw new Error(`Unrecognized DEBUG_FORMAT option`);

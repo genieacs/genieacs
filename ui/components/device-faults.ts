@@ -22,6 +22,7 @@ import { m } from "../components";
 import * as store from "../store";
 import * as notifications from "../notifications";
 import { getIcon } from "../icons";
+import { stringify } from "../../lib/common/yaml";
 
 const component: ClosureComponent = (): Component => {
   return {
@@ -38,6 +39,7 @@ const component: ClosureComponent = (): Component => {
         "Channel",
         "Code",
         "Message",
+        "Detail",
         "Retries",
         "Timestamp",
       ].map((l) => m("th", l));
@@ -48,7 +50,9 @@ const component: ClosureComponent = (): Component => {
         rows.push([
           m("td", f["channel"]),
           m("td", f["code"]),
-          m("td", f["message"]),
+          m("td", m("long-text", { text: f["message"] })),
+          m("td", m("long-text", { text: stringify(f["detail"]) })),
+
           m("td", f["retries"]),
           m("td", new Date(f["timestamp"]).toLocaleString()),
           m(
