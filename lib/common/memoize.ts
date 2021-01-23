@@ -47,9 +47,18 @@ export default function memoize<T extends (...args: any[]) => any>(func: T): T {
     if (cache1.has(key)) return cache1.get(key);
 
     let r;
-    if (cache2.has(key)) r = cache2.get(key);
-    else r = func(...args);
-    cache1.set(key, r);
+    if (cache2.has(key)) {
+      cache1.set(key, (r = cache2.get(key)));
+    } else {
+      cache1.set(key, (r = func(...args)));
+      // Evict rejected promises
+      if (r instanceof Promise) {
+        r.catch(() => {
+          cache1.delete(key);
+          cache2.delete(key);
+        });
+      }
+    }
     return r;
   }) as any;
 }

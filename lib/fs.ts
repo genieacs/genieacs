@@ -24,6 +24,7 @@ import { Collection, GridFSBucket } from "mongodb";
 import { onConnect } from "./db";
 import * as logger from "./logger";
 import { getRequestOrigin } from "./forwarded";
+import memoize from "./common/memoize";
 
 let filesCollection: Collection;
 let filesBucket: GridFSBucket;
@@ -33,43 +34,61 @@ onConnect(async (db) => {
   filesBucket = new GridFSBucket(db);
 });
 
-export function listener(
+const getFile = memoize(
+  (md5: string, size: number, filename: string): Promise<Buffer> => {
+    return new Promise((resolve, reject) => {
+      const buffer = Buffer.allocUnsafe(size);
+      let i = 0;
+      const downloadStream = filesBucket.openDownloadStreamByName(filename);
+      downloadStream.on("error", reject);
+      downloadStream.on("data", (data: Buffer) => {
+        data.copy(buffer, i);
+        i += data.length;
+      });
+      downloadStream.on("end", () => {
+        if (i !== size) reject(new Error("File size mismatch"));
+        else resolve(buffer);
+      });
+    });
+  }
+);
+
+export async function listener(
   request: IncomingMessage,
   response: ServerResponse
-): void {
-  const urlParts = url.parse(request.url, true);
-  if (request.method === "GET") {
-    const filename = querystring.unescape(urlParts.pathname.substring(1));
-
-    const log = {
-      message: "Fetch file",
-      filename: filename,
-      remoteAddress: getRequestOrigin(request).remoteAddress,
-    };
-
-    filesCollection.findOne({ _id: filename }, (err, file) => {
-      if (err) throw err;
-
-      if (!file) {
-        response.writeHead(404);
-        response.end();
-        log.message += " not found";
-        logger.accessError(log);
-        return;
-      }
-
-      response.writeHead(200, {
-        "Content-Type": file.contentType || "application/octet-stream",
-        "Content-Length": file.length,
-      });
-
-      const downloadStream = filesBucket.openDownloadStreamByName(filename);
-      downloadStream.pipe(response);
-
-      logger.accessInfo(log);
-    });
-  } else {
+): Promise<void> {
+  if (request.method !== "GET") {
     response.writeHead(405, { Allow: "GET" });
     response.end("405 Method Not Allowed");
+    return;
   }
+
+  const urlParts = url.parse(request.url, true);
+  const filename = querystring.unescape(urlParts.pathname.substring(1));
+
+  const log = {
+    message: "Fetch file",
+    filename: filename,
+    remoteAddress: getRequestOrigin(request).remoteAddress,
+  };
+
+  const file = await filesCollection.findOne({ _id: filename });
+
+  if (!file) {
+    response.writeHead(404);
+    response.end();
+    log.message += " not found";
+    logger.accessError(log);
+    return;
+  }
+
+  const buffer = await getFile(file.md5, file.length, filename);
+
+  response.writeHead(200, {
+    "Content-Type": file.contentType || "application/octet-stream",
+    "Content-Length": file.length,
+  });
+
+  response.end(buffer);
+  logger.accessInfo(log);
 }
