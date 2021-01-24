@@ -226,9 +226,17 @@ export function putProvision(
 ): Promise<void> {
   if (!object.script) object.script = "";
   try {
-    new Script(`"use strict";(function(){\n${object.script}\n})();`);
-  } catch (error) {
-    return Promise.reject(error);
+    new Script(`"use strict";(function(){\n${object.script}\n})();`, {
+      filename: id,
+      lineOffset: -1,
+    });
+  } catch (err) {
+    if (err.stack && err.stack.startsWith(`${id}:`)) {
+      return Promise.reject(
+        new Error(`${err.name} at ${err.stack.split("\n", 1)[0]}`)
+      );
+    }
+    return Promise.reject(err);
   }
   return putResource("provisions", id, object);
 }
@@ -243,9 +251,17 @@ export function putVirtualParameter(
 ): Promise<void> {
   if (!object.script) object.script = "";
   try {
-    new Script(`"use strict";(function(){\n${object.script}\n})();`);
-  } catch (error) {
-    return Promise.reject(error);
+    new Script(`"use strict";(function(){\n${object.script}\n})();`, {
+      filename: id,
+      lineOffset: -1,
+    });
+  } catch (err) {
+    if (err.stack && err.stack.startsWith(`${id}:`)) {
+      return Promise.reject(
+        new Error(`${err.name} at ${err.stack.split("\n", 1)[0]}`)
+      );
+    }
+    return Promise.reject(err);
   }
   return putResource("virtualParameters", id, object);
 }

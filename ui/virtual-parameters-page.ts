@@ -85,7 +85,13 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
               store.fulfill(0, Date.now());
               resolve();
             })
-            .catch(reject);
+            .catch((err) => {
+              if (err["code"] === 400 && err["response"]) {
+                reject(new Error(err["response"]));
+                return;
+              }
+              reject(err);
+            });
         })
         .catch(reject);
     } else if (action === "delete") {
