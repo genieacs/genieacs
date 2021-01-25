@@ -46,6 +46,7 @@ button,
 select,
 option,
 textarea {
+  outline-color: var(--color4);
   font-family: sans-serif;
   color: var(--color5);
 }
