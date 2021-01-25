@@ -293,11 +293,9 @@ async function generateFrontendJs(externals: string[]): Promise<void> {
             const p = path.resolve(path.dirname(importer), importee);
             if (p === path.resolve(INPUT_DIR, "package.json"))
               return path.resolve(OUTPUT_DIR, "package.json");
-          } else if (importee.endsWith("/bigint")) {
-            return this.resolve(importee + "-jsbi", importer);
           } else if (importee === "espresso-iisojs") {
             return this.resolve(
-              "espresso-iisojs/dist/espresso-iisojs-jsbi.mjs",
+              "espresso-iisojs/dist/espresso-iisojs.mjs",
               importer
             );
           }

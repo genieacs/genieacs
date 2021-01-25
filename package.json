@@ -60,7 +60,6 @@
     "eslint": "^7.12.1",
     "eslint-config-prettier": "^6.14.0",
     "esm": "^3.2.25",
-    "jsbi": "^3.1.4",
     "mithril": "^2.0.4",
     "postcss": "^8.1.4",
     "postcss-import": "^13.0.0",

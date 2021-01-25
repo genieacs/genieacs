@@ -3303,7 +3303,8 @@
     "jsbi": {
       "version": "3.1.4",
       "resolved": "https://registry.npmjs.org/jsbi/-/jsbi-3.1.4.tgz",
-      "integrity": "sha512-52QRRFSsi9impURE8ZUbzAMCLjPm4THO7H2fcuIvaaeFTbSysvkodbQQXIVsNgq/ypDbq6dJiuGKL0vZ/i9hUg=="
+      "integrity": "sha512-52QRRFSsi9impURE8ZUbzAMCLjPm4THO7H2fcuIvaaeFTbSysvkodbQQXIVsNgq/ypDbq6dJiuGKL0vZ/i9hUg==",
+      "optional": true
     },
     "json-buffer": {
       "version": "3.0.0",
