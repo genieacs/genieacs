@@ -25,7 +25,6 @@ import typescript from "@rollup/plugin-typescript";
 import { terser } from "rollup-plugin-terser";
 import nodeResolve from "@rollup/plugin-node-resolve";
 import commonjs from "@rollup/plugin-commonjs";
-import webpack, { Configuration } from "webpack";
 import postcss from "postcss";
 import postcssImport from "postcss-import";
 import postcssPresetEnv from "postcss-preset-env";
@@ -43,7 +42,7 @@ const BUILD_METADATA = new Date()
 const INPUT_DIR = path.resolve(__dirname, "..");
 const OUTPUT_DIR = path.resolve(__dirname, "../dist");
 
-const externals = [
+const builtins = [
   "path",
   "fs",
   "cluster",
@@ -54,34 +53,13 @@ const externals = [
   "zlib",
   "crypto",
   "util",
-  "mongodb",
   "vm",
-  "later",
-  "parsimmon",
-  "seedrandom",
   "querystring",
   "child_process",
   "dgram",
   "url",
   "readline",
-  "iconv-lite",
-  "koa",
-  "koa-router",
-  "koa-compress",
-  "koa-bodyparser",
-  "koa-jwt",
-  "koa-static",
-  "jsonwebtoken",
   "stream",
-  "mithril",
-  "parsimmon",
-  "yaml",
-  "codemirror",
-  "codemirror/mode/javascript/javascript",
-  "codemirror/mode/yaml/yaml",
-  "ipaddr.js",
-  "jsbi",
-  "espresso-iisojs",
 ];
 
 function rmDirSync(dirPath): void {
@@ -131,7 +109,7 @@ function generateSymbol(id: string, svgStr: string): string {
   return `<symbol id="icon-${id}" ${viewBox}>${symbolBody}</symbol>`;
 }
 
-async function init(): Promise<void> {
+async function init(): Promise<string[]> {
   // Delete any old output directory
   rmDirSync(OUTPUT_DIR);
 
@@ -167,6 +145,7 @@ async function init(): Promise<void> {
     path.resolve(OUTPUT_DIR, "npm-shrinkwrap.json"),
     JSON.stringify(npmShrinkwrapJson, null, 2)
   );
+  return Object.keys(packageJson["dependencies"]);
 }
 
 async function copyStatic(): Promise<void> {
@@ -204,13 +183,13 @@ async function generateCss(): Promise<void> {
   fs.writeFileSync(cssOutPath, cssOut.css);
 }
 
-async function generateToolsJs(): Promise<void> {
+async function generateToolsJs(externals: string[]): Promise<void> {
   for (const bin of ["dump-data-model"]) {
     const inputFile = path.resolve(INPUT_DIR, `tools/${bin}.ts`);
     const outputFile = path.resolve(OUTPUT_DIR, `tools/${bin}`);
     const bundle = await rollup({
       input: inputFile,
-      external: externals,
+      external: [...builtins, ...externals],
       acorn: {
         allowHashBang: true,
       },
@@ -238,7 +217,7 @@ async function generateToolsJs(): Promise<void> {
   }
 }
 
-async function generateBackendJs(): Promise<void> {
+async function generateBackendJs(externals: string[]): Promise<void> {
   for (const bin of [
     "genieacs-cwmp",
     "genieacs-ext",
@@ -250,7 +229,7 @@ async function generateBackendJs(): Promise<void> {
     const outputFile = path.resolve(OUTPUT_DIR, `bin/${bin}`);
     const bundle = await rollup({
       input: inputFile,
-      external: externals,
+      external: [...builtins, ...externals],
       acorn: {
         allowHashBang: true,
       },
@@ -294,14 +273,17 @@ async function generateBackendJs(): Promise<void> {
   }
 }
 
-async function generateFrontendJs(): Promise<void> {
+async function generateFrontendJs(externals: string[]): Promise<void> {
   const inputFile = path.resolve(INPUT_DIR, "ui/app.ts");
-  const outputFile = path.resolve(OUTPUT_DIR, "public/app.js");
+  const outputDir = path.resolve(OUTPUT_DIR, "public");
 
-  const inlineDeps = ["mithril", "parsimmon", "jsbi", "espresso-iisojs"];
+  const inlineDeps = ["parsimmon", "espresso-iisojs"];
   const bundle = await rollup({
     input: inputFile,
-    external: externals.filter((e) => !inlineDeps.includes(e)),
+    external: [
+      ...builtins,
+      ...externals.filter((e) => !inlineDeps.includes(e)),
+    ],
     plugins: [
       rollupJson({ preferConst: true }),
       {
@@ -325,8 +307,9 @@ async function generateFrontendJs(): Promise<void> {
       typescript({ tsconfig: "./tsconfig.json" }),
       nodeResolve(),
       commonjs(),
+      MODE === "production" ? terser() : null,
     ],
-    inlineDynamicImports: true,
+    preserveEntrySignatures: false,
     treeshake: {
       propertyReadSideEffects: false,
       moduleSideEffects: false,
@@ -338,41 +321,16 @@ async function generateFrontendJs(): Promise<void> {
   });
 
   await bundle.write({
+    manualChunks: (id) => {
+      if (id.includes("node_modules/codemirror")) return "codemirror";
+      else if (id.includes("node_modules/yaml")) return "yaml";
+      return "app";
+    },
     preferConst: true,
     format: "es",
-    sourcemap: "inline",
+    sourcemap: true,
     sourcemapExcludeSources: true,
-    file: outputFile,
-  });
-
-  const webpackConf: Configuration = {
-    mode: MODE as "development" | "production",
-    entry: outputFile,
-    resolve: {
-      aliasFields: ["module"],
-    },
-    devtool: "nosources-source-map",
-    module: {
-      rules: [
-        {
-          test: /\.js$/,
-          use: ["source-map-loader"],
-          enforce: "pre",
-        },
-      ],
-    },
-    output: {
-      path: path.resolve(OUTPUT_DIR, "public"),
-      filename: "app.js",
-    },
-  };
-
-  return new Promise((resolve, reject) => {
-    webpack(webpackConf, (err, stats) => {
-      if (err) return reject(err);
-      process.stdout.write(stats.toString({ colors: true }) + "\n");
-      resolve();
-    });
+    dir: outputDir,
   });
 }
 
@@ -393,14 +351,14 @@ async function generateIconsSprite(): Promise<void> {
 }
 
 init()
-  .then(() => {
+  .then((externals) => {
     Promise.all([
       copyStatic(),
       generateCss(),
       generateIconsSprite(),
-      generateToolsJs(),
-      generateBackendJs(),
-      generateFrontendJs(),
+      generateToolsJs(externals),
+      generateBackendJs(externals),
+      generateFrontendJs(externals),
     ])
       .then(() => {
         // Ignore

@@ -19,8 +19,8 @@
 
 import * as notifications from "./notifications";
 
-export let codeMirror;
-export let yaml;
+export let codeMirror: typeof import("codemirror");
+export let yaml: typeof import("yaml");
 
 let note;
 
@@ -43,11 +43,9 @@ export function loadCodeMirror(): Promise<void> {
 
   return new Promise((resolve, reject) => {
     const promises = [
-      import(/* webpackChunkName: "codemirror" */ "codemirror"),
-      import(
-        /* webpackChunkName: "codemirror" */ "codemirror/mode/javascript/javascript"
-      ),
-      import(/* webpackChunkName: "codemirror" */ "codemirror/mode/yaml/yaml"),
+      import("codemirror"),
+      import("codemirror/mode/javascript/javascript"),
+      import("codemirror/mode/yaml/yaml"),
     ];
     Promise.all(promises)
       .then((modules) => {
@@ -65,7 +63,7 @@ export function loadYaml(): Promise<void> {
   if (yaml) return Promise.resolve();
 
   return new Promise((resolve, reject) => {
-    import(/* webpackChunkName: "yaml" */ "yaml")
+    import("yaml")
       .then((module) => {
         yaml = module;
         resolve();

@@ -28,21 +28,24 @@ const component: ClosureComponent = (): Component => {
         name: vnode.attrs["id"],
         value: vnode.attrs["value"],
         oncreate: (_vnode) => {
-          const editor = codeMirror.fromTextArea(_vnode.dom, {
-            mode: vnode.attrs["mode"],
-            lineNumbers: true,
-            readOnly: vnode.attrs["readOnly"],
-            extraKeys: {
-              "Ctrl-Enter": () => {
-                if (vnode.attrs["onSubmit"])
-                  vnode.attrs["onSubmit"](_vnode.dom);
+          const editor = codeMirror.fromTextArea(
+            _vnode.dom as HTMLTextAreaElement,
+            {
+              mode: vnode.attrs["mode"],
+              lineNumbers: true,
+              readOnly: vnode.attrs["readOnly"],
+              extraKeys: {
+                "Ctrl-Enter": () => {
+                  if (vnode.attrs["onSubmit"])
+                    vnode.attrs["onSubmit"](_vnode.dom);
+                },
+                "Cmd-Enter": () => {
+                  if (vnode.attrs["onSubmit"])
+                    vnode.attrs["onSubmit"](_vnode.dom);
+                },
               },
-              "Cmd-Enter": () => {
-                if (vnode.attrs["onSubmit"])
-                  vnode.attrs["onSubmit"](_vnode.dom);
-              },
-            },
-          });
+            }
+          );
 
           if (vnode.attrs["onChange"]) {
             editor.on("change", (e) => {

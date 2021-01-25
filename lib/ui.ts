@@ -245,7 +245,7 @@ router.get("/", async (ctx) => {
         )};
         window.permissionSets = ${JSON.stringify(permissionSets)};
       </script>
-      <script src="app.js"></script>${wizard} 
+      <script type="module" src="app.js"></script>${wizard} 
     </body>
   </html>
   `;
