@@ -137,9 +137,13 @@ export function contextifyComponent(component: ComponentTypes): ComponentTypes {
         const view = state.view;
         state.view = function (vnode) {
           const context = vnodeContext.get(vnode) || {};
-          const res = Reflect.apply(view, this, [vnode]);
-          applyContext(res, context);
-          return res;
+          try {
+            const res = Reflect.apply(view, this, [vnode]);
+            applyContext(res, context);
+            return res;
+          } catch (err) {
+            return m("p.error", { title: err.message }, "Error!");
+          }
         };
         return state;
       };
