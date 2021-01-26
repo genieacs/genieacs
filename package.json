@@ -32,6 +32,7 @@
     "koa-static": "^5.0.0",
     "later": "^1.2.0",
     "mongodb": "^3.6.2",
+    "node-cache": "^5.1.2",
     "parsimmon": "^1.16.0",
     "seedrandom": "^3.0.5"
   },

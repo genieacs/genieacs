@@ -110,6 +110,10 @@ export function start(
   });
 
   cluster.on("exit", restartWorker);
+  cluster.on("message", function(_,message){
+    for(var i in cluster.workers)
+      cluster.workers[i].send(message);
+  })
 
   if (!workerCount) workerCount = Math.max(2, cpus().length);
 

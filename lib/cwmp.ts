@@ -54,6 +54,8 @@ import { parseXmlDeclaration } from "./xml-parser";
 import * as debug from "./debug";
 import { getRequestOrigin } from "./forwarded";
 
+const NodeCache = require( "node-cache" );
+
 const gzipPromisified = promisify(zlib.gzip);
 const deflatePromisified = promisify(zlib.deflate);
 
@@ -62,7 +64,7 @@ const MAX_CYCLES = 4;
 const MAX_CONCURRENT_REQUESTS = +config.get("MAX_CONCURRENT_REQUESTS");
 
 const currentSessions = new WeakMap<Socket, SessionContext>();
-const sessionsNonces = new WeakMap<Socket, string>();
+const sessionsNonces = new NodeCache({ stdTTL: 60, checkperiod: 70 });
 
 const stats = {
   concurrentRequests: 0,
@@ -70,7 +72,9 @@ const stats = {
   droppedRequests: 0,
   initiatedSessions: 0,
 };
-
+process.on('message', function(message) {
+    sessionsNonces.set(message.id, message.nonce);
+});
 async function authenticate(
   sessionContext: SessionContext,
   body: string
@@ -80,7 +84,6 @@ async function authenticate(
     "cwmp.auth"
   );
   if (!authExpression) return true;
-
   let authentication;
 
   if (sessionContext.httpRequest.headers["authorization"]) {
@@ -88,17 +91,16 @@ async function authenticate(
       sessionContext.httpRequest.headers["authorization"]
     );
   }
-
   if (authentication && authentication.method === "Digest") {
-    const sessionNonce = sessionsNonces.get(sessionContext.httpRequest.socket);
+    const sessionNonce = sessionsNonces.get(sessionContext.deviceId);
 
     if (
       !sessionNonce ||
       authentication.nonce !== sessionNonce ||
       (authentication.qop && (!authentication.cnonce || !authentication.nc))
-    )
+    ){
       return false;
-
+    }
     authentication["body"] = body;
   }
 
@@ -1052,7 +1054,7 @@ async function responseUnauthorized(
       resHeaders["WWW-Authenticate"] = `Basic realm="${REALM}"`;
     } else {
       const nonce = crypto.randomBytes(16).toString("hex");
-      sessionsNonces.set(sessionContext.httpRequest.socket, nonce);
+      process.send({ id: sessionContext.deviceId, nonce: nonce});
       let d = `Digest realm="${REALM}"`;
       d += ',qop="auth,auth-int"';
       d += `,nonce="${nonce}"`;
@@ -1383,9 +1385,7 @@ async function listenerAsync(
   if (!body) return;
 
   const newConnection = !currentSessions.has(httpRequest.socket);
-
   const sessionContext = await getSession(httpRequest.socket, sessionId);
-
   if (sessionContext) {
     sessionContext.httpRequest = httpRequest;
     sessionContext.httpResponse = httpResponse;
