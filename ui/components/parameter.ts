@@ -62,6 +62,8 @@ const evaluateParam = memoize((exp, obj, now: number) => {
       timestamp = p.valueTimestamp;
       value = p.value[0];
       parameter = exp[1];
+      if (p.value[1] === "xsd:dateTime" && typeof value === "number")
+        value = new Date(value).toLocaleString();
     }
   }
 

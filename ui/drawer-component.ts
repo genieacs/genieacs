@@ -76,13 +76,13 @@ function renderStagingSpv(task: StageTask, queueFunc, cancelFunc): Children {
       ]
     );
   } else {
+    const type = task.parameterValues[0][2];
+    let value = task.parameterValues[0][1];
+    if (type === "xsd:dateTime" && typeof value === "number")
+      value = new Date(value).toJSON() || value;
     input = m("input", {
-      type: ["xsd:dateTime", "xsd:int", "xsd:unsignedInt"].includes(
-        task.parameterValues[0][2]
-      )
-        ? "number"
-        : "text",
-      value: task.parameterValues[0][1],
+      type: ["xsd:int", "xsd:unsignedInt"].includes(type) ? "number" : "text",
+      value: value,
       oninput: (e) => {
         e.redraw = false;
         task.parameterValues[0][1] = input.dom.value;

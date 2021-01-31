@@ -106,14 +106,23 @@ router.get(`/devices/:id.csv`, async (ctx) => {
 
   for (const k of Object.keys(res[0]).sort()) {
     const p = res[0][k];
+    let value = "";
+    let type = "";
+    if (p.value) {
+      value = p.value[0];
+      type = p.value[1];
+      if (type === "xsd:dateTime" && typeof value === "number")
+        value = new Date(value).toJSON();
+    }
+
     const row = [
       k,
       p.object,
       p.objectTimestamp,
       p.writable,
       p.writableTimestamp,
-      p.value != null ? `"${p.value[0].toString().replace(/"/g, '""')}"` : "",
-      p.value != null ? p.value[1] : "",
+      `"${value.toString().replace(/"/g, '""')}"`,
+      type,
       p.valueTimestamp,
       p.notification,
       p.notificationTimestamp,
@@ -285,11 +294,21 @@ for (const [resource, flags] of Object.entries(resources)) {
 
                   return tags.join(", ");
                 }
+                if (e === exp) {
+                  const p = obj[e[1]];
+                  if (
+                    p &&
+                    p.value &&
+                    p.value[1] === "xsd:dateTime" &&
+                    typeof p.value[0] === "number"
+                  )
+                    return new Date(p.value[0]).toJSON();
+                }
               }
             } else if (e[0] === "FUNC") {
               if (e[1] === "DATE_STRING") {
                 if (e[2] && !Array.isArray(e[2]))
-                  return new Date(e[2]).toISOString();
+                  return new Date(e[2]).toJSON();
               }
             }
           }
