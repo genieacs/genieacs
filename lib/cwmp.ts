@@ -1570,8 +1570,10 @@ async function listenerAsync(
         return e;
       }
     );
-    if (d)
-      debug.outgoingHttpResponse(httpResponse, sessionContext.deviceId, _body);
+    if (d) {
+      debug.incomingHttpRequest(httpRequest, null, bodyStr);
+      debug.outgoingHttpResponse(httpResponse, null, _body);
+    }
     httpResponse.end(_body);
     return;
   }
