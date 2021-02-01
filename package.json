@@ -16,8 +16,7 @@
   "license": "AGPL-3.0",
   "private": true,
   "directories": {
-    "bin": "bin",
-    "tools": "tools"
+    "bin": "bin"
   },
   "dependencies": {
     "espresso-iisojs": "^1.0.3",
@@ -77,7 +76,7 @@
   },
   "scripts": {
     "test": "ava --verbose --color",
-    "lint-eslint": "eslint --fix \"bin/*.ts\" \"lib/**/*.ts\" \"ui/**/*.ts\" \"test/**/*.ts\" \"build/**/*.ts\" \"tools/*.ts\"",
+    "lint-eslint": "eslint --fix \"bin/*.ts\" \"lib/**/*.ts\" \"ui/**/*.ts\" \"test/**/*.ts\" \"build/**/*.ts\"",
     "lint-prettier": "prettier --prose-wrap always --write .",
     "lint-tsc": "tsc --noEmit",
     "lint": "npm run lint-eslint && npm run lint-prettier && npm run lint-tsc",

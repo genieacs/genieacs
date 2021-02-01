@@ -117,7 +117,6 @@ async function init(): Promise<string[]> {
   fs.mkdirSync(OUTPUT_DIR);
   fs.mkdirSync(OUTPUT_DIR + "/bin");
   fs.mkdirSync(OUTPUT_DIR + "/public");
-  fs.mkdirSync(OUTPUT_DIR + "/tools");
 
   // Create package.json
   const packageJson = JSON.parse(
@@ -181,40 +180,6 @@ async function generateCss(): Promise<void> {
     cssnano,
   ]).process(cssIn, { from: cssInPath, to: cssOutPath });
   fs.writeFileSync(cssOutPath, cssOut.css);
-}
-
-async function generateToolsJs(externals: string[]): Promise<void> {
-  for (const bin of ["dump-data-model"]) {
-    const inputFile = path.resolve(INPUT_DIR, `tools/${bin}.ts`);
-    const outputFile = path.resolve(OUTPUT_DIR, `tools/${bin}`);
-    const bundle = await rollup({
-      input: inputFile,
-      external: [...builtins, ...externals],
-      acorn: {
-        allowHashBang: true,
-      },
-      plugins: [
-        typescript({
-          tsconfig: "./tsconfig.json",
-          include: [`tools/${bin}.ts`, "lib/**/*.ts"],
-        }),
-        MODE === "production" ? terser() : null,
-      ],
-    });
-
-    await bundle.write({
-      format: "cjs",
-      preferConst: true,
-      sourcemap: "inline",
-      sourcemapExcludeSources: true,
-      banner: "#!/usr/bin/env node",
-      file: outputFile,
-    });
-
-    // Mark as executable
-    const mode = fs.statSync(outputFile).mode;
-    fs.chmodSync(outputFile, mode | 73);
-  }
 }
 
 async function generateBackendJs(externals: string[]): Promise<void> {
@@ -354,7 +319,6 @@ init()
       copyStatic(),
       generateCss(),
       generateIconsSprite(),
-      generateToolsJs(externals),
       generateBackendJs(externals),
       generateFrontendJs(externals),
     ])
