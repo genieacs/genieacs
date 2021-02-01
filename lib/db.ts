@@ -131,7 +131,12 @@ export async function fetchDevice(
   const device = await devicesCollection.findOne({ _id: id });
   if (!device) return null;
 
-  function storeParams(obj, path: string, pathLength: number, ts): void {
+  function storeParams(
+    obj,
+    path: string,
+    pathLength: number,
+    ts: number
+  ): void {
     if (obj["_timestamp"]) obj["_timestamp"] = +obj["_timestamp"];
     if (obj["_attributesTimestamp"])
       obj["_attributesTimestamp"] = +obj["_attributesTimestamp"];
@@ -162,18 +167,21 @@ export async function fetchDevice(
     if (obj["_accessList"] != null)
       attrs.accessList = [obj["_attributesTimestamp"] || 1, obj["_accessList"]];
 
-    res.push([Path.parse(path.slice(0, -1)), t, attrs]);
+    res.push([Path.parse(path), t, attrs]);
 
     for (const [k, v] of Object.entries(obj)) {
       if (!k.startsWith("_")) {
         obj["_object"] = true;
-        storeParams(v, path + k + ".", pathLength + 1, obj["_timestamp"]);
+        storeParams(v, `${path}.${k}`, pathLength + 1, obj["_timestamp"]);
       }
     }
 
-    if ((obj["_object"] || !pathLength) && obj["_timestamp"])
-      res.push([Path.parse(path + "*"), obj["_timestamp"]]);
+    if (obj["_object"] && obj["_timestamp"])
+      res.push([Path.parse(path + ".*"), obj["_timestamp"]]);
   }
+
+  const ts: number = device["_timestamp"] || 0;
+  if (ts) res.push([Path.parse("*"), ts]);
 
   for (const [k, v] of Object.entries(device)) {
     switch (k) {
@@ -302,10 +310,11 @@ export async function fetchDevice(
             },
           ]);
         }
+        break;
+      default:
+        if (!k.startsWith("_")) storeParams(v, k, 1, ts);
     }
   }
-
-  storeParams(device, "", 0, 0);
   return res;
 }
 
