@@ -118,16 +118,16 @@ router.get(`/devices/:id.csv`, async (ctx) => {
     const row = [
       k,
       p.object,
-      p.objectTimestamp,
+      new Date(p.objectTimestamp).toJSON(),
       p.writable,
-      p.writableTimestamp,
+      new Date(p.writableTimestamp).toJSON(),
       `"${value.toString().replace(/"/g, '""')}"`,
       type,
-      p.valueTimestamp,
+      new Date(p.valueTimestamp).toJSON(),
       p.notification,
-      p.notificationTimestamp,
+      new Date(p.notificationTimestamp).toJSON(),
       p.accessList ? p.accessList.join(", ") : "",
-      p.accessListTimestamp,
+      new Date(p.accessListTimestamp).toJSON(),
     ];
     ctx.body.write(row.map((r) => (r != null ? r : "")).join(",") + "\n");
   }
