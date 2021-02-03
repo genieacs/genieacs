@@ -32,6 +32,7 @@ import Authorizer from "../common/authorizer";
 import { ping } from "../ping";
 import * as url from "url";
 import { decodeTag } from "../common";
+import { stringify as yamlStringify } from "../common/yaml";
 
 const router = new Router();
 export default router;
@@ -304,6 +305,8 @@ for (const [resource, flags] of Object.entries(resources)) {
                   )
                     return new Date(p.value[0]).toJSON();
                 }
+              } else if (resource === "faults") {
+                if (e[1] === "detail") return yamlStringify(obj["detail"]);
               }
             } else if (e[0] === "FUNC") {
               if (e[1] === "DATE_STRING") {
