@@ -116,8 +116,12 @@ function stringifyAny(
   prefix1 = "",
   prefix2 = ""
 ): void {
-  if (obj == null || typeof obj === "number" || typeof obj === "boolean") {
-    res.push(`${prefix1}${obj}`);
+  if (obj == null) {
+    res.push(`${prefix1}null`);
+    return;
+  }
+  if (typeof obj === "number" || typeof obj === "boolean") {
+    res.push(`${prefix1}${JSON.stringify(obj)}`);
     return;
   }
   if (obj instanceof Date) {
@@ -152,7 +156,7 @@ function stringifyAny(
     return;
   }
 
-  const entries = Object.entries(obj);
+  const entries = Object.entries(obj).filter((e) => e[1] !== undefined);
 
   if (!entries.length) {
     res.push(prefix1 + "{}");
@@ -192,6 +196,7 @@ function stringifyAny(
 }
 
 export function stringify(obj: unknown): string {
+  if (obj === undefined) return undefined;
   const lines: string[] = [];
   stringifyAny(obj, lines);
   return lines.join("\n") + "\n";
