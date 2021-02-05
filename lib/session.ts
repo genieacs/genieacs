@@ -910,10 +910,15 @@ function runDeclarations(
         if (!unpacked)
           unpacked = device.unpack(sessionContext.deviceData, path);
 
-        for (const u of unpacked)
+        for (const u of unpacked) {
           mergeAttributeValues(u, declaration.attrSet, declaration.defer);
+          // Ensure writable attr is available
+          mergeAttributeTimestamps(u, { writable: 1 });
+        }
       } else {
         mergeAttributeValues(path, declaration.attrSet, declaration.defer);
+        // Ensure writable attr is available
+        mergeAttributeTimestamps(path, { writable: 1 });
       }
     }
 
@@ -937,13 +942,14 @@ function runDeclarations(
         keys = {};
       }
 
-      if (
-        ((path.wildcard | path.alias) & ((1 << (path.length - 1)) - 1)) ===
-        0
-      ) {
+      if (!parent.wildcard && !parent.alias) {
         parent = sessionContext.deviceData.paths.add(parent);
         if (!unpacked)
           unpacked = device.unpack(sessionContext.deviceData, path);
+
+        // Ensure writable attr is available
+        mergeAttributeTimestamps(parent, { writable: 1 });
+        for (const u of unpacked) mergeAttributeTimestamps(u, { writable: 1 });
 
         processInstances(
           sessionContext,
@@ -960,13 +966,19 @@ function runDeclarations(
           parent
         );
         for (const par of parentsUnpacked) {
+          const up = device.unpack(
+            sessionContext.deviceData,
+            par.concat(path.slice(-1))
+          );
+
+          // Ensure writable attr is available
+          mergeAttributeTimestamps(par, { writable: 1 });
+          for (const u of up) mergeAttributeTimestamps(u, { writable: 1 });
+
           processInstances(
             sessionContext,
             par,
-            device.unpack(
-              sessionContext.deviceData,
-              par.concat(path.slice(-1))
-            ),
+            up,
             keys,
             minInstances,
             maxInstances,
