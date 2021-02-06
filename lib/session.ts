@@ -2419,7 +2419,7 @@ export async function rpcResponse(
   sessionContext: SessionContext,
   id: string,
   _rpcRes: CpeResponse
-): Promise<void> {
+): Promise<Fault> {
   if (id !== generateRpcId(sessionContext))
     throw new Error("Request ID not recognized");
 
@@ -2513,6 +2513,14 @@ export async function rpcResponse(
   if (rpcRes.name === "GetParameterValuesResponse") {
     if (rpcReq.name !== "GetParameterValues")
       throw new Error("Response name does not match request name");
+
+    if (rpcRes.parameterList.length !== rpcReq.parameterNames.length) {
+      return {
+        code: `invalid_response`,
+        message:
+          "The list of parameters returned in the GetParameterValuesResponse message does not match the requested parameters",
+      };
+    }
 
     for (const p of rpcRes.parameterList) {
       toClear = device.set(
@@ -2813,6 +2821,8 @@ export async function rpcResponse(
     for (const c of toClear)
       device.clear(sessionContext.deviceData, c[0], c[1], c[2], c[3]);
   }
+
+  return null;
 }
 
 export async function rpcFault(

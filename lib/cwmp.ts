@@ -1228,7 +1228,15 @@ async function processRequest(
   } else if (rpc.cpeResponse) {
     if (sessionContext.state !== 2) return reportBadState(sessionContext);
 
-    await session.rpcResponse(sessionContext, rpc.id, rpc.cpeResponse);
+    const fault = await session.rpcResponse(
+      sessionContext,
+      rpc.id,
+      rpc.cpeResponse
+    );
+    if (fault) {
+      recordFault(sessionContext, fault);
+      session.clearProvisions(sessionContext);
+    }
     return nextRpc(sessionContext);
   } else if (rpc.cpeFault) {
     if (sessionContext.state !== 2) return reportBadState(sessionContext);
