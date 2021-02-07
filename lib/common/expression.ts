@@ -130,6 +130,15 @@ export function evaluateCallback(exp: Expression): Expression {
     } else if (exp[1] === "LOWER") {
       if (exp[2] == null) return null;
       if (!isArray(exp[2])) return toString(exp[2]).toLowerCase();
+    } else if (exp[1] === "ROUND") {
+      const n = exp[2];
+      const p = exp.length > 3 ? exp[3] : 0;
+      if (n == null || p == null) return null;
+      if (!isArray(n) && !isArray(p)) {
+        const d = 10 ** p;
+        const m = n * d * (1 + Number.EPSILON);
+        return Math.round(m) / d;
+      }
     }
   } else if (exp[0] === "PARAM") {
     if (exp[1] == null) return null;
