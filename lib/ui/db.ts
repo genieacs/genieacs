@@ -315,6 +315,11 @@ export function deleteUser(id: string): Promise<void> {
   return deleteResource("users", id);
 }
 
+export function downloadFile(filename: string): Readable {
+  const bucket = new GridFSBucket(db);
+  return bucket.openDownloadStreamByName(filename);
+}
+
 export function putFile(
   filename: string,
   metadata: Record<string, string>,

@@ -457,6 +457,36 @@ for (const [resource, flags] of Object.entries(resources)) {
   }
 }
 
+router.get("/blob/files/:id", async (ctx) => {
+  const authorizer: Authorizer = ctx.state.authorizer;
+  const resource = "files";
+  const id = ctx.params.id;
+
+  const log = {
+    message: `Download ${resource}`,
+    context: ctx,
+    id: id,
+  };
+
+  const filter = and(authorizer.getFilter(resource, 2), [
+    "=",
+    ["PARAM", RESOURCE_IDS[resource]],
+    ctx.params.id,
+  ]);
+
+  if (!authorizer.hasAccess(resource, 2)) {
+    logUnauthorizedWarning(log);
+    return void (ctx.status = 403);
+  }
+
+  const count = await db.count(resource, filter);
+  if (!count) return void (ctx.status = 404);
+
+  logger.accessInfo(log);
+  ctx.body = db.downloadFile(id);
+  ctx.attachment(id);
+});
+
 router.put("/files/:id", async (ctx) => {
   const authorizer: Authorizer = ctx.state.authorizer;
   const resource = "files";

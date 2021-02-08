@@ -212,6 +212,9 @@ export const component: ClosureComponent = (): Component => {
       attrs["sortAttributes"] = sortAttributes;
       attrs["onSortChange"] = onSortChange;
       attrs["downloadUrl"] = downloadUrl;
+      attrs["recordActionsCallback"] = (file) => {
+        return [m("a", { href: "api/blob/files/" + file["_id"] }, "Download")];
+      };
 
       if (window.authorizer.hasAccess("files", 3)) {
         attrs["actionsCallback"] = (selected: Set<string>): Children => {
