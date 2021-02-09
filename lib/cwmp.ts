@@ -79,7 +79,7 @@ async function authenticate(
     sessionContext.cacheSnapshot,
     "cwmp.auth"
   );
-  if (!authExpression) return true;
+  if (authExpression == null) return true;
 
   let authentication;
 
@@ -901,6 +901,14 @@ export function onConnection(socket: Socket): void {
     const sessionContext = currentSessions.get(socket);
     if (!sessionContext) return;
     currentSessions.delete(socket);
+    if (sessionContext.authState !== 2) {
+      logger.accessError({
+        message: "Authentication failure",
+        sessionContext: sessionContext,
+      });
+      return;
+    }
+
     const now = Date.now();
 
     const lastActivity = sessionContext.lastActivity;
