@@ -117,7 +117,7 @@ function putActionHandler(action, _object): Promise<ValidationErrors> {
         .resourceExists("permissions", id)
         .then((exists) => {
           if (exists) {
-            store.fulfill(0, Date.now());
+            store.setTimestamp(Date.now());
             return void resolve({ _id: "Permission already exists" });
           }
 
@@ -125,7 +125,7 @@ function putActionHandler(action, _object): Promise<ValidationErrors> {
             .putResource("permissions", id, object)
             .then(() => {
               notifications.push("success", "Permission created");
-              store.fulfill(0, Date.now());
+              store.setTimestamp(Date.now());
               resolve();
             })
             .catch(reject);
@@ -136,11 +136,11 @@ function putActionHandler(action, _object): Promise<ValidationErrors> {
         .deleteResource("permissions", object["_id"])
         .then(() => {
           notifications.push("success", "Permission deleted");
-          store.fulfill(0, Date.now());
+          store.setTimestamp(Date.now());
           resolve();
         })
         .catch((err) => {
-          store.fulfill(0, Date.now());
+          store.setTimestamp(Date.now());
           reject(err);
         });
     } else {
@@ -351,11 +351,11 @@ export const component: ClosureComponent = (): Component => {
                         "success",
                         `${res.length} permissions deleted`
                       );
-                      store.fulfill(0, Date.now());
+                      store.setTimestamp(Date.now());
                     })
                     .catch((err) => {
                       notifications.push("error", err.message);
-                      store.fulfill(0, Date.now());
+                      store.setTimestamp(Date.now());
                     });
                 },
               },
@@ -373,7 +373,11 @@ export const component: ClosureComponent = (): Component => {
       return [
         m("h1", "Listing permissions"),
         m(filterComponent, filterAttrs),
-        m(indexTableComponent, attrs),
+        m(
+          "loading",
+          { queries: [permissions, count] },
+          m(indexTableComponent, attrs)
+        ),
       ];
     },
   };

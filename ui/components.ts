@@ -39,6 +39,7 @@ import tags from "./components/tags";
 import ping from "./components/ping";
 import deviceLink from "./components/device-link";
 import longTextComponent from "./long-text-component";
+import loading from "./components/loading";
 
 const comps = {
   parameter,
@@ -54,6 +55,7 @@ const comps = {
   ping,
   "device-link": deviceLink,
   "long-text": longTextComponent,
+  loading: loading,
 };
 
 const contextifiedComponents = new WeakMap<ComponentTypes, ComponentTypes>();

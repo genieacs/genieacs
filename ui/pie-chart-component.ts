@@ -116,21 +116,27 @@ function drawChart(chartData): Children {
 
   legend.push(m("span.legend-total", `Total: ${total}`));
 
-  return m("div", { class: "pie-chart" }, [
-    m(
-      "svg",
-      {
-        // Adding 2 as padding; strokes must not be more than 2
-        viewBox: "-102 -102 204 204",
-        width: "204px",
-        height: "204px",
-        xmlns: "http://www.w3.org/2000/svg",
-        "xmlns:xlink": "http://www.w3.org/1999/xlink",
-      },
-      paths.concat(links)
-    ),
-    m(".legend", legend),
-  ]);
+  return m(
+    "loading",
+    {
+      queries: Object.values(chartData.slices).map((s) => s["count"]),
+    },
+    m("div", { class: "pie-chart" }, [
+      m(
+        "svg",
+        {
+          // Adding 2 as padding; strokes must not be more than 2
+          viewBox: "-102 -102 204 204",
+          width: "204px",
+          height: "204px",
+          xmlns: "http://www.w3.org/2000/svg",
+          "xmlns:xlink": "http://www.w3.org/1999/xlink",
+        },
+        paths.concat(links)
+      ),
+      m(".legend", legend),
+    ])
+  );
 }
 
 const component: ClosureComponent = (): Component => {

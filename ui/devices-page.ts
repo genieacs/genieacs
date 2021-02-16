@@ -154,14 +154,14 @@ function renderActions(selected: Set<string>): Children {
               .deleteResource("devices", id)
               .then(() => {
                 notifications.push("success", `${id}: Deleted`);
-                if (--counter === 0) store.fulfill(0, Date.now());
+                if (--counter === 0) store.setTimestamp(Date.now());
               })
               .catch((err) => {
                 notifications.push("error", `${id}: ${err.message}`);
-                if (--counter === 0) store.fulfill(0, Date.now());
+                if (--counter === 0) store.setTimestamp(Date.now());
               });
           }
-          if (--counter === 0) store.fulfill(0, Date.now());
+          if (--counter === 0) store.setTimestamp(Date.now());
         },
       },
       "Delete"
@@ -186,14 +186,14 @@ function renderActions(selected: Set<string>): Children {
               .updateTags(id, { [tag]: true })
               .then(() => {
                 notifications.push("success", `${id}: Tags updated`);
-                if (--counter === 0) store.fulfill(0, Date.now());
+                if (--counter === 0) store.setTimestamp(Date.now());
               })
               .catch((err) => {
                 notifications.push("error", `${id}: ${err.message}`);
-                if (--counter === 0) store.fulfill(0, Date.now());
+                if (--counter === 0) store.setTimestamp(Date.now());
               });
           }
-          if (--counter === 0) store.fulfill(0, Date.now());
+          if (--counter === 0) store.setTimestamp(Date.now());
         },
       },
       "Tag"
@@ -220,14 +220,14 @@ function renderActions(selected: Set<string>): Children {
               .updateTags(id, { [tag]: false })
               .then(() => {
                 notifications.push("success", `${id}: Tags updated`);
-                if (--counter === 0) store.fulfill(0, Date.now());
+                if (--counter === 0) store.setTimestamp(Date.now());
               })
               .catch((err) => {
                 notifications.push("error", `${id}: ${err.message}`);
-                if (--counter === 0) store.fulfill(0, Date.now());
+                if (--counter === 0) store.setTimestamp(Date.now());
               });
           }
-          if (--counter === 0) store.fulfill(0, Date.now());
+          if (--counter === 0) store.setTimestamp(Date.now());
         },
       },
       "Untag"
@@ -336,7 +336,7 @@ export const component: ClosureComponent = (): Component => {
       return [
         m("h1", "Listing devices"),
         m(filterComponent, filterAttrs),
-        m(indexTableComponent, attrs),
+        m("loading", { queries: [devs, count] }, m(indexTableComponent, attrs)),
       ];
     },
   };

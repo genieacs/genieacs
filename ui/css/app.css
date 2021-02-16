@@ -347,7 +347,6 @@ body {
 table.table {
   border-spacing: 0;
   text-align: left;
-  display: block;
   overflow-x: auto;
 
   & table.table {
@@ -751,5 +750,33 @@ span.parameter-value {
   stroke-linejoin: round;
   &.icon-unsorted {
     opacity: 0.3;
+  }
+}
+
+.loading {
+  opacity: 0.6;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  &::after {
+    background-image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJ4TWlkWU1pZCI+PHBhdGggZD0iTTEwIDUwYTQwIDQwIDAgMDA4MCAwIDQwIDQyIDAgMDEtODAgMCIgZmlsbD0iI2IxMmQ1YyIgLz48L3N2Zz4=);
+    content: "";
+    width: 48px;
+    height: 48px;
+    animation: spin 1s linear infinite;
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
   }
 }

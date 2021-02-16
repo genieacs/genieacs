@@ -67,12 +67,12 @@ const component: ClosureComponent = (): Component => {
                     .deleteResource("faults", f["_id"])
                     .then(() => {
                       notifications.push("success", "Fault deleted");
-                      store.fulfill(Date.now(), Date.now());
+                      store.setTimestamp(Date.now());
                       m.redraw();
                     })
                     .catch((err) => {
                       notifications.push("error", err.message);
-                      store.fulfill(Date.now(), Date.now());
+                      store.setTimestamp(Date.now());
                     });
                 },
               },
@@ -95,7 +95,11 @@ const component: ClosureComponent = (): Component => {
         );
       }
 
-      return m("table.table", thead, tbody);
+      return m(
+        "loading",
+        { queries: [faults] },
+        m("table.table", thead, tbody)
+      );
     },
   };
 };

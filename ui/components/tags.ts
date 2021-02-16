@@ -64,7 +64,7 @@ const component: ClosureComponent = (): Component => {
                         "success",
                         `${deviceId}: Tags updated`
                       );
-                      store.fulfill(0, Date.now());
+                      store.setTimestamp(Date.now());
                     })
                     .catch((err) => {
                       e.target.disabled = false;
@@ -99,7 +99,7 @@ const component: ClosureComponent = (): Component => {
                   .then(() => {
                     e.target.disabled = false;
                     notifications.push("success", `${deviceId}: Tags updated`);
-                    store.fulfill(0, Date.now());
+                    store.setTimestamp(Date.now());
                   })
                   .catch((err) => {
                     e.target.disabled = false;

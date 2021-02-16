@@ -78,7 +78,7 @@ const component: ClosureComponent = (): Component => {
               )
               .then(() => {
                 e.target.disabled = false;
-                store.fulfill(0, Date.now());
+                store.setTimestamp(Date.now());
               })
               .catch((err) => {
                 e.target.disabled = false;

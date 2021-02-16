@@ -93,7 +93,7 @@ function putActionHandler(action, _object): Promise<ValidationErrors> {
         .resourceExists("files", id)
         .then((exists) => {
           if (exists) {
-            store.fulfill(0, Date.now());
+            store.setTimestamp(Date.now());
             return void resolve({ file: "File already exists" });
           }
           const headers = Object.assign(
@@ -117,7 +117,7 @@ function putActionHandler(action, _object): Promise<ValidationErrors> {
                 "success",
                 `File ${exists ? "updated" : "created"}`
               );
-              store.fulfill(0, Date.now());
+              store.setTimestamp(Date.now());
               resolve();
             })
             .catch(reject);
@@ -288,11 +288,11 @@ export const component: ClosureComponent = (): Component => {
                         "success",
                         `${res.length} files deleted`
                       );
-                      store.fulfill(0, Date.now());
+                      store.setTimestamp(Date.now());
                     })
                     .catch((err) => {
                       notifications.push("error", err.message);
-                      store.fulfill(0, Date.now());
+                      store.setTimestamp(Date.now());
                     });
                 },
               },
@@ -310,7 +310,11 @@ export const component: ClosureComponent = (): Component => {
       return [
         m("h1", "Listing files"),
         m(filterComponent, filterAttrs),
-        m(indexTableComponent, attrs),
+        m(
+          "loading",
+          { queries: [files, count] },
+          m(indexTableComponent, attrs)
+        ),
       ];
     },
   };

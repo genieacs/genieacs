@@ -42,13 +42,25 @@ export const component: ClosureComponent = (): Component => {
     view: (vnode) => {
       document.title = `${vnode.attrs["deviceId"]} - Devices - GenieACS`;
 
-      const dev = store.fetch("devices", vnode.attrs["deviceFilter"]).value;
-      if (!dev.length) return "Loading";
+      const dev = store.fetch("devices", vnode.attrs["deviceFilter"]);
+      if (!dev.value.length) {
+        if (!dev.fulfilling)
+          return m("p.error", `No such device ${vnode.attrs["deviceId"]}`);
+        return m(
+          "loading",
+          { queries: [dev] },
+          m("div", { style: "height: 100px;" })
+        );
+      }
+
       const conf = config.ui.device;
       const cmps = [];
 
-      for (const c of Object.values(conf))
-        cmps.push(m.context({ device: dev[0] }, c["type"], c));
+      for (const c of Object.values(conf)) {
+        cmps.push(
+          m.context({ device: dev.value[0], deviceQuery: dev }, c["type"], c)
+        );
+      }
 
       return [m("h1", vnode.attrs["deviceId"]), cmps];
     },

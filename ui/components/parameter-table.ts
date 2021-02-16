@@ -149,7 +149,14 @@ const component: ClosureComponent = (): Component => {
       let label;
       if (vnode.attrs["label"]) label = m("h2", vnode.attrs["label"]);
 
-      return [label, m("table.table", thead, m("tbody", rows))];
+      return [
+        label,
+        m(
+          "loading",
+          { queries: [vnode.attrs["deviceQuery"]] },
+          m("table.table", thead, m("tbody", rows))
+        ),
+      ];
     },
   };
 };

@@ -86,12 +86,12 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
         .resourceExists("presets", id)
         .then((exists) => {
           if (exists && isNew) {
-            store.fulfill(0, Date.now());
+            store.setTimestamp(Date.now());
             return void resolve({ _id: "Preset already exists" });
           }
 
           if (!exists && !isNew) {
-            store.fulfill(0, Date.now());
+            store.setTimestamp(Date.now());
             return void resolve({ _id: "Preset does not exist" });
           }
 
@@ -102,7 +102,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
                 "success",
                 `Preset ${exists ? "updated" : "created"}`
               );
-              store.fulfill(0, Date.now());
+              store.setTimestamp(Date.now());
               resolve();
             })
             .catch(reject);
@@ -113,12 +113,12 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
         .deleteResource("presets", object["_id"])
         .then(() => {
           notifications.push("success", "Preset deleted");
-          store.fulfill(0, Date.now());
+          store.setTimestamp(Date.now());
           resolve();
         })
         .catch((err) => {
           reject(err);
-          store.fulfill(0, Date.now());
+          store.setTimestamp(Date.now());
         });
     } else {
       reject(new Error("Undefined action"));
@@ -413,11 +413,11 @@ export const component: ClosureComponent = (): Component => {
                         "success",
                         `${res.length} presets deleted`
                       );
-                      store.fulfill(0, Date.now());
+                      store.setTimestamp(Date.now());
                     })
                     .catch((err) => {
                       notifications.push("error", err.message);
-                      store.fulfill(0, Date.now());
+                      store.setTimestamp(Date.now());
                     });
                 },
               },
@@ -435,7 +435,11 @@ export const component: ClosureComponent = (): Component => {
       return [
         m("h1", "Listing presets"),
         m(filterComponent, filterAttrs),
-        m(indexTableComponent, attrs),
+        m(
+          "loading",
+          { queries: [presets, count] },
+          m(indexTableComponent, attrs)
+        ),
       ];
     },
   };

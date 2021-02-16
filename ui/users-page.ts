@@ -85,12 +85,12 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
         .resourceExists("users", id)
         .then((exists) => {
           if (exists && isNew) {
-            store.fulfill(0, Date.now());
+            store.setTimestamp(Date.now());
             return void resolve({ _id: "User already exists" });
           }
 
           if (!exists && !isNew) {
-            store.fulfill(0, Date.now());
+            store.setTimestamp(Date.now());
             return void resolve({ _id: "User does not exist" });
           }
 
@@ -102,13 +102,13 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
                   .changePassword(id, password)
                   .then(() => {
                     notifications.push("success", "User created");
-                    store.fulfill(0, Date.now());
+                    store.setTimestamp(Date.now());
                     resolve();
                   })
                   .catch(reject);
               } else {
                 notifications.push("success", "User updated");
-                store.fulfill(0, Date.now());
+                store.setTimestamp(Date.now());
                 resolve();
               }
             })
@@ -120,11 +120,11 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
         .deleteResource("users", object["_id"])
         .then(() => {
           notifications.push("success", "User deleted");
-          store.fulfill(0, Date.now());
+          store.setTimestamp(Date.now());
           resolve();
         })
         .catch((err) => {
-          store.fulfill(0, Date.now());
+          store.setTimestamp(Date.now());
           reject(err);
         });
     } else {
@@ -387,11 +387,11 @@ export const component: ClosureComponent = (): Component => {
                         "success",
                         `${res.length} users deleted`
                       );
-                      store.fulfill(0, Date.now());
+                      store.setTimestamp(Date.now());
                     })
                     .catch((err) => {
                       notifications.push("error", err.message);
-                      store.fulfill(0, Date.now());
+                      store.setTimestamp(Date.now());
                     });
                 },
               },
@@ -409,7 +409,11 @@ export const component: ClosureComponent = (): Component => {
       return [
         m("h1", "Listing users"),
         m(filterComponent, filterAttrs),
-        m(indexTableComponent, attrs),
+        m(
+          "loading",
+          { queries: [users, count] },
+          m(indexTableComponent, attrs)
+        ),
       ];
     },
   };

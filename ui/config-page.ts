@@ -60,12 +60,12 @@ function putActionHandler(action, _object, isNew?): Promise<ValidationErrors> {
         .resourceExists("config", id)
         .then((exists) => {
           if (exists && isNew) {
-            store.fulfill(0, Date.now());
+            store.setTimestamp(Date.now());
             return void resolve({ _id: "Config already exists" });
           }
 
           if (!exists && !isNew) {
-            store.fulfill(0, Date.now());
+            store.setTimestamp(Date.now());
             return void resolve({ _id: "Config does not exist" });
           }
 
@@ -76,7 +76,7 @@ function putActionHandler(action, _object, isNew?): Promise<ValidationErrors> {
                 "success",
                 `Config ${exists ? "updated" : "created"}`
               );
-              store.fulfill(0, Date.now());
+              store.setTimestamp(Date.now());
               resolve();
             })
             .catch(reject);
@@ -87,11 +87,11 @@ function putActionHandler(action, _object, isNew?): Promise<ValidationErrors> {
         .deleteResource("config", object["_id"])
         .then(() => {
           notifications.push("success", "Config deleted");
-          store.fulfill(0, Date.now());
+          store.setTimestamp(Date.now());
           resolve();
         })
         .catch((err) => {
-          store.fulfill(0, Date.now());
+          store.setTimestamp(Date.now());
           reject(err);
         });
     } else {
@@ -337,11 +337,11 @@ export const component: ClosureComponent = (): Component => {
                             );
                             overlay.close(cb);
                           }
-                          store.fulfill(0, Date.now());
+                          store.setTimestamp(Date.now());
                         },
                         onError: (err) => {
                           notifications.push("error", err.message);
-                          store.fulfill(0, Date.now());
+                          store.setTimestamp(Date.now());
                           overlay.close(cb);
                         },
                       },
@@ -366,14 +366,18 @@ export const component: ClosureComponent = (): Component => {
       return [
         m("h1", "Listing config"),
         m(
-          ".all-parameters",
-          search,
+          "loading",
+          { queries: [confs] },
           m(
-            ".parameter-list",
-            { style: "height: 400px" },
-            renderTable(confs, vnode.state["searchString"])
-          ),
-          m(".actions-bar", [newConfig].concat(subs))
+            ".all-parameters",
+            search,
+            m(
+              ".parameter-list",
+              { style: "height: 400px" },
+              renderTable(confs, vnode.state["searchString"])
+            ),
+            m(".actions-bar", [newConfig].concat(subs))
+          )
         ),
       ];
     },

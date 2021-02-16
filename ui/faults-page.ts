@@ -187,11 +187,11 @@ export const component: ClosureComponent = (): Component => {
                       "success",
                       `${res.length} faults deleted`
                     );
-                    store.fulfill(0, Date.now());
+                    store.setTimestamp(Date.now());
                   })
                   .catch((err) => {
                     notifications.push("error", err.message);
-                    store.fulfill(0, Date.now());
+                    store.setTimestamp(Date.now());
                   });
               },
             },
@@ -208,7 +208,11 @@ export const component: ClosureComponent = (): Component => {
       return [
         m("h1", "Listing faults"),
         m(filterComponent, filterAttrs),
-        m(indexTableComponent, attrs),
+        m(
+          "loading",
+          { queries: [faults, count] },
+          m(indexTableComponent, attrs)
+        ),
       ];
     },
   };

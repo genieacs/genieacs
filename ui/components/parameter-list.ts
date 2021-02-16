@@ -38,6 +38,11 @@ const component: ClosureComponent = (): Component => {
         return m(
           "tr",
           {
+            oncreate: (vn) => {
+              (vn.dom as HTMLElement).style.display = (p as VnodeDOM).dom
+                ? ""
+                : "none";
+            },
             onupdate: (vn) => {
               (vn.dom as HTMLElement).style.display = (p as VnodeDOM).dom
                 ? ""
@@ -49,7 +54,11 @@ const component: ClosureComponent = (): Component => {
         );
       });
 
-      return m("table.parameter-list", rows);
+      return m(
+        "loading",
+        { queries: [vnode.attrs["deviceQuery"]] },
+        m("table.parameter-list", rows)
+      );
     },
   };
 };

@@ -64,39 +64,27 @@ const adminPages = [
 
 let state;
 
-let lastRenderTimestamp = 0;
-let pageVisitTimestamp = 0;
-let fulfillTimeout = null;
-
-function fulfill(): void {
-  clearTimeout(fulfillTimeout);
-  fulfillTimeout = setTimeout(() => {
-    store.fulfill(lastRenderTimestamp, pageVisitTimestamp, (updated) => {
-      if (updated) m.redraw();
-    });
-  }, 100);
-}
-
 function pagify(pageName, page): RouteResolver {
   const component: RouteResolver = {
     render: () => {
-      lastRenderTimestamp = Date.now();
+      const lastRenderTimestamp = Date.now();
       let p;
       if (state && state.error) p = m(errorPage.component, state);
       else p = m(contextifyComponent(page.component), state);
-      fulfill();
       const attrs = {};
       attrs["page"] = pageName;
+      attrs["oncreate"] = attrs["onupdate"] = () => {
+        store.fulfill(lastRenderTimestamp);
+      };
       return m(layout, attrs, p);
     },
     onmatch: null,
   };
 
   component.onmatch = (args, requestedPath) => {
-    pageVisitTimestamp = Date.now();
+    store.setTimestamp(Date.now());
     if (!page.init) {
       state = null;
-      fulfill();
       return null;
     }
 
@@ -107,7 +95,6 @@ function pagify(pageName, page): RouteResolver {
           if (!st) return void m.route.set("/");
           state = st;
           resolve();
-          fulfill();
         })
         .catch((err) => {
           if (!window.username && err.message.indexOf("authorized") >= 0) {

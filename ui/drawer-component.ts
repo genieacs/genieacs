@@ -465,7 +465,7 @@ const component: ClosureComponent = (): Component => {
                   }
                 )
                   .then(() => {
-                    store.fulfill(0, Date.now());
+                    store.setTimestamp(Date.now());
                   })
                   .catch((err) => {
                     notifications.push("error", err.message);

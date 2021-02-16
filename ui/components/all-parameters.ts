@@ -171,25 +171,29 @@ const component: ClosureComponent = (): Component => {
       });
 
       return m(
-        ".all-parameters",
+        "loading",
+        { queries: [vnode.attrs["deviceQuery"]] },
         m(
-          "a.download-csv",
-          {
-            href: `api/devices/${encodeURIComponent(
-              device["DeviceID.ID"].value[0]
-            )}.csv`,
-            download: "",
-            style: "float: right;",
-          },
-          "Download"
-        ),
-        search,
-        m(
-          ".parameter-list",
-          m("table", m("tbody", rows)),
+          ".all-parameters",
           m(
-            "m",
-            `Displaying ${filteredKeys.length} out of ${count} parameters.`
+            "a.download-csv",
+            {
+              href: `api/devices/${encodeURIComponent(
+                device["DeviceID.ID"].value[0]
+              )}.csv`,
+              download: "",
+              style: "float: right;",
+            },
+            "Download"
+          ),
+          search,
+          m(
+            ".parameter-list",
+            m("table", m("tbody", rows)),
+            m(
+              "m",
+              `Displaying ${filteredKeys.length} out of ${count} parameters.`
+            )
           )
         )
       );

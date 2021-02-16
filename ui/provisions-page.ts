@@ -66,12 +66,12 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
         .resourceExists("provisions", id)
         .then((exists) => {
           if (exists && isNew) {
-            store.fulfill(0, Date.now());
+            store.setTimestamp(Date.now());
             return void resolve({ _id: "Provision already exists" });
           }
 
           if (!exists && !isNew) {
-            store.fulfill(0, Date.now());
+            store.setTimestamp(Date.now());
             return void resolve({ _id: "Provision does not exist" });
           }
 
@@ -82,7 +82,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
                 "success",
                 `Provision ${exists ? "updated" : "created"}`
               );
-              store.fulfill(0, Date.now());
+              store.setTimestamp(Date.now());
               resolve();
             })
             .catch((err) => {
@@ -99,11 +99,11 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
         .deleteResource("provisions", object["_id"])
         .then(() => {
           notifications.push("success", "Provision deleted");
-          store.fulfill(0, Date.now());
+          store.setTimestamp(Date.now());
           resolve();
         })
         .catch((err) => {
-          store.fulfill(0, Date.now());
+          store.setTimestamp(Date.now());
           reject(err);
         });
     } else {
@@ -332,11 +332,11 @@ export const component: ClosureComponent = (): Component => {
                         "success",
                         `${res.length} provisions deleted`
                       );
-                      store.fulfill(0, Date.now());
+                      store.setTimestamp(Date.now());
                     })
                     .catch((err) => {
                       notifications.push("error", err.message);
-                      store.fulfill(0, Date.now());
+                      store.setTimestamp(Date.now());
                     });
                 },
               },
@@ -354,7 +354,11 @@ export const component: ClosureComponent = (): Component => {
       return [
         m("h1", "Listing provisions"),
         m(filterComponent, filterAttrs),
-        m(indexTableComponent, attrs),
+        m(
+          "loading",
+          { queries: [provisions, count] },
+          m(indexTableComponent, attrs)
+        ),
       ];
     },
   };
