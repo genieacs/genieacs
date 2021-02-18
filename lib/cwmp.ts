@@ -726,7 +726,15 @@ async function nextRpc(sessionContext: SessionContext): Promise<void> {
       );
       break;
     default:
-      throw new Error("Task name not recognized");
+      if (!sessionContext.doneTasks) sessionContext.doneTasks = [];
+      sessionContext.doneTasks.push(task._id);
+      sessionContext.tasks = sessionContext.tasks.filter((t) => t !== task);
+
+      logger.accessWarn({
+        sessionContext: sessionContext,
+        message: "Invalid task",
+        taskId: task._id,
+      });
   }
 
   return nextRpc(sessionContext);
