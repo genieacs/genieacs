@@ -86,7 +86,7 @@ CWMP_ACCESS_LOG_FILE
   File to log incoming requests for genieacs-cwmp. If omitted, logs will go to
   stdout.
 
-  Default: unest
+  Default: unset
 
 NBI_WORKER_PROCESSES
   The number of worker processes to spawn for genieacs-nbi. A value of 0 means
@@ -107,7 +107,7 @@ NBI_INTERFACE
 NBI_SSL_CERT
   Path to certificate file. If omitted, non-secure HTTP will be used.
 
-  Default: unest
+  Default: unset
 
 NBI_SSL_KEY
   Path to certificate key file. If omitted, non-secure HTTP will be used.

@@ -11,7 +11,7 @@ CPE to ACS
   By default GenieACS will accept any incoming connection via HTTP/HTTPS and
   respond to it.
 
-The following paramters are used to set and get (password is redacted but
+The following parameters are used to set and get (password is redacted but
 can be set) the username/password used to authenticate against the ACS:
 
 Username: ``Device.ManagementServer.Username`` or ``InternetGatewayDevice.ManagementServer.Username``

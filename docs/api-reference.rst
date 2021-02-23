@@ -1,7 +1,7 @@
 API Reference
 =============
 
-GenieACS expoeses a rich RESTful API through its NBI component. This document
+GenieACS exposes a rich RESTful API through its NBI component. This document
 serves as a reference for the available APIs.
 
 This API makes use of MongoDB's query language in some of its endpoints. Refer
@@ -16,7 +16,7 @@ to MongoDB's documentation for details.
 
 .. warning::
 
-  A common pitfll is not properly percent-encoding special characters in the
+  A common pitfall is not properly percent-encoding special characters in the
   device ID or query in the URL.
 
 Endpoints
@@ -106,7 +106,7 @@ if the tasks have been queued to be executed at the next inform.
 *device_id*: The ID of the device.
 
 *connection_request*: Indicates that a connection request will be triggered to
-execute the tasks immediatly. Otherwise, the tasks will be queued and be
+execute the tasks immediately. Otherwise, the tasks will be queued and be
 processed at the next inform.
 
 The response body is the task object as it is inserted in the database. The
@@ -299,7 +299,7 @@ The following file metadata may be sent as request headers:
 - ``fileType``: For firmware images it should be "1 Firmware Upgrade Image".
   Other common types are "2 Web Content" and "3 Vendor Configuration File".
 
-- ``oui``: The OUI of the device model that this file belogs to.
+- ``oui``: The OUI of the device model that this file belongs to.
 
 - ``productClass``: The product class of the device.
 
@@ -344,7 +344,7 @@ Find files using a query.
 Tasks
 -----
 
-Find the different availabe tasks and their object structure.
+Find the different available tasks and their object structure.
 
 ``getParameterValues``
 ~~~~~~~~~~~~~~~~~~~~~~

@@ -4,7 +4,7 @@ Installation Guide
 This guide is for installing GenieACS on a single server on any Linux distro
 that uses *systemd* as its init system.
 
-The various GenieACS services are independant of each other and may be
+The various GenieACS services are independent of each other and may be
 installed on different servers. You may also run multiple instances of each in
 a load-balancing/failover setup.
 

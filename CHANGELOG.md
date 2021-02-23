@@ -86,7 +86,7 @@
   as to not require service restart for changes to take effect.
 - Optional redis dependency has been removed completely.
 - Tags now allow only alphanumeric characters and underscore.
-- Supported versions of NodeJs and MongoDB are 10.x and up and 2.6 and up
+- Supported versions of Node.js and MongoDB are 10.x and up and 2.6 and up
   respectively.
 
 ## 1.1.3 (2018-10-23)
