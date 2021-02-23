@@ -296,6 +296,15 @@ function sanitizeTask(task): void {
       )
         throw new Error("Invalid 'provisions' property");
       break;
+
+    case "reboot":
+      break;
+
+    case "factoryReset":
+      break;
+
+    default:
+      throw new Error("Invalid task name");
   }
 
   return task;
