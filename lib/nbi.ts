@@ -49,7 +49,7 @@ const collections = {
   devices: null as Collection,
   presets: null as Collection,
   objects: null as Collection,
-  "fs.files": null as Collection,
+  files: null as Collection,
   provisions: null as Collection,
   virtualParameters: null as Collection,
   faults: null as Collection,
@@ -57,7 +57,10 @@ const collections = {
 let filesBucket: GridFSBucket;
 
 onConnect(async (db) => {
-  for (const k of Object.keys(collections)) collections[k] = db.collection(k);
+  for (const k of Object.keys(collections)) {
+    if (k === "files") collections[k] = db.collection("fs.files");
+    else collections[k] = db.collection(k);
+  }
   filesBucket = new GridFSBucket(db);
 });
 
