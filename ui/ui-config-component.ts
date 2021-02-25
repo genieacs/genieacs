@@ -55,7 +55,8 @@ function putActionHandler(prefix: string[], dataYaml: string): Promise<any> {
           for (const f of res) current[f._id] = f.value;
 
           const diff = configFunctions.diffConfig(current, updated);
-          if (!diff.add.length && !diff.remove.length) return void resolve();
+          if (!diff.add.length && !diff.remove.length)
+            return void resolve(null);
 
           const promises = [];
 
@@ -74,7 +75,7 @@ function putActionHandler(prefix: string[], dataYaml: string): Promise<any> {
 
           Promise.all(promises)
             .then(() => {
-              resolve();
+              resolve(null);
             })
             .catch(reject);
         })

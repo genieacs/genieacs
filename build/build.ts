@@ -29,7 +29,7 @@ import postcss from "postcss";
 import postcssImport from "postcss-import";
 import postcssPresetEnv from "postcss-preset-env";
 import cssnano from "cssnano";
-import SVGO from "svgo";
+import { optimize, extendDefaultPlugins } from "svgo";
 import * as xmlParser from "../lib/xml-parser";
 
 const MODE = process.env["NODE_ENV"] || "production";
@@ -258,11 +258,6 @@ async function generateFrontendJs(externals: string[]): Promise<void> {
             const p = path.resolve(path.dirname(importer), importee);
             if (p === path.resolve(INPUT_DIR, "package.json"))
               return path.resolve(OUTPUT_DIR, "package.json");
-          } else if (importee === "espresso-iisojs") {
-            return this.resolve(
-              "espresso-iisojs/dist/espresso-iisojs.mjs",
-              importer
-            );
           }
           return null;
         },
@@ -298,13 +293,19 @@ async function generateFrontendJs(externals: string[]): Promise<void> {
 }
 
 async function generateIconsSprite(): Promise<void> {
-  const svgo = new SVGO({ plugins: [{ removeViewBox: false }] });
   const symbols = [];
   const iconsDir = path.resolve(INPUT_DIR, "ui/icons");
   for (const file of fs.readdirSync(iconsDir)) {
     const id = path.parse(file).name;
     const filePath = path.join(iconsDir, file);
-    const { data } = await svgo.optimize(fs.readFileSync(filePath).toString());
+    const { data } = await optimize(fs.readFileSync(filePath).toString(), {
+      plugins: extendDefaultPlugins([
+        {
+          name: "removeViewBox",
+          active: false,
+        },
+      ]),
+    });
     symbols.push(generateSymbol(id, data));
   }
   fs.writeFileSync(

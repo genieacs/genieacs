@@ -103,13 +103,13 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
                   .then(() => {
                     notifications.push("success", "User created");
                     store.setTimestamp(Date.now());
-                    resolve();
+                    resolve(null);
                   })
                   .catch(reject);
               } else {
                 notifications.push("success", "User updated");
                 store.setTimestamp(Date.now());
-                resolve();
+                resolve(null);
               }
             })
             .catch(reject);
@@ -121,7 +121,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
         .then(() => {
           notifications.push("success", "User deleted");
           store.setTimestamp(Date.now());
-          resolve();
+          resolve(null);
         })
         .catch((err) => {
           store.setTimestamp(Date.now());
@@ -247,7 +247,7 @@ export const component: ClosureComponent = (): Component => {
                         roles: user.roles.split(","),
                       },
                       actionHandler: (action, object) => {
-                        return new Promise((resolve) => {
+                        return new Promise<void>((resolve) => {
                           putActionHandler(action, object, false)
                             .then((errors) => {
                               const errorList = errors
@@ -329,7 +329,7 @@ export const component: ClosureComponent = (): Component => {
                     Object.assign(
                       {
                         actionHandler: (action, object) => {
-                          return new Promise((resolve) => {
+                          return new Promise<void>((resolve) => {
                             putActionHandler(action, object, true)
                               .then((errors) => {
                                 const errorList = errors

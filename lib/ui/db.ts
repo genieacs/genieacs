@@ -39,9 +39,20 @@ onConnect(async (_db) => {
 export function query(
   resource: string,
   filter: Expression,
+  options?: QueryOptions
+): Promise<any[]>;
+export function query(
+  resource: string,
+  filter: Expression,
+  options: QueryOptions,
+  callback: (doc: any) => void
+): Promise<void>;
+export function query(
+  resource: string,
+  filter: Expression,
   options?: QueryOptions,
   callback?: (doc: any) => void
-): Promise<any[]> {
+): Promise<void | any[]> {
   options = options || {};
   let q;
   filter = expression.evaluate(filter, null, Date.now());

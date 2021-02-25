@@ -71,6 +71,10 @@ const resources = {
   tasks: 0,
 };
 
+function singleParam(p: string | string[]): string {
+  return Array.isArray(p) ? p[p.length - 1] : p;
+}
+
 router.get(`/devices/:id.csv`, async (ctx) => {
   const authorizer: Authorizer = ctx.state.authorizer;
   const log = {
@@ -141,7 +145,7 @@ for (const [resource, flags] of Object.entries(resources)) {
     const authorizer: Authorizer = ctx.state.authorizer;
     let filter: Expression = authorizer.getFilter(resource, 1);
     if (ctx.request.query.filter)
-      filter = and(filter, parse(ctx.request.query.filter));
+      filter = and(filter, parse(singleParam(ctx.request.query.filter)));
 
     const log = {
       message: `Count ${resource}`,
@@ -178,13 +182,13 @@ for (const [resource, flags] of Object.entries(resources)) {
     const options: QueryOptions = {};
     let filter: Expression = authorizer.getFilter(resource, 2);
     if (ctx.request.query.filter)
-      filter = and(filter, parse(ctx.request.query.filter));
+      filter = and(filter, parse(singleParam(ctx.request.query.filter)));
     if (ctx.request.query.limit) options.limit = +ctx.request.query.limit;
     if (ctx.request.query.skip) options.skip = +ctx.request.query.skip;
     if (ctx.request.query.sort)
-      options.sort = JSON.parse(ctx.request.query.sort);
+      options.sort = JSON.parse(singleParam(ctx.request.query.sort));
     if (ctx.request.query.projection) {
-      options.projection = ctx.request.query.projection
+      options.projection = singleParam(ctx.request.query.projection)
         .split(",")
         .reduce((obj, k) => Object.assign(obj, { [k]: 1 }), {});
     }
@@ -232,11 +236,11 @@ for (const [resource, flags] of Object.entries(resources)) {
     const options: QueryOptions = { projection: {} };
     let filter: Expression = authorizer.getFilter(resource, 2);
     if (ctx.request.query.filter)
-      filter = and(filter, parse(ctx.request.query.filter));
+      filter = and(filter, parse(singleParam(ctx.request.query.filter)));
     if (ctx.request.query.limit) options.limit = +ctx.request.query.limit;
     if (ctx.request.query.skip) options.skip = +ctx.request.query.skip;
     if (ctx.request.query.sort)
-      options.sort = JSON.parse(ctx.request.query.sort);
+      options.sort = JSON.parse(singleParam(ctx.request.query.sort));
 
     const log = {
       message: `Query ${resource} (CSV)`,
@@ -253,7 +257,7 @@ for (const [resource, flags] of Object.entries(resources)) {
     }
 
     const columns: Record<string, Expression> = JSON.parse(
-      ctx.request.query.columns
+      singleParam(ctx.request.query.columns)
     );
     const now = Date.now();
 
@@ -505,10 +509,11 @@ router.put("/files/:id", async (ctx) => {
   }
 
   const metadata = {
-    fileType: ctx.request.headers["metadata.filetype"] || "",
-    oui: ctx.request.headers["metadata.oui"] || "",
-    productClass: ctx.request.headers["metadata.productclass"] || "",
-    version: ctx.request.headers["metadata.version"] || "",
+    fileType: singleParam(ctx.request.headers["metadata.filetype"]) || "",
+    oui: singleParam(ctx.request.headers["metadata.oui"]) || "",
+    productClass:
+      singleParam(ctx.request.headers["metadata.productclass"]) || "",
+    version: singleParam(ctx.request.headers["metadata.version"]) || "",
   };
 
   const validate = authorizer.getValidator(resource, metadata);
@@ -648,7 +653,7 @@ router.post("/devices/:id/tags", async (ctx) => {
 });
 
 router.get("/ping/:host", async (ctx) => {
-  return new Promise((resolve) => {
+  return new Promise<void>((resolve) => {
     ping(ctx.params.host, (err, parsed) => {
       if (parsed) {
         ctx.body = parsed;

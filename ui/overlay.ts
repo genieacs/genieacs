@@ -60,7 +60,7 @@ export function render(): Children {
         },
         onbeforeremove: (vnode) => {
           (vnode.dom as HTMLDivElement).style.opacity = "0";
-          return new Promise((resolve) => {
+          return new Promise<void>((resolve) => {
             setTimeout(() => {
               resolve();
             }, 500);

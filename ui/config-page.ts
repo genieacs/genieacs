@@ -77,7 +77,7 @@ function putActionHandler(action, _object, isNew?): Promise<ValidationErrors> {
                 `Config ${exists ? "updated" : "created"}`
               );
               store.setTimestamp(Date.now());
-              resolve();
+              resolve(null);
             })
             .catch(reject);
         })
@@ -88,7 +88,7 @@ function putActionHandler(action, _object, isNew?): Promise<ValidationErrors> {
         .then(() => {
           notifications.push("success", "Config deleted");
           store.setTimestamp(Date.now());
-          resolve();
+          resolve(null);
         })
         .catch((err) => {
           store.setTimestamp(Date.now());
@@ -164,11 +164,11 @@ function renderTable(confsResponse, searchString): Children {
                         } else {
                           overlay.close(cb);
                         }
-                        resolve();
+                        resolve(null);
                       })
                       .catch((err) => {
                         notifications.push("error", err.message);
-                        resolve();
+                        resolve(null);
                       });
                   });
                 },
@@ -255,7 +255,7 @@ export const component: ClosureComponent = (): Component => {
                 Object.assign(
                   {
                     actionHandler: (action, object) => {
-                      return new Promise((resolve) => {
+                      return new Promise<void>((resolve) => {
                         putActionHandler(action, object, true)
                           .then((errors) => {
                             const errorList = errors
@@ -267,7 +267,7 @@ export const component: ClosureComponent = (): Component => {
                             } else {
                               overlay.close(cb);
                             }
-                            resolve();
+                            resolve(null);
                           })
                           .catch((err) => {
                             notifications.push("error", err.message);

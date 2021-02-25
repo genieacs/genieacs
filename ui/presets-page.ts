@@ -103,7 +103,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
                 `Preset ${exists ? "updated" : "created"}`
               );
               store.setTimestamp(Date.now());
-              resolve();
+              resolve(null);
             })
             .catch(reject);
         })
@@ -114,7 +114,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
         .then(() => {
           notifications.push("success", "Preset deleted");
           store.setTimestamp(Date.now());
-          resolve();
+          resolve(null);
         })
         .catch((err) => {
           reject(err);
@@ -294,7 +294,7 @@ export const component: ClosureComponent = (): Component => {
                     {
                       base: preset,
                       actionHandler: (action, object) => {
-                        return new Promise((resolve) => {
+                        return new Promise<void>((resolve) => {
                           putActionHandler(action, object, false)
                             .then((errors) => {
                               const errorList = errors
@@ -355,7 +355,7 @@ export const component: ClosureComponent = (): Component => {
                     Object.assign(
                       {
                         actionHandler: (action, object) => {
-                          return new Promise((resolve) => {
+                          return new Promise<void>((resolve) => {
                             putActionHandler(action, object, true)
                               .then((errors) => {
                                 const errorList = errors

@@ -126,7 +126,7 @@ function putActionHandler(action, _object): Promise<ValidationErrors> {
             .then(() => {
               notifications.push("success", "Permission created");
               store.setTimestamp(Date.now());
-              resolve();
+              resolve(null);
             })
             .catch(reject);
         })
@@ -137,7 +137,7 @@ function putActionHandler(action, _object): Promise<ValidationErrors> {
         .then(() => {
           notifications.push("success", "Permission deleted");
           store.setTimestamp(Date.now());
-          resolve();
+          resolve(null);
         })
         .catch((err) => {
           store.setTimestamp(Date.now());
@@ -291,7 +291,7 @@ export const component: ClosureComponent = (): Component => {
                     Object.assign(
                       {
                         actionHandler: (action, object) => {
-                          return new Promise((resolve) => {
+                          return new Promise<void>((resolve) => {
                             putActionHandler(action, object)
                               .then((errors) => {
                                 const errorList = errors

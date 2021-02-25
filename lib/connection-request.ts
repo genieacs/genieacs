@@ -221,7 +221,7 @@ export async function udpConnectionRequest(
     const message = Buffer.from(msg);
 
     for (let i = 0; i < 3; ++i) {
-      await new Promise((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         client.send(message, 0, message.length, port, host, (err: Error) => {
           if (err) reject(err);
           else resolve();

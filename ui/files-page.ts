@@ -118,7 +118,7 @@ function putActionHandler(action, _object): Promise<ValidationErrors> {
                 `File ${exists ? "updated" : "created"}`
               );
               store.setTimestamp(Date.now());
-              resolve();
+              resolve(null);
             })
             .catch(reject);
         })
@@ -230,7 +230,7 @@ export const component: ClosureComponent = (): Component => {
                     Object.assign(
                       {
                         actionHandler: (action, object) => {
-                          return new Promise((resolve) => {
+                          return new Promise<void>((resolve) => {
                             putActionHandler(action, object)
                               .then((errors) => {
                                 const errorList = errors

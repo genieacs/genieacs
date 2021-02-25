@@ -83,7 +83,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
                 `Provision ${exists ? "updated" : "created"}`
               );
               store.setTimestamp(Date.now());
-              resolve();
+              resolve(null);
             })
             .catch((err) => {
               if (err["code"] === 400 && err["response"]) {
@@ -100,7 +100,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
         .then(() => {
           notifications.push("success", "Provision deleted");
           store.setTimestamp(Date.now());
-          resolve();
+          resolve(null);
         })
         .catch((err) => {
           store.setTimestamp(Date.now());
@@ -220,7 +220,7 @@ export const component: ClosureComponent = (): Component => {
                     {
                       base: provision,
                       actionHandler: (action, object) => {
-                        return new Promise((resolve) => {
+                        return new Promise<void>((resolve) => {
                           putActionHandler(action, object, false)
                             .then((errors) => {
                               const errorList = errors
@@ -272,7 +272,7 @@ export const component: ClosureComponent = (): Component => {
                     Object.assign(
                       {
                         actionHandler: (action, object) => {
-                          return new Promise((resolve) => {
+                          return new Promise<void>((resolve) => {
                             putActionHandler(action, object, true)
                               .then((errors) => {
                                 const errorList = errors

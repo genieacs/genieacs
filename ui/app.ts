@@ -88,7 +88,7 @@ function pagify(pageName, page): RouteResolver {
       return null;
     }
 
-    return new Promise((resolve) => {
+    return new Promise<void>((resolve) => {
       page
         .init(args)
         .then((st) => {
