@@ -161,3 +161,7 @@ http
 statusCode
 rawData
 pos
+Brotli
+CSV
+hostInfo
+IPv

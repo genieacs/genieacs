@@ -1,5 +1,40 @@
 # Change Log
 
+## 1.2.4 (2021-02-24)
+
+- The data model state of a CPE is no longer forgotten after unsuccessful
+  session termination (e.g. timeout). This addresses a number of undesired side
+  effects that arise when a CPE does not terminate the session properly.
+- Executing tasks that take a long time to complete (e.g. refreshing the entire
+  data model) no longer shows a timeout error while the task is still being
+  processed.
+- New function `ROUND()` available to expressions. It works similar to the
+  function by the same name in SQLite and PostgreSQL.
+- Log access events for `genieacs-nbi` service.
+- Pipe stdout/stderr from extension scripts to the `genieacs-cwmp` process log.
+- Parameter values of type `xsd:dateTime` are now displayed in the UI and CSV
+  downloads as a date string rather than a numeric value.
+- Add file download link in the files listing page.
+- Display spinner loading animation throughout the UI.
+- Display GenieACS version and build number underneath the logo.
+- New option to specify how many parameters are displayed at a time in the
+  all-parameters component. Simply set `limit` property in the component config.
+- Reduce overly strong Brotli compression level which was causing significant
+  page load slowdown when Brotli is used.
+- Retire dump-data-model tool. `genieacs-sim` can now use a CSV file as its data
+  model.
+- Reduce the number of concurrent database connections from each process.
+- Remove dependency on 'hostInfo' MongoDB command which is a privileged action.
+  It is now possible to use shared MongoDB instances with limited privileged.
+- Fix bug in NBI where querying files returns 404 error.
+- Fix ping not working for devices with an IPv6 address.
+- Fix an elusive memory leak in `genieacs-fs` that slowly eats up memory and can
+  go unnoticed for long periods of time.
+- Fix a rare edge case where a `declare()` call to set a parameter value may not
+  work as intended if the parameter was originally received as part of the
+  Inform message.
+- A number of other fixes and stability improvements.
+
 ## 1.2.3 (2020-10-26)
 
 - New config option 'cwmp.skipWritableCheck' for when some CPEs incorrectly
