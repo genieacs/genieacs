@@ -29,21 +29,36 @@ function stringifyKey(str: string): string {
 function foldString(str: string): string[] {
   if (str.length <= LINE_WIDTH) return [str];
   if (str.startsWith(" ")) return [str];
-  const words = str.split(/(?<=[^ ]) (?=[^ ])/);
   const lines: string[] = [];
 
   let idx = 0;
-  let len = 0;
-  for (const [i, word] of words.entries()) {
-    len += word.length + 1;
-    if (len >= LINE_WIDTH && len !== word.length) {
-      lines.push(words.slice(idx, i).join(" "));
-      idx = i;
-      len = 0;
+  let cand = 0;
+  for (let i = 1; i < str.length - 1; ++i) {
+    if (str[i] !== " ") continue;
+
+    if (str[i + 1] === " ") {
+      i += 2;
+      while (str[i] === " ") ++i;
+      continue;
     }
+
+    if (i <= idx + LINE_WIDTH) {
+      cand = i;
+      continue;
+    }
+
+    const c = cand > idx ? cand : i;
+    lines.push(str.slice(idx, c));
+    idx = c + 1;
+    cand = i;
   }
 
-  if (idx < words.length) lines.push(words.slice(idx).join(" "));
+  if (cand > idx && str.length > idx + LINE_WIDTH) {
+    lines.push(str.slice(idx, cand));
+    idx = cand + 1;
+  }
+
+  lines.push(str.slice(idx));
 
   return lines;
 }
