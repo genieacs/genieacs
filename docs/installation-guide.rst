@@ -34,7 +34,7 @@ Install GenieACS
 
   .. parsed-literal::
 
-    sudo npm install -g --unsafe-perm genieacs@\ |release|
+    sudo npm install -g genieacs@\ |release|
 
 .. topic:: Installing from source
 
