@@ -121,12 +121,15 @@ function renderStagingDownload(task: StageTask): Children {
   if (productClass) productClass = decodeURIComponent(productClass);
 
   const typesList = [
-    "",
-    "1 Firmware Upgrade Image",
-    "2 Web Content",
-    "3 Vendor Configuration File",
-    "4 Tone File",
-    "5 Ringer File",
+    ...new Set([
+      "",
+      "1 Firmware Upgrade Image",
+      "2 Web Content",
+      "3 Vendor Configuration File",
+      "4 Tone File",
+      "5 Ringer File",
+      ...files.value.map((f) => f["metadata.fileType"]).filter((f) => f),
+    ]),
   ].map((t) =>
     m(
       "option",

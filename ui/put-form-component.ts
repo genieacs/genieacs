@@ -20,6 +20,7 @@
 import { VnodeDOM, ClosureComponent, Component, Children } from "mithril";
 import { m } from "./components";
 import codeEditorComponent from "./code-editor-component";
+import { getDatalistId } from "./datalist";
 
 const singular = {
   presets: "preset",
@@ -151,9 +152,14 @@ function createField(current, attr, focus): Children {
     });
   }
 
+  let datalist: string = null;
+  if (attr.options) datalist = getDatalistId(attr.options);
+
   return m("input", {
     type: attr.type === "password" ? "password" : "text",
     name: attr.id,
+    list: datalist,
+    autocomplete: datalist ? "off" : null,
     disabled: attr.id === "_id" && !current.isNew,
     value: current.object[attr.id],
     oncreate: focus

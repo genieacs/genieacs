@@ -45,7 +45,6 @@ const attributes: {
   {
     id: "metadata.fileType",
     label: "Type",
-    type: "combo",
     options: [
       "1 Firmware Upgrade Image",
       "2 Web Content",

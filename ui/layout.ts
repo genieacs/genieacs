@@ -24,6 +24,7 @@ import userMenu from "./user-menu";
 import adminMenu from "./admin-menu";
 import * as overlay from "./overlay";
 import { version as VERSION } from "../package.json";
+import datalist from "./datalist";
 
 const adminPages = [
   "presets",
@@ -69,6 +70,7 @@ const component: ClosureComponent = (): Component => {
           ])
         ),
         overlay.render(),
+        m(datalist),
       ];
     },
   };
