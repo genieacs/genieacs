@@ -342,6 +342,13 @@ body {
   flex-grow: 1;
   margin: 10px;
   min-height: 250px;
+
+  /* Workaround for Chrome ignoring bottom margin when flex container overflows */
+  &::after {
+    content: "";
+    display: block;
+    padding-bottom: 1px;
+  }
 }
 
 table.table {
