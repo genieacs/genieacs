@@ -1,5 +1,10 @@
 # Change Log
 
+## 1.2.5 (2021-03-12)
+
+- Support specifying custom types when uploading files.
+- Fix JS compatibility issue with Safari browser.
+
 ## 1.2.4 (2021-02-24)
 
 - The data model state of a CPE is no longer forgotten after unsuccessful
