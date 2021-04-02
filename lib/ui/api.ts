@@ -659,7 +659,7 @@ router.get("/ping/:host", async (ctx) => {
         ctx.body = parsed;
       } else {
         ctx.status = 500;
-        ctx.body = `${err.name}: ${err.message}`;
+        ctx.body = err ? `${err.name}: ${err.message}` : "Unknown error";
       }
       resolve();
     });
