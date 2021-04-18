@@ -172,8 +172,12 @@ export async function connectionRequest(
   );
 
   if (udpProm) {
-    await udpProm;
-    return "";
+    try {
+      await udpProm;
+      return "";
+    } catch (err) {
+      // Ignore
+    }
   }
 
   return status;
