@@ -182,14 +182,13 @@ export async function httpConnectionRequest(
 }
 
 export async function udpConnectionRequest(
-  address: string,
+  host: string,
+  port: number,
   authExp: Expression,
   sourcePort = 0,
   _debug: boolean,
   deviceId: string
 ): Promise<void> {
-  const [host, portStr] = address.split(":", 2);
-  const port = portStr ? parseInt(portStr) : 80;
   const now = Date.now();
 
   const client = dgram.createSocket({ type: "udp4", reuseAddr: true });
@@ -216,8 +215,8 @@ export async function udpConnectionRequest(
       .createHmac("sha1", password)
       .update(`${ts}${id}${username}${cn}`)
       .digest("hex");
-    const uri = `http://${address}?ts=${ts}&id=${id}&un=${username}&cn=${cn}&sig=${sig}`;
-    const msg = `GET ${uri} HTTP/1.1\r\nHost: ${address}\r\n\r\n`;
+    const uri = `http://${host}:${port}?ts=${ts}&id=${id}&un=${username}&cn=${cn}&sig=${sig}`;
+    const msg = `GET ${uri} HTTP/1.1\r\nHost: ${host}:${port}\r\n\r\n`;
     const message = Buffer.from(msg);
 
     for (let i = 0; i < 3; ++i) {
