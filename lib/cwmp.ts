@@ -208,7 +208,7 @@ async function writeResponse(
       sessionContext.extendLock = now + 10000;
       await cache.acquireLock(
         `cwmp_session_${sessionContext.deviceId}`,
-        sessionContext.timeout + 15000,
+        sessionContext.timeout * 1000 + 15000,
         0,
         sessionContext.sessionId
       );
@@ -891,7 +891,7 @@ async function getSession(
   const sessionContextString = await cache.pop(`session_${sessionId}`);
   if (!sessionContextString) return null;
   sessionContext = await session.deserialize(sessionContextString);
-  connection.setTimeout(sessionContext.timeout);
+  connection.setTimeout(sessionContext.timeout * 1000);
   return sessionContext;
 }
 
@@ -1146,7 +1146,7 @@ async function processRequest(
       sessionContext.extendLock = sessionContext.timestamp + 10000;
       await cache.acquireLock(
         `cwmp_session_${sessionContext.deviceId}`,
-        sessionContext.timeout + 15000,
+        sessionContext.timeout * 1000 + 15000,
         0,
         sessionContext.sessionId
       );
