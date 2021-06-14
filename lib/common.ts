@@ -51,7 +51,7 @@ export function escapeRegExp(str: string): string {
 export function encodeTag(tag: string): string {
   return encodeURIComponent(tag)
     .replace(
-      /[!~*'()]/g,
+      /[!~*'().]/g,
       (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase()
     )
     .replace(/0x(?=[0-9A-Z]{2})/g, "0%78")
