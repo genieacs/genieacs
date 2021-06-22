@@ -145,7 +145,7 @@ export async function connectionRequest(
 
   const debug = !!getConfig(snapshot, "cwmp.debug", {}, now, evalCallback);
 
-  let udpProm: Promise<void>;
+  let udpProm = Promise.resolve(false);
   if (udpConnectionRequestAddress) {
     try {
       const u = new URL("udp://" + udpConnectionRequestAddress);
@@ -156,6 +156,9 @@ export async function connectionRequest(
         UDP_CONNECTION_REQUEST_PORT,
         debug,
         deviceId
+      ).then(
+        () => true,
+        () => false
       );
     } catch (err) {
       // Ignore invalid address
@@ -171,14 +174,7 @@ export async function connectionRequest(
     deviceId
   );
 
-  if (udpProm) {
-    try {
-      await udpProm;
-      return "";
-    } catch (err) {
-      // Ignore
-    }
-  }
+  if (await udpProm) return "";
 
   return status;
 }
