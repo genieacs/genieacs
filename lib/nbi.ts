@@ -34,7 +34,7 @@ import * as logger from "./logger";
 const DEVICE_TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-_%]+)\/tasks\/?$/;
 const TASKS_REGEX = /^\/tasks\/([a-zA-Z0-9\-_%]+)(\/[a-zA-Z_]*)?$/;
 const TAGS_REGEX = /^\/devices\/([a-zA-Z0-9\-_%]+)\/tags\/([a-zA-Z0-9\-_%]+)\/?$/;
-const PRESETS_REGEX = /^\/presets\/([a-zA-Z0-9\-_%]+)\/?$/;
+const PRESETS_REGEX = /^\/presets\/([a-zA-Z0-9\.\-_%]+)\/?$/;
 const OBJECTS_REGEX = /^\/objects\/([a-zA-Z0-9\-_%]+)\/?$/;
 const FILES_REGEX = /^\/files\/([a-zA-Z0-9%!*'();:@&=+$,?#[\]\-_.~]+)\/?$/;
 const PING_REGEX = /^\/ping\/([a-zA-Z0-9\-_.:]+)\/?$/;
