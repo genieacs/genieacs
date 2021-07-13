@@ -30,14 +30,6 @@ const TIMEOUT = +config.get("EXT_TIMEOUT");
 const processes: { [script: string]: ChildProcess } = {};
 const jobs = new Map();
 
-function messageHandler(message): void {
-  const func = jobs.get(message[0]);
-  if (func) {
-    jobs.delete(message[0]);
-    func({ fault: message[1], value: message[2] });
-  }
-}
-
 export function run(args: string[]): Promise<{ fault: Fault; value: any }> {
   return new Promise((resolve) => {
     const scriptName = args[0];
@@ -70,7 +62,16 @@ export function run(args: string[]): Promise<{ fault: Fault; value: any }> {
         if (processes[scriptName] === p) delete processes[scriptName];
       });
 
-      p.on("message", messageHandler);
+      p.on("message", (message) => {
+        const func = jobs.get(message[0]);
+        if (func) {
+          jobs.delete(message[0]);
+          // Wait for any disconnect even to fire
+          setTimeout(() => {
+            func({ fault: message[1], value: message[2] });
+          });
+        }
+      });
 
       const rlstdout = readline.createInterface(p.stdout);
       rlstdout.on("line", (line) => {
