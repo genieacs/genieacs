@@ -2290,7 +2290,7 @@ function processDeclarations(
                     syncState.refreshAttributes.object.add(currentPath);
                   else if (currentAttributes.object[1] === 0)
                     syncState.refreshAttributes.value.add(currentPath);
-                } else {
+                } else if (attrName in syncState.refreshAttributes) {
                   syncState.refreshAttributes[attrName].add(currentPath);
                 }
               }
