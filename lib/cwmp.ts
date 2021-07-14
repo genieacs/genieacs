@@ -84,9 +84,13 @@ async function authenticate(
   let authentication;
 
   if (sessionContext.httpRequest.headers["authorization"]) {
-    authentication = auth.parseAuthorizationHeader(
-      sessionContext.httpRequest.headers["authorization"]
-    );
+    try {
+      authentication = auth.parseAuthorizationHeader(
+        sessionContext.httpRequest.headers["authorization"]
+      );
+    } catch (err) {
+      return false;
+    }
   }
 
   if (authentication && authentication.method === "Digest") {

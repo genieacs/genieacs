@@ -169,9 +169,13 @@ export async function httpConnectionRequest(
     if (res.statusCode === 503) return "Device is offline";
 
     if (res.statusCode === 401 && res.headers["www-authenticate"]) {
-      authHeader = auth.parseWwwAuthenticateHeader(
-        res.headers["www-authenticate"]
-      );
+      try {
+        authHeader = auth.parseWwwAuthenticateHeader(
+          res.headers["www-authenticate"]
+        );
+      } catch (err) {
+        return "Connection request error: Error parsing www-authenticate header";
+      }
       [username, password, authExp] = await extractAuth(authExp, false);
     } else {
       return `Connection request error: Unexpected status code ${res.statusCode}`;
