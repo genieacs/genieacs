@@ -1,6 +1,25 @@
 import ava from "ava";
 import Path from "../lib/common/path";
 
+ava("parse", (t) => {
+  t.throws(() => Path.parse("."));
+  t.throws(() => Path.parse("a "));
+  t.throws(() => Path.parse(".a"));
+  t.throws(() => Path.parse("a."));
+  t.throws(() => Path.parse("a..b"));
+  t.throws(() => Path.parse("b*"));
+  t.throws(() => Path.parse("*b"));
+  t.throws(() => Path.parse("a.b c.d"));
+  t.throws(() => Path.parse("a["));
+  t.throws(() => Path.parse("a[b"));
+  t.throws(() => Path.parse("a[b:"));
+  t.throws(() => Path.parse('a[b:"waef]'));
+  t.notThrows(() => Path.parse("[]"));
+  t.notThrows(() => Path.parse("[a:]"));
+  t.notThrows(() => Path.parse("*"));
+  t.notThrows(() => Path.parse(""));
+});
+
 ava("toString", (t) => {
   const path1 = Path.parse('abc.[ abc : 123 , 123 : abc , 123: " abc "].123');
   const path2 = Path.parse('abc.[123:  " abc ",abc:123,123:abc].123');

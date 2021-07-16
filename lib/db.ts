@@ -19,7 +19,7 @@
 
 import { MongoClient, ObjectID, Collection, Db } from "mongodb";
 import { get } from "./config";
-import { encodeTag, escapeRegExp } from "./common";
+import { decodeTag, encodeTag, escapeRegExp } from "./common";
 import { parse } from "./common/expression-parser";
 import {
   DeviceData,
@@ -45,6 +45,8 @@ export let tasksCollection: Collection,
   configCollection: Collection;
 
 let clientPromise: Promise<MongoClient>;
+
+const INVALID_PATH_SUFFIX = "__invalid";
 
 function compareAccessLists(list1: string[], list2: string[]): boolean {
   if (list1.length !== list2.length) return false;
@@ -167,7 +169,19 @@ export async function fetchDevice(
     if (obj["_accessList"] != null)
       attrs.accessList = [obj["_attributesTimestamp"] || 1, obj["_accessList"]];
 
-    res.push([Path.parse(path), t, attrs]);
+    try {
+      res.push([Path.parse(path), t, attrs]);
+    } catch (err) {
+      // The path parser is now more strict so we might be in a situation where
+      // the database contains invalid paths from before this change So here we
+      // encode the invalid characters.
+      const splits = path.split(".");
+      splits[splits.length - 1] =
+        encodeTag(splits[splits.length - 1]) + INVALID_PATH_SUFFIX;
+      path = splits.join(".");
+      res.push([Path.parse(path), t, attrs]);
+      return;
+    }
 
     for (const [k, v] of Object.entries(obj)) {
       if (!k.startsWith("_")) {
@@ -449,7 +463,16 @@ export async function saveDevice(
         break;
       default:
         if (!diff[2]) {
-          update["$unset"][path.toString()] = 1;
+          let pathStr = path.toString();
+          // Paths with that suffix are encoded and need to be decoded
+          if (pathStr.endsWith(INVALID_PATH_SUFFIX)) {
+            const splits = pathStr.split(".");
+            splits[splits.length - 1] = decodeTag(
+              splits[splits.length - 1].slice(0, 0 - INVALID_PATH_SUFFIX.length)
+            );
+            pathStr = splits.join(".");
+          }
+          update["$unset"][pathStr] = 1;
           continue;
         }
 

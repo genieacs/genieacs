@@ -23,6 +23,31 @@ type Alias = [Path, string][];
 let cache1 = new Map<string, Path>();
 let cache2 = new Map<string, Path>();
 
+const CHAR_SPACE = 32;
+const CHAR_BACKSLASH = 92;
+const CHAR_COLON = 58;
+const CHAR_QUOTE = 34;
+const CHAR_OPEN_BRACKET = 91;
+const CHAR_CLOSE_BRACKET = 93;
+const CHAR_ASTERISK = 42;
+const CHAR_COMMA = 44;
+const CHAR_DOT = 46;
+
+function charCodeAt(str: string, index: number): number {
+  if (index >= str.length) return 0;
+  return str.charCodeAt(index);
+}
+
+function legalChar(c: number): boolean {
+  return (
+    (c >= 97 && c <= 122) ||
+    (c >= 65 && c <= 90) ||
+    (c >= 48 && c <= 57) ||
+    c === 95 ||
+    c === 45
+  );
+}
+
 export default class Path {
   public readonly segments: Segments;
   public readonly wildcard: number;
@@ -30,37 +55,70 @@ export default class Path {
   protected _string: string;
   protected _stringIndex: number[];
 
+  protected static parseAliasValue(
+    pattern: string,
+    index: number
+  ): { index: number; value: string } {
+    let i = index;
+    while (charCodeAt(pattern, i) === CHAR_SPACE) ++i;
+    if (charCodeAt(pattern, i) === CHAR_QUOTE) {
+      for (let j = i + 1; j < pattern.length; ++j) {
+        if (
+          pattern.charCodeAt(j) === CHAR_QUOTE &&
+          pattern.charCodeAt(j - 1) !== CHAR_BACKSLASH
+        ) {
+          try {
+            ++j;
+            const v = JSON.parse(pattern.slice(i, j));
+            return { index: j, value: v };
+          } catch {
+            return { index, value: null };
+          }
+        }
+      }
+      return { index, value: null };
+    }
+
+    for (; i < pattern.length; ++i) {
+      const c = pattern.charCodeAt(i);
+      if (c === CHAR_CLOSE_BRACKET || c === CHAR_COMMA) break;
+    }
+
+    return { index: i, value: pattern.slice(index, i).trim() };
+  }
+
+  protected static parseAliasPath(
+    pattern: string,
+    index: number
+  ): { index: number; path: Path } {
+    let i = index;
+    while (charCodeAt(pattern, i) === CHAR_SPACE) ++i;
+    const { index: idx, segments } = Path.parsePath(pattern, i);
+    if (idx === i) return { index, path: null };
+    i = idx;
+    while (charCodeAt(pattern, i) === CHAR_SPACE) ++i;
+    if (charCodeAt(pattern, i) !== CHAR_COLON) return { index, path: null };
+    return { index: i + 1, path: new Path(segments) };
+  }
+
   protected static parseAlias(
     pattern: string,
     index: number
   ): { index: number; alias: Alias } {
     const alias: Alias = [];
-    while (index < pattern.length && pattern[index] !== "]") {
-      const { index: idx, segments } = Path.parsePath(pattern, index);
-      let j = (index = idx + 1);
-      while (pattern[j] !== "]" && pattern[j] !== ",") {
-        if (pattern[j] === '"' && index === j) {
-          ++j;
-          while (pattern[j] !== '"' || pattern[j - 1] === "\\") {
-            if (++j >= pattern.length)
-              throw new Error("Invalid alias expression");
-          }
-        }
-        if (++j >= pattern.length) throw new Error("Invalid alias expression");
-      }
+    let i = index;
+    for (;;) {
+      let path: Path;
+      let value: string;
+      ({ index: i, path } = Path.parseAliasPath(pattern, i));
+      if (!path) break;
+      ({ index: i, value } = Path.parseAliasValue(pattern, i));
+      if (value == null) break;
+      alias.push([path, value]);
+      index = i;
 
-      let value = pattern.slice(index, j).trim();
-      index = j;
-      if (value[0] === '"') {
-        try {
-          value = JSON.parse(value);
-        } catch (error) {
-          throw new Error("Invalid alias expression");
-        }
-      }
-
-      alias.push([new Path(segments), value]);
-      if (pattern[index] === ",") ++index;
+      if (charCodeAt(pattern, index) !== CHAR_COMMA) break;
+      ++i;
     }
 
     // Ensure identical expressions have idential string representation
@@ -81,30 +139,26 @@ export default class Path {
     index: number
   ): { index: number; segments: Segments } {
     const segments = [];
-    // Colon separator is needed for parseAlias
-    if (index < pattern.length && pattern[index] !== ":") {
-      for (;;) {
-        if (pattern[index] === "[") {
-          const { index: idx, alias } = Path.parseAlias(pattern, index + 1);
-          index = idx + 1;
-          segments.push(alias);
-        } else {
-          const j = index;
-          while (
-            index < pattern.length &&
-            pattern[index] !== ":" &&
-            pattern[index] !== "."
-          )
-            ++index;
-          const s = pattern.slice(j, index).trim();
-          if (!s) throw new Error("Invalid parameter path");
-          segments.push(s);
-        }
 
-        if (index >= pattern.length || pattern[index] === ":") break;
-        else if (pattern[index] !== ".")
-          throw new Error("Invalid alias expression");
-        ++index;
+    let segStart = index;
+    let wildcard = -1;
+    for (let i = index; i <= pattern.length; ++i) {
+      const c = charCodeAt(pattern, i);
+      if (c === CHAR_OPEN_BRACKET && i === segStart) {
+        const { index: idx, alias } = Path.parseAlias(pattern, i + 1);
+        if (charCodeAt(pattern, idx) !== CHAR_CLOSE_BRACKET) break;
+        segments.push(alias);
+        index = i = idx + 1;
+        segStart = i + 1;
+      } else if (c === CHAR_ASTERISK && i === segStart) {
+        wildcard = i + 1;
+      } else if (!legalChar(c) || i === wildcard) {
+        if (i === segStart) break;
+        const s = pattern.slice(segStart, i);
+        segments.push(s);
+        index = i;
+        if (c !== CHAR_DOT) break;
+        segStart = i + 1;
       }
     }
 
@@ -143,7 +197,8 @@ export default class Path {
     if (!path) {
       path = cache2.get(str);
       if (!path) {
-        const { segments } = Path.parsePath(str, 0);
+        const { index, segments } = Path.parsePath(str, 0);
+        if (index < str.length) throw new Error("Invalid parameter path");
         path = new Path(segments);
         if (path.toString() !== str) cache1.set(path.toString(), path);
       }
