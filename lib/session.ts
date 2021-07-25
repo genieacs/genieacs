@@ -59,6 +59,7 @@ import {
   GetParameterValuesResponse,
 } from "./types";
 import { getRequestOrigin } from "./forwarded";
+import * as logger from "./logger";
 
 const VALID_PARAM_TYPES = new Set([
   "xsd:int",
@@ -2420,8 +2421,15 @@ export async function rpcResponse(
   id: string,
   _rpcRes: CpeResponse
 ): Promise<Fault> {
+  function invalidResponse(message: string): Fault {
+    return {
+      code: "invalid_response",
+      message: message,
+    };
+  }
+
   if (id !== generateRpcId(sessionContext))
-    throw new Error("Request ID not recognized");
+    return invalidResponse("Request ID not recognized");
 
   ++sessionContext.rpcCount;
 
@@ -2512,47 +2520,99 @@ export async function rpcResponse(
 
   if (rpcRes.name === "GetParameterValuesResponse") {
     if (rpcReq.name !== "GetParameterValues")
-      throw new Error("Response name does not match request name");
+      return invalidResponse("Response name does not match request name");
 
-    if (rpcRes.parameterList.length !== rpcReq.parameterNames.length) {
-      return {
-        code: `invalid_response`,
-        message:
-          "The list of parameters returned in the GetParameterValuesResponse message does not match the requested parameters",
-      };
-    }
+    const requested = new Set(rpcReq.parameterNames);
 
-    for (const p of rpcRes.parameterList) {
+    for (const [path, value, type] of rpcRes.parameterList) {
+      if (!requested.delete(path.toString())) {
+        logger.accessWarn({
+          sessionContext: sessionContext,
+          message: "Unexpected parameter in response",
+          parameter: path.toString(),
+        });
+        continue;
+      }
       toClear = device.set(
         sessionContext.deviceData,
-        p[0],
+        path,
         timestamp,
         {
           object: [timestamp, 0],
-          value: [timestamp, p.slice(1) as [string | number | boolean, string]],
+          value: [timestamp, [value, type]],
         },
         toClear
       );
+    }
+
+    if (requested.size) {
+      for (const p of requested) {
+        logger.accessWarn({
+          sessionContext: sessionContext,
+          message: "Missing parameter in response",
+          parameter: p,
+        });
+        toClear = device.set(
+          sessionContext.deviceData,
+          Path.parse(p),
+          timestamp,
+          {
+            object: [timestamp, 0],
+            value: [timestamp, ["", "xsd:string"]],
+          },
+          toClear
+        );
+      }
     }
   } else if (rpcRes.name === "GetParameterAttributesResponse") {
     if (rpcReq.name !== "GetParameterAttributes")
       throw new Error("Response name does not match request name");
 
-    for (const p of rpcRes.parameterList) {
+    const requested = new Set(rpcReq.parameterNames);
+
+    for (const [path, notification, accessList] of rpcRes.parameterList) {
+      if (!requested.delete(path.toString())) {
+        logger.accessWarn({
+          sessionContext: sessionContext,
+          message: "Unexpected parameter in response",
+          parameter: path.toString(),
+        });
+        continue;
+      }
       toClear = device.set(
         sessionContext.deviceData,
-        p[0],
+        path,
         timestamp,
         {
-          notification: [timestamp, p[1] as number],
-          accessList: [timestamp, p[2] as string[]],
+          notification: [timestamp, notification],
+          accessList: [timestamp, accessList],
         },
         toClear
       );
     }
+
+    if (requested.size) {
+      for (const p of requested) {
+        logger.accessWarn({
+          sessionContext: sessionContext,
+          message: "Missing parameter in response",
+          parameter: p,
+        });
+        toClear = device.set(
+          sessionContext.deviceData,
+          Path.parse(p),
+          timestamp,
+          {
+            notification: [timestamp, 0],
+            accessList: [timestamp, []],
+          },
+          toClear
+        );
+      }
+    }
   } else if (rpcRes.name === "GetParameterNamesResponse") {
     if (rpcReq.name !== "GetParameterNames")
-      throw new Error("Response name does not match request name");
+      return invalidResponse("Response name does not match request name");
 
     let root: Path;
     if (rpcReq.parameterPath.endsWith("."))
@@ -2609,6 +2669,14 @@ export async function rpcResponse(
     const wildcardParams: Path[] = [root.concat(wildcardPath)];
 
     for (const [path, object, writable] of rpcRes.parameterList) {
+      if (!path.toString().startsWith(rpcReq.parameterPath)) {
+        logger.accessWarn({
+          sessionContext: sessionContext,
+          message: "Unexpected parameter in response",
+          parameter: path.toString(),
+        });
+        continue;
+      }
       if (object && !rpcReq.nextLevel)
         wildcardParams.push(path.concat(wildcardPath));
 
@@ -2635,7 +2703,7 @@ export async function rpcResponse(
     }
   } else if (rpcRes.name === "SetParameterValuesResponse") {
     if (rpcReq.name !== "SetParameterValues")
-      throw new Error("Response name does not match request name");
+      return invalidResponse("Response name does not match request name");
 
     for (const p of rpcReq.parameterList) {
       toClear = device.set(
@@ -2654,7 +2722,7 @@ export async function rpcResponse(
     }
   } else if (rpcRes.name === "SetParameterAttributesResponse") {
     if (rpcReq.name !== "SetParameterAttributes")
-      throw new Error("Response name does not match request name");
+      return invalidResponse("Response name does not match request name");
 
     for (const p of rpcReq.parameterList) {
       let attrs;
@@ -2684,7 +2752,7 @@ export async function rpcResponse(
     }
   } else if (rpcRes.name === "AddObjectResponse") {
     if (rpcReq.name !== "AddObject")
-      throw new Error("Response name does not match request name");
+      return invalidResponse("Response name does not match request name");
 
     toClear = device.set(
       sessionContext.deviceData,
@@ -2695,7 +2763,7 @@ export async function rpcResponse(
     );
   } else if (rpcRes.name === "DeleteObjectResponse") {
     if (rpcReq.name !== "DeleteObject")
-      throw new Error("Response name does not match request name");
+      return invalidResponse("Response name does not match request name");
 
     toClear = device.set(
       sessionContext.deviceData,
@@ -2706,7 +2774,7 @@ export async function rpcResponse(
     );
   } else if (rpcRes.name === "RebootResponse") {
     if (rpcReq.name !== "Reboot")
-      throw new Error("Response name does not match request name");
+      return invalidResponse("Response name does not match request name");
 
     toClear = device.set(
       sessionContext.deviceData,
@@ -2717,7 +2785,7 @@ export async function rpcResponse(
     );
   } else if (rpcRes.name === "FactoryResetResponse") {
     if (rpcReq.name !== "FactoryReset")
-      throw new Error("Response name does not match request name");
+      return invalidResponse("Response name does not match request name");
 
     toClear = device.set(
       sessionContext.deviceData,
@@ -2728,7 +2796,7 @@ export async function rpcResponse(
     );
   } else if (rpcRes.name === "DownloadResponse") {
     if (rpcReq.name !== "Download")
-      throw new Error("Response name does not match request name");
+      return invalidResponse("Response name does not match request name");
 
     toClear = device.set(
       sessionContext.deviceData,
@@ -2814,7 +2882,7 @@ export async function rpcResponse(
       sessionContext.operationsTouched[rpcReq.commandKey] = 1;
     }
   } else {
-    throw new Error("Response name not recognized");
+    return invalidResponse("Response name not recognized");
   }
 
   if (toClear) {
