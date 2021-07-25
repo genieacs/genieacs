@@ -78,7 +78,7 @@ const component: ClosureComponent = (): Component => {
       const { value, timestamp, parameter } = evaluateParam(
         vnode.attrs["parameter"],
         vnode.attrs["device"],
-        store.getTimestamp()
+        store.getTimestamp() + store.getClockSkew()
       );
 
       if (value == null) return null;
@@ -117,7 +117,7 @@ const component: ClosureComponent = (): Component => {
             e.redraw = false;
             // Don't update any child element
             if (e.target === (el as VnodeDOM).dom) {
-              const now = Date.now();
+              const now = Date.now() + store.getClockSkew();
               const localeString = new Date(timestamp).toLocaleString();
               e.target.title = `${localeString} (${timeAgo(now - timestamp)})`;
             }

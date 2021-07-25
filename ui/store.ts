@@ -34,6 +34,8 @@ const memoizedEvaluate = memoize(evaluate);
 let fulfillTimestamp = 0;
 let connectionNotification, configNotification, versionNotification;
 
+let clockSkew = 0;
+
 const queries = {
   filter: new WeakMap(),
   bookmark: new WeakMap(),
@@ -93,11 +95,13 @@ class QueryResponse {
 }
 
 function checkConnection(): void {
+  const now1 = Date.now();
   m.request({
     url: "status",
     method: "GET",
     background: true,
     extract: (xhr) => {
+      const now2 = Date.now();
       if (xhr.status !== 200) {
         if (!connectionNotification) {
           connectionNotification = notifications.push(
@@ -110,6 +114,21 @@ function checkConnection(): void {
         if (connectionNotification) {
           notifications.dismiss(connectionNotification);
           connectionNotification = null;
+        }
+
+        try {
+          const nowAvg = Math.trunc((now1 + now2) / 2);
+          const skew = Date.parse(xhr.getResponseHeader("Date")) - nowAvg;
+          if (Math.abs(skew - clockSkew) > 5000 && now2 - now1 < 1000) {
+            clockSkew = skew;
+            console.warn(
+              `System and server clocks are out of sync. Adding ${clockSkew}ms offset to any client-side time relative calculations.`
+            );
+            setTimestamp(now2);
+            m.redraw();
+          }
+        } catch (err) {
+          // Ignore in case of missing or invalid Date header
         }
 
         const configChanged =
@@ -209,7 +228,7 @@ export async function xhrRequest(
 
 export function unpackExpression(exp: Expression): Expression {
   if (!Array.isArray(exp)) return exp;
-  const e = memoizedEvaluate(exp, null, fulfillTimestamp);
+  const e = memoizedEvaluate(exp, null, fulfillTimestamp + clockSkew);
   return e;
 }
 
@@ -295,7 +314,7 @@ function compareFunction(sort: {
 function findMatches(resourceType, filter, sort, limit): any[] {
   let value = [];
   for (const obj of resources[resourceType].objects.values())
-    if (evaluate(filter, obj, fulfillTimestamp)) value.push(obj);
+    if (evaluate(filter, obj, fulfillTimestamp + clockSkew)) value.push(obj);
 
   value = value.sort(compareFunction(sort));
   if (limit) value = value.slice(0, limit);
@@ -461,7 +480,7 @@ export function fulfill(accessTimestamp: number): void {
 
         for (const queryResponse of toFetch) {
           let filter = queries.filter.get(queryResponse);
-          filter = memoizedEvaluate(filter, null, fulfillTimestamp);
+          filter = memoizedEvaluate(filter, null, fulfillTimestamp + clockSkew);
           const bookmark = queries.bookmark.get(queryResponse);
           const sort = queries.sort.get(queryResponse);
           if (bookmark) filter = limitFilter(filter, sort, bookmark);
@@ -476,7 +495,11 @@ export function fulfill(accessTimestamp: number): void {
         if (!diff) {
           for (const queryResponse of toFetch) {
             let filter = queries.filter.get(queryResponse);
-            filter = memoizedEvaluate(filter, null, fulfillTimestamp);
+            filter = memoizedEvaluate(
+              filter,
+              null,
+              fulfillTimestamp + clockSkew
+            );
             const limit = queries.limit.get(queryResponse);
             const bookmark = queries.bookmark.get(queryResponse);
             const sort = queries.sort.get(queryResponse);
@@ -521,7 +544,9 @@ export function fulfill(accessTimestamp: number): void {
 
             for (const d of deleted) {
               const obj = resources[resourceType].objects.get(d);
-              if (evaluate(combinedFilterDiff, obj, fulfillTimestamp))
+              if (
+                evaluate(combinedFilterDiff, obj, fulfillTimestamp + clockSkew)
+              )
                 resources[resourceType].objects.delete(d);
             }
 
@@ -561,6 +586,10 @@ export function setTimestamp(t: number): void {
     for (const resource of Object.values(resources))
       resource.combinedFilter = null;
   }
+}
+
+export function getClockSkew(): number {
+  return clockSkew;
 }
 
 export function postTasks(
@@ -664,7 +693,7 @@ export function evaluateExpression(
   obj: Record<string, unknown>
 ): Expression {
   if (!Array.isArray(exp)) return exp;
-  return memoizedEvaluate(exp, obj, fulfillTimestamp);
+  return memoizedEvaluate(exp, obj, fulfillTimestamp + clockSkew);
 }
 
 export function changePassword(
