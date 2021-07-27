@@ -787,3 +787,13 @@ span.parameter-value {
     background-size: 100% 100%;
   }
 }
+
+.progress {
+  background-color: #eee;
+  overflow: hidden;
+  height: 3px;
+  & > .progress-bar {
+    height: 100%;
+    background-color: #b12d5c;
+  }
+}

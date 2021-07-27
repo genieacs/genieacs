@@ -59,8 +59,10 @@ const getAuthorizer = memoize(
   }
 );
 
-koa.on("error", async (err) => {
+koa.on("error", async (err, ctx) => {
   setTimeout(() => {
+    // Ignored errors resulting from aborted requests
+    if (ctx && ctx.req.aborted) return;
     throw err;
   });
 });

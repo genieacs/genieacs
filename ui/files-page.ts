@@ -73,58 +73,32 @@ const unpackSmartQuery = memoize((query) => {
   });
 });
 
-interface ValidationErrors {
-  [prop: string]: string;
-}
-
-function putActionHandler(action, _object): Promise<ValidationErrors> {
-  return new Promise((resolve, reject) => {
-    const object = Object.assign({}, _object);
-    if (action === "save") {
-      const file = object["file"] ? object["file"][0] : null;
-      delete object["file"];
-
-      if (!file) return void resolve({ file: "File not selected" });
-
-      const id = file.name;
-
-      store
-        .resourceExists("files", id)
-        .then((exists) => {
-          if (exists) {
-            store.setTimestamp(Date.now());
-            return void resolve({ file: "File already exists" });
-          }
-          const headers = Object.assign(
-            {
-              "Content-Type": "application/octet-stream",
-              Accept: "application/octet-stream",
-            },
-            object
-          );
-
-          store
-            .xhrRequest({
-              method: "PUT",
-              headers: headers,
-              url: `api/files/${encodeURIComponent(id)}`,
-              serialize: (body) => body, // Identity function to prevent JSON.parse on blob data
-              body: file,
-            })
-            .then(() => {
-              notifications.push(
-                "success",
-                `File ${exists ? "updated" : "created"}`
-              );
-              store.setTimestamp(Date.now());
-              resolve(null);
-            })
-            .catch(reject);
-        })
-        .catch(reject);
-    } else {
-      reject(new Error("Undefined action"));
-    }
+function upload(
+  file: File,
+  headers: Record<string, string>,
+  abortSignal?: AbortSignal,
+  progressListener?: (e: ProgressEvent) => void
+): Promise<void> {
+  headers = Object.assign(
+    {
+      "Content-Type": "application/octet-stream",
+    },
+    headers
+  );
+  return store.xhrRequest({
+    method: "PUT",
+    headers: headers,
+    url: `api/files/${encodeURIComponent(file.name)}`,
+    serialize: (body) => body, // Identity function to prevent JSON.parse on blob data
+    body: file,
+    config: (xhr) => {
+      if (progressListener)
+        xhr.upload.addEventListener("progress", progressListener);
+      if (abortSignal) {
+        if (abortSignal.aborted) xhr.abort();
+        abortSignal.addEventListener("abort", () => xhr.abort());
+      }
+    },
   });
 }
 
@@ -224,42 +198,77 @@ export const component: ClosureComponent = (): Component => {
                 title: "Create new file",
                 onclick: () => {
                   let cb: () => Children = null;
+                  const abortController = new AbortController();
+                  let progress = -1;
                   const comp = m(
                     putFormComponent,
                     Object.assign(
                       {
-                        actionHandler: (action, object) => {
-                          return new Promise<void>((resolve) => {
-                            putActionHandler(action, object)
-                              .then((errors) => {
-                                const errorList = errors
-                                  ? Object.values(errors)
-                                  : [];
-                                if (errorList.length) {
-                                  for (const err of errorList)
-                                    notifications.push("error", err);
-                                } else {
-                                  overlay.close(cb);
-                                }
-                                resolve();
-                              })
-                              .catch((err) => {
-                                notifications.push("error", err.message);
-                                resolve();
-                              });
-                          });
+                        actionHandler: async (action, _object) => {
+                          if (action !== "save")
+                            throw new Error("Undefined action");
+                          const object = Object.assign({}, _object);
+                          const file = object["file"]
+                            ? object["file"][0]
+                            : null;
+                          delete object["file"];
+                          if (!file) {
+                            notifications.push("error", "File not selected");
+                            return;
+                          }
+
+                          if (await store.resourceExists("files", file.name)) {
+                            store.setTimestamp(Date.now());
+                            notifications.push("error", "File already exists");
+                            return;
+                          }
+
+                          const progressListener = (e: ProgressEvent): void => {
+                            progress = e.loaded / e.total;
+                            m.redraw();
+                          };
+
+                          progress = 0;
+                          try {
+                            await upload(
+                              file,
+                              object,
+                              abortController.signal,
+                              progressListener
+                            );
+                            store.setTimestamp(Date.now());
+                            notifications.push("success", "File created");
+                            overlay.close(cb);
+                          } catch (err) {
+                            notifications.push("error", err.message);
+                          }
+                          progress = -1;
                         },
                       },
                       formData
                     )
                   );
-                  cb = () => comp;
-                  overlay.open(
-                    cb,
-                    () =>
-                      !comp.state["current"]["modified"] ||
-                      confirm("You have unsaved changes. Close anyway?")
-                  );
+                  cb = () => {
+                    if (progress < 0) return [null, comp];
+                    return [
+                      m(
+                        "div.progress",
+                        m("div.progress-bar", {
+                          style: `width: ${Math.trunc(progress * 100)}%`,
+                        })
+                      ),
+                      comp,
+                    ];
+                  };
+                  overlay.open(cb, () => {
+                    if (
+                      comp.state["current"]["modified"] &&
+                      !confirm("You have unsaved changes. Close anyway?")
+                    )
+                      return false;
+                    abortController.abort();
+                    return true;
+                  });
                 },
               },
               "New"
