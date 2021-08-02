@@ -19,7 +19,7 @@ Prerequisites
 
 .. topic:: Node.js
 
-  GenieACS requires Node.js 10.x and up. Refer to https://nodejs.org/ for
+  GenieACS requires Node.js 12.13 and up. Refer to https://nodejs.org/ for
   instructions.
 
 .. topic:: MongoDB
