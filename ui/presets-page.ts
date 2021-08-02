@@ -323,7 +323,7 @@ export const component: ClosureComponent = (): Component => {
                     return m(
                       "div",
                       { style: "margin:20px" },
-                      "This UI only supports presets with a single 'provision' configuraiton. If this preset was originally created from the old UI (genieacs-gui), you must edit it there."
+                      "This UI only supports presets with a single 'provision' configuration. If this preset was originally created from the old UI (genieacs-gui), you must edit it there."
                     );
                   }
                   return comp;
@@ -331,7 +331,7 @@ export const component: ClosureComponent = (): Component => {
                 overlay.open(
                   cb,
                   () =>
-                    !comp.state["current"]["modified"] ||
+                    !(comp.state && comp.state["current"]["modified"]) ||
                     confirm("You have unsaved changes. Close anyway?")
                 );
               },
