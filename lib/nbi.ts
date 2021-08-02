@@ -30,6 +30,7 @@ import * as cache from "./cache";
 import { version as VERSION } from "../package.json";
 import { ping } from "./ping";
 import * as logger from "./logger";
+import { flattenDevice } from "./mongodb-functions";
 
 const DEVICE_TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-_%]+)\/tasks\/?$/;
 const TASKS_REGEX = /^\/tasks\/([a-zA-Z0-9\-_%]+)(\/[a-zA-Z_]*)?$/;
@@ -402,9 +403,18 @@ export function listener(
         if (body.length) {
           const task = JSON.parse(body.toString());
           task.device = deviceId;
-          apiFunctions
-            .insertTasks(task)
-            .then(async () => {
+          collections.devices
+            .findOne({ _id: deviceId })
+            .then(async (dev) => {
+              if (!dev) {
+                response.writeHead(404);
+                response.end("No such device");
+                return;
+              }
+
+              const device = flattenDevice(dev);
+              await apiFunctions.insertTasks(task);
+
               const lastInform = Date.now();
 
               const socketTimeout: number = request.socket["timeout"];
@@ -435,7 +445,10 @@ export function listener(
                 return;
               }
 
-              const status = await apiFunctions.connectionRequest(deviceId);
+              const status = await apiFunctions.connectionRequest(
+                deviceId,
+                device
+              );
 
               if (status) {
                 if (socketTimeout) request.socket.setTimeout(socketTimeout);
@@ -518,15 +531,28 @@ export function listener(
             });
         } else if (urlParts.query.connection_request != null) {
           // No task, send connection request only
-          apiFunctions
-            .connectionRequest(deviceId)
-            .then(() => {
-              response.writeHead(200);
-              response.end();
+          collections.devices
+            .findOne({ _id: deviceId })
+            .then(async (dev) => {
+              if (!dev) {
+                response.writeHead(404);
+                response.end("No such device");
+                return;
+              }
+              return apiFunctions.connectionRequest(deviceId).then((status) => {
+                if (status) {
+                  response.writeHead(504, status);
+                  response.end(status);
+                  return;
+                }
+                response.writeHead(200);
+                response.end();
+              });
             })
             .catch((err) => {
-              response.writeHead(504);
-              response.end(`${err.name}: ${err.message}`);
+              setTimeout(() => {
+                throwError(err, response);
+              });
             });
         } else {
           response.writeHead(400);
