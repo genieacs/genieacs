@@ -48,6 +48,9 @@ import {
   GetRPCMethodsRequest,
   RequestDownloadRequest,
   AcsResponse,
+  ChangeDUState,
+  ChangeDUStateResponse,
+  DUStateChangeCompleteRequest,
 } from "./types";
 import Path from "./common/path";
 
@@ -573,6 +576,29 @@ function DownloadResponse(xml: Element): DownloadResponse {
   };
 }
 
+function ChangeDUState(methodRequest: ChangeDUState): string {
+  const operations = methodRequest.operations.map((op) => {
+    if (op.operationType === "install")
+      return `<Operations xsi:type="cwmp:InstallOpStruct"><UUID>${op.uuid}</UUID><URL>${op.url}</URL><ExecutionEnvRef>${op.executionEnvRef}</ExecutionEnvRef><Username>${op.username}</Username><Password>${op.password}</Password></Operations>`;
+    else if (op.operationType === "update")
+      return `<Operations xsi:type="cwmp:UpdateOpStruct"><UUID>${op.uuid}</UUID><URL>${op.url}</URL><Version>${op.version}</Version><Username>${op.username}</Username><Password>${op.password}</Password></Operations>`;
+    else if (op.operationType === "uninstall")
+      return `<Operations xsi:type="cwmp:UninstallOpStruct"><UUID>${op.uuid}</UUID><Version>${op.version}</Version><ExecutionEnvRef>${op.executionEnvRef}</ExecutionEnvRef></Operations>`;
+
+    return "";
+  });
+
+  return `<cwmp:ChangeDUState><CommandKey>${
+    methodRequest.commandKey || ""
+  }</CommandKey>${operations.join("")}</cwmp:ChangeDUState>`;
+}
+
+function ChangeDUStateResponse(): ChangeDUStateResponse {
+  return {
+    name: "ChangeDUStateResponse",
+  };
+}
+
 function Inform(xml: Element): InformRequest {
   let retryCount: number, evnt: string[];
   let parameterList: [Path, string | number | boolean, string][];
@@ -717,6 +743,97 @@ function TransferComplete(xml: Element): TransferCompleteRequest {
 
 function TransferCompleteResponse(): string {
   return "<cwmp:TransferCompleteResponse></cwmp:TransferCompleteResponse>";
+}
+
+function DUStateChangeComplete(xml: Element): DUStateChangeCompleteRequest {
+  let commandKey: string,
+    results: DUStateChangeCompleteRequest["results"],
+    res: DUStateChangeCompleteRequest["results"][0];
+  for (const c of xml.children) {
+    switch (c.localName) {
+      case "CommandKey":
+        commandKey = c.text;
+        break;
+      case "Results":
+        if (!results) results = [];
+        res = {
+          uuid: null,
+          deploymentUnitRef: null,
+          version: null,
+          currentState: null,
+          resolved: true,
+          executionUnitRefList: null,
+          startTime: null,
+          completeTime: null,
+          fault: null,
+        };
+        for (const cc of c.children) {
+          switch (cc.localName) {
+            case "UUID":
+              res.uuid = cc.text;
+              break;
+            case "DeploymentUnitRef":
+              res.deploymentUnitRef = cc.text;
+              break;
+            case "Version":
+              res.version = cc.text;
+              break;
+            case "CurrentState":
+              res.currentState = cc.text;
+              break;
+            case "Resolved":
+              res.resolved = parseBool(cc.text);
+              break;
+            case "ExecutionUnitRefList":
+              res.executionUnitRefList = cc.text;
+              break;
+            case "StartTime":
+              res.startTime = Date.parse(c.text);
+              break;
+            case "CompleteTime":
+              res.completeTime = Date.parse(c.text);
+              break;
+            case "Fault":
+              res.fault = {
+                faultCode: cc.children.find((n) => n.localName === "FaultCode")
+                  .text,
+                faultString: cc.children.find(
+                  (n) => n.localName === "FaultString"
+                ).text,
+              };
+              break;
+          }
+          results.push(res);
+        }
+        break;
+    }
+  }
+
+  if (commandKey == null) {
+    warnings.push({
+      message: "Missing or invalid XML node",
+      element: "CommandKey",
+    });
+    commandKey = "";
+  }
+
+  if (!results) {
+    warnings.push({
+      message: "Missing or invalid XML node",
+      element: "Results",
+    });
+    results = [];
+  }
+
+  return {
+    name: "DUStateChangeComplete",
+    commandKey: commandKey,
+    results: results,
+  };
+}
+
+function DUStateChangeCompleteResponse(): string {
+  return "<cwmp:DUStateChangeCompleteResponse></cwmp:DUStateChangeCompleteResponse>";
 }
 
 function RequestDownload(xml: Element): RequestDownloadRequest {
@@ -923,6 +1040,9 @@ export function request(
     case "TransferComplete":
       rpc.cpeRequest = TransferComplete(methodElement);
       break;
+    case "DUStateChangeComplete":
+      rpc.cpeRequest = DUStateChangeComplete(methodElement);
+      break;
     case "RequestDownload":
       rpc.cpeRequest = RequestDownload(methodElement);
       break;
@@ -955,6 +1075,9 @@ export function request(
       break;
     case "DownloadResponse":
       rpc.cpeResponse = DownloadResponse(methodElement);
+      break;
+    case "ChangeDUStateResponse":
+      rpc.cpeResponse = ChangeDUStateResponse();
       break;
     case "Fault":
       rpc.cpeFault = fault(methodElement);
@@ -1009,6 +1132,9 @@ export function response(rpc: {
       case "TransferCompleteResponse":
         body = TransferCompleteResponse();
         break;
+      case "DUStateChangeCompleteResponse":
+        body = DUStateChangeCompleteResponse();
+        break;
       case "RequestDownloadResponse":
         body = RequestDownloadResponse();
         break;
@@ -1050,6 +1176,9 @@ export function response(rpc: {
         break;
       case "Download":
         body = Download(rpc.acsRequest);
+        break;
+      case "ChangeDUState":
+        body = ChangeDUState(rpc.acsRequest);
         break;
       default:
         throw new Error(

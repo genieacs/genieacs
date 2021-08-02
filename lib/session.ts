@@ -57,6 +57,9 @@ import {
   FactoryReset,
   AddObjectResponse,
   GetParameterValuesResponse,
+  ChangeDUStateOperation,
+  DownloadOperation,
+  DUStateChangeCompleteRequest,
 } from "./types";
 import { getRequestOrigin } from "./forwarded";
 import * as logger from "./logger";
@@ -284,6 +287,8 @@ export async function transferComplete(
   sessionContext.deviceData.attributes.revision = revision;
   const commandKey = rpcReq.commandKey;
   const operation = sessionContext.operations[commandKey];
+  if (operation.name !== "Download")
+    throw new Error("Unexpected operation name");
 
   if (!operation) {
     return {
@@ -422,6 +427,129 @@ function revertDownloadParameters(
       timestamp,
       [
         lastDownload && lastDownload.value[1] ? lastDownload.value[1][0] : 0,
+        "xsd:dateTime",
+      ],
+    ],
+  });
+
+  if (toClear) {
+    for (const c of toClear)
+      device.clear(sessionContext.deviceData, c[0], c[1], c[2], c[3]);
+  }
+}
+
+export async function duStateChangeComplete(
+  sessionContext: SessionContext,
+  rpcReq: DUStateChangeCompleteRequest
+): Promise<{
+  acsResponse: AcsResponse;
+  operation: ChangeDUStateOperation;
+  fault: Fault;
+}> {
+  const revision =
+    (sessionContext.revisions[sessionContext.revisions.length - 1] || 0) + 1;
+  sessionContext.deviceData.timestamps.revision = revision;
+  sessionContext.deviceData.attributes.revision = revision;
+  const commandKey = rpcReq.commandKey;
+  const operation = sessionContext.operations[commandKey];
+  if (operation.name !== "ChangeDUState")
+    throw new Error("Unexpected operation name");
+
+  if (!operation) {
+    return {
+      acsResponse: { name: "DUStateChangeCompleteResponse" },
+      operation: null,
+      fault: null,
+    };
+  }
+
+  delete sessionContext.operations[commandKey];
+  if (!sessionContext.operationsTouched) sessionContext.operationsTouched = {};
+  sessionContext.operationsTouched[commandKey] = 1;
+
+  let toClear = null;
+  const timestamp = sessionContext.timestamp + sessionContext.iteration + 1;
+
+  let fault: Fault;
+  for (const [i, res] of rpcReq.results.entries()) {
+    const op = operation.args.operations[i];
+    if (res.fault && res.fault.faultCode !== "0") {
+      revertChangeDuStateParameters(sessionContext, op.instance);
+      fault = {
+        code: `cwmp.${res.fault.faultCode}`,
+        message: res.fault.faultString,
+        timestamp: operation.timestamp,
+        detail: res.fault,
+      };
+      continue;
+    }
+
+    const toSet: Record<string, [string | number | boolean, string]> = {
+      LastChangeDUState: [operation.timestamp, "xsd:dateTime"],
+      LastOperationType: [op.operationType, "xsd:string"],
+      LastURL: [op.url, "xsd:string"],
+      LastUUID: [op.uuid, "xsd:string"],
+      LastExecutionEnvRef: [op.executionEnvRef, "xsd:string"],
+      StartTime: [+res.startTime, "xsd:dateTime"],
+      CompleteTime: [+res.completeTime, "xsd:dateTime"],
+      CurrentState: [res.currentState, "xsd:string"],
+      DeploymentUnitRef: [res.deploymentUnitRef, "xsd:string"],
+      Version: [res.version, "xsd:string"],
+      Resolved: [res.resolved, "xsd:string"],
+      ExecutionUnitRefList: [res.executionUnitRefList, "xsd:string"],
+    };
+
+    for (const [k, v] of Object.entries(toSet)) {
+      const p = sessionContext.deviceData.paths.add(
+        Path.parse(`DUStates.${op.instance}.${k}`)
+      );
+      toClear = device.set(
+        sessionContext.deviceData,
+        p,
+        timestamp,
+        { value: [timestamp, v] },
+        toClear
+      );
+    }
+  }
+
+  if (toClear) {
+    for (const c of toClear)
+      device.clear(sessionContext.deviceData, c[0], c[1], c[2], c[3]);
+  }
+
+  return {
+    acsResponse: { name: "DUStateChangeCompleteResponse" },
+    operation: operation,
+    fault: fault,
+  };
+}
+
+function revertChangeDuStateParameters(
+  sessionContext: SessionContext,
+  instance
+): void {
+  const timestamp = sessionContext.timestamp + sessionContext.iteration + 1;
+
+  let p;
+
+  p = sessionContext.deviceData.paths.add(
+    Path.parse(`DUStates.${instance}.LastChangeDUState`)
+  );
+
+  const lastChangeDuState = sessionContext.deviceData.attributes.get(p);
+
+  p = sessionContext.deviceData.paths.add(
+    Path.parse(`DUStates.${instance}.ChangeDUState`)
+  );
+
+  const toClear = device.set(sessionContext.deviceData, p, timestamp, {
+    value: [
+      timestamp,
+      [
+        lastChangeDuState && lastChangeDuState.value[1]
+          ? lastChangeDuState.value[1][0]
+          : 0,
         "xsd:dateTime",
       ],
     ],
@@ -794,6 +922,10 @@ function runDeclarations(
       downloadsToCreate: new InstanceSet(),
       downloadsValues: new Map(),
       downloadsDownload: new Map(),
+      duStatesToDelete: new Set(),
+      duStatesToCreate: new InstanceSet(),
+      duStatesValues: new Map(),
+      duStatesChangeDUState: new Map(),
       reboot: 0,
       factoryReset: 0,
     };
@@ -1422,6 +1554,147 @@ export async function rpcRequest(
       sessionContext.syncState.downloadsToDelete.clear();
 
       for (const [p, v] of sessionContext.syncState.downloadsValues) {
+        const attrs = sessionContext.deviceData.attributes.get(p);
+        if (attrs) {
+          if (attrs.writable && attrs.writable[1] && attrs.value) {
+            const val = device.sanitizeParameterValue([v, attrs.value[1][1]]);
+            if (val[0] !== attrs.value[1][0]) {
+              toClear = device.set(
+                sessionContext.deviceData,
+                p,
+                timestamp,
+                { value: [timestamp, val] },
+                toClear
+              );
+            }
+          }
+        }
+      }
+
+      // DUState
+      index = null;
+      for (const instance of sessionContext.syncState.duStatesToCreate) {
+        if (index == null) {
+          index = 0;
+          for (const p of sessionContext.deviceData.paths.find(
+            Path.parse("DUState.*"),
+            false,
+            true
+          )) {
+            if (
+              +p.segments[1] > index &&
+              sessionContext.deviceData.attributes.has(p)
+            )
+              index = +p.segments[1];
+          }
+        }
+
+        ++index;
+
+        toClear = device.set(
+          sessionContext.deviceData,
+          Path.parse("DUState"),
+          timestamp,
+          { object: [timestamp, 1], writable: [timestamp, 1] },
+          toClear
+        );
+
+        toClear = device.set(
+          sessionContext.deviceData,
+          Path.parse(`DUState.${index}`),
+          timestamp,
+          { object: [timestamp, 1], writable: [timestamp, 1] },
+          toClear
+        );
+
+        const params = {
+          URL: {
+            writable: 1,
+            value: [instance.URL || "", "xsd:string"],
+          },
+          UUID: {
+            writable: 1,
+            value: [instance.UUID || "", "xsd:string"],
+          },
+          ExecutionEnvRef: {
+            writable: 1,
+            value: [instance.ExecutionEnvRef || "", "xsd:string"],
+          },
+          Username: {
+            writable: 1,
+            value: [instance.Username || "", "xsd:string"],
+          },
+          Password: {
+            writable: 1,
+            value: [instance.Password || "", "xsd:string"],
+          },
+          ChangeDUState: {
+            writable: 1,
+            value: [instance.ChangeDUState || "", "xsd:dateTime"],
+          },
+          OperationType: {
+            writable: 1,
+            value: [instance.OperationType || "", "xsd:string"],
+          },
+          LastURL: { writable: 0, value: ["", "xsd:string"] },
+          LastUUID: { writable: 0, value: ["", "xsd:string"] },
+          LastExecutionEnvRef: { writable: 0, value: ["", "xsd:string"] },
+          LastChangeDUState: { writable: 0, value: [0, "xsd:dateTime"] },
+          LastOperationType: { writable: 0, value: [0, "xsd:string"] },
+          Version: { writable: 0, value: [0, "xsd:string"] },
+          CurrentState: { writable: 0, value: [0, "xsd:string"] },
+          ExecutionUnitRefList: { writable: 0, value: [0, "xsd:string"] },
+          DeploymentUnitRef: { writable: 0, value: [0, "xsd:string"] },
+          Resolved: { writable: 0, value: [0, "xsd:boolean"] },
+          StartTime: { writable: 0, value: [0, "xsd:dateTime"] },
+          CompleteTime: { writable: 0, value: [0, "xsd:dateTime"] },
+        };
+
+        for (const [k, v] of Object.entries(params)) {
+          toClear = device.set(
+            sessionContext.deviceData,
+            Path.parse(`DUState.${index}.${k}`),
+            timestamp,
+            {
+              object: [timestamp, 0],
+              writable: [timestamp, v.writable as 0 | 1],
+              value: [
+                timestamp,
+                v.value as [string | number | boolean, string],
+              ],
+            },
+            toClear
+          );
+        }
+
+        toClear = device.set(
+          sessionContext.deviceData,
+          Path.parse(`DUState.${index}.*`),
+          timestamp,
+          null,
+          toClear
+        );
+      }
+
+      sessionContext.syncState.duStatesToCreate.clear();
+
+      for (const instance of sessionContext.syncState.duStatesToDelete) {
+        toClear = device.set(
+          sessionContext.deviceData,
+          instance,
+          timestamp,
+          null,
+          toClear
+        );
+        for (const p of sessionContext.syncState.duStatesValues.keys()) {
+          if (p.segments[1] === instance.segments[1])
+            sessionContext.syncState.duStatesValues.delete(p);
+        }
+      }
+
+      sessionContext.syncState.duStatesToDelete.clear();
+
+      for (const [p, v] of sessionContext.syncState.duStatesValues) {
         const attrs = sessionContext.deviceData.attributes.get(p);
         if (attrs) {
           if (attrs.writable && attrs.writable[1] && attrs.value) {
@@ -2200,6 +2473,26 @@ function processDeclarations(
           }
         }
         break;
+      case "DUState":
+        if (
+          currentPath.length === 3 &&
+          currentPath.wildcard === 0 &&
+          declareAttributeValues &&
+          declareAttributeValues.value
+        ) {
+          if (currentPath.segments[2] === "ChangeDUState") {
+            syncState.duStatesChangeDUState.set(
+              currentPath,
+              declareAttributeValues.value[0]
+            );
+          } else {
+            syncState.duStatesValues.set(
+              currentPath,
+              declareAttributeValues.value[0]
+            );
+          }
+        }
+        break;
       case "VirtualParameters":
         if (currentPath.length <= 2) {
           let d;
@@ -2370,6 +2663,10 @@ function processInstances(
     if (parent.length !== 1) return;
     instancesToDelete = sessionContext.syncState.downloadsToDelete;
     instancesToCreate = sessionContext.syncState.downloadsToCreate;
+  } else if (parent.segments[0] === "DUStates") {
+    if (parent.length !== 1) return;
+    instancesToDelete = sessionContext.syncState.duStatesToDelete;
+    instancesToCreate = sessionContext.syncState.duStatesToCreate;
   } else {
     instancesToDelete = sessionContext.syncState.instancesToDelete.get(parent);
     if (instancesToDelete == null) {
@@ -2658,6 +2955,7 @@ export async function rpcResponse(
         "FactoryReset",
         "VirtualParameters",
         "Downloads",
+        "DUState",
       ]) {
         const p = sessionContext.deviceData.paths.get(Path.parse(n));
         if (p && sessionContext.deviceData.attributes.has(p))
@@ -2857,7 +3155,7 @@ export async function rpcResponse(
         toClear
       );
     } else {
-      const operation = {
+      const operation: DownloadOperation = {
         name: "Download",
         timestamp: sessionContext.timestamp,
         provisions: sessionContext.provisions,
@@ -2881,6 +3179,40 @@ export async function rpcResponse(
         sessionContext.operationsTouched = {};
       sessionContext.operationsTouched[rpcReq.commandKey] = 1;
     }
+  } else if (rpcRes.name === "ChangeDUStateResponse") {
+    if (rpcReq.name !== "ChangeDUState")
+      return invalidResponse("Response name does not match request name");
+
+    for (const op of rpcReq.operations) {
+      toClear = device.set(
+        sessionContext.deviceData,
+        Path.parse(`DuStates.${op.instance}.ChangeDUState`),
+        timestamp + 1,
+        { value: [timestamp + 1, [sessionContext.timestamp, "xsd:dateTime"]] },
+        toClear
+      );
+    }
+
+    const operation = {
+      name: "ChangeDUState",
+      timestamp: sessionContext.timestamp,
+      provisions: sessionContext.provisions,
+      channels: sessionContext.channels,
+      retries: {},
+      args: {
+        operations: rpcReq.operations,
+      },
+    };
+
+    for (const channel of Object.keys(sessionContext.channels)) {
+      if (sessionContext.retries[channel] != null)
+        operation.retries[channel] = sessionContext.retries[channel];
+    }
+
+    sessionContext.operations[rpcReq.commandKey] = operation as Operation;
+    if (!sessionContext.operationsTouched)
+      sessionContext.operationsTouched = {};
+    sessionContext.operationsTouched[rpcReq.commandKey] = 1;
   } else {
     return invalidResponse("Response name not recognized");
   }

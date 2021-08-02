@@ -121,6 +121,10 @@ export interface SyncState {
   downloadsToCreate: InstanceSet;
   downloadsValues: Map<Path, string | number>;
   downloadsDownload: Map<Path, number>;
+  duStatesToDelete: Set<Path>;
+  duStatesToCreate: InstanceSet;
+  duStatesValues: Map<Path, string | number>;
+  duStatesChangeDUState: Map<Path, number>;
   reboot: number;
   factoryReset: number;
 }
@@ -183,12 +187,17 @@ export interface Task {
   provisions?: (string | number | boolean)[][];
 }
 
-export interface Operation {
+interface OperationBase {
   name: string;
   timestamp: number;
   provisions: string[][];
   channels: { [channel: string]: number };
   retries: { [channel: string]: number };
+  args: any;
+}
+
+export interface DownloadOperation extends OperationBase {
+  name: "Download";
   args: {
     instance: string;
     fileType: string;
@@ -196,6 +205,15 @@ export interface Operation {
     targetFileName: string;
   };
 }
+
+export interface ChangeDUStateOperation extends OperationBase {
+  name: "ChangeDUState";
+  args: {
+    operations: ChangeDUState["operations"];
+  };
+}
+
+export type Operation = DownloadOperation | ChangeDUStateOperation;
 
 export type AcsRequest =
   | GetParameterNames
@@ -207,7 +225,8 @@ export type AcsRequest =
   | DeleteObject
   | FactoryReset
   | Reboot
-  | Download;
+  | Download
+  | ChangeDUState;
 
 export interface GetParameterNames {
   name: "GetParameterNames";
@@ -277,6 +296,21 @@ export interface Download {
   failureUrl?: string;
 }
 
+export interface ChangeDUState {
+  name: "ChangeDUState";
+  commandKey: string;
+  operations: {
+    operationType: "install" | "update" | "uninstall";
+    instance: string;
+    url: string;
+    uuid: string;
+    version?: string;
+    executionEnvRef?: string;
+    username?: string;
+    password?: string;
+  }[];
+}
+
 export interface SpvFault {
   parameterName: string;
   faultCode: string;
@@ -305,7 +339,8 @@ export type CpeResponse =
   | DeleteObjectResponse
   | RebootResponse
   | FactoryResetResponse
-  | DownloadResponse;
+  | DownloadResponse
+  | ChangeDUStateResponse;
 
 export interface GetParameterNamesResponse {
   name: "GetParameterNamesResponse";
@@ -342,6 +377,10 @@ export interface DeleteObjectResponse {
   status: number;
 }
 
+export interface ChangeDUStateResponse {
+  name: "ChangeDUStateResponse";
+}
+
 export interface RebootResponse {
   name: "RebootResponse";
 }
@@ -361,7 +400,8 @@ export type CpeRequest =
   | InformRequest
   | TransferCompleteRequest
   | GetRPCMethodsRequest
-  | RequestDownloadRequest;
+  | RequestDownloadRequest
+  | DUStateChangeCompleteRequest;
 
 export interface InformRequest {
   name: "Inform";
@@ -384,6 +424,22 @@ export interface TransferCompleteRequest {
   completeTime?: number;
 }
 
+export interface DUStateChangeCompleteRequest {
+  name: "DUStateChangeComplete";
+  commandKey: string;
+  results: {
+    uuid: string;
+    deploymentUnitRef: string;
+    version: string;
+    currentState: string;
+    resolved: boolean;
+    executionUnitRefList: string;
+    fault?: { faultCode: string; faultString: string };
+    startTime?: number;
+    completeTime?: number;
+  }[];
+}
+
 export interface GetRPCMethodsRequest {
   name: "GetRPCMethods";
 }
@@ -397,7 +453,8 @@ export type AcsResponse =
   | InformResponse
   | GetRPCMethodsResponse
   | TransferCompleteResponse
-  | RequestDownloadResponse;
+  | RequestDownloadResponse
+  | DUStateChangeCompleteResponse;
 
 export interface InformResponse {
   name: "InformResponse";
@@ -414,6 +471,9 @@ export interface TransferCompleteResponse {
 
 export interface RequestDownloadResponse {
   name: "RequestDownloadResponse";
+}
+export interface DUStateChangeCompleteResponse {
+  name: "DUStateChangeCompleteResponse";
 }
 
 export interface QueryOptions {
