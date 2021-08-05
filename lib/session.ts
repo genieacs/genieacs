@@ -1882,6 +1882,7 @@ function generateSetRpcRequest(
 
   // Downloads
   for (const [p, t] of syncState.downloadsDownload) {
+    if (!(t > 0 && t <= sessionContext.timestamp)) continue;
     const attrs = deviceData.attributes.get(p);
     if (!(attrs && attrs.value && t <= attrs.value[1][0])) {
       const fileTypeAttrs = deviceData.attributes.get(
@@ -1920,7 +1921,7 @@ function generateSetRpcRequest(
   }
 
   // Reboot
-  if (syncState.reboot) {
+  if (syncState.reboot > 0 && syncState.reboot <= sessionContext.timestamp) {
     const p = sessionContext.deviceData.paths.get(Path.parse("Reboot"));
     const attrs = p ? sessionContext.deviceData.attributes.get(p) : null;
     if (!(attrs && attrs.value && attrs.value[1][0] >= syncState.reboot)) {
@@ -1930,7 +1931,10 @@ function generateSetRpcRequest(
   }
 
   // Factory reset
-  if (syncState.factoryReset) {
+  if (
+    syncState.factoryReset > 0 &&
+    syncState.factoryReset <= sessionContext.timestamp
+  ) {
     const p = sessionContext.deviceData.paths.get(Path.parse("FactoryReset"));
     const attrs = p ? sessionContext.deviceData.attributes.get(p) : null;
     if (
