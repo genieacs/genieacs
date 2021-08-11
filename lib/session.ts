@@ -458,22 +458,50 @@ export async function timeoutOperations(
         (e) => configContextCallback(sessionContext, e)
       ) * 1000;
 
-    if (sessionContext.timestamp > operation.timestamp + DOWNLOAD_TIMEOUT) {
-      delete sessionContext.operations[commandKey];
-      if (!sessionContext.operationsTouched)
-        sessionContext.operationsTouched = {};
-      sessionContext.operationsTouched[commandKey] = 1;
+    if (sessionContext.timestamp < operation.timestamp + DOWNLOAD_TIMEOUT)
+      continue;
 
-      faults.push({
-        code: "timeout",
-        message: "Download operation timed out",
-        timestamp: operation.timestamp,
-      });
+    logger.accessWarn({
+      sessionContext: sessionContext,
+      message: "Download operation timed out",
+      commandKey: commandKey,
+    });
 
-      operations.push(operation);
+    const SUCCESS_ON_TIMEOUT = +localCache.getConfig(
+      sessionContext.cacheSnapshot,
+      "cwmp.downloadSuccessOnTimeout",
+      {},
+      sessionContext.timestamp,
+      (e) => configContextCallback(sessionContext, e)
+    );
 
-      revertDownloadParameters(sessionContext, operation.args.instance);
+    if (SUCCESS_ON_TIMEOUT) {
+      const r = {
+        name: "TransferComplete" as const,
+        commandKey: commandKey,
+        startTime: 0,
+        completeTime: 0,
+      };
+
+      // Call transferComplete code and ignore the response
+      await transferComplete(sessionContext, r);
+      continue;
     }
+
+    delete sessionContext.operations[commandKey];
+    if (!sessionContext.operationsTouched)
+      sessionContext.operationsTouched = {};
+    sessionContext.operationsTouched[commandKey] = 1;
+
+    faults.push({
+      code: "timeout",
+      message: "Download operation timed out",
+      timestamp: operation.timestamp,
+    });
+
+    operations.push(operation);
+
+    revertDownloadParameters(sessionContext, operation.args.instance);
   }
 
   return { faults, operations };
