@@ -204,14 +204,20 @@ export const component: ClosureComponent = (): Component => {
                     putFormComponent,
                     Object.assign(
                       {
-                        actionHandler: async (action, _object) => {
+                        actionHandler: async (action, obj) => {
                           if (action !== "save")
                             throw new Error("Undefined action");
-                          const object = Object.assign({}, _object);
-                          const file = object["file"]
-                            ? object["file"][0]
-                            : null;
-                          delete object["file"];
+                          const file = obj["file"] ? obj["file"][0] : null;
+
+                          // nginx strips out headers with dot, so replace with dash
+                          const headers = {
+                            "metadata-fileType": obj["metadata.fileType"] || "",
+                            "metadata-oui": obj["metadata.oui"] || "",
+                            "metadata-productclass":
+                              obj["metadata.productClass"] || "",
+                            "metadata-version": obj["metadata.version"] || "",
+                          };
+
                           if (!file) {
                             notifications.push("error", "File not selected");
                             return;
@@ -232,7 +238,7 @@ export const component: ClosureComponent = (): Component => {
                           try {
                             await upload(
                               file,
-                              object,
+                              headers,
                               abortController.signal,
                               progressListener
                             );

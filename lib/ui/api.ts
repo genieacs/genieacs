@@ -509,11 +509,11 @@ router.put("/files/:id", async (ctx) => {
   }
 
   const metadata = {
-    fileType: singleParam(ctx.request.headers["metadata.filetype"]) || "",
-    oui: singleParam(ctx.request.headers["metadata.oui"]) || "",
+    fileType: singleParam(ctx.request.headers["metadata-filetype"]) || "",
+    oui: singleParam(ctx.request.headers["metadata-oui"]) || "",
     productClass:
-      singleParam(ctx.request.headers["metadata.productclass"]) || "",
-    version: singleParam(ctx.request.headers["metadata.version"]) || "",
+      singleParam(ctx.request.headers["metadata-productclass"]) || "",
+    version: singleParam(ctx.request.headers["metadata-version"]) || "",
   };
 
   const validate = authorizer.getValidator(resource, metadata);
