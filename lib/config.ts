@@ -43,7 +43,7 @@ const options = {
 
   CWMP_WORKER_PROCESSES: { type: "int", default: 0 },
   CWMP_PORT: { type: "int", default: 7547 },
-  CWMP_INTERFACE: { type: "string", default: "0.0.0.0" },
+  CWMP_INTERFACE: { type: "string", default: "::" },
   CWMP_SSL_CERT: { type: "string", default: "" },
   CWMP_SSL_KEY: { type: "string", default: "" },
   CWMP_LOG_FILE: { type: "path", default: "" },
@@ -51,7 +51,7 @@ const options = {
 
   NBI_WORKER_PROCESSES: { type: "int", default: 0 },
   NBI_PORT: { type: "int", default: 7557 },
-  NBI_INTERFACE: { type: "string", default: "0.0.0.0" },
+  NBI_INTERFACE: { type: "string", default: "::" },
   NBI_SSL_CERT: { type: "string", default: "" },
   NBI_SSL_KEY: { type: "string", default: "" },
   NBI_LOG_FILE: { type: "path", default: "" },
@@ -59,7 +59,7 @@ const options = {
 
   FS_WORKER_PROCESSES: { type: "int", default: 0 },
   FS_PORT: { type: "int", default: 7567 },
-  FS_INTERFACE: { type: "string", default: "0.0.0.0" },
+  FS_INTERFACE: { type: "string", default: "::" },
   FS_SSL_CERT: { type: "string", default: "" },
   FS_SSL_KEY: { type: "string", default: "" },
   FS_URL_PREFIX: { type: "string", default: "" },
@@ -68,7 +68,7 @@ const options = {
 
   UI_WORKER_PROCESSES: { type: "int", default: 0 },
   UI_PORT: { type: "int", default: 3000 },
-  UI_INTERFACE: { type: "string", default: "0.0.0.0" },
+  UI_INTERFACE: { type: "string", default: "::" },
   UI_SSL_CERT: { type: "string", default: "" },
   UI_SSL_KEY: { type: "string", default: "" },
   UI_LOG_FILE: { type: "path", default: "" },
