@@ -492,9 +492,9 @@
       "dev": true
     },
     "@types/mithril": {
-      "version": "2.0.6",
-      "resolved": "https://registry.npmjs.org/@types/mithril/-/mithril-2.0.6.tgz",
-      "integrity": "sha512-oOyFr99rKH+94uKHjIVKTL9uaUaxtXJgtZOZkjhWIAY8twr9YzxfEmYARMJkWC3aVg52We8d4wtLhqQ99+fXpw==",
+      "version": "2.0.8",
+      "resolved": "https://registry.npmjs.org/@types/mithril/-/mithril-2.0.8.tgz",
+      "integrity": "sha512-QzVV70DqUhWfLFpMFDBI9rRxtzeUUpbhiFDpUJYSV92AePgl+Qfficgv2MOb1Ceb+lBOQU8+L+Hjf2UielQjEw==",
       "dev": true
     },
     "@types/mongodb": {

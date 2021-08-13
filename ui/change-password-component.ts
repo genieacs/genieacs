@@ -17,17 +17,23 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { VnodeDOM, ClosureComponent, Component } from "mithril";
+import { VnodeDOM, ClosureComponent } from "mithril";
 import * as notifications from "./notifications";
 import { changePassword } from "./store";
 import { m } from "./components";
 
-const component: ClosureComponent = (): Component => {
+interface Attrs {
+  noAuth?: boolean;
+  username?: string;
+  onPasswordChange: () => void;
+}
+
+const component: ClosureComponent<Attrs> = () => {
   return {
     view: (vnode) => {
-      const onPasswordChange = vnode.attrs["onPasswordChange"];
-      const enforceAuth = !vnode.attrs["noAuth"];
-      const username = vnode.attrs["username"];
+      const onPasswordChange = vnode.attrs.onPasswordChange;
+      const enforceAuth = !vnode.attrs.noAuth;
+      const username = vnode.attrs.username;
 
       if (username) vnode.state["username"] = username;
 

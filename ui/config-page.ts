@@ -154,7 +154,7 @@ function renderTable(confsResponse, searchString): Children {
               {
                 base: conf,
                 actionHandler: (action, object) => {
-                  return new Promise((resolve) => {
+                  return new Promise<void>((resolve) => {
                     putActionHandler(action, object, false)
                       .then((errors) => {
                         const ErrorList = errors ? Object.values(errors) : [];
@@ -164,11 +164,11 @@ function renderTable(confsResponse, searchString): Children {
                         } else {
                           overlay.close(cb);
                         }
-                        resolve(null);
+                        resolve();
                       })
                       .catch((err) => {
                         notifications.push("error", err.message);
-                        resolve(null);
+                        resolve();
                       });
                   });
                 },
@@ -322,7 +322,7 @@ export const component: ClosureComponent = (): Component => {
                     uiConfigComponent,
                     Object.assign(
                       {
-                        onUpdate: (errs: string[]) => {
+                        onUpdate: (errs: Record<string, string>) => {
                           const errors = errs ? Object.values(errs) : [];
                           if (errors.length) {
                             for (const err of errors)

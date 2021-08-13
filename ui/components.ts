@@ -22,7 +22,7 @@ import m, {
   Attributes,
   Children,
   ComponentTypes,
-  Lifecycle,
+  CommonAttributes,
   ClosureComponent,
   Vnode,
 } from "mithril";
@@ -81,7 +81,7 @@ interface MC extends Static {
     <Attrs, State>(
       ctx: Attributes,
       component: ComponentTypes<Attrs, State>,
-      attributes: Attrs & Lifecycle<Attrs, State> & { key?: string | number },
+      attributes: Attrs & CommonAttributes<Attrs, State>,
       ...args: Children[]
     ): Vnode<Attrs, State>;
   };

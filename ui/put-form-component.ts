@@ -17,7 +17,7 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { VnodeDOM, ClosureComponent, Component, Children } from "mithril";
+import { VnodeDOM, ClosureComponent, Children } from "mithril";
 import { m } from "./components";
 import codeEditorComponent from "./code-editor-component";
 import { getDatalistId } from "./datalist";
@@ -175,13 +175,25 @@ function createField(current, attr, focus): Children {
   });
 }
 
-const component: ClosureComponent = (): Component => {
+interface Attrs {
+  base?: Record<string, any>;
+  actionHandler: (action: string, object: any) => Promise<void>;
+  resource: string;
+  attributes: {
+    id: string;
+    label: string;
+    type?: string;
+    options?: string[];
+  }[];
+}
+
+const component: ClosureComponent<Attrs> = () => {
   return {
     view: (vnode) => {
-      const actionHandler = vnode.attrs["actionHandler"];
-      const attributes = vnode.attrs["attributes"];
-      const resource = vnode.attrs["resource"];
-      const base = vnode.attrs["base"] || {};
+      const actionHandler = vnode.attrs.actionHandler;
+      const attributes = vnode.attrs.attributes;
+      const resource = vnode.attrs.resource;
+      const base = vnode.attrs.base || {};
       if (!vnode.state["current"]) {
         vnode.state["current"] = {
           isNew: !base["_id"],
@@ -226,7 +238,7 @@ const component: ClosureComponent = (): Component => {
               onclick: (e) => {
                 e.redraw = false;
                 e.target.disabled = true;
-                actionHandler("delete", current.object).then(() => {
+                actionHandler("delete", current.object).finally(() => {
                   e.target.disabled = false;
                 });
               },
@@ -255,7 +267,7 @@ const component: ClosureComponent = (): Component => {
               // e.target.onsubmit = null;
               (submit.dom as HTMLFormElement).disabled = true;
               // submit.dom.textContent = "Loading ...";
-              actionHandler("save", current.object).then(() => {
+              actionHandler("save", current.object).finally(() => {
                 // submit.dom.textContent = "Save";
                 // e.target.onsubmit = onsubmit;
                 (submit.dom as HTMLFormElement).disabled = false;
