@@ -49,8 +49,16 @@ ava("convertOldPrecondition", (t) => {
   ];
 
   t.plan(tests.length + 2 * shouldFailTests.length);
-  for (const test of tests)
-    t.is(stringify(mongodbFunctions.convertOldPrecondition(test[0])), test[1]);
+  for (const test of tests) {
+    t.is(
+      stringify(
+        mongodbFunctions.convertOldPrecondition(
+          test[0] as Record<string, unknown>
+        )
+      ),
+      test[1]
+    );
+  }
 
   for (const test of shouldFailTests) {
     const func = (): void => {

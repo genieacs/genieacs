@@ -78,9 +78,9 @@ export async function acquireLock(
           value: token,
           expire: new Date(now + ttl + CLOCK_SKEW_TOLERANCE),
         },
-        $currentDate: { timestamp: true },
+        $currentDate: { timestamp: (true as unknown) as Date },
       },
-      { upsert: true, returnOriginal: false }
+      { upsert: true, returnDocument: "after" }
     );
     const v = r.value;
     if (Math.abs(v["timestamp"].getTime() - now) > CLOCK_SKEW_TOLERANCE)
@@ -114,5 +114,5 @@ export async function releaseLock(
     _id: lockName,
     value: token,
   });
-  if (res["result"]["n"] !== 1) throw new Error("Lock expired");
+  if (res.deletedCount !== 1) throw new Error("Lock expired");
 }

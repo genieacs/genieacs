@@ -17,7 +17,7 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MongoClient, ObjectID, Collection, Db } from "mongodb";
+import { MongoClient, ObjectId, Collection, Db } from "mongodb";
 import { get } from "./config";
 import { decodeTag, encodeTag, escapeRegExp } from "./common";
 import { parse } from "./common/expression-parser";
@@ -61,10 +61,7 @@ export function onConnect(callback: (db: Db) => Promise<void>): void {
 }
 
 export async function connect(): Promise<void> {
-  clientPromise = MongoClient.connect("" + get("MONGODB_CONNECTION_URL"), {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  });
+  clientPromise = MongoClient.connect("" + get("MONGODB_CONNECTION_URL"));
 
   const client = await clientPromise;
   const db = client.db();
@@ -623,7 +620,7 @@ export async function saveDevice(
     upsert: isNew,
   });
 
-  if (result.result.n !== 1)
+  if (!result.matchedCount && !result.upsertedCount)
     throw new Error(`Device ${deviceId} not found in database`);
 
   if (update2) {
@@ -647,7 +644,7 @@ export async function getFaults(
     delete r.device;
     r.timestamp = +r.timestamp;
     r.provisions = JSON.parse(r.provisions);
-    faults[channel] = r;
+    faults[channel] = r as SessionFault;
   }
 
   return faults;
@@ -688,13 +685,13 @@ export async function getDueTasks(
     if (task.timestamp >= timestamp) return [tasks, +task.timestamp];
     task._id = String(task._id);
 
-    tasks.push(task);
+    tasks.push(task as Task);
 
     // For API compatibility
     if (task.name === "download" && task.file) {
       let q;
-      if (ObjectID.isValid(task.file))
-        q = { _id: { $in: [task.file, new ObjectID(task.file)] } };
+      if (ObjectId.isValid(task.file))
+        q = { _id: { $in: [task.file, new ObjectId(task.file)] } };
       else q = { _id: task.file };
 
       const res = await filesCollection.find(q).toArray();
@@ -715,7 +712,7 @@ export async function clearTasks(
   taskIds: string[]
 ): Promise<void> {
   await tasksCollection.deleteMany({
-    _id: { $in: taskIds.map((id) => new ObjectID(id)) },
+    _id: { $in: taskIds.map((id) => new ObjectId(id)) },
   });
 }
 
@@ -732,14 +729,14 @@ export async function getOperations(
     delete r._id;
     // Workaround for a bug in v1.2.1 where operation object is saved without deserialization
     if (typeof r.provisions !== "string") {
-      operations[commandKey] = r;
+      operations[commandKey] = r as Operation;
       continue;
     }
     r.timestamp = +r.timestamp;
     if (r.args) r.args = JSON.parse(r.args);
     r.provisions = JSON.parse(r.provisions);
     r.retries = JSON.parse(r.retries);
-    operations[commandKey] = r;
+    operations[commandKey] = r as Operation;
   }
   return operations;
 }
@@ -807,7 +804,7 @@ interface Permission {
 }
 
 export async function getPermissions(): Promise<Permission[]> {
-  return permissionsCollection.find().toArray();
+  return (permissionsCollection.find().toArray() as unknown) as Permission[];
 }
 
 interface User {
@@ -818,5 +815,5 @@ interface User {
 }
 
 export async function getUsers(): Promise<User[]> {
-  return usersCollection.find().toArray();
+  return (usersCollection.find().toArray() as unknown) as User[];
 }

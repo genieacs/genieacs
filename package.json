@@ -30,7 +30,7 @@
     "koa-router": "^10.0.0",
     "koa-static": "^5.0.0",
     "later": "^1.2.0",
-    "mongodb": "^3.6.3",
+    "mongodb": "^4.1.0",
     "parsimmon": "^1.16.0",
     "seedrandom": "^3.0.5"
   },
@@ -46,7 +46,6 @@
     "@types/koa-router": "^7.4.1",
     "@types/koa-static": "^4.0.1",
     "@types/mithril": "^2.0.8",
-    "@types/mongodb": "^3.6.9",
     "@types/node": "^14.14.34",
     "@types/parsimmon": "^1.10.6",
     "@types/seedrandom": "^3.0.0",

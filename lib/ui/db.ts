@@ -17,13 +17,13 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Db, GridFSBucket, ObjectID } from "mongodb";
+import { Db, GridFSBucket, ObjectId } from "mongodb";
 import { Script } from "vm";
 import { onConnect } from "../db";
 import * as mongodbFunctions from "../mongodb-functions";
 import * as expression from "../common/expression";
 import { QueryOptions, Expression } from "../types";
-import { Readable } from "stream";
+import { Readable, Writable } from "stream";
 import { minimize } from "../common/boolean-expression";
 
 const RESOURCE_COLLECTION = {
@@ -208,7 +208,7 @@ function putResource(resource, id, object): Promise<void> {
 
 function deleteResource(
   resource: string,
-  id: string | ObjectID
+  id: string | ObjectId
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const collection = db.collection(RESOURCE_COLLECTION[resource] || resource);
@@ -338,13 +338,17 @@ export function putFile(
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const bucket = new GridFSBucket(db);
-    const uploadStream = bucket.openUploadStreamWithId(filename, filename, {
-      metadata: metadata,
-    });
+    const uploadStream = bucket.openUploadStreamWithId(
+      (filename as unknown) as ObjectId,
+      filename,
+      {
+        metadata: metadata,
+      }
+    );
     uploadStream.on("error", reject);
     contentStream.on("error", reject);
     uploadStream.on("finish", resolve);
-    contentStream.pipe(uploadStream);
+    contentStream.pipe(uploadStream as Writable);
   });
 }
 
@@ -362,6 +366,6 @@ export function deleteFault(id: string): Promise<void> {
   return deleteResource("faults", id);
 }
 
-export function deleteTask(id: ObjectID): Promise<void> {
+export function deleteTask(id: ObjectId): Promise<void> {
   return deleteResource("tasks", id);
 }

@@ -35,7 +35,7 @@ onConnect(async (db) => {
 });
 
 const getFile = memoize(
-  (md5: string, size: number, filename: string): Promise<Buffer> => {
+  (uploadDate: number, size: number, filename: string): Promise<Buffer> => {
     return new Promise((resolve, reject) => {
       const buffer = Buffer.allocUnsafe(size);
       let i = 0;
@@ -82,10 +82,14 @@ export async function listener(
     return;
   }
 
-  const buffer = await getFile(file.md5, file.length, filename);
+  const buffer = await getFile(
+    file["uploadDate"].getTime(),
+    file.length,
+    filename
+  );
 
   response.writeHead(200, {
-    "Content-Type": file.contentType || "application/octet-stream",
+    "Content-Type": "application/octet-stream",
     "Content-Length": file.length,
   });
 

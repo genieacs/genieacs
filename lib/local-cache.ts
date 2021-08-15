@@ -325,8 +325,6 @@ async function fetchFiles(): Promise<Files> {
     const id = r["filename"] || r["_id"].toString();
     files[id] = {};
     files[id].length = r["length"];
-    files[id].md5 = r["md5"];
-    files[id].contentType = r["contentType"];
   }
 
   return files;

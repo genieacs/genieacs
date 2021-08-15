@@ -45,7 +45,7 @@ const PROVISIONS_REGEX = /^\/provisions\/([a-zA-Z0-9\-_%]+)\/?$/;
 const VIRTUAL_PARAMETERS_REGEX = /^\/virtual_parameters\/([a-zA-Z0-9\-_%]+)\/?$/;
 const FAULTS_REGEX = /^\/faults\/([a-zA-Z0-9\-_%:]+)\/?$/;
 
-const collections = {
+const collections: Record<string, Collection> = {
   tasks: null as Collection,
   devices: null as Collection,
   presets: null as Collection,
@@ -662,7 +662,7 @@ export function listener(
         };
         filesBucket.delete((filename as unknown) as ObjectId, () => {
           const uploadStream = filesBucket.openUploadStreamWithId(
-            filename,
+            (filename as unknown) as ObjectId,
             filename,
             {
               metadata: metadata,
@@ -813,13 +813,7 @@ export function listener(
         cur.sort(sort);
       }
 
-      if (urlParts.query.skip)
-        cur.skip(parseInt(urlParts.query.skip as string));
-
-      if (urlParts.query.limit)
-        cur.limit(parseInt(urlParts.query.limit as string));
-
-      cur.count(false, (err, total) => {
+      cur.count((err, total) => {
         if (err) return void throwError(err);
 
         response.writeHead(200, {
@@ -831,6 +825,12 @@ export function listener(
           response.end();
           return;
         }
+
+        if (urlParts.query.skip)
+          cur.skip(parseInt(urlParts.query.skip as string));
+
+        if (urlParts.query.limit)
+          cur.limit(parseInt(urlParts.query.limit as string));
 
         response.write("[\n");
         i = 0;

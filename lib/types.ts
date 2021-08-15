@@ -477,7 +477,7 @@ export interface VirtualParameters {
 }
 
 export interface Files {
-  [name: string]: { length: number; md5: string; contentType: string };
+  [name: string]: { length: number };
 }
 
 export interface Users {

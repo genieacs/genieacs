@@ -17,7 +17,7 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ObjectID } from "mongodb";
+import { ObjectId } from "mongodb";
 import { map, parse, stringify, parseList } from "./common/expression-parser";
 import { likePatternToRegExp } from "./common/expression";
 import { Expression, Fault, Task } from "./types";
@@ -90,7 +90,7 @@ export function processTasksFilter(filter: Expression): Expression {
     if (!isArray(exp)) return exp;
     if (["=", "<>", ">", ">=", "<", "<="].includes(exp[0])) {
       const e = exp.slice();
-      if (e[1][0] === "PARAM" && e[1][1] === "_id") e[2] = new ObjectID(e[2]);
+      if (e[1][0] === "PARAM" && e[1][1] === "_id") e[2] = new ObjectId(e[2]);
       else if (e[1][0] === "PARAM" && e[1][1] === "timestamp")
         e[2] = new Date(e[2]);
       else if (e[1][0] === "PARAM" && e[1][1] === "expiry")
