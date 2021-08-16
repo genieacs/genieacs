@@ -17,14 +17,14 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import cluster from "cluster";
+import cluster, { Worker } from "cluster";
 import { cpus } from "os";
 import * as logger from "./logger";
 
 let respawnTimestamp = 0;
 let crashes: number[] = [];
 
-function fork(): cluster.Worker {
+function fork(): Worker {
   const w = cluster.fork();
   w.on("error", (err: NodeJS.ErrnoException) => {
     // Avoid exception when attempting to kill the process just as it's exiting

@@ -29,7 +29,7 @@ import postcss from "postcss";
 import postcssImport from "postcss-import";
 import postcssPresetEnv from "postcss-preset-env";
 import cssnano from "cssnano";
-import { optimize, extendDefaultPlugins } from "svgo";
+import { optimize } from "svgo";
 import * as xmlParser from "../lib/xml-parser";
 
 const MODE = process.env["NODE_ENV"] || "production";
@@ -299,12 +299,16 @@ async function generateIconsSprite(): Promise<void> {
     const id = path.parse(file).name;
     const filePath = path.join(iconsDir, file);
     const { data } = await optimize(fs.readFileSync(filePath).toString(), {
-      plugins: extendDefaultPlugins([
+      plugins: [
         {
-          name: "removeViewBox",
-          active: false,
+          name: "preset-default",
+          params: {
+            overrides: {
+              removeViewBox: false,
+            },
+          },
         },
-      ]),
+      ],
     });
     symbols.push(generateSymbol(id, data));
   }
