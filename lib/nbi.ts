@@ -19,7 +19,6 @@
 
 import * as url from "url";
 import { Collection, GridFSBucket, ObjectId } from "mongodb";
-import * as querystring from "querystring";
 import * as vm from "vm";
 import * as config from "./config";
 import { onConnect } from "./db";
@@ -103,13 +102,13 @@ export function listener(
 
     logger.accessInfo(
       Object.assign({}, urlParts.query, {
-        remoteAddress: request.connection.remoteAddress,
+        remoteAddress: request.socket.remoteAddress,
         message: `${request.method} ${urlParts.pathname}`,
       })
     );
 
     if (PRESETS_REGEX.test(urlParts.pathname)) {
-      const presetName = querystring.unescape(
+      const presetName = decodeURIComponent(
         PRESETS_REGEX.exec(urlParts.pathname)[1]
       );
       if (request.method === "PUT") {
@@ -156,7 +155,7 @@ export function listener(
         response.end("405 Method Not Allowed");
       }
     } else if (OBJECTS_REGEX.test(urlParts.pathname)) {
-      const objectName = querystring.unescape(
+      const objectName = decodeURIComponent(
         OBJECTS_REGEX.exec(urlParts.pathname)[1]
       );
       if (request.method === "PUT") {
@@ -203,7 +202,7 @@ export function listener(
         response.end("405 Method Not Allowed");
       }
     } else if (PROVISIONS_REGEX.test(urlParts.pathname)) {
-      const provisionName = querystring.unescape(
+      const provisionName = decodeURIComponent(
         PROVISIONS_REGEX.exec(urlParts.pathname)[1]
       );
       if (request.method === "PUT") {
@@ -261,7 +260,7 @@ export function listener(
         response.end("405 Method Not Allowed");
       }
     } else if (VIRTUAL_PARAMETERS_REGEX.test(urlParts.pathname)) {
-      const virtualParameterName = querystring.unescape(
+      const virtualParameterName = decodeURIComponent(
         VIRTUAL_PARAMETERS_REGEX.exec(urlParts.pathname)[1]
       );
       if (request.method === "PUT") {
@@ -323,8 +322,8 @@ export function listener(
       }
     } else if (TAGS_REGEX.test(urlParts.pathname)) {
       const r = TAGS_REGEX.exec(urlParts.pathname);
-      const deviceId = querystring.unescape(r[1]);
-      const tag = querystring.unescape(r[2]);
+      const deviceId = decodeURIComponent(r[1]);
+      const tag = decodeURIComponent(r[2]);
       if (request.method === "POST") {
         collections.devices.updateOne(
           { _id: deviceId },
@@ -352,7 +351,7 @@ export function listener(
       }
     } else if (FAULTS_REGEX.test(urlParts.pathname)) {
       if (request.method === "DELETE") {
-        const faultId = querystring.unescape(
+        const faultId = decodeURIComponent(
           FAULTS_REGEX.exec(urlParts.pathname)[1]
         );
         const deviceId = faultId.split(":", 1)[0];
@@ -397,7 +396,7 @@ export function listener(
       }
     } else if (DEVICE_TASKS_REGEX.test(urlParts.pathname)) {
       if (request.method === "POST") {
-        const deviceId = querystring.unescape(
+        const deviceId = decodeURIComponent(
           DEVICE_TASKS_REGEX.exec(urlParts.pathname)[1]
         );
         if (body.length) {
@@ -564,7 +563,7 @@ export function listener(
       }
     } else if (TASKS_REGEX.test(urlParts.pathname)) {
       const r = TASKS_REGEX.exec(urlParts.pathname);
-      const taskId = querystring.unescape(r[1]);
+      const taskId = decodeURIComponent(r[1]);
       const action = r[2];
       if (!action || action === "/") {
         if (request.method === "DELETE") {
@@ -650,7 +649,7 @@ export function listener(
         response.end();
       }
     } else if (FILES_REGEX.test(urlParts.pathname)) {
-      const filename = querystring.unescape(
+      const filename = decodeURIComponent(
         FILES_REGEX.exec(urlParts.pathname)[1]
       );
       if (request.method === "PUT") {
@@ -697,7 +696,7 @@ export function listener(
         response.end("405 Method Not Allowed");
       }
     } else if (PING_REGEX.test(urlParts.pathname)) {
-      const host = querystring.unescape(PING_REGEX.exec(urlParts.pathname)[1]);
+      const host = decodeURIComponent(PING_REGEX.exec(urlParts.pathname)[1]);
       ping(host, (err, res, stdout) => {
         if (err) {
           if (!res) {
@@ -723,7 +722,7 @@ export function listener(
         return;
       }
 
-      const deviceId = querystring.unescape(
+      const deviceId = decodeURIComponent(
         DELETE_DEVICE_REGEX.exec(urlParts.pathname)[1]
       );
       apiFunctions

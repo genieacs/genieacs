@@ -17,12 +17,7 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  IncomingMessage,
-  ServerResponse,
-  ClientRequest,
-  RequestOptions,
-} from "http";
+import { IncomingMessage, ServerResponse, ClientRequest } from "http";
 import { Socket } from "net";
 import { appendFileSync } from "fs";
 import { stringify } from "./common/yaml";
@@ -99,7 +94,8 @@ export function outgoingHttpResponse(
 export function outgoingHttpRequest(
   httpRequest: ClientRequest,
   deviceId: string,
-  options: RequestOptions,
+  method: "GET" | "PUT" | "POST" | "DELETE",
+  url: URL,
   body: string
 ): void {
   if (!DEBUG_FILE) return;
@@ -111,9 +107,9 @@ export function outgoingHttpRequest(
     remoteAddress: con.remoteAddress,
     deviceId: deviceId,
     connection: getConnectionTimestamp(con),
-    remotePort: options.port,
-    method: options.method || "GET",
-    url: options.path,
+    remotePort: url.port,
+    method: method,
+    url: url.pathname + url.search,
     headers: httpRequest.getHeaders(),
     body: body,
   };
@@ -128,7 +124,8 @@ export function outgoingHttpRequest(
 export function outgoingHttpRequestError(
   httpRequest: ClientRequest,
   deviceId: string,
-  options: RequestOptions,
+  method: "GET" | "PUT" | "POST" | "DELETE",
+  url: URL,
   err: Error
 ): void {
   if (!DEBUG_FILE) return;
@@ -136,12 +133,12 @@ export function outgoingHttpRequestError(
   const msg = {
     event: "outgoing HTTP request",
     timestamp: now,
-    remoteAddress: options.hostname,
+    remoteAddress: url.hostname,
     deviceId: deviceId,
     connection: null,
-    remotePort: options.port,
-    method: options.method,
-    url: options.path,
+    remotePort: url.port,
+    method: method,
+    url: url.pathname + url.search,
     headers: httpRequest.getHeaders(),
     error: err.message,
   };

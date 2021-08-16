@@ -17,7 +17,6 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { parse } from "url";
 import * as db from "./db";
 import * as common from "./common";
 import * as cache from "./cache";
@@ -80,7 +79,7 @@ export async function connectionRequest(
     ).value || [""])[0];
   }
 
-  const remoteAddress = parse(connectionRequestUrl).host;
+  const remoteAddress = new URL(connectionRequestUrl).hostname;
 
   const evalCallback = (exp): Expression => {
     if (!Array.isArray(exp)) return exp;

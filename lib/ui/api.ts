@@ -30,7 +30,6 @@ import { generateSalt, hashPassword } from "../auth";
 import { del } from "../cache";
 import Authorizer from "../common/authorizer";
 import { ping } from "../ping";
-import * as url from "url";
 import { decodeTag } from "../common";
 import { stringify as yamlStringify } from "../common/yaml";
 
@@ -579,7 +578,7 @@ router.post("/devices/:id/tasks", async (ctx) => {
         if (exp[1] === "REMOTE_ADDRESS") {
           for (const root of ["InternetGatewayDevice", "Device"]) {
             const p = device[`${root}.ManagementServer.ConnectionRequestURL`];
-            if (p && p.value) return url.parse(p.value[0]).host;
+            if (p && p.value) return new URL(p.value[0]).hostname;
           }
           return null;
         }

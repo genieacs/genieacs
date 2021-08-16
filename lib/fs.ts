@@ -18,7 +18,6 @@
  */
 
 import * as url from "url";
-import * as querystring from "querystring";
 import { IncomingMessage, ServerResponse } from "http";
 import { Collection, GridFSBucket } from "mongodb";
 import { onConnect } from "./db";
@@ -64,7 +63,7 @@ export async function listener(
   }
 
   const urlParts = url.parse(request.url, true);
-  const filename = querystring.unescape(urlParts.pathname.substring(1));
+  const filename = decodeURIComponent(urlParts.pathname.substring(1));
 
   const log = {
     message: "Fetch file",

@@ -19,7 +19,7 @@
 
 import * as crypto from "crypto";
 import * as dgram from "dgram";
-import { parse } from "url";
+import { URL } from "url";
 import * as http from "http";
 import { evaluateAsync } from "./common/expression";
 import { Expression } from "./types";
@@ -61,24 +61,26 @@ async function extractAuth(
 }
 
 function httpGet(
+  url: URL,
   options: http.RequestOptions,
   _debug: boolean,
   deviceId: string
 ): Promise<{ statusCode: number; headers: http.IncomingHttpHeaders }> {
   return new Promise((resolve, reject) => {
     const req = http
-      .get(options, (res) => {
+      .get(url, options, (res) => {
         res.resume();
         resolve({ statusCode: res.statusCode, headers: res.headers });
         if (_debug) {
-          debug.outgoingHttpRequest(req, deviceId, options, null);
+          debug.outgoingHttpRequest(req, deviceId, "GET", url, null);
           debug.incomingHttpResponse(res, deviceId, null);
         }
       })
       .on("error", (err) => {
         req.destroy();
         reject(err);
-        if (_debug) debug.outgoingHttpRequestError(req, deviceId, options, err);
+        if (_debug)
+          debug.outgoingHttpRequestError(req, deviceId, "GET", url, err);
       })
       .on("timeout", () => {
         req.destroy();
@@ -94,15 +96,13 @@ export async function httpConnectionRequest(
   _debug: boolean,
   deviceId: string
 ): Promise<string> {
-  const options: http.RequestOptions = parse(address);
-  if (options.protocol !== "http:")
+  const url = new URL(address);
+  if (url.protocol !== "http:")
     return "Invalid connection request URL or protocol";
 
-  options.agent = new http.Agent({
-    maxSockets: 1,
-    keepAlive: true,
-    timeout: timeout,
-  });
+  const options: http.RequestOptions = {
+    agent: new http.Agent({ maxSockets: 1, keepAlive: true, timeout: timeout }),
+  };
 
   let authHeader: Record<string, string>;
   let username: string;
@@ -145,12 +145,12 @@ export async function httpConnectionRequest(
 
     let res: { statusCode: number; headers: http.IncomingHttpHeaders };
     try {
-      res = await httpGet(opts, _debug, deviceId);
+      res = await httpGet(url, opts, _debug, deviceId);
     } catch (err) {
       // Workaround for some devices unexpectedly closing the connection
       if (authHeader) {
         try {
-          res = await httpGet(opts, _debug, deviceId);
+          res = await httpGet(url, opts, _debug, deviceId);
         } catch (err) {
           return `Connection request error: ${err.message}`;
         }
