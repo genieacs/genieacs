@@ -49,11 +49,11 @@ function legalChar(c: number): boolean {
 }
 
 export default class Path {
-  public readonly segments: Segments;
-  public readonly wildcard: number;
-  public readonly alias: number;
-  protected _string: string;
-  protected _stringIndex: number[];
+  public declare readonly segments: Segments;
+  public declare readonly wildcard: number;
+  public declare readonly alias: number;
+  protected declare _string: string;
+  protected declare _stringIndex: number[];
 
   protected static parseAliasValue(
     pattern: string,

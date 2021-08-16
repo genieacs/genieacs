@@ -22,7 +22,7 @@ interface Instance {
 }
 
 export default class InstanceSet {
-  private set: Set<Instance>;
+  private declare set: Set<Instance>;
 
   public constructor() {
     this.set = new Set();

@@ -29,8 +29,8 @@ const TWO = BI.BigInt(2);
 const NEGATIVE_ONE = BI.BigInt(-1);
 
 class Indeterminates {
-  public map: Map<string, number>;
-  public sortedKeys: string[];
+  public declare map: Map<string, number>;
+  public declare sortedKeys: string[];
 
   public constructor(str?: string) {
     this.map = new Map();
@@ -118,7 +118,7 @@ function findGcd(a: BI.bigint, b: BI.bigint): BI.bigint {
 }
 
 class Polynomial {
-  public terms: Term[];
+  public declare terms: Term[];
 
   public constructor(terms: Term[]) {
     this.terms = terms;
@@ -343,8 +343,8 @@ class NullSynth extends BoolExprSynth {
 }
 
 class VarSynth extends BoolExprSynth {
-  private expStr: string;
-  private negate: boolean;
+  private declare expStr: string;
+  private declare negate: boolean;
   public constructor(exp: Expression) {
     super();
     this.negate = false;
@@ -388,7 +388,7 @@ class VarSynth extends BoolExprSynth {
 }
 
 class NotSynth extends BoolExprSynth {
-  private exprSynth: BoolExprSynth;
+  private declare exprSynth: BoolExprSynth;
   public constructor(e: BoolExprSynth) {
     super();
     this.exprSynth = e;
@@ -405,7 +405,7 @@ class NotSynth extends BoolExprSynth {
 }
 
 class IsNullSynth extends BoolExprSynth {
-  private exprSynth: BoolExprSynth;
+  private declare exprSynth: BoolExprSynth;
   public constructor(e: BoolExprSynth) {
     super();
     this.exprSynth = e;
@@ -422,7 +422,7 @@ class IsNullSynth extends BoolExprSynth {
 }
 
 class OrSynth extends BoolExprSynth {
-  private exprSynths: BoolExprSynth[];
+  private declare exprSynths: BoolExprSynth[];
   public constructor(...e: BoolExprSynth[]) {
     super();
     this.exprSynths = e.filter((ee) => !(ee instanceof FalseSynth));
@@ -465,7 +465,7 @@ class OrSynth extends BoolExprSynth {
 }
 
 class AndSynth extends BoolExprSynth {
-  private exprSynths: BoolExprSynth[];
+  private declare exprSynths: BoolExprSynth[];
   public constructor(...e: BoolExprSynth[]) {
     super();
     this.exprSynths = e.filter((ee) => !(ee instanceof TrueSynth));
@@ -508,7 +508,7 @@ class AndSynth extends BoolExprSynth {
 }
 
 class CaseSynth extends BoolExprSynth {
-  private exprSynths: BoolExprSynth[];
+  private declare exprSynths: BoolExprSynth[];
   public constructor(e: BoolExprSynth[]) {
     super();
     this.exprSynths = e;

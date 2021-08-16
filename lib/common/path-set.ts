@@ -20,9 +20,9 @@
 import Path from "./path";
 
 export default class PathSet {
-  private lengthIndex: Set<Path>[];
-  private fragmentIndex: Map<string, Set<Path>>[];
-  private stringIndex: Map<string, Path>;
+  private declare lengthIndex: Set<Path>[];
+  private declare fragmentIndex: Map<string, Set<Path>>[];
+  private declare stringIndex: Map<string, Path>;
 
   public constructor() {
     this.lengthIndex = [];

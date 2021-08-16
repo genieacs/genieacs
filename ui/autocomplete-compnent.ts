@@ -23,13 +23,13 @@ type AutocompleteCallback = (
 ) => void;
 
 export default class Autocomplete {
-  private callback: AutocompleteCallback;
-  private element: HTMLInputElement;
-  private hideTimeout: NodeJS.Timeout;
-  private visible: boolean;
-  private default: string;
-  private selection: number;
-  private container: HTMLElement;
+  private declare callback: AutocompleteCallback;
+  private declare element: HTMLInputElement;
+  private declare hideTimeout: NodeJS.Timeout;
+  private declare visible: boolean;
+  private declare default: string;
+  private declare selection: number;
+  private declare container: HTMLElement;
 
   public constructor(className: string, callback: AutocompleteCallback) {
     this.callback = callback;
