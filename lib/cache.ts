@@ -78,7 +78,7 @@ export async function acquireLock(
           value: token,
           expire: new Date(now + ttl + CLOCK_SKEW_TOLERANCE),
         },
-        $currentDate: { timestamp: (true as unknown) as Date },
+        $currentDate: { timestamp: true as unknown as Date },
       },
       { upsert: true, returnDocument: "after" }
     );

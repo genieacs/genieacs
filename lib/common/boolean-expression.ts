@@ -662,10 +662,10 @@ function normalizeCallback(exp: Expression): Expression {
       if (p == null) return null;
       args.push(p);
     }
-    return (args.reduce(
+    return args.reduce(
       (previousValue, currentValue) => previousValue.add(currentValue),
       ADDITIVE_IDENTITY
-    ) as unknown) as Expression;
+    ) as unknown as Expression;
   } else if (op === "*") {
     const args: Polynomial[] = [];
     for (let i = 1; i < exp.length; ++i) {
@@ -673,10 +673,10 @@ function normalizeCallback(exp: Expression): Expression {
       if (p == null) return null;
       args.push(p);
     }
-    return (args.reduce(
+    return args.reduce(
       (previousValue, currentValue) => previousValue.multiply(currentValue),
       MULTIPLICATIVE_IDENTITY
-    ) as unknown) as Expression;
+    ) as unknown as Expression;
   } else if (op === "-") {
     const args: Polynomial[] = [];
     for (let i = 1; i < exp.length; ++i) {
@@ -684,9 +684,9 @@ function normalizeCallback(exp: Expression): Expression {
       if (p == null) return null;
       args.push(p);
     }
-    return (args.reduce((previousValue, currentValue) =>
+    return args.reduce((previousValue, currentValue) =>
       previousValue.subtract(currentValue)
-    ) as unknown) as Expression;
+    ) as unknown as Expression;
   } else if (op === "/") {
     const args: Polynomial[] = [];
     for (let i = 1; i < exp.length; ++i) {
@@ -694,9 +694,9 @@ function normalizeCallback(exp: Expression): Expression {
       if (p == null) return null;
       args.push(p);
     }
-    return (args.reduce((previousValue, currentValue) =>
+    return args.reduce((previousValue, currentValue) =>
       previousValue.divide(currentValue)
-    ) as unknown) as Expression;
+    ) as unknown as Expression;
   } else if (["=", "<>", ">", ">=", "<", "<="].includes(op)) {
     if (exp[1] == null || exp[2] == null) return null;
     let lhs: Polynomial, rhs: Polynomial;
@@ -1072,22 +1072,22 @@ function mapCallback(exp: Expression | BoolExprSynth): Expression {
 
   const op = exp[0];
   if (op === "IS NULL")
-    return (new IsNullSynth(toBoolExprSynth(exp[1])) as unknown) as Expression;
+    return new IsNullSynth(toBoolExprSynth(exp[1])) as unknown as Expression;
 
   if (op === "IS NOT NULL") {
-    return (new NotSynth(
+    return new NotSynth(
       new IsNullSynth(toBoolExprSynth(exp[1]))
-    ) as unknown) as Expression;
+    ) as unknown as Expression;
   } else if (op === "NOT") {
-    return (new NotSynth(toBoolExprSynth(exp[1])) as unknown) as Expression;
+    return new NotSynth(toBoolExprSynth(exp[1])) as unknown as Expression;
   } else if (op === "OR") {
-    return (new OrSynth(
+    return new OrSynth(
       ...exp.slice(1).map((a) => toBoolExprSynth(a))
-    ) as unknown) as Expression;
+    ) as unknown as Expression;
   } else if (op === "AND") {
-    return (new AndSynth(
+    return new AndSynth(
       ...exp.slice(1).map((a) => toBoolExprSynth(a))
-    ) as unknown) as Expression;
+    ) as unknown as Expression;
   }
   for (let i = 1; i < exp.length; ++i) {
     if (exp[i] instanceof BoolExprSynth) {
@@ -1152,10 +1152,10 @@ export function minimize(expr: Expression, boolean = false): Expression {
       if (res.length < 3) return null;
       return res;
     }
-    expr = (toBoolExprSynth(expr) as unknown) as Expression;
+    expr = toBoolExprSynth(expr) as unknown as Expression;
   }
 
-  if (boolean) expr = (toBoolExprSynth(expr) as unknown) as Expression;
+  if (boolean) expr = toBoolExprSynth(expr) as unknown as Expression;
 
   if (expr instanceof BoolExprSynth) expr = boolExprSynthToExpression(expr);
   return expr;
@@ -1173,7 +1173,7 @@ export function unionDiff(
 
   if (!expr1) {
     if (Array.isArray(expr2) && expr2[0] === "CASE")
-      expr2 = (toBoolExprSynth(expr2) as unknown) as Expression;
+      expr2 = toBoolExprSynth(expr2) as unknown as Expression;
     if (expr2 instanceof BoolExprSynth)
       expr2 = boolExprSynthToExpression(expr2);
     return [expr2, expr2];

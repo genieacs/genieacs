@@ -497,10 +497,11 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
     defer: true,
   }));
 
-  const { fault: flt, rpcId: reqId, rpc: acsReq } = await session.rpcRequest(
-    sessionContext,
-    declarations
-  );
+  const {
+    fault: flt,
+    rpcId: reqId,
+    rpc: acsReq,
+  } = await session.rpcRequest(sessionContext, declarations);
 
   if (flt) {
     recordFault(sessionContext, flt);
@@ -572,10 +573,11 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
 
   deviceData.timestamps.dirty = 0;
   deviceData.attributes.dirty = 0;
-  const { fault: fault, rpcId: id, rpc: acsRequest } = await session.rpcRequest(
-    sessionContext,
-    null
-  );
+  const {
+    fault: fault,
+    rpcId: id,
+    rpc: acsRequest,
+  } = await session.rpcRequest(sessionContext, null);
 
   if (fault) {
     recordFault(sessionContext, fault);
@@ -605,10 +607,11 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
 }
 
 async function nextRpc(sessionContext: SessionContext): Promise<void> {
-  const { fault: fault, rpcId: id, rpc: acsRequest } = await session.rpcRequest(
-    sessionContext,
-    null
-  );
+  const {
+    fault: fault,
+    rpcId: id,
+    rpc: acsRequest,
+  } = await session.rpcRequest(sessionContext, null);
 
   if (fault) {
     recordFault(sessionContext, fault);
@@ -1370,7 +1373,8 @@ async function listenerAsync(
 
   let sessionId;
   // Separation by comma is important as some devices don't comform to standard
-  const COOKIE_REGEX = /\s*([a-zA-Z0-9\-_]+?)\s*=\s*"?([a-zA-Z0-9\-_]*?)"?\s*(,|;|$)/g;
+  const COOKIE_REGEX =
+    /\s*([a-zA-Z0-9\-_]+?)\s*=\s*"?([a-zA-Z0-9\-_]*?)"?\s*(,|;|$)/g;
   let match;
   while ((match = COOKIE_REGEX.exec(httpRequest.headers.cookie)))
     if (match[1] === "session") sessionId = match[2];

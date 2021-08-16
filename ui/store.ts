@@ -609,9 +609,8 @@ export function postTasks(
       if (xhr.status === 403) throw new Error("Not authorized");
       if (!xhr.status) throw new Error("Server is unreachable");
       if (xhr.status !== 200) throw new Error(xhr.response);
-      const connectionRequestStatus = xhr.getResponseHeader(
-        "Connection-Request"
-      );
+      const connectionRequestStatus =
+        xhr.getResponseHeader("Connection-Request");
       const st = JSON.parse(xhr.response);
       for (const [i, t] of st.entries()) {
         tasks[i]._id = t._id;

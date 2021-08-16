@@ -39,16 +39,20 @@ export function ping(
   switch (platform()) {
     case "linux":
       cmd = `ping -w 1 -i 0.2 -c 3 ${host}`;
-      parseRegExp1 = /(\d+) packets transmitted, (\d+) received, ([\d.]+)% packet loss[^]*([\d.]+)\/([\d.]+)\/([\d.]+)\/([\d.]+)/;
-      parseRegExp2 = /(\d+) packets transmitted, (\d+) received, ([\d.]+)% packet loss/;
+      parseRegExp1 =
+        /(\d+) packets transmitted, (\d+) received, ([\d.]+)% packet loss[^]*([\d.]+)\/([\d.]+)\/([\d.]+)\/([\d.]+)/;
+      parseRegExp2 =
+        /(\d+) packets transmitted, (\d+) received, ([\d.]+)% packet loss/;
       break;
 
     case "freebsd":
       // Send a single packet because on FreeBSD only superuser can send
       // packets that are only 200 ms apart.
       cmd = `ping -t 1 -c 3 ${host}`;
-      parseRegExp1 = /(\d+) packets transmitted, (\d+) packets received, ([\d.]+)% packet loss\nround-trip min\/avg\/max\/stddev = ([\d.]+)\/([\d.]+)\/([\d.]+)\/([\d.]+) ms/;
-      parseRegExp2 = /(\d+) packets transmitted, (\d+) packets received, ([\d.]+)% packet loss/;
+      parseRegExp1 =
+        /(\d+) packets transmitted, (\d+) packets received, ([\d.]+)% packet loss\nround-trip min\/avg\/max\/stddev = ([\d.]+)\/([\d.]+)\/([\d.]+)\/([\d.]+) ms/;
+      parseRegExp2 =
+        /(\d+) packets transmitted, (\d+) packets received, ([\d.]+)% packet loss/;
       break;
 
     default:

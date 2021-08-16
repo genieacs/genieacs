@@ -534,9 +534,8 @@ export async function saveDevice(
                 }
 
                 if (attributesTimestamp2 !== attributesTimestamp1) {
-                  update["$set"][
-                    path.toString() + "._attributesTimestamp"
-                  ] = new Date(attributesTimestamp2);
+                  update["$set"][path.toString() + "._attributesTimestamp"] =
+                    new Date(attributesTimestamp2);
                 }
 
                 break;
@@ -554,9 +553,8 @@ export async function saveDevice(
                 }
 
                 if (attributesTimestamp2 !== attributesTimestamp1) {
-                  update["$set"][
-                    path.toString() + "._attributesTimestamp"
-                  ] = new Date(attributesTimestamp2);
+                  update["$set"][path.toString() + "._attributesTimestamp"] =
+                    new Date(attributesTimestamp2);
                 }
             }
           }
@@ -804,7 +802,7 @@ interface Permission {
 }
 
 export async function getPermissions(): Promise<Permission[]> {
-  return (permissionsCollection.find().toArray() as unknown) as Permission[];
+  return permissionsCollection.find().toArray() as unknown as Permission[];
 }
 
 interface User {
@@ -815,5 +813,5 @@ interface User {
 }
 
 export async function getUsers(): Promise<User[]> {
-  return (usersCollection.find().toArray() as unknown) as User[];
+  return usersCollection.find().toArray() as unknown as User[];
 }

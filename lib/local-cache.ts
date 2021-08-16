@@ -266,9 +266,7 @@ async function fetchProvisions(): Promise<Provisions> {
       .createHash("md5")
       .update(r["script"])
       .digest("hex");
-    provisions[
-      r["_id"]
-    ].script = new vm.Script(
+    provisions[r["_id"]].script = new vm.Script(
       `"use strict";(function(){\n${r["script"]}\n})();`,
       { filename: r["_id"], lineOffset: -1, timeout: 50 }
     );
@@ -287,9 +285,7 @@ async function fetchVirtualParameters(): Promise<VirtualParameters> {
       .createHash("md5")
       .update(r["script"])
       .digest("hex");
-    virtualParameters[
-      r["_id"]
-    ].script = new vm.Script(
+    virtualParameters[r["_id"]].script = new vm.Script(
       `"use strict";(function(){\n${r["script"]}\n})();`,
       { filename: r["_id"], lineOffset: -1, timeout: 50 }
     );

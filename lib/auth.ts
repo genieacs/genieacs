@@ -52,9 +52,9 @@ function parseHeaderFeilds(str: string): Record<string, string> {
   return res;
 }
 
-export function parseAuthorizationHeader(
-  authHeader: string
-): { method: string } {
+export function parseAuthorizationHeader(authHeader: string): {
+  method: string;
+} {
   authHeader = authHeader.trim();
   const method = authHeader.split(" ", 1)[0];
   const res = { method: method };

@@ -65,7 +65,7 @@ function putActionHandler(prefix: string[], dataYaml: string): Promise<any> {
               store.putResource(
                 "config",
                 obj._id,
-                (obj as unknown) as Record<string, unknown>
+                obj as unknown as Record<string, unknown>
               )
             );
           }

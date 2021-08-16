@@ -339,7 +339,7 @@ export function putFile(
   return new Promise((resolve, reject) => {
     const bucket = new GridFSBucket(db);
     const uploadStream = bucket.openUploadStreamWithId(
-      (filename as unknown) as ObjectId,
+      filename as unknown as ObjectId,
       filename,
       {
         metadata: metadata,

@@ -61,7 +61,7 @@
     "postcss": "^8.2.8",
     "postcss-import": "^14.0.0",
     "postcss-preset-env": "^6.7.0",
-    "prettier": "^2.2.1",
+    "prettier": "^2.4.1",
     "rollup": "^2.41.2",
     "rollup-plugin-terser": "^7.0.2",
     "sql.js": "^1.6.1",

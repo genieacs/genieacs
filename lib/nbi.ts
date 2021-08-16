@@ -33,7 +33,8 @@ import { flattenDevice } from "./mongodb-functions";
 
 const DEVICE_TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-_%]+)\/tasks\/?$/;
 const TASKS_REGEX = /^\/tasks\/([a-zA-Z0-9\-_%]+)(\/[a-zA-Z_]*)?$/;
-const TAGS_REGEX = /^\/devices\/([a-zA-Z0-9\-_%]+)\/tags\/([a-zA-Z0-9\-_%]+)\/?$/;
+const TAGS_REGEX =
+  /^\/devices\/([a-zA-Z0-9\-_%]+)\/tags\/([a-zA-Z0-9\-_%]+)\/?$/;
 const PRESETS_REGEX = /^\/presets\/([a-zA-Z0-9\-_%]+)\/?$/;
 const OBJECTS_REGEX = /^\/objects\/([a-zA-Z0-9\-_%]+)\/?$/;
 const FILES_REGEX = /^\/files\/([a-zA-Z0-9%!*'();:@&=+$,?#[\]\-_.~]+)\/?$/;
@@ -41,7 +42,8 @@ const PING_REGEX = /^\/ping\/([a-zA-Z0-9\-_.:]+)\/?$/;
 const QUERY_REGEX = /^\/([a-zA-Z0-9_]+)\/?$/;
 const DELETE_DEVICE_REGEX = /^\/devices\/([a-zA-Z0-9\-_%]+)\/?$/;
 const PROVISIONS_REGEX = /^\/provisions\/([a-zA-Z0-9\-_%]+)\/?$/;
-const VIRTUAL_PARAMETERS_REGEX = /^\/virtual_parameters\/([a-zA-Z0-9\-_%]+)\/?$/;
+const VIRTUAL_PARAMETERS_REGEX =
+  /^\/virtual_parameters\/([a-zA-Z0-9\-_%]+)\/?$/;
 const FAULTS_REGEX = /^\/faults\/([a-zA-Z0-9\-_%:]+)\/?$/;
 
 const collections: Record<string, Collection> = {
@@ -680,9 +682,9 @@ export function listener(
           productClass: request.headers.productclass,
           version: request.headers.version,
         };
-        filesBucket.delete((filename as unknown) as ObjectId, () => {
+        filesBucket.delete(filename as unknown as ObjectId, () => {
           const uploadStream = filesBucket.openUploadStreamWithId(
-            (filename as unknown) as ObjectId,
+            filename as unknown as ObjectId,
             filename,
             {
               metadata: metadata,
@@ -699,7 +701,7 @@ export function listener(
           });
         });
       } else if (request.method === "DELETE") {
-        filesBucket.delete((filename as unknown) as ObjectId, (err) => {
+        filesBucket.delete(filename as unknown as ObjectId, (err) => {
           if (err) {
             if (err.message.startsWith("FileNotFound")) {
               response.writeHead(404);

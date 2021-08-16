@@ -1113,9 +1113,8 @@ export async function rpcRequest(
   if (_declarations?.length) {
     delete sessionContext.syncState;
     if (!sessionContext.declarations[0]) sessionContext.declarations[0] = [];
-    sessionContext.declarations[0] = sessionContext.declarations[0].concat(
-      _declarations
-    );
+    sessionContext.declarations[0] =
+      sessionContext.declarations[0].concat(_declarations);
     return rpcRequest(sessionContext, null);
   }
 
@@ -2933,13 +2932,9 @@ export async function rpcFault(
         (p) => [Path.parse(p.replace(/\.$/, "")), timestamp] as Clear
       );
     } else if (rpcReq.name === "SetParameterValues") {
-      toClear = (rpcReq.parameterList as [
-        string,
-        string | number | boolean,
-        string
-      ][]).map(
-        (p) => [Path.parse(p[0].replace(/\.$/, "")), timestamp] as Clear
-      );
+      toClear = (
+        rpcReq.parameterList as [string, string | number | boolean, string][]
+      ).map((p) => [Path.parse(p[0].replace(/\.$/, "")), timestamp] as Clear);
     } else if (rpcReq.name === "AddObject") {
       toClear = [[Path.parse(rpcReq.objectName.replace(/\.$/, "")), timestamp]];
     } else if (rpcReq.name === "DeleteObject") {
@@ -2976,10 +2971,10 @@ export async function deserialize(
   const sessionContext = JSON.parse(sessionContextString) as SessionContext;
 
   for (const decs of sessionContext.declarations)
-    for (const d of decs) d.path = Path.parse((d.path as unknown) as string);
+    for (const d of decs) d.path = Path.parse(d.path as unknown as string);
 
   const deviceData = initDeviceData();
-  for (const r of (sessionContext.deviceData as unknown) as any[]) {
+  for (const r of sessionContext.deviceData as unknown as any[]) {
     const path = deviceData.paths.add(Path.parse(r[0]));
 
     if (r[1]) deviceData.trackers.set(path, r[1]);

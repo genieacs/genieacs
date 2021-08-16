@@ -221,7 +221,8 @@ router.post("/init", async (ctx) => {
 });
 
 router.get("/", async (ctx) => {
-  const permissionSets: PermissionSet[] = ctx.state.authorizer.getPermissionSets();
+  const permissionSets: PermissionSet[] =
+    ctx.state.authorizer.getPermissionSets();
 
   let wizard = "";
   if (!Object.keys(localCache.getUsers(ctx.state.configSnapshot)).length)

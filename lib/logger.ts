@@ -292,11 +292,9 @@ function formatSimple(
     return `${severity}${remote}${details.message}${meta}${os.EOL}`;
   }
 
-  return `${
-    details.timestamp
-  } [${(details.severity as string).toUpperCase()}] ${remote}${
-    details.message
-  }${meta}${os.EOL}`;
+  return `${details.timestamp} [${(
+    details.severity as string
+  ).toUpperCase()}] ${remote}${details.message}${meta}${os.EOL}`;
 }
 
 function log(details: Record<string, unknown>): void {
