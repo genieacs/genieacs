@@ -427,10 +427,11 @@ export const component: ClosureComponent = (): Component => {
         };
       }
 
-      const filterAttrs = {};
-      filterAttrs["resource"] = "presets";
-      filterAttrs["filter"] = vnode.attrs["filter"];
-      filterAttrs["onChange"] = onFilterChanged;
+      const filterAttrs = {
+        resource: "presets",
+        filter: vnode.attrs["filter"],
+        onChange: onFilterChanged,
+      };
 
       return [
         m("h1", "Listing presets"),

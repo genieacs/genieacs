@@ -328,10 +328,11 @@ export const component: ClosureComponent = (): Component => {
       if (window.authorizer.hasAccess("devices", 3))
         attrs["actionsCallback"] = renderActions;
 
-      const filterAttrs = {};
-      filterAttrs["resource"] = "devices";
-      filterAttrs["filter"] = vnode.attrs["filter"];
-      filterAttrs["onChange"] = onFilterChanged;
+      const filterAttrs = {
+        resource: "devices",
+        filter: vnode.attrs["filter"],
+        onChange: onFilterChanged,
+      };
 
       return [
         m("h1", "Listing devices"),

@@ -17,7 +17,7 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import m, { ClosureComponent, Component } from "mithril";
+import m, { ClosureComponent } from "mithril";
 import { parse, stringify, map } from "../lib/common/expression-parser";
 import memoize from "../lib/common/memoize";
 import Autocomplete from "./autocomplete-compnent";
@@ -82,9 +82,9 @@ function stringifyFilter(f: Expression): string {
   return stringify(f);
 }
 
-const splitFilter = memoize((filter) => {
+function splitFilter(filter: string): string[] {
   if (!filter) return [""];
-  const list = [];
+  const list: string[] = [];
   const f = parse(filter);
   if (Array.isArray(f) && f[0] === "AND")
     for (const ff of f.slice(1)) list.push(stringifyFilter(ff));
@@ -92,69 +92,82 @@ const splitFilter = memoize((filter) => {
 
   list.push("");
   return list;
-});
+}
 
-const component: ClosureComponent = (): Component => {
+interface Attrs {
+  resource: string;
+  filter: string;
+  onChange: (filter: string) => void;
+}
+
+const component: ClosureComponent<Attrs> = (initialVnode) => {
+  let filterList = splitFilter(initialVnode.attrs.filter);
+  let filterInvalid = 0;
+  let filterTouched = false;
+  let attrs: Attrs = initialVnode.attrs;
+
+  function onChange(): void {
+    filterTouched = false;
+    filterInvalid = 0;
+    filterList = filterList.filter((f) => f);
+    const list = filterList.map((f, idx) => {
+      try {
+        return parseFilter(attrs.resource, f);
+      } catch (err) {
+        filterInvalid |= 1 << idx;
+      }
+      return null;
+    });
+    filterList.push("");
+
+    if (filterInvalid) {
+      m.redraw();
+      return;
+    }
+    if (list.length === 0) attrs.onChange("");
+    else if (list.length > 1) attrs.onChange(stringify(["AND", ...list]));
+    else attrs.onChange(stringify(list[0]));
+  }
+
   return {
+    onupdate: (vnode) => {
+      getAutocomplete(vnode.attrs.resource).reposition();
+    },
     view: (vnode) => {
-      if (
-        !vnode.state["filterList"] ||
-        vnode.attrs["filter"] !== vnode.state["filter"]
-      ) {
-        vnode.state["filterInvalid"] = 0;
-        vnode.state["filter"] = vnode.attrs["filter"];
-        vnode.state["filterList"] = splitFilter(vnode.attrs["filter"]);
+      if (attrs.filter !== vnode.attrs.filter) {
+        filterInvalid = 0;
+        filterList = splitFilter(vnode.attrs.filter);
       }
 
-      function onChange(): void {
-        vnode.state["filterInvalid"] = 0;
-        vnode.state["filterList"] = vnode.state["filterList"].filter((f) => f);
-        let filter = vnode.state["filterList"].map((f, idx) => {
-          try {
-            return parseFilter(vnode.attrs["resource"], f);
-          } catch (err) {
-            vnode.state["filterInvalid"] |= 1 << idx;
-          }
-          return null;
-        });
-        vnode.state["filterList"].push("");
+      attrs = vnode.attrs;
 
-        if (!vnode.state["filterInvalid"]) {
-          delete vnode.state["filter"];
-          if (filter.length === 0) {
-            vnode.attrs["onChange"]("");
-          } else {
-            if (filter.length > 1) filter = ["AND"].concat(filter);
-            else filter = filter[0];
-            vnode.attrs["onChange"](stringify(filter));
-          }
-        }
-      }
+      return m("div.filter", [
+        m("b", "Filter"),
+        ...filterList.map((fltr, idx) => {
+          return m("input", {
+            type: "text",
+            class: `${(filterInvalid >> idx) & 1 ? "error" : ""}`,
+            value: fltr,
+            oninput: (e) => {
+              e.redraw = false;
+              filterList[idx] = e.target.value;
+              filterTouched = true;
+            },
+            oncreate: (vn) => {
+              const el = vn.dom as HTMLInputElement;
+              getAutocomplete(vnode.attrs.resource).attach(el);
 
-      return m(
-        "div.filter",
-        [m("b", "Filter")].concat(
-          vnode.state["filterList"].map((fltr, idx) => {
-            return m("input", {
-              type: "text",
-              class: `${
-                (vnode.state["filterInvalid"] >> idx) & 1 ? "error" : ""
-              }`,
-              value: fltr,
-              onchange: (e) => {
-                vnode.state["filterList"] = vnode.state["filterList"].slice();
-                vnode.state["filterList"][idx] = e.target.value.trim();
-                onChange();
-              },
-              oncreate: (vn) => {
-                getAutocomplete(vnode.attrs["resource"]).attach(
-                  vn.dom as HTMLInputElement
-                );
-              },
-            });
-          })
-        )
-      );
+              el.addEventListener("blur", () => {
+                if (filterTouched) onChange();
+              });
+
+              el.addEventListener("keydown", (e) => {
+                if (e.key === "Enter" && filterTouched) onChange();
+              });
+            },
+          });
+        }),
+      ]);
     },
   };
 };
