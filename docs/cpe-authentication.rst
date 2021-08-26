@@ -69,4 +69,29 @@ the credentials from an external source:
 ACS to CPE
 ----------
 
-TODO
+.. note::
+
+  By default, GenieACS does not have ACS to CPE authentication configured.
+
+The following parameters are used to set and get (password is redacted but
+can be set) the username/password used to authenticate against the CPE:
+
+Username: ``InternetGatewayDevice.ManagementServer.ConnectionRequestUsername``
+
+Password: ``InternetGatewayDevice.ManagementServer.ConnectionRequestUsername``
+
+Enable ACS to CPE authentication
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ACS to CPE authentication can be configured in the web interface by using `cwmp.connectionRequestAuth` configuration key.
+
+Go to the `Admin` -> `Config` page and click on `New config` button at the
+bottom of the page. This will open pop-up which requires you to fill in a key
+and value. The key should be ``cwmp.connectionRequestAuth`` and the value should be
+configured using the ``AUTH()`` or ``EXT()`` functions (already explained in the previous section).
+
+In a scenario where a unique user and password is sent to each CPE in the inform (GenieACS default setting), we must configure the following value:
+
+.. code:: sql
+
+   AUTH(InternetGatewayDevice.ManagementServer.ConnectionRequestUsername, InternetGatewayDevice.ManagementServer.ConnectionRequestPassword)
