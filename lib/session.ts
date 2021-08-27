@@ -60,6 +60,7 @@ import {
   ChangeDUStateOperation,
   DownloadOperation,
   DUStateChangeCompleteRequest,
+  ChangeDUState,
 } from "./types";
 import { getRequestOrigin } from "./forwarded";
 import * as logger from "./logger";
@@ -452,14 +453,27 @@ export async function duStateChangeComplete(
   sessionContext.deviceData.attributes.revision = revision;
   const commandKey = rpcReq.commandKey;
   const operation = sessionContext.operations[commandKey];
-  if (operation.name !== "ChangeDUState")
-    throw new Error("Unexpected operation name");
 
   if (!operation) {
     return {
       acsResponse: { name: "DUStateChangeCompleteResponse" },
       operation: null,
       fault: null,
+    };
+  }
+
+  if (operation.name !== "ChangeDUState")
+    throw new Error("Unexpected operation name");
+
+  if (operation.args.operations.length !== rpcReq.results.length) {
+    return {
+      acsResponse: { name: "DUStateChangeCompleteResponse" },
+      operation: operation,
+      fault: {
+        code: "invalid_response",
+        message: "Unexpected number of results in DUStateChangeComplete",
+        timestamp: operation.timestamp,
+      },
     };
   }
 
@@ -1577,7 +1591,7 @@ export async function rpcRequest(
         if (index == null) {
           index = 0;
           for (const p of sessionContext.deviceData.paths.find(
-            Path.parse("DUState.*"),
+            Path.parse("DUStates.*"),
             false,
             true
           )) {
@@ -1593,7 +1607,7 @@ export async function rpcRequest(
 
         toClear = device.set(
           sessionContext.deviceData,
-          Path.parse("DUState"),
+          Path.parse("DUStates"),
           timestamp,
           { object: [timestamp, 1], writable: [timestamp, 1] },
           toClear
@@ -1601,7 +1615,7 @@ export async function rpcRequest(
 
         toClear = device.set(
           sessionContext.deviceData,
-          Path.parse(`DUState.${index}`),
+          Path.parse(`DUStates.${index}`),
           timestamp,
           { object: [timestamp, 1], writable: [timestamp, 1] },
           toClear
@@ -1653,7 +1667,7 @@ export async function rpcRequest(
         for (const [k, v] of Object.entries(params)) {
           toClear = device.set(
             sessionContext.deviceData,
-            Path.parse(`DUState.${index}.${k}`),
+            Path.parse(`DUStates.${index}.${k}`),
             timestamp,
             {
               object: [timestamp, 0],
@@ -1669,7 +1683,7 @@ export async function rpcRequest(
 
         toClear = device.set(
           sessionContext.deviceData,
-          Path.parse(`DUState.${index}.*`),
+          Path.parse(`DUStates.${index}.*`),
           timestamp,
           null,
           toClear
@@ -2014,6 +2028,7 @@ function generateSetRpcRequest(
   | FactoryReset
   | Reboot
   | Download
+  | ChangeDUState
 ) & { next?: string } {
   const syncState = sessionContext.syncState;
   if (!syncState) return null;
@@ -2190,6 +2205,76 @@ function generateSetRpcRequest(
           : null,
       };
     }
+  }
+
+  // ChangeDUState
+  const duStateOps: ChangeDUState["operations"] = [];
+  for (const [p, t] of syncState.duStatesChangeDUState) {
+    const attrs = deviceData.attributes.get(p);
+    if (attrs && attrs.value && t <= attrs.value[1][0]) continue;
+    const urlAttrs = deviceData.attributes.get(
+      deviceData.paths.get(p.slice(0, -1).concat(Path.parse("URL")))
+    );
+    const operationTypeAttrs = deviceData.attributes.get(
+      deviceData.paths.get(p.slice(0, -1).concat(Path.parse("OperationType")))
+    );
+    const uuidAttrs = deviceData.attributes.get(
+      deviceData.paths.get(p.slice(0, -1).concat(Path.parse("UUID")))
+    );
+    const executionEnvRefAttrs = deviceData.attributes.get(
+      deviceData.paths.get(p.slice(0, -1).concat(Path.parse("ExecutionEnvRef")))
+    );
+    const versionAttrs = deviceData.attributes.get(
+      deviceData.paths.get(p.slice(0, -1).concat(Path.parse("Version")))
+    );
+    const usernameAttrs = deviceData.attributes.get(
+      deviceData.paths.get(p.slice(0, -1).concat(Path.parse("Username")))
+    );
+    const passwordAttrs = deviceData.attributes.get(
+      deviceData.paths.get(p.slice(0, -1).concat(Path.parse("Password")))
+    );
+
+    const operationType = operationTypeAttrs
+      ? (operationTypeAttrs.value[1][0] as string)
+      : null;
+    const url = urlAttrs ? (urlAttrs.value[1][0] as string) : null;
+    const uuid = uuidAttrs ? (uuidAttrs.value[1][0] as string) : null;
+    const executionEnvRef = executionEnvRefAttrs
+      ? (executionEnvRefAttrs.value[1][0] as string)
+      : null;
+    const version = versionAttrs ? (versionAttrs.value[1][0] as string) : null;
+    const username = usernameAttrs
+      ? (usernameAttrs.value[1][0] as string)
+      : null;
+    const password = passwordAttrs
+      ? (passwordAttrs.value[1][0] as string)
+      : null;
+
+    if (
+      operationType !== "install" &&
+      operationType !== "update" &&
+      operationType !== "uninstall"
+    )
+      continue;
+
+    duStateOps.push({
+      operationType: operationType,
+      instance: p.segments[1] as string,
+      url: url,
+      uuid: uuid,
+      executionEnvRef: executionEnvRef,
+      version: version,
+      username: username,
+      password: password,
+    });
+  }
+
+  if (duStateOps.length) {
+    return {
+      name: "ChangeDUState",
+      commandKey: generateRpcId(sessionContext),
+      operations: duStateOps,
+    };
   }
 
   // Reboot
@@ -2473,7 +2558,7 @@ function processDeclarations(
           }
         }
         break;
-      case "DUState":
+      case "DUStates":
         if (
           currentPath.length === 3 &&
           currentPath.wildcard === 0 &&
@@ -2955,7 +3040,7 @@ export async function rpcResponse(
         "FactoryReset",
         "VirtualParameters",
         "Downloads",
-        "DUState",
+        "DUStates",
       ]) {
         const p = sessionContext.deviceData.paths.get(Path.parse(n));
         if (p && sessionContext.deviceData.attributes.has(p))
@@ -3186,7 +3271,7 @@ export async function rpcResponse(
     for (const op of rpcReq.operations) {
       toClear = device.set(
         sessionContext.deviceData,
-        Path.parse(`DuStates.${op.instance}.ChangeDUState`),
+        Path.parse(`DUStates.${op.instance}.ChangeDUState`),
         timestamp + 1,
         { value: [timestamp + 1, [sessionContext.timestamp, "xsd:dateTime"]] },
         toClear

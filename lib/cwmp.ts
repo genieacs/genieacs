@@ -361,6 +361,39 @@ async function transferComplete(sessionContext, rpc): Promise<void> {
   return writeResponse(sessionContext, res);
 }
 
+async function duStateChangeComplete(sessionContext, rpc): Promise<void> {
+  const { acsResponse, operation, fault } = await session.duStateChangeComplete(
+    sessionContext,
+    rpc.cpeRequest
+  );
+
+  if (!operation) {
+    logger.accessWarn({
+      sessionContext: sessionContext,
+      message: "Unrecognized command key",
+      rpc: rpc,
+    });
+  }
+
+  if (fault) {
+    Object.assign(sessionContext.retries, operation.retries);
+    recordFault(
+      sessionContext,
+      fault,
+      operation.provisions,
+      operation.channels
+    );
+  }
+
+  const res = soap.response({
+    id: rpc.id,
+    acsResponse: acsResponse,
+    cwmpVersion: sessionContext.cwmpVersion,
+  });
+
+  return writeResponse(sessionContext, res);
+}
+
 // Append provisions and remove duplicates
 function appendProvisions(original, toAppend): boolean {
   let modified = false;
@@ -1239,6 +1272,16 @@ async function processRequest(
         cwmpVersion: sessionContext.cwmpVersion,
       });
       return writeResponse(sessionContext, res);
+    } else if (rpc.cpeRequest.name === "DUStateChangeComplete") {
+      if (sessionContext.state !== 1) return reportBadState(sessionContext);
+
+      logger.accessInfo({
+        sessionContext: sessionContext,
+        message: "CPE request",
+        rpc: rpc,
+      });
+
+      return duStateChangeComplete(sessionContext, rpc);
     } else {
       if (sessionContext.state !== 1 || rpc.cpeRequest.name === "Inform")
         return void reportBadState(sessionContext);

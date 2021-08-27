@@ -304,10 +304,10 @@ export interface ChangeDUState {
     instance: string;
     url: string;
     uuid: string;
-    version?: string;
-    executionEnvRef?: string;
-    username?: string;
-    password?: string;
+    version: string;
+    executionEnvRef: string;
+    username: string;
+    password: string;
   }[];
 }
 

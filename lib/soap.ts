@@ -788,10 +788,10 @@ function DUStateChangeComplete(xml: Element): DUStateChangeCompleteRequest {
               res.executionUnitRefList = cc.text;
               break;
             case "StartTime":
-              res.startTime = Date.parse(c.text);
+              if (c.text) res.startTime = Date.parse(c.text);
               break;
             case "CompleteTime":
-              res.completeTime = Date.parse(c.text);
+              if (c.text) res.completeTime = Date.parse(c.text);
               break;
             case "Fault":
               res.fault = {
@@ -803,8 +803,8 @@ function DUStateChangeComplete(xml: Element): DUStateChangeCompleteRequest {
               };
               break;
           }
-          results.push(res);
         }
+        results.push(res);
         break;
     }
   }
