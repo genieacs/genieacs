@@ -298,12 +298,11 @@ class Polynomial {
 }
 
 type Minterm = number[];
-type Context = Map<string, number>;
 
 abstract class BoolExprSynth {
-  public abstract true(context: Context): Minterm[];
-  public abstract false(context: Context): Minterm[];
-  public abstract null(context: Context): Minterm[];
+  public abstract true(context: SynthContext): Minterm[];
+  public abstract false(context: SynthContext): Minterm[];
+  public abstract null(context: SynthContext): Minterm[];
 }
 
 class TrueSynth extends BoolExprSynth {
@@ -343,7 +342,7 @@ class NullSynth extends BoolExprSynth {
 }
 
 class VarSynth extends BoolExprSynth {
-  private declare expStr: string;
+  private declare exp: Expression;
   private declare negate: boolean;
   public constructor(exp: Expression) {
     super();
@@ -368,21 +367,18 @@ class VarSynth extends BoolExprSynth {
         this.negate = true;
       }
     }
-    this.expStr = JSON.stringify(exp);
+    this.exp = exp;
   }
-  public true(context: Context): Minterm[] {
-    let v = context.get(this.expStr);
-    if (v == null) context.set(this.expStr, (v = context.size));
+  public true(context: SynthContext): Minterm[] {
+    const v = context.getVariable(this.exp);
     return [[(v << 2) ^ (this.negate ? 1 : 3)]];
   }
-  public false(context: Context): Minterm[] {
-    let v = context.get(this.expStr);
-    if (v == null) context.set(this.expStr, (v = context.size));
+  public false(context: SynthContext): Minterm[] {
+    const v = context.getVariable(this.exp);
     return [[(v << 2) ^ (this.negate ? 3 : 1)]];
   }
-  public null(context: Context): Minterm[] {
-    let v = context.get(this.expStr);
-    if (v == null) context.set(this.expStr, (v = context.size));
+  public null(context: SynthContext): Minterm[] {
+    const v = context.getVariable(this.exp);
     return [[v << 2, (v << 2) ^ 2]];
   }
 }
@@ -393,13 +389,13 @@ class NotSynth extends BoolExprSynth {
     super();
     this.exprSynth = e;
   }
-  public true(context: Context): Minterm[] {
+  public true(context: SynthContext): Minterm[] {
     return this.exprSynth.false(context);
   }
-  public false(context: Context): Minterm[] {
+  public false(context: SynthContext): Minterm[] {
     return this.exprSynth.true(context);
   }
-  public null(context: Context): Minterm[] {
+  public null(context: SynthContext): Minterm[] {
     return this.exprSynth.null(context);
   }
 }
@@ -410,10 +406,10 @@ class IsNullSynth extends BoolExprSynth {
     super();
     this.exprSynth = e;
   }
-  public true(context: Context): Minterm[] {
+  public true(context: SynthContext): Minterm[] {
     return this.exprSynth.null(context);
   }
-  public false(context: Context): Minterm[] {
+  public false(context: SynthContext): Minterm[] {
     return [...this.exprSynth.true(context), ...this.exprSynth.false(context)];
   }
   public null(): Minterm[] {
@@ -436,13 +432,13 @@ class OrSynth extends BoolExprSynth {
     });
     this.exprSynths.push(...unpacked);
   }
-  public true(context: Context): Minterm[] {
+  public true(context: SynthContext): Minterm[] {
     if (this.exprSynths.length === 0) return [];
     if (this.exprSynths.length === 1) return this.exprSynths[0].true(context);
     if (this.exprSynths.some((e) => e instanceof TrueSynth)) return [[]];
     return this.exprSynths.map((e) => e.true(context)).flat();
   }
-  public false(context: Context): Minterm[] {
+  public false(context: SynthContext): Minterm[] {
     if (this.exprSynths.length === 0) return [[]];
     if (this.exprSynths.length === 1) return this.exprSynths[0].false(context);
     if (
@@ -455,7 +451,7 @@ class OrSynth extends BoolExprSynth {
       this.exprSynths.map((e) => complement(e.false(context))).flat()
     );
   }
-  public null(context: Context): Minterm[] {
+  public null(context: SynthContext): Minterm[] {
     if (this.exprSynths.length === 0) return [];
     if (this.exprSynths.length === 1) return this.exprSynths[0].null(context);
     const n = this.exprSynths.map((e) => e.null(context)).flat();
@@ -479,7 +475,7 @@ class AndSynth extends BoolExprSynth {
     });
     this.exprSynths.push(...unpacked);
   }
-  public true(context: Context): Minterm[] {
+  public true(context: SynthContext): Minterm[] {
     if (this.exprSynths.length === 0) return [[]];
     if (this.exprSynths.length === 1) return this.exprSynths[0].true(context);
     if (
@@ -492,13 +488,13 @@ class AndSynth extends BoolExprSynth {
       this.exprSynths.map((e) => complement(e.true(context))).flat()
     );
   }
-  public false(context: Context): Minterm[] {
+  public false(context: SynthContext): Minterm[] {
     if (this.exprSynths.length === 0) return [];
     if (this.exprSynths.length === 1) return this.exprSynths[0].false(context);
     if (this.exprSynths.some((e) => e instanceof FalseSynth)) return [[]];
     return this.exprSynths.map((e) => e.false(context)).flat();
   }
-  public null(context: Context): Minterm[] {
+  public null(context: SynthContext): Minterm[] {
     if (this.exprSynths.length === 0) return [];
     if (this.exprSynths.length === 1) return this.exprSynths[0].null(context);
     const n = this.exprSynths.map((e) => e.null(context)).flat();
@@ -513,7 +509,7 @@ class CaseSynth extends BoolExprSynth {
     super();
     this.exprSynths = e;
   }
-  public true(context: Context): Minterm[] {
+  public true(context: SynthContext): Minterm[] {
     const minterms: Minterm[] = [];
     const cumulative: Minterm[] = [];
     for (let i = 0; i < this.exprSynths.length; i += 2) {
@@ -533,7 +529,7 @@ class CaseSynth extends BoolExprSynth {
     }
     return minterms;
   }
-  public false(context: Context): Minterm[] {
+  public false(context: SynthContext): Minterm[] {
     const minterms: Minterm[] = [];
     const cumulative: Minterm[] = [];
     for (let i = 0; i < this.exprSynths.length; i += 2) {
@@ -553,7 +549,7 @@ class CaseSynth extends BoolExprSynth {
     }
     return minterms;
   }
-  public null(context: Context): Minterm[] {
+  public null(context: SynthContext): Minterm[] {
     const minterms: Minterm[] = [];
     const cumulative: Minterm[] = [];
     for (let i = 0; i < this.exprSynths.length; i += 2) {
@@ -798,17 +794,14 @@ function toBoolExprSynth(e: Expression | BoolExprSynth): BoolExprSynth {
   return new FalseSynth();
 }
 
-function sopToExpression(
-  sop: number[][],
-  expressions: Map<number, Expression>
-): Expression {
+function sopToExpression(sop: number[][], context: SynthContext): Expression {
   if (!sop.length) return false;
   const res: Expression[] = [];
   for (const s of sop) {
     if (!s.length) return true;
     const conjs: Expression[] = [];
     for (const i of s) {
-      let expr = expressions.get(i >>> 2);
+      let expr = context.getExpression(i >>> 2);
       if (!(i & 1) !== !(i & 2)) expr = ["NOT", expr];
       if (Array.isArray(expr) && expr[0] === "NOT" && Array.isArray(expr[1])) {
         const e: Expression[] = expr[1];
@@ -832,163 +825,196 @@ function sopToExpression(
   return res[0];
 }
 
-function generateDcSetAndIsNull(
-  variables: Map<number, Expression>
-): { dcSet: number[][]; isNull: Map<number, number> } {
-  const relations: Map<
+function findIsNullDeps(exp: Expression): Expression[] {
+  if (!Array.isArray(exp)) return [];
+  const op = exp[0];
+  if (op === "IS NULL" || op === "IS NOT NULL") return [];
+
+  if (op === "FUNC") {
+    if (exp[1] === "NOW") {
+      return [];
+    } else if (exp[1] === "LOWER" || exp[1] === "UPPER") {
+      return findIsNullDeps(exp[2]);
+    } else if (exp[1] === "ROUND") {
+      return exp
+        .slice(2, 4)
+        .map((e) => findIsNullDeps(e))
+        .flat();
+    }
+  } else if (op !== "PARAM") {
+    return exp
+      .slice(1)
+      .map((e) => findIsNullDeps(e))
+      .flat();
+  }
+  return [exp];
+}
+
+class SynthContext {
+  private declare _dcSet: number[][];
+  private declare _variables: Map<string, number>;
+  private declare _expressions: Map<number, Expression>;
+  private declare _isNullRelations: Map<number, number[]>;
+  private declare _isNullVars: Set<number>;
+  private declare _comparisons: Map<
     string,
-    { op: string; rhs: boolean | number | string; var: number }[]
-  > = new Map();
+    Map<string, { eq: number; gt: number; lt: number }>
+  >;
 
-  for (const [n, e] of variables) {
-    const op = e[0] as string;
-    if (["=", ">", "<"].includes(op) && !Array.isArray(e[2])) {
-      const lhs = JSON.stringify(e[1]);
-      let r = relations.get(lhs);
-      if (!r) relations.set(lhs, (r = []));
-      r.push({ op: op, rhs: e[2], var: n });
-    } else if (op === "LIKE" && !Array.isArray(e[2]) && !Array.isArray(e[3])) {
-      const lhs = JSON.stringify(e[1]);
-      let r = relations.get(lhs);
-      if (!r) relations.set(lhs, (r = []));
-      r.push({ op: "", rhs: null, var: n });
-    } else {
-      const lhs = JSON.stringify(e);
-      let r = relations.get(lhs);
-      if (!r) relations.set(lhs, (r = []));
-      r.push({ op: "", rhs: null, var: n });
+  constructor() {
+    this._dcSet = [];
+    this._variables = new Map();
+    this._expressions = new Map();
+    this._isNullRelations = new Map();
+    this._isNullVars = new Set();
+    this._comparisons = new Map();
+  }
+
+  getVariable(exp: Expression): number {
+    const expStr = JSON.stringify(exp);
+    if (this._variables.has(expStr)) return this._variables.get(expStr);
+    const v = this._variables.size;
+    this._variables.set(expStr, v);
+    this._expressions.set(v, exp);
+    this.generateIsNullDc(v);
+    this.generateComparisionDc(v);
+
+    if (
+      expStr === '["IS NULL",["PARAM","DeviceID.ID"]]' ||
+      expStr === '["IS NULL",["PARAM","_id"]]'
+    )
+      this._dcSet.push([(v << 2) ^ 3]);
+
+    return v;
+  }
+
+  private generateIsNullDc(v: number): void {
+    this._isNullRelations.set(v, []);
+    const exp = this._expressions.get(v);
+
+    const isNull = new Set(
+      findIsNullDeps(exp).map((e) => this.getVariable(["IS NULL", e]))
+    );
+
+    if (!isNull.size) return;
+
+    for (const n of isNull) {
+      this._isNullVars.add(n);
+      this._isNullRelations.get(n).push(v);
+      this._isNullRelations.get(v).push(n);
+      this._dcSet.push([(n << 2) ^ 3, (v << 2) ^ 1]);
+      this._dcSet.push([(n << 2) ^ 3, (v << 2) ^ 3]);
+    }
+    this._dcSet.push(
+      [...isNull].map((n) => (n << 2) ^ 2).concat([(v << 2) ^ 0, (v << 2) ^ 2])
+    );
+  }
+
+  private generateComparisionDc(v: number): void {
+    const exp = this._expressions.get(v);
+    if (!Array.isArray(exp)) return;
+    const op = exp[0];
+    if (![">", "<", "="].includes(op)) return;
+    const rhs = exp[2];
+    const rhsStr = JSON.stringify(rhs);
+    const lhsStr = JSON.stringify(exp[1]);
+    let allComps = this._comparisons.get(lhsStr);
+    if (!allComps) this._comparisons.set(lhsStr, (allComps = new Map()));
+    if (allComps.has(rhsStr)) return;
+
+    const comp = {
+      eq: -1,
+      gt: -1,
+      lt: -1,
+    };
+
+    allComps.set(rhsStr, comp);
+
+    comp.eq = this.getVariable(["=", exp[1], exp[2]]);
+    comp.gt = this.getVariable([">", exp[1], exp[2]]);
+    comp.lt = this.getVariable(["<", exp[1], exp[2]]);
+
+    this._dcSet.push([
+      (comp.eq << 2) ^ 1,
+      (comp.gt << 2) ^ 1,
+      (comp.lt << 2) ^ 1,
+    ]);
+    this._dcSet.push([(comp.eq << 2) ^ 3, (comp.gt << 2) ^ 3]);
+    this._dcSet.push([(comp.eq << 2) ^ 3, (comp.lt << 2) ^ 3]);
+    this._dcSet.push([(comp.gt << 2) ^ 3, (comp.lt << 2) ^ 3]);
+
+    const type1 = typeof exp[2];
+    if (!["boolean", "number", "string"].includes(type1)) return;
+
+    for (const [rhs2Str, comp2] of allComps) {
+      if (comp2 === comp) continue;
+      const rhs2 = JSON.parse(rhs2Str);
+      const type2 = typeof rhs2;
+
+      if (!["boolean", "number", "string"].includes(type2)) continue;
+      let cmp = 0;
+      if (type1 === type2) cmp = rhs > rhs2 ? 1 : -1;
+      else if (type1 === "string") cmp = 1;
+      else if (type2 === "string") cmp = -1;
+      else cmp = +rhs - +rhs2;
+
+      const c1 = cmp > 0 ? comp : comp2;
+      const c2 = cmp > 0 ? comp2 : comp;
+
+      // This is the minimum clauses required if all relavent vars
+      // were included in the DC set.
+      // this._dcSet.push([(c1.eq << 2) ^ 3, (c2.eq << 2) ^ 3]);
+      // this._dcSet.push([(c1.lt << 2) ^ 1, (c2.gt << 2) ^ 1]);
+
+      // But we use non-minimal set because intermediate vars
+      // between any two may not be present in the DC set.
+      this._dcSet.push([(c1.lt << 2) ^ 1, (c2.gt << 2) ^ 1]);
+      this._dcSet.push([(c1.lt << 2) ^ 1, (c2.eq << 2) ^ 3]);
+      this._dcSet.push([(c1.lt << 2) ^ 1, (c2.lt << 2) ^ 3]);
+      this._dcSet.push([(c1.eq << 2) ^ 3, (c2.gt << 2) ^ 1]);
+      this._dcSet.push([(c1.eq << 2) ^ 3, (c2.eq << 2) ^ 3]);
+      this._dcSet.push([(c1.eq << 2) ^ 3, (c2.lt << 2) ^ 3]);
+      this._dcSet.push([(c1.gt << 2) ^ 3, (c2.gt << 2) ^ 1]);
+      this._dcSet.push([(c1.gt << 2) ^ 3, (c2.eq << 2) ^ 3]);
+      this._dcSet.push([(c1.gt << 2) ^ 3, (c2.lt << 2) ^ 3]);
     }
   }
 
-  const dcSet: number[][] = [];
-  const isNull: Map<number, number> = new Map();
-
-  for (const [key, rels] of relations) {
-    const n = variables.size;
-    variables.set(n, ["IS NULL", JSON.parse(key)]);
-
-    if (key === '["PARAM","DeviceID.ID"]' || key === '["PARAM","_id"]')
-      dcSet.push([(n << 2) ^ 3]);
-
-    const existingOps = new Map() as Map<string, Map<string, number>>;
-    for (const rel of rels) {
-      if (!rel.op) continue;
-      const rhsStr = JSON.stringify(rel.rhs);
-      const s = existingOps.get(rhsStr);
-      if (s) s.set(rel.op, rel.var);
-      else existingOps.set(rhsStr, new Map([[rel.op, rel.var]]));
-    }
-
-    for (const [k, v] of existingOps) {
-      if (v.size > 1) {
-        if (!v.has("=")) {
-          const va = variables.size;
-          variables.set(va, ["=", JSON.parse(key), JSON.parse(k)]);
-          rels.push({ op: "=", rhs: JSON.parse(k), var: va });
-          v.set("=", va);
-        }
-
-        if (!v.has(">")) {
-          const va = variables.size;
-          variables.set(va, [">", JSON.parse(key), JSON.parse(k)]);
-          rels.push({ op: ">", rhs: JSON.parse(k), var: va });
-          v.set(">", va);
-        }
-
-        if (!v.has("<")) {
-          const va = variables.size;
-          variables.set(va, ["<", JSON.parse(key), JSON.parse(k)]);
-          rels.push({ op: "<", rhs: JSON.parse(k), var: va });
-          v.set("<", va);
-        }
-
-        dcSet.push([
-          (v.get("=") << 2) ^ 1,
-          (v.get(">") << 2) ^ 1,
-          (v.get("<") << 2) ^ 1,
-        ]);
-      }
-    }
-
-    for (let i = 0; i < rels.length; ++i) {
-      const rel1 = rels[i];
-      isNull.set(rel1.var, n);
-
-      dcSet.push([(n << 2) ^ 3, (rel1.var << 2) ^ 1]);
-      dcSet.push([(n << 2) ^ 3, (rel1.var << 2) ^ 3]);
-      dcSet.push([(rel1.var << 2) ^ 0, (rel1.var << 2) ^ 2, (n << 2) ^ 2]);
-
-      if (!rel1.op) continue;
-      for (let j = i + 1; j < rels.length; ++j) {
-        const rel2 = rels[j];
-        if (!rel2.op) continue;
-        let comp = 0;
-        if (Array.isArray(rel1.rhs) || Array.isArray(rel2.rhs)) {
-          if (JSON.stringify(rel1.rhs) !== JSON.stringify(rel2.rhs)) continue;
-        } else if (typeof rel1.rhs === "string") {
-          if (typeof rel2.rhs === "string") {
-            if (rel1.rhs > rel2.rhs) comp = 1;
-            else if (rel1.rhs < rel2.rhs) comp = -1;
-          } else {
-            comp = 1;
-          }
-        } else if (typeof rel2.rhs === "string") {
-          comp = -1;
-        } else {
-          comp = +rel1.rhs - +rel2.rhs;
-        }
-
-        if (rel1.op === rel2.op) {
-          if (comp === 0)
-            dcSet.push([(rel1.var << 2) ^ 1, (rel2.var << 2) ^ 1]);
-          else if (rel1.op === "=")
-            dcSet.push([(rel1.var << 2) ^ 3, (rel2.var << 2) ^ 3]);
-          else if (
-            (rel1.op === ">" && comp > 0) ||
-            (rel1.op === "<" && comp < 0)
-          )
-            dcSet.push([(rel1.var << 2) ^ 3, (rel2.var << 2) ^ 1]);
-          else if (
-            (rel1.op === "<" && comp > 0) ||
-            (rel1.op === ">" && comp < 0)
-          )
-            dcSet.push([(rel1.var << 2) ^ 1, (rel2.var << 2) ^ 3]);
-        } else if (rel1.op === "=" || rel2.op === "=") {
-          let r1 = rel1,
-            r2 = rel2,
-            cmp = comp;
-          if (rel1.op !== "=") {
-            r2 = rel1;
-            r1 = rel2;
-            cmp = -comp;
-          }
-          if (r2.op === ">" || r2.op === "<") {
-            if (cmp === 0) {
-              dcSet.push([(r1.var << 2) ^ 3, (r2.var << 2) ^ 3]);
-            } else {
-              if ((cmp > 0 && r2.op === ">") || (cmp < 0 && r2.op === "<"))
-                dcSet.push([(r1.var << 2) ^ 3, (r2.var << 2) ^ 1]);
-              else dcSet.push([(r1.var << 2) ^ 3, (r2.var << 2) ^ 3]);
-            }
-          }
-        } else if (
-          [">", "<"].includes(rel1.op) &&
-          [">", "<"].includes(rel2.op)
-        ) {
-          if ((rel1.op === ">" && comp < 0) || (rel1.op === "<" && comp > 0))
-            dcSet.push([(rel1.var << 2) ^ 1, (rel2.var << 2) ^ 1]);
-          else dcSet.push([(rel1.var << 2) ^ 3, (rel2.var << 2) ^ 3]);
-        }
-      }
-    }
+  getExpression(v: number): Expression {
+    return this._expressions.get(v);
   }
 
-  return { dcSet, isNull };
+  getIsNullRelations(v: number): number[] {
+    return this._isNullRelations.get(v);
+  }
+
+  isIsNull(v: number): boolean {
+    return this._isNullVars.has(v);
+  }
+
+  getDcSet(minterms?: Minterm[]): number[][] {
+    if (!minterms) return this._dcSet;
+    const vars = new Set(minterms.flat().map((v) => v >> 2));
+
+    for (const comps of this._comparisons.values()) {
+      for (const comp of comps.values()) {
+        const c = Object.values(comp).filter((v) => !vars.has(v));
+        if (c.length === 1) vars.add(c[0]);
+      }
+    }
+
+    for (const n of this._isNullVars)
+      if (this._isNullRelations.get(n).some((v) => vars.has(v))) vars.add(n);
+
+    const dcSet = this._dcSet.filter((m) => m.every((v) => vars.has(v >> 2)));
+
+    return dcSet;
+  }
 }
 
 function sanitizeMinterms(
   minterms: number[][],
-  isNull: Map<number, number>
+  context: SynthContext
 ): number[][] {
   const res = [] as number[][];
   loop: for (const m of minterms) {
@@ -999,13 +1025,20 @@ function sanitizeMinterms(
     const perms: number[][] = [];
     for (const [k, v] of merged) {
       if (v === 0b1010) continue loop;
-      const n = isNull.get(k) << 2;
+      const isNullVars = context.getIsNullRelations(k);
       const t = k << 2;
-      if (v === 0b0101) minterm.push(n ^ 3);
-      else if (v === 0b0001) perms.push([n ^ 3, t ^ 3]);
-      else if (v === 0b0100) perms.push([n ^ 3, t ^ 1]);
-      else if (v & 0b1000) minterm.push(t ^ 3);
-      else if (v & 0b0010) minterm.push(t ^ 1);
+      if (v === 0b0101) {
+        if (isNullVars.length === 1) minterm.push((isNullVars[0] << 2) ^ 3);
+        else perms.push(isNullVars.map((n) => (n << 2) ^ 3));
+      } else if (v === 0b0001) {
+        perms.push([...isNullVars.map((n) => (n << 2) ^ 3), t ^ 3]);
+      } else if (v === 0b0100) {
+        perms.push([...isNullVars.map((n) => (n << 2) ^ 3), t ^ 1]);
+      } else if (v & 0b1000) {
+        minterm.push(t ^ 3);
+      } else if (v & 0b0010) {
+        minterm.push(t ^ 1);
+      }
     }
     let ms = [minterm];
     while (perms.length) {
@@ -1020,17 +1053,13 @@ function sanitizeMinterms(
 }
 
 function boolExprSynthToExpression(boolExpr: BoolExprSynth): Expression {
-  const context: Map<string, number> = new Map();
+  const context = new SynthContext();
   let minterms = boolExpr.true(context);
-  const variables = new Map(
-    Array.from(context).map(([k, v]) => [v, JSON.parse(k) as Expression])
-  );
-  const { dcSet, isNull } = generateDcSetAndIsNull(variables);
-  minterms = sanitizeMinterms(minterms, isNull);
-
-  const canRaise = getCanRaiseCallback(isNull);
+  minterms = sanitizeMinterms(minterms, context);
+  const canRaise = getCanRaiseCallback(context);
+  const dcSet = context.getDcSet(minterms);
   minterms = espresso(minterms, dcSet, { canRaise });
-  return sopToExpression(minterms, variables);
+  return sopToExpression(minterms, context);
 }
 
 function mapCallback(exp: Expression | BoolExprSynth): Expression {
@@ -1074,19 +1103,20 @@ function mapCallback(exp: Expression | BoolExprSynth): Expression {
 }
 
 function getCanRaiseCallback(
-  isNull: Map<number, number>
+  context: SynthContext
 ): (idx: number, set: Set<number>) => boolean {
   return (idx: number, set: Set<number>): boolean => {
     const i = idx >> 2;
-    const n = isNull.get(i);
-    if (n != null) {
+    const vars = context.getIsNullRelations(i);
+    if (!context.isIsNull(i)) {
       if (!(idx & 1)) return true;
-      if (set.has((n << 2) ^ 2)) return true;
-      if (set.has((n << 2) ^ 3)) return true;
-      return !set.has(idx ^ 3);
+      if (!set.has(idx ^ 3)) return true;
+      for (const n of vars) if (set.has((n << 2) ^ 3)) return true;
+      for (const n of vars) if (!set.has((n << 2) ^ 2)) return false;
+      return true;
     }
-    for (const [k, v] of isNull) {
-      if (v !== i) continue;
+
+    for (const k of vars) {
       if (set.has((k << 2) ^ 1)) continue;
       if (set.has((k << 2) ^ 3)) continue;
       if (set.has((k << 2) ^ 0)) return false;
@@ -1101,24 +1131,22 @@ export function minimize(expr: Expression, boolean = false): Expression {
   expr = map(expr, mapCallback);
   if (Array.isArray(expr) && expr[0] === "CASE") {
     if (!boolean) {
-      const context: Map<string, number> = new Map();
+      const context = new SynthContext();
       const whens = expr.filter((e, i) => i % 2).map((e) => e.true(context));
-      const variables = new Map(
-        Array.from(context).map(([k, v]) => [v, JSON.parse(k) as Expression])
-      );
-      const { dcSet, isNull } = generateDcSetAndIsNull(variables);
-      const canRaise = getCanRaiseCallback(isNull);
+      const caseDcSet: Minterm[] = [];
+      const canRaise = getCanRaiseCallback(context);
       const res: Expression = ["CASE"];
       for (let i = 1; i < expr.length; i += 2) {
-        let minterms = sanitizeMinterms(whens[(i - 1) / 2], isNull);
+        let minterms = sanitizeMinterms(whens[(i - 1) / 2], context);
+        const dcSet = context.getDcSet(minterms.concat(caseDcSet));
         minterms = espresso(minterms, dcSet, { canRaise });
         if (!minterms.length) continue;
-        const w = sopToExpression(minterms, variables);
+        const w = sopToExpression(minterms, context);
         let t = expr[i + 1];
         if (t instanceof BoolExprSynth) t = boolExprSynthToExpression(t);
         res.push(w, t);
         if (w === true) break;
-        dcSet.push(...minterms);
+        caseDcSet.push(...minterms);
       }
       while (res[res.length - 1] == null) res.splice(-2);
       if (res.length < 3) return null;
@@ -1156,35 +1184,37 @@ export function unionDiff(
   expr1 = map(expr1, mapCallback);
   const b1 = toBoolExprSynth(expr1);
 
-  const context: Map<string, number> = new Map();
+  const context = new SynthContext();
 
   const expr2Minterms = b2.true(context);
   const expr1Minterms = b1.true(context);
   const expr1NullMinterms = b1.null(context);
   const expr1FalseMinterms = b1.false(context);
-  const variables = new Map(
-    Array.from(context).map(([k, v]) => [v, JSON.parse(k) as Expression])
-  );
-  const { dcSet, isNull } = generateDcSetAndIsNull(variables);
 
   const unionMinterms = sanitizeMinterms(
     [...expr1Minterms, ...expr2Minterms],
-    isNull
+    context
   );
+
   const diffMinterms = sanitizeMinterms(
     complement([
       ...complement([...expr1NullMinterms, ...expr1FalseMinterms]),
       ...complement(expr2Minterms),
     ]),
-    isNull
+    context
   );
 
-  const canRaise = getCanRaiseCallback(isNull);
+  const canRaise = getCanRaiseCallback(context);
 
-  const union = espresso(unionMinterms, dcSet, { canRaise });
-  const diff = espresso(diffMinterms, dcSet, { canRaise });
+  const union = espresso(unionMinterms, context.getDcSet(unionMinterms), {
+    canRaise,
+  });
 
-  return [sopToExpression(union, variables), sopToExpression(diff, variables)];
+  const diff = espresso(diffMinterms, context.getDcSet(diffMinterms), {
+    canRaise,
+  });
+
+  return [sopToExpression(union, context), sopToExpression(diff, context)];
 }
 
 export function covers(expr1: Expression, expr2: Expression): boolean {
@@ -1198,13 +1228,13 @@ export function covers(expr1: Expression, expr2: Expression): boolean {
   expr2 = map(expr2, mapCallback);
   const b2 = toBoolExprSynth(expr2);
 
-  const context: Map<string, number> = new Map();
+  const context = new SynthContext();
   const expr1Minterms = b1.true(context);
   const expr2Minterms = b2.true(context);
-  const variables = new Map(
-    Array.from(context).map(([k, v]) => [v, JSON.parse(k) as Expression])
-  );
-  const { dcSet } = generateDcSetAndIsNull(variables);
 
-  return tautology([...complement(expr2Minterms), ...dcSet, ...expr1Minterms]);
+  return tautology([
+    ...complement(expr2Minterms),
+    ...context.getDcSet(),
+    ...expr1Minterms,
+  ]);
 }

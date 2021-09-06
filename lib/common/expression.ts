@@ -178,11 +178,11 @@ export function evaluateCallback(exp: Expression): Expression {
   } else if (exp[0] === "IS NULL") {
     if (isArray(exp[1])) return exp;
     else if (exp[1] == null) return true;
-    else return null;
+    else return false;
   } else if (exp[0] === "IS NOT NULL") {
     if (isArray(exp[1])) return exp;
     else if (exp[1] != null) return true;
-    else return null;
+    else return false;
   } else if (exp[0] === "LIKE") {
     if (isArray(exp[1]) || isArray(exp[2]) || isArray(exp[3])) return exp;
     else if (
@@ -334,15 +334,7 @@ export async function evaluateAsync(
     if (!isArray(e)) return e;
 
     if (e[0] === "FUNC") {
-      if (e[1] === "NOW") {
-        if (now) return now;
-      } else if (e[1] === "UPPER") {
-        if (e[2] == null) return null;
-        if (!isArray(e[2])) return `${e[2]}`.toUpperCase();
-      } else if (e[1] === "LOWER") {
-        if (e[2] == null) return null;
-        if (!isArray(e[2])) return `${e[2]}`.toLowerCase();
-      }
+      if (e[1] === "NOW") if (now) return now;
     } else if (e[0] === "PARAM") {
       if (e[1] == null) return null;
       if (obj && !isArray(e[1])) {
