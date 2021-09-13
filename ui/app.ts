@@ -69,7 +69,7 @@ function pagify(pageName, page): RouteResolver {
     render: () => {
       const lastRenderTimestamp = Date.now();
       let p;
-      if (state && state.error) p = m(errorPage.component, state);
+      if (state?.error) p = m(errorPage.component, state);
       else p = m(contextifyComponent(page.component), state);
       const attrs = {};
       attrs["page"] = pageName;

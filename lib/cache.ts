@@ -59,7 +59,7 @@ export async function set(
 
 export async function pop(key: string): Promise<any> {
   const res = await cacheCollection.findOneAndDelete({ _id: key });
-  if (res && res["value"]) return res["value"]["value"];
+  if (res?.["value"]) return res["value"]["value"];
   return null;
 }
 

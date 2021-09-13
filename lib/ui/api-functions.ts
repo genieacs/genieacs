@@ -200,7 +200,7 @@ export function authLocal(
   return new Promise((resolve, reject) => {
     const users = getUsers(snapshot);
     const user = users[username];
-    if (!user || !user.password) return void resolve(null);
+    if (!user?.password) return void resolve(null);
     hashPassword(password, user.salt)
       .then((hash) => {
         if (hash === user.password) resolve(true);

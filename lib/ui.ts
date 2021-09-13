@@ -62,7 +62,7 @@ const getAuthorizer = memoize(
 koa.on("error", async (err, ctx) => {
   setTimeout(() => {
     // Ignored errors resulting from aborted requests
-    if (ctx && ctx.req.aborted) return;
+    if (ctx?.req.aborted) return;
     throw err;
   });
 });
@@ -95,7 +95,7 @@ koa.use(
 koa.use(async (ctx, next) => {
   let roles: string[] = [];
 
-  if (ctx.state.user && ctx.state.user.username) {
+  if (ctx.state.user?.username) {
     let user;
     if (ctx.state.user.authMethod === "local") {
       user = localCache.getUsers(ctx.state.configSnapshot)[

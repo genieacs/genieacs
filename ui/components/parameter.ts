@@ -38,7 +38,7 @@ const evaluateParam = memoize((exp, obj, now: number) => {
       ) {
         let v = null;
         const p = obj[e[i][1]];
-        if (p && p.value) {
+        if (p?.value) {
           v = p.value[0];
           timestamp = Math.min(timestamp, p.valueTimestamp);
         }
@@ -58,7 +58,7 @@ const evaluateParam = memoize((exp, obj, now: number) => {
     value = exp;
   } else if (exp[0] === "PARAM") {
     const p = obj[exp[1]];
-    if (p && p.value) {
+    if (p?.value) {
       timestamp = p.valueTimestamp;
       value = p.value[0];
       parameter = exp[1];
@@ -84,7 +84,7 @@ const component: ClosureComponent = (): Component => {
       if (value == null) return null;
 
       let edit;
-      if (device[parameter] && device[parameter].writable) {
+      if (device[parameter]?.writable) {
         edit = m(
           "button",
           {

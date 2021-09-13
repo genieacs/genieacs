@@ -573,12 +573,12 @@ router.post("/devices/:id/tasks", async (ctx) => {
       if (!Array.isArray(exp)) return exp;
       if (exp[0] === "PARAM") {
         const p = device[exp[1]];
-        if (p && p.value) return p.value[0];
+        if (p?.value) return p.value[0];
       } else if (exp[0] === "FUNC") {
         if (exp[1] === "REMOTE_ADDRESS") {
           for (const root of ["InternetGatewayDevice", "Device"]) {
             const p = device[`${root}.ManagementServer.ConnectionRequestURL`];
-            if (p && p.value) return new URL(p.value[0]).hostname;
+            if (p?.value) return new URL(p.value[0]).hostname;
           }
           return null;
         }

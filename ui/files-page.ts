@@ -207,7 +207,7 @@ export const component: ClosureComponent = (): Component => {
                         actionHandler: async (action, obj) => {
                           if (action !== "save")
                             throw new Error("Undefined action");
-                          const file = obj["file"] ? obj["file"][0] : null;
+                          const file = obj["file"]?.[0];
 
                           // nginx strips out headers with dot, so replace with dash
                           const headers = {

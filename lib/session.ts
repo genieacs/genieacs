@@ -136,7 +136,7 @@ export function configContextCallback(
     const path = paths.get(Path.parse(name));
     if (path) {
       const attrs = deviceData.attributes.get(path, 1);
-      if (attrs && attrs.value && attrs.value[1]) return attrs.value[1][0];
+      if (attrs?.value?.[1]) return attrs.value[1][0];
     }
   } else if (exp[0] === "FUNC") {
     if (exp[1] === "REMOTE_ADDRESS")
@@ -299,7 +299,7 @@ export async function transferComplete(
   if (!sessionContext.operationsTouched) sessionContext.operationsTouched = {};
   sessionContext.operationsTouched[commandKey] = 1;
 
-  if (rpcReq.faultStruct && rpcReq.faultStruct.faultCode !== "0") {
+  if (rpcReq.faultStruct?.faultCode !== "0") {
     revertDownloadParameters(sessionContext, operation.args.instance);
 
     const fault: Fault = {
@@ -418,13 +418,7 @@ function revertDownloadParameters(
   );
 
   const toClear = device.set(sessionContext.deviceData, p, timestamp, {
-    value: [
-      timestamp,
-      [
-        lastDownload && lastDownload.value[1] ? lastDownload.value[1][0] : 0,
-        "xsd:dateTime",
-      ],
-    ],
+    value: [timestamp, [lastDownload?.value[1]?.[0] || 0, "xsd:dateTime"]],
   });
 
   if (toClear) {
@@ -1041,7 +1035,7 @@ export async function rpcRequest(
   if (
     !sessionContext.virtualParameters.length &&
     !sessionContext.declarations.length &&
-    !(_declarations && _declarations.length) &&
+    !_declarations?.length &&
     !sessionContext.provisions.length
   )
     return { fault: null, rpcId: null, rpc: null };
@@ -1116,7 +1110,7 @@ export async function rpcRequest(
     return rpcRequest(sessionContext, _declarations);
   }
 
-  if (_declarations && _declarations.length) {
+  if (_declarations?.length) {
     delete sessionContext.syncState;
     if (!sessionContext.declarations[0]) sessionContext.declarations[0] = [];
     sessionContext.declarations[0] = sessionContext.declarations[0].concat(
@@ -1452,7 +1446,7 @@ export async function rpcRequest(
       for (const [p, v] of sessionContext.syncState.downloadsValues) {
         const attrs = sessionContext.deviceData.attributes.get(p);
         if (attrs) {
-          if (attrs.writable && attrs.writable[1] && attrs.value) {
+          if (attrs.writable?.[1] && attrs.value) {
             const val = device.sanitizeParameterValue([v, attrs.value[1][1]]);
             if (val[0] !== attrs.value[1][0]) {
               toClear = device.set(
@@ -1693,7 +1687,7 @@ function generateGetRpcRequest(
       syncState.refreshAttributes.value.delete(path);
       // Need to check in case param is deleted or changed to object
       const attrs = sessionContext.deviceData.attributes.get(path);
-      if (attrs && attrs.object && attrs.object[1] === 0) {
+      if (attrs?.object?.[1] === 0) {
         parameterNames.push(path.toString());
         if (parameterNames.length >= GPV_BATCH_SIZE) break;
       }
@@ -1846,7 +1840,7 @@ function generateSetRpcRequest(
   for (const [k, v] of syncState.spv) {
     syncState.spv.delete(k);
     const attrs = sessionContext.deviceData.attributes.get(k);
-    const curVal = attrs.value ? attrs.value[1] : null;
+    const curVal = attrs.value?.[1];
     if (curVal && canWrite(attrs)) {
       const val = v.slice() as [string | number | boolean, string];
       if (!val[1]) val[1] = curVal[1];
@@ -1912,7 +1906,7 @@ function generateSetRpcRequest(
   for (const [p, t] of syncState.downloadsDownload) {
     if (!(t > 0 && t <= sessionContext.timestamp)) continue;
     const attrs = deviceData.attributes.get(p);
-    if (!(attrs && attrs.value && t <= attrs.value[1][0])) {
+    if (!(t <= attrs?.value?.[1]?.[0])) {
       const fileTypeAttrs = deviceData.attributes.get(
         deviceData.paths.get(p.slice(0, -1).concat(Path.parse("FileType")))
       );
@@ -1929,21 +1923,9 @@ function generateSetRpcRequest(
         name: "Download",
         commandKey: generateRpcId(sessionContext),
         instance: p.segments[1] as string,
-        fileType: fileTypeAttrs
-          ? fileTypeAttrs.value
-            ? (fileTypeAttrs.value[1][0] as string)
-            : null
-          : null,
-        fileName: fileNameAttrs
-          ? fileNameAttrs.value
-            ? (fileNameAttrs.value[1][0] as string)
-            : null
-          : null,
-        targetFileName: targetFileNameAttrs
-          ? targetFileNameAttrs.value
-            ? (targetFileNameAttrs.value[1][0] as string)
-            : null
-          : null,
+        fileType: fileTypeAttrs?.value?.[1][0] as string,
+        fileName: fileNameAttrs?.value?.[1][0] as string,
+        targetFileName: targetFileNameAttrs?.value?.[1][0] as string,
       };
     }
   }
@@ -1952,7 +1934,7 @@ function generateSetRpcRequest(
   if (syncState.reboot > 0 && syncState.reboot <= sessionContext.timestamp) {
     const p = sessionContext.deviceData.paths.get(Path.parse("Reboot"));
     const attrs = p ? sessionContext.deviceData.attributes.get(p) : null;
-    if (!(attrs && attrs.value && attrs.value[1][0] >= syncState.reboot)) {
+    if (!(attrs?.value?.[1][0] >= syncState.reboot)) {
       delete syncState.reboot;
       return { name: "Reboot" };
     }
@@ -1965,9 +1947,7 @@ function generateSetRpcRequest(
   ) {
     const p = sessionContext.deviceData.paths.get(Path.parse("FactoryReset"));
     const attrs = p ? sessionContext.deviceData.attributes.get(p) : null;
-    if (
-      !(attrs && attrs.value && attrs.value[1][0] >= syncState.factoryReset)
-    ) {
+    if (!(attrs?.value?.[1][0] >= syncState.factoryReset)) {
       delete syncState.factoryReset;
       return { name: "FactoryReset" };
     }
@@ -2035,7 +2015,7 @@ function generateSetVirtualParameterProvisions(
   let provisions;
   if (virtualParameterDeclarations) {
     for (const declaration of virtualParameterDeclarations) {
-      if (declaration[2] && declaration[2].value != null) {
+      if (declaration[2]?.value != null) {
         const attrs = sessionContext.deviceData.attributes.get(declaration[0]);
         if (
           attrs &&
@@ -2164,9 +2144,7 @@ function processDeclarations(
 
     if (currentAttributes) {
       leafParam = currentPath;
-      leafIsObject = currentAttributes.object
-        ? currentAttributes.object[1]
-        : null;
+      leafIsObject = currentAttributes.object?.[1];
       // Possible V8 bug causes null === 0
       if (leafIsObject != null && leafIsObject === 0)
         leafTimestamp = Math.max(leafTimestamp, currentAttributes.object[0]);
@@ -2181,13 +2159,13 @@ function processDeclarations(
     ) {
       case "Reboot":
         if (currentPath.length === 1) {
-          if (declareAttributeValues && declareAttributeValues.value)
+          if (declareAttributeValues?.value)
             syncState.reboot = +new Date(declareAttributeValues.value[0]);
         }
         break;
       case "FactoryReset":
         if (currentPath.length === 1) {
-          if (declareAttributeValues && declareAttributeValues.value)
+          if (declareAttributeValues?.value)
             syncState.factoryReset = +new Date(declareAttributeValues.value[0]);
         }
         break;

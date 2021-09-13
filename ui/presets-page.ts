@@ -331,7 +331,7 @@ export const component: ClosureComponent = (): Component => {
                 overlay.open(
                   cb,
                   () =>
-                    !(comp.state && comp.state["current"]["modified"]) ||
+                    !comp.state?.["current"]["modified"] ||
                     confirm("You have unsaved changes. Close anyway?")
                 );
               },

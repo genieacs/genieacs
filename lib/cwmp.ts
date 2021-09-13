@@ -93,7 +93,7 @@ async function authenticate(
     }
   }
 
-  if (authentication && authentication.method === "Digest") {
+  if (authentication?.method === "Digest") {
     const sessionNonce = sessionsNonces.get(sessionContext.httpRequest.socket);
 
     if (
@@ -434,7 +434,7 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
   const deviceEvents = {};
   for (const p of deviceData.paths.find(Path.parse("Events.*"), false, true)) {
     const attrs = deviceData.attributes.get(p);
-    if (attrs && attrs.value && attrs.value[1][0] >= sessionContext.timestamp)
+    if (attrs?.value && attrs.value[1][0] >= sessionContext.timestamp)
       deviceEvents[p.segments[1] as string] = true;
   }
 
@@ -458,7 +458,7 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
 
     if (!eventsMatch) continue;
 
-    if (preset.schedule && preset.schedule.schedule) {
+    if (preset.schedule?.schedule) {
       const r = scheduling.cron(
         sessionContext.timestamp,
         preset.schedule.schedule
@@ -786,7 +786,7 @@ async function endSession(sessionContext: SessionContext): Promise<void> {
     }
   }
 
-  if (sessionContext.doneTasks && sessionContext.doneTasks.length) {
+  if (sessionContext.doneTasks?.length) {
     saveCache = true;
     promises.push(
       db.clearTasks(sessionContext.deviceId, sessionContext.doneTasks)
@@ -1082,7 +1082,7 @@ async function processRequest(
   }
 
   if (sessionContext.state === 0) {
-    if (!rpc.cpeRequest || rpc.cpeRequest.name !== "Inform")
+    if (rpc.cpeRequest?.name !== "Inform")
       return reportBadState(sessionContext);
 
     const res = await inform(sessionContext, rpc);
@@ -1549,7 +1549,7 @@ async function listenerAsync(
   if (sessionContext)
     return processRequest(sessionContext, rpc, parseWarnings, bodyStr);
 
-  if (!(rpc.cpeRequest && rpc.cpeRequest.name === "Inform")) {
+  if (rpc.cpeRequest?.name !== "Inform") {
     logger.accessError({
       message: "Invalid session",
       sessionContext: {

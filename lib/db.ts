@@ -505,7 +505,7 @@ export async function saveDevice(
 
                 break;
               case "object":
-                if (!diff[1] || !diff[1].object || object2 !== object1) {
+                if (!diff[1]?.object || object2 !== object1) {
                   update["$set"][
                     path.length ? path.toString() + "._object" : "_object"
                   ] = !!object2;
@@ -513,7 +513,7 @@ export async function saveDevice(
 
                 break;
               case "writable":
-                if (!diff[1] || !diff[1].writable || writable2 !== writable1) {
+                if (!diff[1]?.writable || writable2 !== writable1) {
                   update["$set"][
                     path.length ? path.toString() + "._writable" : "_writable"
                   ] = !!writable2;
@@ -566,7 +566,7 @@ export async function saveDevice(
           for (const attrName of Object.keys(diff[1])) {
             if (
               diff[1][attrName][1] != null &&
-              (!diff[2] || !diff[2][attrName] || diff[2][attrName][1] == null)
+              diff[2]?.[attrName]?.[1] == null
             ) {
               const p = path.length ? path.toString() + "." : "";
               update["$unset"][`${p}_${attrName}`] = 1;

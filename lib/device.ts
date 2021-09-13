@@ -208,7 +208,7 @@ export function clear(
   timestamp = timestamp || 0;
 
   let descendantsTimestamp = timestamp;
-  if (attributes && attributes.object) {
+  if (attributes?.object) {
     if (attributes.object > descendantsTimestamp)
       descendantsTimestamp = attributes.object;
     if (!(attributes.object <= attributes.value))

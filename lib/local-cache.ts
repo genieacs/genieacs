@@ -131,7 +131,7 @@ async function fetchPresets(): Promise<Preset[]> {
 
     // If no keys are defined, consider all parameters as keys to keep the
     // same behavior from v1.0
-    if (!obj["_keys"] || !obj["_keys"].length)
+    if (!obj["_keys"]?.length)
       obj["_keys"] = Object.keys(obj).filter((k) => !k.startsWith("_"));
 
     return obj;
@@ -499,7 +499,7 @@ export function getConfig(
   if (!(key in snapshot.config)) {
     if (key in oldOpts) {
       let id;
-      if (context && context["id"]) {
+      if (context?.["id"]) {
         id = context["id"];
       } else if (cb) {
         id = cb(["PARAM", "DeviceID.ID"]);

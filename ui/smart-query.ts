@@ -145,7 +145,7 @@ function queryTag(tag: string): Expression {
 
 export function getTip(resource: string, label: string): string {
   let tip;
-  if (resources[resource] && resources[resource][label]) {
+  if (resources[resource]?.[label]) {
     const param = resources[resource][label];
     const types =
       resource === "devices" ? param["type"] : param["type"].split(",");

@@ -116,7 +116,7 @@ function applyContext(vnode, parentContext): void {
       vnodeContext.set(vnode, vc);
       vnode.attrs = Object.assign({}, vc, vnode.attrs);
     }
-    if (vnode.children && vnode.children.length)
+    if (vnode.children?.length)
       for (const c of vnode.children) applyContext(c, vc);
   }
 }
@@ -133,7 +133,7 @@ export function contextifyComponent(component: ComponentTypes): ComponentTypes {
         applyContext(res, context);
         return res;
       };
-    } else if (!component.prototype || !component.prototype.view) {
+    } else if (!component.prototype?.view) {
       c = (initialNode) => {
         const state = (component as ClosureComponent)(initialNode);
         const view = state.view;

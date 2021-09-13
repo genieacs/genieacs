@@ -190,8 +190,8 @@ export async function updateDeviceTags(
   const collection = db.collection("devices");
   const object = {};
 
-  if (add && add.length) object["$addToSet"] = { _tags: { $each: add } };
-  if (pull && pull.length) object["$pullAll"] = { _tags: pull };
+  if (add?.length) object["$addToSet"] = { _tags: { $each: add } };
+  if (pull?.length) object["$pullAll"] = { _tags: pull };
 
   await collection.updateOne({ _id: deviceId }, object);
 }
@@ -242,7 +242,7 @@ export function putProvision(
       lineOffset: -1,
     });
   } catch (err) {
-    if (err.stack && err.stack.startsWith(`${id}:`)) {
+    if (err.stack?.startsWith(`${id}:`)) {
       return Promise.reject(
         new Error(`${err.name} at ${err.stack.split("\n", 1)[0]}`)
       );
@@ -267,7 +267,7 @@ export function putVirtualParameter(
       lineOffset: -1,
     });
   } catch (err) {
-    if (err.stack && err.stack.startsWith(`${id}:`)) {
+    if (err.stack?.startsWith(`${id}:`)) {
       return Promise.reject(
         new Error(`${err.name} at ${err.stack.split("\n", 1)[0]}`)
       );

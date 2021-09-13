@@ -94,7 +94,7 @@ export async function connectionRequest(
       else if (name === "password") return password;
 
       const p = device[name];
-      if (p && p.value) return p.value[0];
+      if (p?.value) return p.value[0];
     } else if (exp[0] === "FUNC") {
       if (exp[1] === "REMOTE_ADDRESS") return remoteAddress;
       else if (exp[1] === "USERNAME") return username;
@@ -317,7 +317,7 @@ function sanitizeTask(task): void {
 
 export async function insertTasks(tasks: any[]): Promise<Task[]> {
   if (tasks && !Array.isArray(tasks)) tasks = [tasks];
-  else if (!tasks || tasks.length === 0) return tasks || [];
+  else if (!tasks?.length) return tasks || [];
 
   for (const task of tasks) {
     sanitizeTask(task);

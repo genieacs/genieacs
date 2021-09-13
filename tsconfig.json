@@ -1,9 +1,9 @@
 {
   "compilerOptions": {
-    "lib": ["esnext", "dom"],
-    "module": "esnext",
+    "lib": ["ES2019", "dom"],
+    "module": "ES2020",
     "moduleResolution": "node",
-    "target": "esnext",
+    "target": "ES2019",
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
     "alwaysStrict": true,

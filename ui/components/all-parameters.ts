@@ -85,7 +85,7 @@ const component: ClosureComponent = (): Component => {
         let c = 0;
         for (const k of keys) {
           const p = device[k];
-          const str = p.value && p.value[0] ? `${k} ${p.value[0]}` : k;
+          const str = p.value?.[0] ? `${k} ${p.value[0]}` : k;
           if (re && !re.test(str)) continue;
           ++c;
           if (count < limit) filteredKeys.push(k);
