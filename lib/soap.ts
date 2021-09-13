@@ -827,14 +827,13 @@ function fault(xml: Element): CpeFault {
 
 export function request(
   body: string,
-  cwmpVersion: string,
   warn: Record<string, unknown>[]
 ): SoapMessage {
   warnings = warn;
 
   const rpc = {
     id: null,
-    cwmpVersion: cwmpVersion,
+    cwmpVersion: null,
     sessionTimeout: null,
     cpeRequest: null,
     cpeFault: null,
@@ -877,7 +876,7 @@ export function request(
 
   const methodElement = bodyElement.children[0];
 
-  if (!rpc.cwmpVersion && methodElement.localName !== "Fault") {
+  if (methodElement.localName === "Inform") {
     let namespace, namespaceHref;
     for (const e of [methodElement, bodyElement, envelope]) {
       namespace = namespace || e.namespace;

@@ -878,27 +878,6 @@ async function sendAcsRequest(
   return writeResponse(sessionContext, res);
 }
 
-async function getSession(
-  connection: Socket,
-  sessionId: string
-): Promise<SessionContext> {
-  let sessionContext = currentSessions.get(connection);
-  if (sessionContext) {
-    currentSessions.delete(connection);
-    return sessionContext;
-  }
-
-  if (!sessionId) return null;
-
-  await new Promise((resolve) => setTimeout(resolve, 100));
-
-  const sessionContextString = await cache.pop(`session_${sessionId}`);
-  if (!sessionContextString) return null;
-  sessionContext = await session.deserialize(sessionContextString);
-  connection.setTimeout(sessionContext.timeout * 1000);
-  return sessionContext;
-}
-
 // Only needed to prevent tree shaking from removing the remoteAddress
 // workaround in onConnection function.
 const remoteAddressWorkaround = new WeakMap<Socket, string>();
@@ -1045,13 +1024,13 @@ async function reportBadState(sessionContext: SessionContext): Promise<void> {
     sessionContext: sessionContext,
   });
   const httpResponse = sessionContext.httpResponse;
-  currentSessions.delete(httpResponse.socket);
   const body = "Bad session state";
   httpResponse.setHeader("Content-Length", Buffer.byteLength(body));
   httpResponse.writeHead(400, { Connection: "close" });
   if (sessionContext.debug)
     debug.outgoingHttpResponse(httpResponse, sessionContext.deviceId, body);
   httpResponse.end(body);
+  return endSession(sessionContext);
 }
 
 async function responseUnauthorized(
@@ -1323,6 +1302,48 @@ export function listener(
     });
 }
 
+async function clientError(
+  httpRequest: IncomingMessage,
+  httpResponse: ServerResponse,
+  sessionContext: SessionContext,
+  body: string,
+  msg: string
+): Promise<void> {
+  let debugEnabled = false;
+  let deviceId: string = null;
+
+  if (sessionContext) {
+    debugEnabled = sessionContext.debug;
+    deviceId = sessionContext.deviceId;
+  } else {
+    const cacheSnapshot = await localCache.getCurrentSnapshot();
+    debugEnabled = !!localCache.getConfig(
+      cacheSnapshot,
+      "cwmp.debug",
+      {
+        remoteAddress: getRequestOrigin(httpRequest).remoteAddress,
+      },
+      Date.now(),
+      (e) => {
+        if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "REMOTE_ADDRESS")
+          return getRequestOrigin(httpRequest).remoteAddress;
+        return e;
+      }
+    );
+  }
+
+  httpResponse.setHeader("Content-Length", Buffer.byteLength(msg));
+  httpResponse.writeHead(400, { Connection: "close" });
+
+  if (debugEnabled) {
+    debug.incomingHttpRequest(httpRequest, deviceId, body);
+    debug.outgoingHttpResponse(httpResponse, deviceId, msg);
+  }
+
+  httpResponse.end(msg);
+  if (sessionContext) await endSession(sessionContext);
+}
+
 function decodeString(buffer: Buffer, charset: string): string {
   try {
     return buffer.toString(charset as BufferEncoding);
@@ -1410,15 +1431,14 @@ async function listenerAsync(
   // Request aborted
   if (!body) return;
 
-  const newConnection = !currentSessions.has(httpRequest.socket);
-
-  const sessionContext = await getSession(httpRequest.socket, sessionId);
+  let sessionContext = currentSessions.get(httpRequest.socket);
 
   if (sessionContext) {
+    currentSessions.delete(httpRequest.socket);
     sessionContext.httpRequest = httpRequest;
     sessionContext.httpResponse = httpResponse;
     if (
-      (newConnection && sessionContext.sessionId !== sessionId) ||
+      sessionContext.sessionId !== sessionId ||
       sessionContext.lastActivity + sessionContext.timeout * 1000 < Date.now()
     ) {
       logger.accessError({
@@ -1426,29 +1446,14 @@ async function listenerAsync(
         sessionContext: sessionContext,
       });
 
-      const _body = "Invalid session";
-      httpResponse.setHeader("Content-Length", Buffer.byteLength(_body));
-      httpResponse.writeHead(400, { Connection: "close" });
-      if (sessionContext.debug) {
-        debug.outgoingHttpResponse(
-          httpResponse,
-          sessionContext.deviceId,
-          _body
-        );
-      }
-      httpResponse.end(_body);
-      await endSession(sessionContext);
-      return;
+      return clientError(
+        httpRequest,
+        httpResponse,
+        sessionContext,
+        body.toString(),
+        "Invalid session"
+      );
     }
-    if (newConnection && sessionContext.authState !== 1)
-      sessionContext.authState = 0;
-  } else if (stats.concurrentRequests > MAX_CONCURRENT_REQUESTS) {
-    // Check again just in case device included old session ID
-    // from the previous session
-    httpResponse.writeHead(503, { "Retry-after": 60, Connection: "close" });
-    httpResponse.end("503 Service Unavailable");
-    stats.droppedRequests += 1;
-    return;
   }
 
   let charset: string;
@@ -1468,6 +1473,16 @@ async function listenerAsync(
   const bodyStr = decodeString(body, charset);
 
   if (bodyStr == null) {
+    if (!sessionContext && sessionId) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const sessionContextString = await cache.pop(`session_${sessionId}`);
+      if (sessionContextString) {
+        sessionContext = await session.deserialize(sessionContextString);
+        sessionContext.httpRequest = httpRequest;
+        sessionContext.httpResponse = httpResponse;
+      }
+    }
+
     const msg = `Unknown encoding '${charset}'`;
     logger.accessError({
       message: "XML parse error",
@@ -1477,97 +1492,58 @@ async function listenerAsync(
         httpResponse: httpResponse,
       },
     });
-    httpResponse.setHeader("Content-Length", Buffer.byteLength(msg));
-    httpResponse.writeHead(400, { Connection: "close" });
-    if (sessionContext) {
-      if (sessionContext.debug) {
-        debug.incomingHttpRequest(
-          httpRequest,
-          sessionContext.deviceId,
-          body.toString()
-        );
-        debug.outgoingHttpResponse(httpResponse, sessionContext.deviceId, msg);
-      }
-      await endSession(sessionContext);
-    } else {
-      const cacheSnapshot = await localCache.getCurrentSnapshot();
-      const d = !!localCache.getConfig(
-        cacheSnapshot,
-        "cwmp.debug",
-        {
-          remoteAddress: getRequestOrigin(httpRequest).remoteAddress,
-        },
-        Date.now(),
-        (e) => {
-          if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "REMOTE_ADDRESS")
-            return getRequestOrigin(httpRequest).remoteAddress;
-          return e;
-        }
-      );
-      if (d) {
-        debug.incomingHttpRequest(httpRequest, null, body.toString());
-        debug.outgoingHttpResponse(httpResponse, null, msg);
-      }
-    }
-    httpResponse.end(msg);
-    return;
+    return clientError(
+      httpRequest,
+      httpResponse,
+      sessionContext,
+      body.toString(),
+      msg
+    );
   }
 
   const parseWarnings = [];
   let rpc: SoapMessage;
   try {
-    rpc = soap.request(
-      bodyStr,
-      sessionContext ? sessionContext.cwmpVersion : null,
-      parseWarnings
-    );
-  } catch (error) {
+    rpc = soap.request(bodyStr, parseWarnings);
+  } catch (err) {
+    if (!sessionContext && sessionId) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const sessionContextString = await cache.pop(`session_${sessionId}`);
+      if (sessionContextString) {
+        sessionContext = await session.deserialize(sessionContextString);
+        sessionContext.httpRequest = httpRequest;
+        sessionContext.httpResponse = httpResponse;
+      }
+    }
+
     logger.accessError({
       message: "XML parse error",
-      parseError: error.message.trim(),
+      parseError: err.message,
       sessionContext: sessionContext || {
         httpRequest: httpRequest,
         httpResponse: httpResponse,
       },
     });
-    httpResponse.setHeader("Content-Length", Buffer.byteLength(error.message));
-    httpResponse.writeHead(400, { Connection: "close" });
-    if (sessionContext) {
-      if (sessionContext.debug) {
-        debug.incomingHttpRequest(
-          httpRequest,
-          sessionContext.deviceId,
-          bodyStr
-        );
-        debug.outgoingHttpResponse(
-          httpResponse,
-          sessionContext.deviceId,
-          error.message
-        );
-      }
-      await endSession(sessionContext);
-    } else {
-      const cacheSnapshot = await localCache.getCurrentSnapshot();
-      const d = !!localCache.getConfig(
-        cacheSnapshot,
-        "cwmp.debug",
-        {
-          remoteAddress: getRequestOrigin(httpRequest).remoteAddress,
-        },
-        Date.now(),
-        (e) => {
-          if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "REMOTE_ADDRESS")
-            return getRequestOrigin(httpRequest).remoteAddress;
-          return e;
-        }
-      );
-      if (d) {
-        debug.incomingHttpRequest(httpRequest, null, bodyStr);
-        debug.outgoingHttpResponse(httpResponse, null, error.message);
-      }
+
+    return clientError(
+      httpRequest,
+      httpResponse,
+      sessionContext,
+      bodyStr,
+      err.message
+    );
+  }
+
+  if (!sessionContext && sessionId && rpc.cpeRequest?.name !== "Inform") {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const sessionContextString = await cache.pop(`session_${sessionId}`);
+    if (sessionContextString) {
+      sessionContext = await session.deserialize(sessionContextString);
+      sessionContext.httpRequest = httpRequest;
+      sessionContext.httpResponse = httpResponse;
+      httpRequest.socket.setTimeout(sessionContext.timeout * 1000);
+      if (sessionContext.authState !== 1) sessionContext.authState = 0;
     }
-    httpResponse.end(error.message);
-    return;
   }
 
   if (sessionContext)
@@ -1576,33 +1552,27 @@ async function listenerAsync(
   if (!(rpc.cpeRequest && rpc.cpeRequest.name === "Inform")) {
     logger.accessError({
       message: "Invalid session",
-      sessionContext: sessionContext || {
+      sessionContext: {
         httpRequest: httpRequest,
         httpResponse: httpResponse,
       },
     });
-    const _body = "Invalid session";
-    httpResponse.setHeader("Content-Length", Buffer.byteLength(_body));
-    httpResponse.writeHead(400, { Connection: "close" });
-    const cacheSnapshot = await localCache.getCurrentSnapshot();
-    const d = !!localCache.getConfig(
-      cacheSnapshot,
-      "cwmp.debug",
-      {
-        remoteAddress: getRequestOrigin(httpRequest).remoteAddress,
-      },
-      Date.now(),
-      (e) => {
-        if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "REMOTE_ADDRESS")
-          return getRequestOrigin(httpRequest).remoteAddress;
-        return e;
-      }
+
+    return clientError(
+      httpRequest,
+      httpResponse,
+      null,
+      bodyStr,
+      "Invalid session"
     );
-    if (d) {
-      debug.incomingHttpRequest(httpRequest, null, bodyStr);
-      debug.outgoingHttpResponse(httpResponse, null, _body);
-    }
-    httpResponse.end(_body);
+  }
+
+  if (stats.concurrentRequests > MAX_CONCURRENT_REQUESTS) {
+    // Check again just in case device included old session ID
+    // from the previous session
+    httpResponse.writeHead(503, { "Retry-after": 60, Connection: "close" });
+    httpResponse.end("503 Service Unavailable");
+    stats.droppedRequests += 1;
     return;
   }
 
