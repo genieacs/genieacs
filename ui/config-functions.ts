@@ -45,7 +45,7 @@ export function flattenConfig(config: Record<string, unknown>): any {
 // Order keys such that nested objects come last
 function orderKeys(config: any): number {
   let res = 1;
-  if (typeof config !== "object") return res;
+  if (config == null || typeof config !== "object") return res;
   if (Array.isArray(config)) {
     for (const c of config) res += orderKeys(c);
     return res;
@@ -79,7 +79,7 @@ export function structureConfig(config: Config[]): any {
     let ref = _config;
     while (keys.length > 1) {
       const k = keys.shift();
-      if (typeof ref[k] !== "object") ref[k] = {};
+      if (ref[k] == null || typeof ref[k] !== "object") ref[k] = {};
       ref = ref[k];
     }
     ref[keys[0]] = c.value;
@@ -137,7 +137,7 @@ export function diffConfig(
   };
 
   for (const [k, v] of Object.entries(target))
-    if (!current[k] || current[k] !== v) diff.add.push({ _id: k, value: v });
+    if (v && current[k] !== v) diff.add.push({ _id: k, value: v });
 
   for (const k of Object.keys(current)) if (!target[k]) diff.remove.push(k);
 

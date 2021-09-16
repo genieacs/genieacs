@@ -365,7 +365,7 @@ async function fetchConfig(): Promise<[Config, UiConfig]> {
       let ref = ui;
       while (keys.length > 1) {
         const k = keys.shift();
-        if (typeof ref[k] !== "object") ref[k] = {};
+        if (ref[k] == null || typeof ref[k] !== "object") ref[k] = {};
         ref = ref[k];
       }
       ref[keys[0]] = val;

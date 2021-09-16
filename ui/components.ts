@@ -144,7 +144,14 @@ export function contextifyComponent(component: ComponentTypes): ComponentTypes {
             applyContext(res, context);
             return res;
           } catch (err) {
-            return m("p.error", { title: err.message }, "Error!");
+            return m(
+              "p.error",
+              {
+                title: "Click to print stack trace to console",
+                onclick: () => console.error(err),
+              },
+              "Error!"
+            );
           }
         };
         return state;
