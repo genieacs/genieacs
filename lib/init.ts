@@ -257,7 +257,7 @@ export async function seed(options: Record<string, boolean>): Promise<void> {
           "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.KeyPassphrase",
       },
       { _id: "ui.device.3.type", value: "'parameter-table'" },
-      { _id: "ui.device.3.label", value: "'WLAN hosts'" },
+      { _id: "ui.device.3.label", value: "'LAN hosts'" },
       {
         _id: "ui.device.3.parameter",
         value: "InternetGatewayDevice.LANDevice.1.Hosts.Host",
