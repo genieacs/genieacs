@@ -1,5 +1,37 @@
 # Change Log
 
+## 1.2.6 (2021-09-16)
+
+- New config option `cwmp.downloadSuccessOnTimeout` to enable a workaround for
+  CPEs that neglect to send a TransferComplete message after a successful
+  download.
+- Display a progress bar when uploading new files.
+- Default to dual stack interface binding (i.e. `::` instead of `0.0.0.0`).
+  Unless the binding interface is explicitly set, this will cause IPv4 addresses
+  in the logs to be displayed as IPv4-mapped IPv6 addresses (e.g.
+  `::ffff:127.0.0.1` instead of `127.0.0.1`).
+- Detect and correct for client side (browser) clock skew that would otherwise
+  alter the numbers in the pie charts.
+- Various improvements relating to dealing with buggy TR-069 client
+  implementations.
+- Fix a bug causing "lock expired" exceptions when a CWMP session remains open
+  for a very long time due to slow clients.
+- Fix metadata of uploaded files going missing due to nginx stripping away what
+  it considers to be invalid headers. The nginx directive
+  `ignore_invalid_headers` is no longer required.
+- Fix crash when a CPE is assigned a tag containing a dot.
+- Fix bug preventing the user from closing the preset pop-up after being
+  presented with unsupported preset message.
+- Fix exceptions raised from ext scripts manifesting as timeout faults.
+- Fix download getting triggered repeatedly when the value passed to `Download`
+  parameter is greater than the current timestamp.
+- Fix crash when passing invalid attributes to `declare`.
+- Fix crash in NBI when pushing tasks to non-existing devices.
+- Fix crash in NBI when passing invalid JSON to various API endpoints.
+- Fix crash when the output from `ping` command cannot be parsed in some rare
+  edge cases.
+- A number of other fixes and stability improvements.
+
 ## 1.2.5 (2021-03-12)
 
 - Support specifying custom types when uploading files.

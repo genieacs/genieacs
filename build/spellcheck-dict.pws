@@ -165,3 +165,6 @@ Brotli
 CSV
 hostInfo
 IPv
+downloadSuccessOnTimeout
+TransferComplete
+nginx
