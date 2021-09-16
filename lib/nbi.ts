@@ -112,7 +112,14 @@ export function listener(
         PRESETS_REGEX.exec(urlParts.pathname)[1]
       );
       if (request.method === "PUT") {
-        const preset = JSON.parse(body.toString());
+        let preset;
+        try {
+          preset = JSON.parse(body.toString());
+        } catch (err) {
+          response.writeHead(400);
+          response.end(`${err.name}: ${err.message}`);
+          return;
+        }
         preset._id = presetName;
         collections.presets.replaceOne(
           { _id: presetName },
@@ -159,7 +166,14 @@ export function listener(
         OBJECTS_REGEX.exec(urlParts.pathname)[1]
       );
       if (request.method === "PUT") {
-        const object = JSON.parse(body.toString());
+        let object;
+        try {
+          object = JSON.parse(body.toString());
+        } catch (err) {
+          response.writeHead(400);
+          response.end(`${err.name}: ${err.message}`);
+          return;
+        }
         object._id = objectName;
         collections.objects.replaceOne(
           { _id: objectName },
@@ -400,7 +414,14 @@ export function listener(
           DEVICE_TASKS_REGEX.exec(urlParts.pathname)[1]
         );
         if (body.length) {
-          const task = JSON.parse(body.toString());
+          let task;
+          try {
+            task = JSON.parse(body.toString());
+          } catch (err) {
+            response.writeHead(400);
+            response.end(`${err.name}: ${err.message}`);
+            return;
+          }
           task.device = deviceId;
           collections.devices
             .findOne({ _id: deviceId })
@@ -801,7 +822,14 @@ export function listener(
       const cur = collection.find(q, { projection: projection });
 
       if (urlParts.query.sort) {
-        const s = JSON.parse(urlParts.query.sort as string);
+        let s;
+        try {
+          s = JSON.parse(urlParts.query.sort as string);
+        } catch (err) {
+          response.writeHead(400);
+          response.end(`${err.name}: ${err.message}`);
+          return;
+        }
         const sort = {};
         for (const [k, v] of Object.entries(s)) {
           if (k[k.lastIndexOf(".") + 1] !== "_" && collectionName === "devices")
