@@ -72,5 +72,5 @@ For commercial support options, please visit
 
 ## License
 
-Copyright 2013-2020 GenieACS Inc. GenieACS is released under the
+Copyright 2013-2021 GenieACS Inc. GenieACS is released under the
 [AGPLv3 license terms](https://raw.githubusercontent.com/genieacs/genieacs/master/LICENSE).
