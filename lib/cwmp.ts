@@ -187,7 +187,8 @@ async function writeResponse(
   }
 
   const httpResponse = sessionContext.httpResponse;
-  const connection = httpResponse.socket;
+  // Don't use httpResponse.socket as it may be null, even before end() is called
+  const connection = sessionContext.httpRequest.socket;
 
   httpResponse.setHeader("Content-Length", Buffer.byteLength(data));
   httpResponse.writeHead(res.code, res.headers);
@@ -1033,7 +1034,7 @@ async function reportBadState(sessionContext: SessionContext): Promise<void> {
   if (sessionContext.debug)
     debug.outgoingHttpResponse(httpResponse, sessionContext.deviceId, body);
   httpResponse.end(body);
-  return endSession(sessionContext);
+  if (sessionContext.state) return endSession(sessionContext);
 }
 
 async function responseUnauthorized(
@@ -1290,13 +1291,13 @@ export function listener(
       stats.concurrentRequests -= 1;
     })
     .catch((err) => {
-      currentSessions.delete(httpResponse.socket);
+      currentSessions.delete(httpRequest.socket);
       stats.concurrentRequests -= 1;
       setTimeout(() => {
         throw err;
       });
       try {
-        httpResponse.socket.unref();
+        httpRequest.socket.unref();
         httpResponse.writeHead(500, { Connection: "close" });
         httpResponse.end(`${err.name}: ${err.message}`);
       } catch (err) {
@@ -1344,7 +1345,7 @@ async function clientError(
   }
 
   httpResponse.end(msg);
-  if (sessionContext) await endSession(sessionContext);
+  if (sessionContext?.state) await endSession(sessionContext);
 }
 
 function decodeString(buffer: Buffer, charset: string): string {
@@ -1442,7 +1443,7 @@ async function listenerAsync(
     sessionContext.httpRequest = httpRequest;
     sessionContext.httpResponse = httpResponse;
     if (
-      sessionContext.sessionId !== sessionId ||
+      (sessionContext.sessionId !== sessionId && sessionContext.state) ||
       sessionContext.lastActivity + sessionContext.timeout * 1000 < Date.now()
     ) {
       logger.accessError({

@@ -129,7 +129,7 @@ export async function httpConnectionRequest(
               Authorization: auth.solveDigest(
                 username,
                 password,
-                options.path,
+                url.pathname + url.search,
                 "GET",
                 null,
                 authHeader

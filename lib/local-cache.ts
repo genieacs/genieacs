@@ -360,6 +360,7 @@ async function fetchConfig(): Promise<[Config, UiConfig]> {
     _config[c.id] = val;
     if (c.id.startsWith("ui.")) {
       const keys = c.id.split(".");
+      if (!(keys[1] in ui)) continue;
       // remove the first key(ui)
       keys.shift();
       let ref = ui;
