@@ -1,5 +1,10 @@
 # Change Log
 
+## 1.2.7 (2021-09-18)
+
+- Fix regression causing frequent invalid session errors.
+- Fix regression breaking digest authentication in connection requests.
+
 ## 1.2.6 (2021-09-16)
 
 - New config option `cwmp.downloadSuccessOnTimeout` to enable a workaround for
