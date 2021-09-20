@@ -1110,8 +1110,8 @@ function getCanRaiseCallback(
     const vars = context.getIsNullRelations(i);
     if (!context.isIsNull(i)) {
       if (!(idx & 1)) return true;
-      if (!set.has(idx ^ 3)) return true;
       for (const n of vars) if (set.has((n << 2) ^ 3)) return true;
+      if (set.has(idx ^ 3)) return false;
       for (const n of vars) if (!set.has((n << 2) ^ 2)) return false;
       return true;
     }
