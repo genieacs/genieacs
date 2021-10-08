@@ -8,23 +8,30 @@ URL: https://github.com/genieacs/genieacs
 Vendor: GenieACS Inc.
 Packager: Zaid Abdulla <zaid@genieacs.com>
 
-Source0: https://github.com/genieacs/genieacs/archive/refs/tags/v%{version}.tar.gz
+Source0: https://registry.npmjs.org/%{name}/-/%{name}-%{version}.tgz
 BuildArch: noarch
 BuildRequires: nodejs
 
-Requires: nodejs, mongodb-org
+Requires: mongodb-org
 
 %description
 A fast and lightweight TR-069 Auto Configuration Server (ACS)
 
 %prep
-%setup -q
+
+%setup -q -n package
+mkdir lib
+
+#npm install
+#pushd node_modules
+
+#%{buildroot}%{_prefix}/lib/node_modules/%{name}
+#popd
 
 %build
-npm install
-npm run build
+#npm run build
 
-cat > genieacs.env <<EOF
+cat > lib/genieacs.env <<EOF
 GENIEACS_CWMP_ACCESS_LOG_FILE=/var/log/genieacs/genieacs-cwmp-access.log
 GENIEACS_NBI_ACCESS_LOG_FILE=/var/log/genieacs/genieacs-nbi-access.log
 GENIEACS_FS_ACCESS_LOG_FILE=/var/log/genieacs/genieacs-fs-access.log
@@ -32,10 +39,10 @@ GENIEACS_UI_ACCESS_LOG_FILE=/var/log/genieacs/genieacs-ui-access.log
 GENIEACS_DEBUG_FILE=/var/log/genieacs/genieacs-debug.yaml
 NODE_OPTIONS=--enable-source-maps
 GENIEACS_EXT_DIR=/opt/genieacs/ext
-GENIEACS_UI_JWT_SECRET=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
+GENIEACS_UI_JWT_SECRET=secret
 EOF
 
-cat > genieacs-cwmp.service <<EOF
+cat > lib/genieacs-cwmp.service <<EOF
 [Unit]
 Description=GenieACS CWMP
 After=network.target
@@ -49,7 +56,7 @@ ExecStart=/usr/bin/genieacs-cwmp
 WantedBy=default.target
 EOF
 
-cat > genieacs-nbi.service <<EOF
+cat > lib/genieacs-nbi.service <<EOF
 [Unit]
 Description=GenieACS NBI
 After=network.target
@@ -63,7 +70,7 @@ ExecStart=/usr/bin/genieacs-nbi
 WantedBy=default.target
 EOF
 
-cat > genieacs-fs.service <<EOF
+cat > lib/genieacs-fs.service <<EOF
 [Unit]
 Description=GenieACS FS
 After=network.target
@@ -77,7 +84,7 @@ ExecStart=/usr/bin/genieacs-fs
 WantedBy=default.target
 EOF
 
-cat > genieacs-ui.service <<EOF
+cat > lib/genieacs-ui.service <<EOF
 [Unit]
 Description=GenieACS UI
 After=network.target
@@ -91,7 +98,7 @@ ExecStart=/usr/bin/genieacs-ui
 WantedBy=default.target
 EOF
 
-cat > genieacs.rotate <<EOF
+cat > lib/genieacs.rotate <<EOF
 /var/log/genieacs/*.log /var/log/genieacs/*.yaml {
     daily
     rotate 30
@@ -103,11 +110,12 @@ EOF
 
 %install
 
-mkdir -p %{buildroot}/opt/genieacs/ext
 mkdir -p %{buildroot}%{_bindir}
 mkdir -p %{buildroot}/usr/lib/systemd/system/
-mkdir -p %{buildroot}/var/log/genieacs/
 mkdir -p %{buildroot}/etc/logrotate.d/
+
+mkdir -p %{buildroot}/opt/genieacs/ext
+mkdir -p %{buildroot}/var/log/genieacs/
 
 touch %{buildroot}/var/log/genieacs/genieacs-cwmp-access.log
 touch %{buildroot}/var/log/genieacs/genieacs-nbi-access.log
@@ -115,43 +123,45 @@ touch %{buildroot}/var/log/genieacs/genieacs-fs-access.log
 touch %{buildroot}/var/log/genieacs/genieacs-ui-access.log
 touch %{buildroot}/var/log/genieacs/genieacs-debug.yaml
 
-install -m 600 genieacs.env %{buildroot}/opt/genieacs/genieacs.env
-install -m 600 genieacs.rotate %{buildroot}/etc/logrotate.d/genieacs
+install -m 600 lib/genieacs.env %{buildroot}/opt/genieacs/genieacs.env
+install -m 600 lib/genieacs.rotate %{buildroot}/etc/logrotate.d/genieacs
 
-install -m 755 dist/bin/genieacs-cwmp %{buildroot}%{_bindir}/genieacs-cwmp
-install -m 755 dist/bin/genieacs-ext %{buildroot}%{_bindir}/genieacs-ext
-install -m 755 dist/bin/genieacs-fs %{buildroot}%{_bindir}/genieacs-fs
-install -m 755 dist/bin/genieacs-nbi %{buildroot}%{_bindir}/genieacs-nbi
-install -m 755 dist/bin/genieacs-ui %{buildroot}%{_bindir}/genieacs-ui
-
-#install %{name}.service %{buildroot}%{_unitdir}/%{name}.service
+install lib/genieacs-cwmp.service %{buildroot}%{_unitdir}/genieacs-cwmp.service
+install lib/genieacs-fs.service %{buildroot}%{_unitdir}/genieacs-fs.service
+install lib/genieacs-nbi.service %{buildroot}%{_unitdir}/genieacs-nbi.service
+install lib/genieacs-ui.service %{buildroot}%{_unitdir}/genieacs-ui.service
 
 %files
-%defattr(666,genieacs,genieacs,644)
-
+%defattr(-,genieacs,genieacs,-)
 %dir /opt/genieacs/
 %dir /opt/genieacs/ext
+%dir /var/log/genieacs
 
-#%attr(-, root, root) %{_unitdir}/%{name}.service
-%attr(755,genieacs,genieacs) %{_bindir}/genieacs-cwmp
-%attr(755,genieacs,genieacs) %{_bindir}/genieacs-ext
-%attr(755,genieacs,genieacs) %{_bindir}/genieacs-fs
-%attr(755,genieacs,genieacs) %{_bindir}/genieacs-nbi
-%attr(755,genieacs,genieacs) %{_bindir}/genieacs-ui
+%{_unitdir}/genieacs-cwmp.service
+%{_unitdir}/genieacs-fs.service
+%{_unitdir}/genieacs-nbi.service
+%{_unitdir}/genieacs-ui.service
 
-%config %attr(600,genieacs,genieacs) /opt/genieacs/genieacs.env
-%config %attr(600,genieacs,genieacs) /etc/logrotate.d/genieacs
-%config %attr(600,genieacs,genieacs) /var/log/genieacs/genieacs-debug.yaml
+/opt/genieacs/genieacs.env
+/etc/logrotate.d/genieacs
+/var/log/genieacs/genieacs-debug.yaml
 
-%attr(755,genieacs,genieacs) /var/log/genieacs/genieacs-cwmp-access.log
-%attr(755,genieacs,genieacs) /var/log/genieacs/genieacs-fs-access.log
-%attr(755,genieacs,genieacs) /var/log/genieacs/genieacs-nbi-access.log
-%attr(755,genieacs,genieacs) /var/log/genieacs/genieacs-ui-access.log
+/var/log/genieacs/genieacs-cwmp-access.log
+/var/log/genieacs/genieacs-nbi-access.log
+/var/log/genieacs/genieacs-fs-access.log
+/var/log/genieacs/genieacs-ui-access.log
+/var/log/genieacs/genieacs-debug.yaml
 
 %pre
+
+npm install -g %{name}@%{version} --quiet --no-progress> /dev/null
+
 if [ $1 == 1 ];then
    /usr/bin/getent group genieacs >/dev/null || /usr/sbin/groupadd -g 128 -r genieacs
    /usr/bin/getent passwd genieacs >/dev/null || /usr/sbin/useradd -c "Tollring" -u 128 -g 128 -r -d /opt/genieacs genieacs
    /usr/bin/getent passwd genieacs >/dev/null || chown genieacs:genieacs /var/log/genieacs
+#   %{_bindir}/genieacs-ui --ui-jwt-secret $(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
 fi
+
+%post
 
