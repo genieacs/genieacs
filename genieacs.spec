@@ -10,6 +10,7 @@ Packager: Zaid Abdulla <zaid@genieacs.com>
 
 Source0: https://github.com/genieacs/genieacs/archive/refs/tags/v%{version}.tar.gz
 BuildArch: noarch
+BuildRequires: nodejs
 
 Requires: nodejs, mongodb-org
 
@@ -17,7 +18,7 @@ Requires: nodejs, mongodb-org
 A fast and lightweight TR-069 Auto Configuration Server (ACS)
 
 %prep
-#setup -q
+%setup -q
 
 %build
 npm install
