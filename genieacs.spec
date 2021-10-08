@@ -133,6 +133,9 @@ install lib/genieacs-ui.service %{buildroot}%{_unitdir}/genieacs-ui.service
 
 %files
 %defattr(-,genieacs,genieacs,-)
+%doc README.md
+%license LICENSE
+
 %dir /opt/genieacs/
 %dir /opt/genieacs/ext
 %dir /var/log/genieacs
@@ -165,3 +168,4 @@ fi
 
 %post
 
+%changelog
