@@ -29,7 +29,6 @@ mkdir lib
 #popd
 
 %build
-#npm run build
 
 cat > lib/genieacs.env <<EOF
 GENIEACS_CWMP_ACCESS_LOG_FILE=/var/log/genieacs/genieacs-cwmp-access.log
@@ -50,7 +49,7 @@ After=network.target
 [Service]
 User=genieacs
 EnvironmentFile=/opt/genieacs/genieacs.env
-ExecStart=/usr/bin/genieacs-cwmp
+ExecStart=%{_bindir}/genieacs-cwmp
 
 [Install]
 WantedBy=default.target
@@ -64,7 +63,7 @@ After=network.target
 [Service]
 User=genieacs
 EnvironmentFile=/opt/genieacs/genieacs.env
-ExecStart=/usr/bin/genieacs-nbi
+ExecStart=%{_bindir}/genieacs-nbi
 
 [Install]
 WantedBy=default.target
@@ -78,7 +77,7 @@ After=network.target
 [Service]
 User=genieacs
 EnvironmentFile=/opt/genieacs/genieacs.env
-ExecStart=/usr/bin/genieacs-fs
+ExecStart=%{_bindir}/genieacs-fs
 
 [Install]
 WantedBy=default.target
@@ -92,7 +91,7 @@ After=network.target
 [Service]
 User=genieacs
 EnvironmentFile=/opt/genieacs/genieacs.env
-ExecStart=/usr/bin/genieacs-ui
+ExecStart=%{_bindir}/genieacs-ui
 
 [Install]
 WantedBy=default.target
