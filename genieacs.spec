@@ -12,7 +12,7 @@ Source0: https://registry.npmjs.org/%{name}/-/%{name}-%{version}.tgz
 BuildArch: noarch
 BuildRequires: nodejs
 
-Requires: mongodb-org
+Requires: mongodb-org, nodejs
 
 %description
 A fast and lightweight TR-069 Auto Configuration Server (ACS)
