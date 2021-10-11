@@ -162,7 +162,7 @@ if [ $1 == 1 ];then
    /usr/bin/getent group genieacs >/dev/null || /usr/sbin/groupadd -g 128 -r genieacs
    /usr/bin/getent passwd genieacs >/dev/null || /usr/sbin/useradd -c "Tollring" -u 128 -g 128 -r -d /opt/genieacs genieacs
    /usr/bin/getent passwd genieacs >/dev/null || chown genieacs:genieacs /var/log/genieacs
-#   %{_bindir}/genieacs-ui --ui-jwt-secret $(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
+   %{_bindir}/genieacs-ui --ui-jwt-secret $(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
 fi
 
 %post
