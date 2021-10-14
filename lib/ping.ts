@@ -19,6 +19,7 @@
 
 import { platform } from "os";
 import { exec } from "child_process";
+import { domainToASCII } from "url";
 
 export interface PingResult {
   packetsTransmitted: number;
@@ -30,11 +31,23 @@ export interface PingResult {
   mdev: number;
 }
 
+function isValidHost(host: string): boolean {
+  // Valid chars in IPv4, IPv6, domain names
+  if (/^[a-zA-Z0-9\-.:[\]-]+$/.test(host)) return true;
+
+  // Check if input is an IDN convert to Punycode
+  // Can't merge with above because domainToASCII doesn't accept IP addresses
+  return /^[a-zA-Z0-9\-.:[\]-]+$/.test(domainToASCII(host));
+}
+
 export function ping(
   host: string,
   callback: (err: Error, res?: PingResult, stdout?: string) => void
 ): void {
   let cmd: string, parseRegExp1: RegExp, parseRegExp2: RegExp;
+  // Validate input to prevent possible remote code execution
+  // Credit to Alex Hordijk for reporting this vulnerability
+  if (!isValidHost(host)) return callback(new Error("Invalid host"));
   host = host.replace("[", "").replace("]", "");
   switch (platform()) {
     case "linux":
