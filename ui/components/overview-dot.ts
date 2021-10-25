@@ -20,7 +20,7 @@
 import { ClosureComponent, Component } from "mithril";
 import { m } from "../components";
 import config from "../config";
-import * as store from "../store";
+import { evaluateExpression } from "../store";
 
 const CHARTS = config.ui.overview.charts;
 
@@ -28,11 +28,12 @@ const component: ClosureComponent = (): Component => {
   return {
     view: (vnode) => {
       const device = vnode.attrs["device"];
-      const chart = CHARTS[vnode.attrs["chart"]] as Record<string, unknown>;
+      const chartName = evaluateExpression(vnode.attrs["chart"], device || {});
+      const chart = CHARTS[chartName as string] as Record<string, unknown>;
       if (!chart) return null;
       for (const slice of Object.values(chart.slices)) {
         const filter = slice["filter"];
-        if (store.evaluateExpression(filter, device)) {
+        if (evaluateExpression(filter, device || {})) {
           const dot = m(
             "svg",
             {

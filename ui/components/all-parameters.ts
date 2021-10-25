@@ -23,6 +23,7 @@ import * as taskQueue from "../task-queue";
 import { parse } from "../../lib/common/expression-parser";
 import memoize from "../../lib/common/memoize";
 import { getIcon } from "../icons";
+import { evaluateExpression } from "../store";
 
 const memoizedParse = memoize(parse);
 
@@ -55,7 +56,7 @@ const component: ClosureComponent = (): Component => {
     view: (vnode) => {
       const device = vnode.attrs["device"];
 
-      const limit = vnode.attrs["limit"] > 0 ? vnode.attrs["limit"] : 100;
+      const limit = evaluateExpression(vnode.attrs["limit"], device) || 100;
 
       const search = m("input", {
         type: "text",
