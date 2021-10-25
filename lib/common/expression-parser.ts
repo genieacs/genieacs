@@ -87,8 +87,6 @@ function binaryLeft(
       rest.reduce((acc, ch) => {
         const [op, another] = ch;
         if (Array.isArray(acc) && op === acc[0]) return acc.concat([another]);
-        if (Array.isArray(another) && op === another[0])
-          return [op, acc].concat(another.slice(1));
         return [op, acc, another];
       }, first)
   );
