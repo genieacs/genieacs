@@ -285,7 +285,11 @@ const lang = parsimmon.createLanguage({
           .skip(parsimmon.optWhitespace),
         binaryLeft(
           parsimmon
-            .alt(parsimmon.string("*"), parsimmon.string("/"))
+            .alt(
+              parsimmon.string("*"),
+              parsimmon.string("/"),
+              parsimmon.string("%")
+            )
             .skip(parsimmon.optWhitespace),
           parsimmon.alt(
             r.Value,
@@ -384,6 +388,7 @@ export function stringify(exp: Expression, level = 0): string {
     "-": 31,
     "*": 32,
     "/": 32,
+    "%": 32,
   };
 
   const op = exp[0].toUpperCase();
