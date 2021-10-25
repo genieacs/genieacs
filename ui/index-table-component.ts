@@ -79,8 +79,6 @@ function renderTable(
       continue;
     }
 
-    let direction = 1;
-
     let symbol = getIcon("unsorted");
     if (sortAttributes[i] > 0) symbol = getIcon("sorted-asc");
     else if (sortAttributes[i] < 0) symbol = getIcon("sorted-dsc");
@@ -89,7 +87,7 @@ function renderTable(
       "button",
       {
         onclick: () => {
-          if (sortAttributes[i] > 0) direction *= -1;
+          const direction = ((sortAttributes[i] + 2) % 3) - 1;
           return onSortChange({ [i]: direction });
         },
       },
