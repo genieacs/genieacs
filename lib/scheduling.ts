@@ -18,7 +18,7 @@
  */
 
 import * as crypto from "crypto";
-import * as later from "later";
+import * as later from "@breejs/later";
 
 function md532(str): number {
   const digest = crypto.createHash("md5").update(str).digest();

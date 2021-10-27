@@ -82,6 +82,11 @@
         }
       }
     },
+    "@breejs/later": {
+      "version": "4.1.0",
+      "resolved": "https://registry.npmjs.org/@breejs/later/-/later-4.1.0.tgz",
+      "integrity": "sha512-QgGnZ9b7o4k0Ai1ZbTJWwZpZcFK9d+Gb+DyNt4UT9x6IEIs5HVu0iIlmgzGqN+t9MoJSpSPo9S/Mm51UtHr3JA=="
+    },
     "@concordance/react": {
       "version": "2.0.0",
       "resolved": "https://registry.npmjs.org/@concordance/react/-/react-2.0.0.tgz",
@@ -3476,11 +3481,6 @@
       "version": "1.0.7",
       "resolved": "https://registry.npmjs.org/koa-unless/-/koa-unless-1.0.7.tgz",
       "integrity": "sha1-ud83XitNowQ5GNSGIlIMLAt58DI="
-    },
-    "later": {
-      "version": "1.2.0",
-      "resolved": "https://registry.npmjs.org/later/-/later-1.2.0.tgz",
-      "integrity": "sha1-8s9sTdeVbdL1IK3wMpg26YdrrQ8="
     },
     "latest-version": {
       "version": "5.1.0",

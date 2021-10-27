@@ -19,6 +19,7 @@
     "bin": "bin"
   },
   "dependencies": {
+    "@breejs/later": "^4.1.0",
     "espresso-iisojs": "^1.0.4",
     "iconv-lite": "^0.6.3",
     "ipaddr.js": "^2.0.1",
@@ -29,7 +30,6 @@
     "koa-jwt": "^4.0.1",
     "koa-router": "^10.1.1",
     "koa-static": "^5.0.0",
-    "later": "^1.2.0",
     "mongodb": "^4.1.2",
     "parsimmon": "^1.18.0",
     "seedrandom": "^3.0.5"
