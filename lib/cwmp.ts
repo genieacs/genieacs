@@ -828,6 +828,9 @@ async function endSession(sessionContext: SessionContext): Promise<void> {
     `cwmp_session_${sessionContext.deviceId}`,
     sessionContext.sessionId
   );
+
+  db.saveOngoingSessionStatus(sessionContext.deviceId, false);
+
   if (sessionContext.new) {
     logger.accessInfo({
       sessionContext: sessionContext,
@@ -1080,6 +1083,9 @@ async function processRequest(
   parseWarnings: Record<string, unknown>[],
   body: string
 ): Promise<void> {
+
+  db.saveOngoingSessionStatus(sessionContext.deviceId, true);
+
   for (const w of parseWarnings) {
     w.sessionContext = sessionContext;
     logger.accessWarn(w);

@@ -627,6 +627,25 @@ export async function saveDevice(
   }
 }
 
+export async function saveOngoingSessionStatus(
+  id: string,
+  ongoingSession: boolean,
+  ) {
+  
+  const updateValues = {
+    $set: {
+      ongoingSession: ongoingSession,
+    }
+  }
+
+  devicesCollection.updateOne(
+    { _id: id },
+    updateValues,
+  );
+
+  return;
+}
+
 export async function getFaults(
   deviceId: string
 ): Promise<{ [channel: string]: SessionFault }> {
