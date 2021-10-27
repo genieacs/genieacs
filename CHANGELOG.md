@@ -1,5 +1,22 @@
 # Change Log
 
+## 1.2.8 (2021-10-27)
+
+- Fix a remote code execution security vulnerability in genieacs-ui.
+- All UI components can now be configured using fully dynamic expressions.
+  Previously some component types only accept fixed string values as properties.
+- The `container` UI component can now be configured with an `element` property
+  that's either a string or a nested pair of `tag` and `attributes` properties.
+  The various attributes under the `attributes` property can now make use of a
+  new function `ENCODEURICOMPONENT()` to facilitate creating custom hyperlinks
+  in the UI.
+- Improve sorting buttons' behavior in the device listing page and other pages.
+  Sorting by multiple columns should now feel more intuitive.
+- Support the modulo (%) operator in expressions.
+- Fix a regression in the previous release where the config option 'ui.pageSize'
+  no longer works.
+- Fix process crash when a CPE sends an unsupported ACS method.
+
 ## 1.2.7 (2021-09-18)
 
 - Fix regression causing frequent invalid session errors.
