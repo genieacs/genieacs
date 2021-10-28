@@ -45,6 +45,7 @@ import {
   InformRequest,
   Preset,
   GetRPCMethodsResponse,
+  CpeFault,
 } from "./types";
 import { IncomingMessage, ServerResponse } from "http";
 import { Readable } from "stream";
@@ -1262,6 +1263,41 @@ async function processRequest(
       session.clearProvisions(sessionContext);
     }
     return nextRpc(sessionContext);
+  } else if (rpc.unknownMethod) {
+    if (sessionContext.state === 1) {
+      logger.accessWarn({
+        sessionContext: sessionContext,
+        message: "Method not supported",
+        method: rpc.unknownMethod,
+      });
+
+      const f: CpeFault = {
+        faultCode: "Server",
+        faultString: "CWMP fault",
+        detail: {
+          faultCode: "8000",
+          faultString: "Method not supported",
+        },
+      };
+
+      const res = soap.response({
+        id: rpc.id,
+        acsFault: f,
+        cwmpVersion: sessionContext.cwmpVersion,
+      });
+
+      return writeResponse(sessionContext, res);
+    } else if (sessionContext.state === 2) {
+      const fault = {
+        code: "invalid_response",
+        message: "Response name does not match request name",
+      };
+      recordFault(sessionContext, fault);
+      session.clearProvisions(sessionContext);
+      return nextRpc(sessionContext);
+    } else {
+      return reportBadState(sessionContext);
+    }
   } else {
     // CPE sent empty response
     if (sessionContext.state !== 1) return reportBadState(sessionContext);

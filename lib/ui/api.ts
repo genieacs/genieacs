@@ -17,7 +17,7 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import * as stream from "stream";
+import { PassThrough } from "stream";
 import Router from "koa-router";
 import * as db from "./db";
 import * as apiFunctions from "./api-functions";
@@ -103,7 +103,7 @@ router.get(`/devices/:id.csv`, async (ctx) => {
       .replace(/[:.]/g, "")}.csv`
   );
 
-  ctx.body = new stream.PassThrough();
+  ctx.body = new PassThrough();
   ctx.body.write(
     "Parameter,Object,Object timestamp,Writable,Writable timestamp,Value,Value type,Value timestamp,Notification,Notification timestamp,Access list,Access list timestamp\n"
   );
@@ -216,7 +216,7 @@ for (const [resource, flags] of Object.entries(resources)) {
       ]);
     }
 
-    ctx.body = new stream.PassThrough();
+    ctx.body = new PassThrough();
     ctx.type = "application/json";
 
     let c = 0;
@@ -276,7 +276,7 @@ for (const [resource, flags] of Object.entries(resources)) {
       ]);
     }
 
-    ctx.body = new stream.PassThrough();
+    ctx.body = new PassThrough();
     ctx.type = "text/csv";
     ctx.attachment(
       `${resource}-${new Date(now).toISOString().replace(/[:.]/g, "")}.csv`

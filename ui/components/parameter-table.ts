@@ -20,7 +20,7 @@
 import { ClosureComponent, Component } from "mithril";
 import { m } from "../components";
 import * as taskQueue from "../task-queue";
-import * as store from "../store";
+import { evaluateExpression } from "../store";
 import * as expressionParser from "../../lib/common/expression-parser";
 import { getIcon } from "../icons";
 
@@ -35,7 +35,7 @@ const component: ClosureComponent = (): Component => {
     },
     view: (vnode) => {
       const device = vnode.attrs["device"];
-      const object = store.evaluateExpression(vnode.state["object"], device);
+      const object = evaluateExpression(vnode.state["object"], device);
       const parameters = vnode.state["parameters"];
 
       if (typeof object !== "string" || !device[object]) return null;
@@ -56,8 +56,7 @@ const component: ClosureComponent = (): Component => {
 
       const rows = [];
       for (const i of instances) {
-        let filter =
-          vnode.attrs["filter"] != null ? vnode.attrs["filter"] : true;
+        let filter = "filter" in vnode.attrs ? vnode.attrs["filter"] : true;
 
         filter = expressionParser.map(filter, (e) => {
           if (Array.isArray(e) && e[0] === "PARAM")
@@ -65,7 +64,7 @@ const component: ClosureComponent = (): Component => {
           return e;
         });
 
-        if (!store.evaluateExpression(filter, device)) continue;
+        if (!evaluateExpression(filter, device)) continue;
 
         const row = parameters.map((p) => {
           const param = expressionParser.map(p.parameter, (e) => {
@@ -147,7 +146,9 @@ const component: ClosureComponent = (): Component => {
       }
 
       let label;
-      if (vnode.attrs["label"]) label = m("h2", vnode.attrs["label"]);
+
+      const l = evaluateExpression(vnode.attrs["label"], device);
+      if (l != null) label = m("h2", l);
 
       return [
         label,

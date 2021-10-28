@@ -29,7 +29,8 @@ const component: ClosureComponent = (): Component => {
     view: (vnode) => {
       const device = vnode.attrs["device"];
       let writable = true;
-      if (vnode.attrs["writable"] != null) writable = vnode.attrs["writable"];
+      if ("writable" in vnode.attrs)
+        writable = !!store.evaluateExpression(vnode.attrs["writable"], device);
 
       const tags = [];
       for (const p of Object.keys(device))

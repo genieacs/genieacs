@@ -268,17 +268,18 @@ export const component: ClosureComponent = (): Component => {
       }
 
       function onSortChange(sortedAttrs): void {
-        const _sort = Object.assign({}, sort);
+        let _sort = Object.assign({}, sort);
         for (const [index, direction] of Object.entries(sortedAttrs)) {
           const param = memoizedGetSortable(attributes[index].parameter);
           if (param) {
             // Changing the priority of columns
             delete _sort[param];
-            _sort[param] = direction;
+            if (direction) _sort = Object.assign({ [param]: direction }, _sort);
           }
         }
 
-        const ops = { sort: JSON.stringify(_sort) };
+        const ops = {};
+        if (Object.keys(_sort).length) ops["sort"] = JSON.stringify(_sort);
         if (vnode.attrs["filter"]) ops["filter"] = vnode.attrs["filter"];
         m.route.set("/devices", ops);
       }

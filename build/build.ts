@@ -74,6 +74,7 @@ function rmDirSync(dirPath): void {
   fs.rmdirSync(dirPath);
 }
 
+// For lockfileVersion = 1
 function stripDevDeps(deps): void {
   if (!deps["dependencies"]) return;
   for (const [k, v] of Object.entries(deps["dependencies"])) {
@@ -81,6 +82,15 @@ function stripDevDeps(deps): void {
     else stripDevDeps(v);
   }
   if (!Object.keys(deps["dependencies"]).length) delete deps["dependencies"];
+}
+
+// For lockfileVersion = 2
+function stripDevDeps2(deps): void {
+  if (!deps["packages"]) return;
+  for (const [k, v] of Object.entries(deps["packages"])) {
+    delete v["devDependencies"];
+    if (v["dev"]) delete deps["packages"][k];
+  }
 }
 
 function xmlTostring(xml): string {
@@ -140,6 +150,7 @@ async function init(): Promise<string[]> {
   );
   npmShrinkwrapJson["version"] = packageJson["version"];
   stripDevDeps(npmShrinkwrapJson);
+  stripDevDeps2(npmShrinkwrapJson);
   fs.writeFileSync(
     path.resolve(OUTPUT_DIR, "npm-shrinkwrap.json"),
     JSON.stringify(npmShrinkwrapJson, null, 2)

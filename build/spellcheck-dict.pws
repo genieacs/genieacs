@@ -168,3 +168,5 @@ IPv
 downloadSuccessOnTimeout
 TransferComplete
 nginx
+ENCODEURICOMPONENT
+pageSize

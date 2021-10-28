@@ -244,9 +244,12 @@ export function evaluateCallback(exp: Expression): Expression {
   } else if (exp[0] === "/") {
     return reduce(exp, (a, b, i) => {
       if (a == null || b == null) return null;
-      if (!isArray(a) && !isArray(b))
-        return i === 0 ? toNumber(a) / toNumber(b) : toNumber(a) * toNumber(b);
-      return REDUCE_SKIP;
+      if (isArray(a) || isArray(b)) return REDUCE_SKIP;
+      const n1 = toNumber(a);
+      const n2 = toNumber(b);
+      if (i !== 0) return n1 * n2;
+      if (n2 === 0) return null;
+      return n1 / n2;
     });
   } else if (exp[0] === "+") {
     return reduce(exp, (a, b) => {
@@ -260,6 +263,15 @@ export function evaluateCallback(exp: Expression): Expression {
       if (!isArray(a) && !isArray(b))
         return i === 0 ? toNumber(a) - toNumber(b) : toNumber(a) + toNumber(b);
       return REDUCE_SKIP;
+    });
+  } else if (exp[0] === "%") {
+    return reduce(exp, (a, b, i) => {
+      if (a == null || b == null) return null;
+      if (isArray(a) || isArray(b) || i !== 0) return REDUCE_SKIP;
+      const n1 = toNumber(a);
+      const n2 = Math.trunc(toNumber(b));
+      if (n2 === 0) return null;
+      return n1 % n2;
     });
   } else if (exp[0] === "||") {
     return reduce(exp, (a, b) => {
