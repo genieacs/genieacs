@@ -1,0 +1,9 @@
+steps:
+- name: 'gcr.io/kaniko-project/executor:v1.6.0'
+  args:
+  - --destination=gcr.io/genieacs/genieacs:$BRANCH_NAME
+  - --destination=gcr.io/genieacs/genieacs:$COMMIT_SHA
+  - --cache=true
+  - --cache-ttl=168h
+  - --label=SHA1=$COMMIT_SHA
+timeout: "800s"
