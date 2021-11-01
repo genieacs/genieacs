@@ -2,7 +2,7 @@
 ############################
 
 FROM node:12-buster
-LABEL maintainer="acsdesk@protonmail.com"
+LABEL maintainer="andredriem@gmail.com"
 
 RUN apt-get update && apt-get install -y sudo supervisor git
 RUN mkdir -p /var/log/supervisor
