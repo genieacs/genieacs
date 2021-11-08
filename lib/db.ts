@@ -446,14 +446,18 @@ export async function saveDevice(
           if (value2 != null) {
             if (!update["$addToSet"]["_tags"])
               update["$addToSet"]["_tags"] = { $each: [] };
-            update["$addToSet"]["_tags"]["$each"].push(path.segments[1]);
+            update["$addToSet"]["_tags"]["$each"].push(
+              decodeTag(path.segments[1] as string)
+            );
           } else {
             if (!update["$pull"]["_tags"]) {
               update["$pull"]["_tags"] = {
                 $in: [],
               };
             }
-            update["$pull"]["_tags"]["$in"].push(path.segments[1]);
+            update["$pull"]["_tags"]["$in"].push(
+              decodeTag(path.segments[1] as string)
+            );
           }
         }
 
