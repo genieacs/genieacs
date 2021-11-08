@@ -59,7 +59,19 @@ interface ServerOptions {
   timeout?: number;
   keepAliveTimeout?: number;
   onConnection?: (socket: Socket) => void;
+  onClientError?: (err: Error, socket: Socket) => void;
 }
+
+interface SocketEndpoint {
+  localAddress: string;
+  localPort: number;
+  remoteAddress: string;
+  remotePort: number;
+  remoteFamily: "IPv4" | "IPv6";
+}
+
+// Save this info as they're not accessible after a socket has been closed
+const socketEndpoints: WeakMap<Socket, SocketEndpoint> = new WeakMap();
 
 export function start(
   options: ServerOptions,
@@ -85,6 +97,27 @@ export function start(
     if (options.onConnection) server.on("connection", options.onConnection);
   }
 
+  server.on("connection", (socket: Socket) => {
+    socketEndpoints.set(socket, {
+      localAddress: socket.localAddress,
+      localPort: socket.localPort,
+      remoteAddress: socket.remoteAddress,
+      remotePort: socket.remotePort,
+      remoteFamily: socket.remoteFamily as "IPv4" | "IPv6",
+    });
+  });
+
+  if (options.onClientError) {
+    server.on("clientError", (err, socket: Socket) => {
+      if (err["code"] !== "ECONNRESET" && socket.writable)
+        socket.end("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
+
+      // As per Node docs: This event is guaranteed to be passed an instance
+      // of the <net.Socket> class
+      options.onClientError(err, socket as Socket);
+    });
+  }
+
   server.timeout = options.timeout || 0;
   if (options.keepAliveTimeout != null)
     server.keepAliveTimeout = options.keepAliveTimeout;
@@ -98,4 +131,9 @@ export function stop(): Promise<void> {
     }, 30000).unref();
     closeServer(20000, resolve);
   });
+}
+
+export function getSocketEndpoints(socket: Socket): SocketEndpoint {
+  // TLSSocket keeps a reference to the raw TCP socket in _parent
+  return socketEndpoints.get(socket["_parent"] ?? socket);
 }

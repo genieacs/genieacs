@@ -83,6 +83,7 @@ if (!cluster.worker) {
     host: SERVICE_ADDRESS,
     ssl: key && cert ? { key, cert } : null,
     onConnection: cwmp.onConnection,
+    onClientError: cwmp.onClientError,
     timeout: 30000,
     keepAliveTimeout: 0,
   };

@@ -21,6 +21,7 @@ import { IncomingMessage } from "http";
 import { TLSSocket } from "tls";
 import { parseCIDR, parse, IPv6, IPv4 } from "ipaddr.js";
 import * as config from "./config";
+import { getSocketEndpoints } from "./server";
 
 interface RequestOrigin {
   localAddress: string;
@@ -98,18 +99,19 @@ export function getRequestOrigin(request: IncomingMessage): RequestOrigin {
   let origin = cache.get(request);
   if (!origin) {
     const soc = request.socket;
+    const socketEndpoints = getSocketEndpoints(soc);
     origin = {
-      localAddress: soc.localAddress,
-      localPort: soc.localPort,
-      remoteAddress: soc.remoteAddress,
-      remotePort: soc.remotePort,
+      localAddress: socketEndpoints.localAddress,
+      localPort: socketEndpoints.localPort,
+      remoteAddress: socketEndpoints.remoteAddress,
+      remotePort: socketEndpoints.remotePort,
       host: request.headers["host"],
       encrypted: !!(request.socket as TLSSocket).encrypted,
     };
 
     const header = request.headers["forwarded"];
     if (header) {
-      const ip = parse(soc.remoteAddress) as IPv4;
+      const ip = parse(socketEndpoints.remoteAddress) as IPv4;
       if (cidrs.some((cidr) => ip.match(cidr as [IPv4, number]))) {
         const parsed = parseForwardedHeader(header);
 
