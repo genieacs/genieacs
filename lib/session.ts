@@ -2678,7 +2678,10 @@ export async function rpcResponse(
     const wildcardParams: Path[] = [root.concat(wildcardPath)];
 
     for (const [path, object, writable] of rpcRes.parameterList) {
-      if (!path.toString().startsWith(rpcReq.parameterPath)) {
+      if (
+        !path.toString().startsWith(rpcReq.parameterPath) &&
+        !(`${path.toString()}.` === rpcReq.parameterPath && !rpcReq.nextLevel)
+      ) {
         logger.accessWarn({
           sessionContext: sessionContext,
           message: "Unexpected parameter in response",
