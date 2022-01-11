@@ -1,0 +1,21 @@
+services:
+  ui:
+    build:
+      dockerfile: Dockerfile
+      context: .
+    command: [ "/genieacs/bin/genieacs-ui", "--ui-jwt-secret", "secret"]
+    network_mode: host
+
+  cwmp:
+    build:
+      dockerfile: Dockerfile
+      context: .
+    command: [ "/genieacs/bin/genieacs-cwmp"]
+    network_mode: host
+  
+  mongo:
+    image: mongo
+    ports:
+      - 27017:27017
+
+    
