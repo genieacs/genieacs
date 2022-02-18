@@ -91,7 +91,9 @@ export async function disconnect(): Promise<void> {
 
 // Optimize projection by removing overlaps
 // This can modify the object
-function optimizeProjection(obj: { [path: string]: 1 }): { [path: string]: 1 } {
+export function optimizeProjection(obj: { [path: string]: 1 }): {
+  [path: string]: 1;
+} {
   if (obj[""]) return { "": obj[""] };
 
   const keys = Object.keys(obj).sort();
