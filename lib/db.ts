@@ -148,7 +148,7 @@ export async function fetchDevice(
 
     if (obj["_value"] != null) {
       attrs.value = [obj["_timestamp"] || 1, [obj["_value"], obj["_type"]]];
-      if (obj["_type"] === "xsd:dateTime")
+      if (obj["_type"] === "xsd:dateTime" && obj["_value"] instanceof Date)
         attrs.value[1][0] = +attrs.value[1][0];
 
       obj["_object"] = false;

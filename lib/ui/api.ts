@@ -125,7 +125,7 @@ router.get(`/devices/:id.csv`, async (ctx) => {
       new Date(p.objectTimestamp).toJSON(),
       p.writable,
       new Date(p.writableTimestamp).toJSON(),
-      `"${value.toString().replace(/"/g, '""')}"`,
+      `"${String(value).replace(/"/g, '""')}"`,
       type,
       new Date(p.valueTimestamp).toJSON(),
       p.notification,
