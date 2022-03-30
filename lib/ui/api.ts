@@ -660,6 +660,7 @@ router.post("/devices/:id/tags", async (ctx) => {
 });
 
 router.get("/ping/:host", async (ctx) => {
+  if (!ctx.state.user) return void (ctx.status = 401);
   return new Promise<void>((resolve) => {
     ping(ctx.params.host, (err, parsed) => {
       if (parsed) {
