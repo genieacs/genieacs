@@ -56,6 +56,7 @@ const options = {
   NBI_SSL_KEY: { type: "string", default: "" },
   NBI_LOG_FILE: { type: "path", default: "" },
   NBI_ACCESS_LOG_FILE: { type: "path", default: "" },
+  NBI_AUTHENTICATION_KEY: { type: "string", default: "" },
 
   FS_WORKER_PROCESSES: { type: "int", default: 0 },
   FS_PORT: { type: "int", default: 7567 },
