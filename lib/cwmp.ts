@@ -54,6 +54,7 @@ import { decode, encodingExists } from "iconv-lite";
 import { parseXmlDeclaration } from "./xml-parser";
 import * as debug from "./debug";
 import { getRequestOrigin } from "./forwarded";
+import { getSocketEndpoints } from "./server";
 
 const gzipPromisified = promisify(zlib.gzip);
 const deflatePromisified = promisify(zlib.deflate);
@@ -886,16 +887,8 @@ async function sendAcsRequest(
   return writeResponse(sessionContext, res);
 }
 
-// Only needed to prevent tree shaking from removing the remoteAddress
-// workaround in onConnection function.
-const remoteAddressWorkaround = new WeakMap<Socket, string>();
-
 // When socket closes, store active sessions in cache
 export function onConnection(socket: Socket): void {
-  // The property remoteAddress may be undefined after the connection is
-  // closed, unless we read it at least once (caching?)
-  remoteAddressWorkaround.set(socket, socket.remoteAddress);
-
   socket.on("close", async () => {
     const sessionContext = currentSessions.get(socket);
     if (!sessionContext) return;
@@ -948,6 +941,32 @@ export function onConnection(socket: Socket): void {
       Math.ceil(timeout / 1000) + 3
     );
   });
+}
+
+export function onClientError(err: Error, socket: Socket): void {
+  const remoteAddress = getSocketEndpoints(socket).remoteAddress;
+  localCache
+    .getCurrentSnapshot()
+    .then((cacheSnapshot) => {
+      const debugEnabled = !!localCache.getConfig(
+        cacheSnapshot,
+        "cwmp.debug",
+        {
+          remoteAddress: remoteAddress,
+        },
+        Date.now(),
+        (e) => {
+          if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "REMOTE_ADDRESS")
+            return remoteAddress;
+          return e;
+        }
+      );
+
+      if (debugEnabled) debug.clientError(remoteAddress, err);
+    })
+    .catch((err) => {
+      throw err;
+    });
 }
 
 setInterval(() => {

@@ -54,6 +54,17 @@ function normalize(input): any {
   return input;
 }
 
+const EXPAND_OPS = new Set([
+  "$eq",
+  "$gt",
+  "$gte",
+  "$in",
+  "$lt",
+  "$lte",
+  "$ne",
+  "$nin",
+]);
+
 function expandValue(value: unknown): unknown[] {
   if (Array.isArray(value)) {
     let a = [];
@@ -71,7 +82,8 @@ function expandValue(value: unknown): unknown[] {
   const values = [];
   for (const [k, v] of Object.entries(value)) {
     keys.push(k);
-    values.push(expandValue(v));
+    if (EXPAND_OPS.has(k)) values.push(expandValue(v));
+    else values.push([v]);
     indices.push(0);
   }
 

@@ -263,6 +263,7 @@ koa.use(
       flush: constants.Z_SYNC_FLUSH,
     },
     br: {
+      flush: constants.BROTLI_OPERATION_FLUSH,
       params: {
         [constants.BROTLI_PARAM_QUALITY]: 5,
       },

@@ -22,6 +22,7 @@ import { Socket } from "net";
 import { appendFileSync } from "fs";
 import { stringify } from "./common/yaml";
 import * as config from "./config";
+import { getSocketEndpoints } from "./server";
 
 const DEBUG_FILE = "" + config.get("DEBUG_FILE");
 const DEBUG_FORMAT = "" + config.get("DEBUG_FORMAT");
@@ -45,13 +46,14 @@ export function incomingHttpRequest(
   if (!DEBUG_FILE) return;
   const now = new Date();
   const con = httpRequest.socket;
+  const socketEndpoints = getSocketEndpoints(con);
   const msg = {
     event: "incoming HTTP request",
     timestamp: now,
-    remoteAddress: con.remoteAddress,
+    remoteAddress: socketEndpoints.remoteAddress,
     deviceId: deviceId,
     connection: getConnectionTimestamp(con),
-    localPort: con.localPort,
+    localPort: socketEndpoints.localPort,
     method: httpRequest.method,
     url: httpRequest.url,
     headers: httpRequest.headers,
@@ -73,10 +75,11 @@ export function outgoingHttpResponse(
   if (!DEBUG_FILE) return;
   const now = new Date();
   const con = httpResponse.socket;
+  const socketEndpoints = getSocketEndpoints(con);
   const msg = {
     event: "outgoing HTTP response",
     timestamp: now,
-    remoteAddress: con.remoteAddress,
+    remoteAddress: socketEndpoints.remoteAddress,
     deviceId: deviceId,
     connection: getConnectionTimestamp(con),
     statusCode: httpResponse.statusCode,
@@ -191,6 +194,23 @@ export function outgoingUdpMessage(
     deviceId: deviceId,
     remotePort: remotePort,
     body: body,
+  };
+
+  if (DEBUG_FORMAT === "yaml")
+    appendFileSync(DEBUG_FILE, "---\n" + stringify(msg));
+  else if (DEBUG_FORMAT === "json")
+    appendFileSync(DEBUG_FILE, JSON.stringify(msg) + "\n");
+  else throw new Error(`Unrecognized DEBUG_FORMAT option`);
+}
+
+export function clientError(remoteAddress: string, err: Error): void {
+  if (!DEBUG_FILE) return;
+  const now = new Date();
+  const msg = {
+    event: "client error",
+    timestamp: now,
+    remoteAddress: remoteAddress,
+    error: err.message,
   };
 
   if (DEBUG_FORMAT === "yaml")

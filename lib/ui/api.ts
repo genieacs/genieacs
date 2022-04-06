@@ -125,7 +125,7 @@ router.get(`/devices/:id.csv`, async (ctx) => {
       new Date(p.objectTimestamp).toJSON(),
       p.writable,
       new Date(p.writableTimestamp).toJSON(),
-      `"${value.toString().replace(/"/g, '""')}"`,
+      `"${String(value).replace(/"/g, '""')}"`,
       type,
       new Date(p.valueTimestamp).toJSON(),
       p.notification,
@@ -221,12 +221,16 @@ for (const [resource, flags] of Object.entries(resources)) {
 
     let c = 0;
     ctx.body.write("[\n");
-    await db.query(resource, filter, options, (obj) => {
+    db.query(resource, filter, options, (obj) => {
       ctx.body.write((c++ ? "," : "") + JSON.stringify(obj) + "\n");
-    });
-    ctx.body.end("]");
-
-    logger.accessInfo(log);
+    })
+      .then(() => {
+        ctx.body.end("]");
+        logger.accessInfo(log);
+      })
+      .catch((err) => {
+        ctx.body.emit("error", err);
+      });
   });
 
   // CSV download
@@ -285,7 +289,7 @@ for (const [resource, flags] of Object.entries(resources)) {
     ctx.body.write(
       Object.keys(columns).map((k) => `"${k.replace(/"/, '""')}"`) + "\n"
     );
-    await db.query(resource, filter, options, (obj) => {
+    db.query(resource, filter, options, (obj) => {
       const arr = Object.values(columns).map((exp) => {
         const v = evaluate(exp, obj, null, (e) => {
           if (Array.isArray(e)) {
@@ -327,10 +331,14 @@ for (const [resource, flags] of Object.entries(resources)) {
         return v;
       });
       ctx.body.write(arr.join(",") + "\n");
-    });
-    ctx.body.end();
-
-    logger.accessInfo(log);
+    })
+      .then(() => {
+        ctx.body.end();
+        logger.accessInfo(log);
+      })
+      .catch((err) => {
+        ctx.body.emit("error", err);
+      });
   });
 
   router.head(`/${resource}/:id`, async (ctx) => {

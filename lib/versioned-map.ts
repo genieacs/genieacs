@@ -168,6 +168,7 @@ export default class VersionedMap<K, V> {
 
   public *diff(): IterableIterator<[K, V, V]> {
     for (const [key, revisions] of this.map) {
+      if (revisions.length === 1) continue;
       let first = revisions[0];
       let last = revisions[revisions.length - 1];
       if (first === NONEXISTENT && last === NONEXISTENT) continue;

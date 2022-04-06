@@ -21,7 +21,7 @@ import * as url from "url";
 import { Collection, GridFSBucket, ObjectId } from "mongodb";
 import * as vm from "vm";
 import * as config from "./config";
-import { onConnect } from "./db";
+import { onConnect, optimizeProjection } from "./db";
 import * as query from "./query";
 import * as apiFunctions from "./api-functions";
 import { IncomingMessage, ServerResponse } from "http";
@@ -30,6 +30,7 @@ import { version as VERSION } from "../package.json";
 import { ping } from "./ping";
 import * as logger from "./logger";
 import { flattenDevice } from "./mongodb-functions";
+import { getSocketEndpoints } from "./server";
 
 const DEVICE_TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-_%]+)\/tasks\/?$/;
 const TASKS_REGEX = /^\/tasks\/([a-zA-Z0-9\-_%]+)(\/[a-zA-Z_]*)?$/;
@@ -101,10 +102,11 @@ export function listener(
   request.addListener("end", () => {
     const body = getBody();
     const urlParts = url.parse(request.url, true);
+    const socketEndpoints = getSocketEndpoints(request.socket);
 
     logger.accessInfo(
       Object.assign({}, urlParts.query, {
-        remoteAddress: request.socket.remoteAddress,
+        remoteAddress: socketEndpoints.remoteAddress,
         message: `${request.method} ${urlParts.pathname}`,
       })
     );
@@ -819,6 +821,7 @@ export function listener(
         projection = {};
         for (const p of (urlParts.query.projection as string).split(","))
           projection[p.trim()] = 1;
+        projection = optimizeProjection(projection);
       }
 
       const cur = collection.find(q, { projection: projection });
