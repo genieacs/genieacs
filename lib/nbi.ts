@@ -826,6 +826,10 @@ export function listener(
 
       const cur = collection.find(q, { projection: projection });
 
+      if(urlParts.query.limit && urlParts.query.skip) {
+	      const cur = collection.find(q, { projection: projection }).skip(Number(urlParts.query.skip)).limit(Number(urlParts.query.limit));
+      }
+
       if (urlParts.query.sort) {
         let s;
         try {
