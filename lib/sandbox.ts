@@ -156,7 +156,9 @@ class ParameterWrapper {
 
           if (!attr) return UNDEFINED;
 
-          return attr[1];
+          const final_array = [...attr[1]];
+          final_array.push(attr[0]);
+          return final_array
         },
       });
     }

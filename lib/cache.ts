@@ -58,8 +58,14 @@ export async function set(
 }
 
 export async function pop(key: string): Promise<any> {
-  const res = await cacheCollection.findOneAndDelete({ _id: key });
-  if (res?.["value"]) return res["value"]["value"];
+  const promiseTimeouts = [500, 300, 200, 500];
+  for(const timeout of promiseTimeouts){
+    var res = await cacheCollection.findOneAndDelete({ _id: key });
+    if (res?.["value"]) return res["value"]["value"];
+    await new Promise(resolve => setTimeout(resolve, timeout))
+    res = await cacheCollection.findOneAndDelete({ _id: key });
+    if (res?.["value"]) return res["value"]["value"];
+  }
   return null;
 }
 
