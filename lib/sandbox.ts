@@ -219,6 +219,21 @@ class ParameterWrapper {
   }
 }
 
+function readDevice(path: string, timestamps: { [attr: string]: number }): ParameterWrapper{
+  return declare(path, timestamps, null);
+}
+
+
+function writeDevice(
+  path: string,
+  timestamps: { [attr: string]: number },
+  values: { [attr: string]: any }
+): ParameterWrapper {
+  if(path.includes("WANConnectionDevice"))
+    return null;
+  return declare(path, timestamps, values)
+}
+
 function declare(
   path: string,
   timestamps: { [attr: string]: number },
@@ -328,6 +343,8 @@ Object.defineProperty(context, "clear", { value: clear });
 Object.defineProperty(context, "commit", { value: commit });
 Object.defineProperty(context, "ext", { value: ext });
 Object.defineProperty(context, "log", { value: log });
+Object.defineProperty(context, "writeDevice", { value: writeDevice });
+Object.defineProperty(context, "readDevice", { value: readDevice });
 
 // Monkey-patch Math.random() to make it deterministic
 context.random = random;

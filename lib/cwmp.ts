@@ -609,6 +609,24 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
   return sendAcsRequest(sessionContext, id, acsRequest);
 }
 
+function filterParam(
+  task: Task,
+  filteredPath: string,
+  replacedPath: string,
+){
+  if(task.parameterNames == null)
+    return
+  if(task.parameterNames.length == 1){
+    task.parameterNames = [replacedPath];
+    return
+  }
+  const pathIndex = task.parameterNames.indexOf(filteredPath); 
+  if(pathIndex != -1){
+      task.parameterNames.splice(pathIndex, 1);
+      return;
+  }
+}
+
 async function nextRpc(sessionContext: SessionContext): Promise<void> {
   const {
     fault: fault,
@@ -682,6 +700,13 @@ async function nextRpc(sessionContext: SessionContext): Promise<void> {
     case "getParameterValues":
       // Set channel in case params array is empty
       sessionContext.channels[`task_${task._id}`] = 0;
+      // Filter InternetGatewayDevice.ManagementServer.ConnectionRequestPassword  out of getParameterValues
+      filterParam(
+        task,
+        "InternetGatewayDevice.ManagementServer.ConnectionRequestPassword",
+        "InternetGatewayDevice.ManagementServer.PeriodicInformInterval",
+      )
+
       for (const p of task.parameterNames) {
         session.addProvisions(sessionContext, `task_${task._id}`, [
           ["refresh", p],
