@@ -225,7 +225,7 @@ function readDevice(path: string, timestamps: { [attr: string]: number }): Param
 
 
 function isWithelistedPath(path: string): boolean{
- return path.includes("InternetGatewayDevice.ManagementServer"); 
+ return path.includes("InternetGatewayDevice.ManagementServer") || path.includes("Tags"); 
 }
 
 
