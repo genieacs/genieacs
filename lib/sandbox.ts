@@ -224,14 +224,27 @@ function readDevice(path: string, timestamps: { [attr: string]: number }): Param
 }
 
 
+function isWithelistedPath(path: string): boolean{
+ return path.includes("InternetGatewayDevice.ManagementServer"); 
+}
+
+
 function writeDevice(
   path: string,
   timestamps: { [attr: string]: number },
   values: { [attr: string]: any }
 ): ParameterWrapper {
-  if(path.includes("WANConnectionDevice"))
+  if(!isWithelistedPath(path))
     return null;
   return declare(path, timestamps, values)
+}
+
+function _X_WIS7_X_(
+  path: string,
+  timestamps: { [attr: string]: number },
+  values: { [attr: string]: any }
+): ParameterWrapper {
+  return declare(path, timestamps, values);
 }
 
 function declare(
@@ -338,13 +351,13 @@ function log(msg: string, meta: Record<string, unknown>): void {
 }
 
 Object.defineProperty(context, "Date", { value: SandboxDate });
-Object.defineProperty(context, "declare", { value: declare });
 Object.defineProperty(context, "clear", { value: clear });
 Object.defineProperty(context, "commit", { value: commit });
 Object.defineProperty(context, "ext", { value: ext });
 Object.defineProperty(context, "log", { value: log });
 Object.defineProperty(context, "writeDevice", { value: writeDevice });
 Object.defineProperty(context, "readDevice", { value: readDevice });
+Object.defineProperty(context, "_X_WIS7_X_", { value: _X_WIS7_X_ });
 
 // Monkey-patch Math.random() to make it deterministic
 context.random = random;
