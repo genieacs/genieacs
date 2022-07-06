@@ -19,6 +19,7 @@
 
 import { ClosureComponent, Component, VnodeDOM } from "mithril";
 import { m } from "../components";
+import { evaluateExpression } from "../store";
 
 const component: ClosureComponent = (): Component => {
   return {
@@ -26,12 +27,13 @@ const component: ClosureComponent = (): Component => {
       const device = vnode.attrs["device"];
 
       const rows = Object.values(vnode.attrs["parameters"]).map((parameter) => {
+        const type = evaluateExpression(parameter["type"], device);
         const p = m.context(
           {
             device: device,
             parameter: parameter["parameter"],
           },
-          parameter["type"] || "parameter",
+          (type as string) || "parameter",
           parameter
         );
 

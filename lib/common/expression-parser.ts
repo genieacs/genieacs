@@ -87,8 +87,6 @@ function binaryLeft(
       rest.reduce((acc, ch) => {
         const [op, another] = ch;
         if (Array.isArray(acc) && op === acc[0]) return acc.concat([another]);
-        if (Array.isArray(another) && op === another[0])
-          return [op, acc].concat(another.slice(1));
         return [op, acc, another];
       }, first)
   );
@@ -287,7 +285,11 @@ const lang = parsimmon.createLanguage({
           .skip(parsimmon.optWhitespace),
         binaryLeft(
           parsimmon
-            .alt(parsimmon.string("*"), parsimmon.string("/"))
+            .alt(
+              parsimmon.string("*"),
+              parsimmon.string("/"),
+              parsimmon.string("%")
+            )
             .skip(parsimmon.optWhitespace),
           parsimmon.alt(
             r.Value,
@@ -386,6 +388,7 @@ export function stringify(exp: Expression, level = 0): string {
     "-": 31,
     "*": 32,
     "/": 32,
+    "%": 32,
   };
 
   const op = exp[0].toUpperCase();

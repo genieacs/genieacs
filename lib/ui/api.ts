@@ -17,7 +17,7 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import * as stream from "stream";
+import { PassThrough } from "stream";
 import Router from "koa-router";
 import * as db from "./db";
 import * as apiFunctions from "./api-functions";
@@ -103,7 +103,7 @@ router.get(`/devices/:id.csv`, async (ctx) => {
       .replace(/[:.]/g, "")}.csv`
   );
 
-  ctx.body = new stream.PassThrough();
+  ctx.body = new PassThrough();
   ctx.body.write(
     "Parameter,Object,Object timestamp,Writable,Writable timestamp,Value,Value type,Value timestamp,Notification,Notification timestamp,Access list,Access list timestamp\n"
   );
@@ -125,7 +125,7 @@ router.get(`/devices/:id.csv`, async (ctx) => {
       new Date(p.objectTimestamp).toJSON(),
       p.writable,
       new Date(p.writableTimestamp).toJSON(),
-      `"${value.toString().replace(/"/g, '""')}"`,
+      `"${String(value).replace(/"/g, '""')}"`,
       type,
       new Date(p.valueTimestamp).toJSON(),
       p.notification,
@@ -216,17 +216,21 @@ for (const [resource, flags] of Object.entries(resources)) {
       ]);
     }
 
-    ctx.body = new stream.PassThrough();
+    ctx.body = new PassThrough();
     ctx.type = "application/json";
 
     let c = 0;
     ctx.body.write("[\n");
-    await db.query(resource, filter, options, (obj) => {
+    db.query(resource, filter, options, (obj) => {
       ctx.body.write((c++ ? "," : "") + JSON.stringify(obj) + "\n");
-    });
-    ctx.body.end("]");
-
-    logger.accessInfo(log);
+    })
+      .then(() => {
+        ctx.body.end("]");
+        logger.accessInfo(log);
+      })
+      .catch((err) => {
+        ctx.body.emit("error", err);
+      });
   });
 
   // CSV download
@@ -276,7 +280,7 @@ for (const [resource, flags] of Object.entries(resources)) {
       ]);
     }
 
-    ctx.body = new stream.PassThrough();
+    ctx.body = new PassThrough();
     ctx.type = "text/csv";
     ctx.attachment(
       `${resource}-${new Date(now).toISOString().replace(/[:.]/g, "")}.csv`
@@ -285,7 +289,7 @@ for (const [resource, flags] of Object.entries(resources)) {
     ctx.body.write(
       Object.keys(columns).map((k) => `"${k.replace(/"/, '""')}"`) + "\n"
     );
-    await db.query(resource, filter, options, (obj) => {
+    db.query(resource, filter, options, (obj) => {
       const arr = Object.values(columns).map((exp) => {
         const v = evaluate(exp, obj, null, (e) => {
           if (Array.isArray(e)) {
@@ -327,10 +331,14 @@ for (const [resource, flags] of Object.entries(resources)) {
         return v;
       });
       ctx.body.write(arr.join(",") + "\n");
-    });
-    ctx.body.end();
-
-    logger.accessInfo(log);
+    })
+      .then(() => {
+        ctx.body.end();
+        logger.accessInfo(log);
+      })
+      .catch((err) => {
+        ctx.body.emit("error", err);
+      });
   });
 
   router.head(`/${resource}/:id`, async (ctx) => {
@@ -652,6 +660,7 @@ router.post("/devices/:id/tags", async (ctx) => {
 });
 
 router.get("/ping/:host", async (ctx) => {
+  if (!ctx.state.user) return void (ctx.status = 401);
   return new Promise<void>((resolve) => {
     ping(ctx.params.host, (err, parsed) => {
       if (parsed) {

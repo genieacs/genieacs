@@ -730,6 +730,18 @@ function RequestDownloadResponse(): string {
   return "<cwmp:RequestDownloadResponse></cwmp:RequestDownloadResponse>";
 }
 
+function AcsFault(f: CpeFault): string {
+  return `<soap-env:Body:Fault><faultcode>${encodeEntities(
+    f.faultCode
+  )}</faultcode><faultstring>${encodeEntities(
+    f.faultString
+  )}</faultstring><detail><cwmp:Fault><FaultCode>${encodeEntities(
+    f.detail.faultCode
+  )}</FaultCode><FaultString>${encodeEntities(
+    f.detail.faultString
+  )}</FaultString></cwmp:Fault></detail></soap-env:Body:Fault>`;
+}
+
 function faultStruct(xml: Element): FaultStruct {
   let faultCode: string,
     faultString: string,
@@ -838,6 +850,7 @@ export function request(
     cpeRequest: null,
     cpeFault: null,
     cpeResponse: null,
+    unknownMethod: null,
   };
 
   if (!body.length) return rpc;
@@ -959,7 +972,8 @@ export function request(
       rpc.cpeFault = fault(methodElement);
       break;
     default:
-      throw new Error(`8000 Method not supported ${methodElement.localName}`);
+      rpc.unknownMethod = methodElement.localName;
+      break;
   }
 
   return rpc;
@@ -987,6 +1001,7 @@ export function response(rpc: {
   id: string;
   acsRequest?: AcsRequest;
   acsResponse?: AcsResponse;
+  acsFault?: CpeFault;
   cwmpVersion?: string;
 }): { code: number; headers: Record<string, string>; data: string } {
   const headers = {
@@ -1055,6 +1070,8 @@ export function response(rpc: {
           `Unknown method request ${(rpc.acsRequest as AcsRequest).name}`
         );
     }
+  } else if (rpc.acsFault) {
+    body = AcsFault(rpc.acsFault);
   }
 
   headers["Content-Type"] = 'text/xml; charset="utf-8"';

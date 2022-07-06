@@ -19,7 +19,7 @@
 
 import { Db, GridFSBucket, ObjectId } from "mongodb";
 import { Script } from "vm";
-import { onConnect } from "../db";
+import { onConnect, optimizeProjection } from "../db";
 import * as mongodbFunctions from "../mongodb-functions";
 import * as expression from "../common/expression";
 import { QueryOptions, Expression } from "../types";
@@ -89,6 +89,7 @@ export function query(
       }
 
       if (resource === "presets") projection.configurations = 1;
+      projection = optimizeProjection(projection);
       cursor.project(projection);
     }
 

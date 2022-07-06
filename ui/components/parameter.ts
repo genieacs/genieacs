@@ -77,7 +77,7 @@ const component: ClosureComponent = (): Component => {
 
       const { value, timestamp, parameter } = evaluateParam(
         vnode.attrs["parameter"],
-        vnode.attrs["device"],
+        device,
         store.getTimestamp() + store.getClockSkew()
       );
 

@@ -19,18 +19,22 @@
 
 import { ClosureComponent, Component } from "mithril";
 import { m } from "../components";
+import { evaluateExpression } from "../store";
 
 const component: ClosureComponent = (): Component => {
   return {
     view: (vnode) => {
       let deviceId;
-      if (vnode.attrs["device"])
-        deviceId = vnode.attrs["device"]["DeviceID.ID"].value[0];
+      const device = vnode.attrs["device"];
+      if (device) deviceId = device["DeviceID.ID"].value[0];
 
       const children = Object.values(vnode.attrs["components"]).map((c) => {
+        if (Array.isArray(c)) c = evaluateExpression(c, device || {});
         if (typeof c !== "object") return `${c}`;
+        const type = evaluateExpression(c["type"], device || {});
+        if (!type) return null;
         const attrs = Object.assign({}, vnode.attrs, c);
-        return m(attrs["type"], attrs);
+        return m(type as string, attrs);
       });
       if (deviceId) {
         return m(

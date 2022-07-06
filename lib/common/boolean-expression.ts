@@ -1108,13 +1108,7 @@ function getCanRaiseCallback(
   return (idx: number, set: Set<number>): boolean => {
     const i = idx >> 2;
     const vars = context.getIsNullRelations(i);
-    if (!context.isIsNull(i)) {
-      if (!(idx & 1)) return true;
-      for (const n of vars) if (set.has((n << 2) ^ 3)) return true;
-      if (set.has(idx ^ 3)) return false;
-      for (const n of vars) if (!set.has((n << 2) ^ 2)) return false;
-      return true;
-    }
+    if (!context.isIsNull(i)) return !(idx & 1) || !set.has(idx ^ 3);
 
     for (const k of vars) {
       if (set.has((k << 2) ^ 1)) continue;

@@ -91,7 +91,9 @@ export async function disconnect(): Promise<void> {
 
 // Optimize projection by removing overlaps
 // This can modify the object
-function optimizeProjection(obj: { [path: string]: 1 }): { [path: string]: 1 } {
+export function optimizeProjection(obj: { [path: string]: 1 }): {
+  [path: string]: 1;
+} {
   if (obj[""]) return { "": obj[""] };
 
   const keys = Object.keys(obj).sort();
@@ -146,7 +148,7 @@ export async function fetchDevice(
 
     if (obj["_value"] != null) {
       attrs.value = [obj["_timestamp"] || 1, [obj["_value"], obj["_type"]]];
-      if (obj["_type"] === "xsd:dateTime")
+      if (obj["_type"] === "xsd:dateTime" && obj["_value"] instanceof Date)
         attrs.value[1][0] = +attrs.value[1][0];
 
       obj["_object"] = false;
@@ -446,14 +448,18 @@ export async function saveDevice(
           if (value2 != null) {
             if (!update["$addToSet"]["_tags"])
               update["$addToSet"]["_tags"] = { $each: [] };
-            update["$addToSet"]["_tags"]["$each"].push(path.segments[1]);
+            update["$addToSet"]["_tags"]["$each"].push(
+              decodeTag(path.segments[1] as string)
+            );
           } else {
             if (!update["$pull"]["_tags"]) {
               update["$pull"]["_tags"] = {
                 $in: [],
               };
             }
-            update["$pull"]["_tags"]["$in"].push(path.segments[1]);
+            update["$pull"]["_tags"]["$in"].push(
+              decodeTag(path.segments[1] as string)
+            );
           }
         }
 

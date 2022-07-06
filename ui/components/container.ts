@@ -17,29 +17,76 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ClosureComponent, Component } from "mithril";
+import { Attributes, ClosureComponent, Component } from "mithril";
+import { map } from "../../lib/common/expression-parser";
+import memoize from "../../lib/common/memoize";
+import { Expression } from "../../lib/types";
 import { m } from "../components";
-import * as store from "../store";
+import { evaluateExpression, getTimestamp } from "../store";
+
+const evaluateAttributes = memoize(
+  (
+    attrs: Record<string, Expression>,
+    obj: Record<string, unknown>,
+    now: number // eslint-disable-line @typescript-eslint/no-unused-vars
+  ): Attributes => {
+    const res: Attributes = {};
+    for (const [k, v] of Object.entries(attrs)) {
+      const vv = map(v, (e) => {
+        if (
+          Array.isArray(e) &&
+          e[0] === "FUNC" &&
+          e[1] === "ENCODEURICOMPONENT"
+        ) {
+          const a = evaluateExpression(e[2], obj);
+          if (a == null) return null;
+          return encodeURIComponent(a as string);
+        }
+        return e;
+      });
+      res[k] = evaluateExpression(vv, obj);
+    }
+    return res;
+  }
+);
 
 const component: ClosureComponent = (): Component => {
   return {
     view: (vnode) => {
-      if (vnode.attrs["filter"]) {
-        if (
-          !store.evaluateExpression(
-            vnode.attrs["filter"],
-            vnode.attrs["device"]
-          )
-        )
+      const device = vnode.attrs["device"];
+      if ("filter" in vnode.attrs) {
+        if (!evaluateExpression(vnode.attrs["filter"], device || {}))
           return null;
       }
 
       const children = Object.values(vnode.attrs["components"]).map((c) => {
+        if (Array.isArray(c)) c = evaluateExpression(c, device || {});
         if (typeof c !== "object") return `${c}`;
-        return m(c["type"], c);
+        const type = evaluateExpression(c["type"], device || {});
+        if (!type) return null;
+        return m(type as string, c);
       });
-      if (vnode.attrs["element"]) return m(vnode.attrs["element"], children);
-      else return children;
+
+      let el = vnode.attrs["element"];
+
+      if (el == null) return children;
+
+      let attrs: Attributes;
+      if (Array.isArray(el)) {
+        el = evaluateExpression(el, device || {});
+      } else if (typeof el === "object") {
+        if (el["attributes"] != null) {
+          attrs = evaluateAttributes(
+            el["attributes"],
+            device || {},
+            getTimestamp()
+          );
+        }
+
+        el = evaluateExpression(el["tag"], device || {});
+      }
+
+      return m(el, attrs, children);
     },
   };
 };

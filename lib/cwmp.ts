@@ -45,6 +45,7 @@ import {
   InformRequest,
   Preset,
   GetRPCMethodsResponse,
+  CpeFault,
 } from "./types";
 import { IncomingMessage, ServerResponse } from "http";
 import { Readable } from "stream";
@@ -53,6 +54,7 @@ import { decode, encodingExists } from "iconv-lite";
 import { parseXmlDeclaration } from "./xml-parser";
 import * as debug from "./debug";
 import { getRequestOrigin } from "./forwarded";
+import { getSocketEndpoints } from "./server";
 
 const gzipPromisified = promisify(zlib.gzip);
 const deflatePromisified = promisify(zlib.deflate);
@@ -882,16 +884,8 @@ async function sendAcsRequest(
   return writeResponse(sessionContext, res);
 }
 
-// Only needed to prevent tree shaking from removing the remoteAddress
-// workaround in onConnection function.
-const remoteAddressWorkaround = new WeakMap<Socket, string>();
-
 // When socket closes, store active sessions in cache
 export function onConnection(socket: Socket): void {
-  // The property remoteAddress may be undefined after the connection is
-  // closed, unless we read it at least once (caching?)
-  remoteAddressWorkaround.set(socket, socket.remoteAddress);
-
   socket.on("close", async () => {
     const sessionContext = currentSessions.get(socket);
     if (!sessionContext) return;
@@ -944,6 +938,32 @@ export function onConnection(socket: Socket): void {
       Math.ceil(timeout / 1000) + 3
     );
   });
+}
+
+export function onClientError(err: Error, socket: Socket): void {
+  const remoteAddress = getSocketEndpoints(socket).remoteAddress;
+  localCache
+    .getCurrentSnapshot()
+    .then((cacheSnapshot) => {
+      const debugEnabled = !!localCache.getConfig(
+        cacheSnapshot,
+        "cwmp.debug",
+        {
+          remoteAddress: remoteAddress,
+        },
+        Date.now(),
+        (e) => {
+          if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "REMOTE_ADDRESS")
+            return remoteAddress;
+          return e;
+        }
+      );
+
+      if (debugEnabled) debug.clientError(remoteAddress, err);
+    })
+    .catch((err) => {
+      throw err;
+    });
 }
 
 setInterval(() => {
@@ -1256,6 +1276,41 @@ async function processRequest(
       session.clearProvisions(sessionContext);
     }
     return nextRpc(sessionContext);
+  } else if (rpc.unknownMethod) {
+    if (sessionContext.state === 1) {
+      logger.accessWarn({
+        sessionContext: sessionContext,
+        message: "Method not supported",
+        method: rpc.unknownMethod,
+      });
+
+      const f: CpeFault = {
+        faultCode: "Server",
+        faultString: "CWMP fault",
+        detail: {
+          faultCode: "8000",
+          faultString: "Method not supported",
+        },
+      };
+
+      const res = soap.response({
+        id: rpc.id,
+        acsFault: f,
+        cwmpVersion: sessionContext.cwmpVersion,
+      });
+
+      return writeResponse(sessionContext, res);
+    } else if (sessionContext.state === 2) {
+      const fault = {
+        code: "invalid_response",
+        message: "Response name does not match request name",
+      };
+      recordFault(sessionContext, fault);
+      session.clearProvisions(sessionContext);
+      return nextRpc(sessionContext);
+    } else {
+      return reportBadState(sessionContext);
+    }
   } else {
     // CPE sent empty response
     if (sessionContext.state !== 1) return reportBadState(sessionContext);

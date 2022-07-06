@@ -526,6 +526,7 @@ export interface SoapMessage {
   cpeRequest?: CpeRequest;
   cpeFault?: CpeFault;
   cpeResponse?: CpeResponse;
+  unknownMethod?: string;
 }
 
 export interface ScriptResult {

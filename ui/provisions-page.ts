@@ -173,13 +173,9 @@ export const component: ClosureComponent = (): Component => {
         sortAttributes[i] = sort[attributes[i].id] || 0;
 
       function onSortChange(sortAttrs): void {
-        const _sort = Object.assign({}, sort);
-        for (const [index, direction] of Object.entries(sortAttrs)) {
-          // Changing the priority of columns
-          delete _sort[attributes[index].id];
-          _sort[attributes[index].id] = direction;
-        }
-
+        const _sort = {};
+        for (const index of sortAttrs)
+          _sort[attributes[Math.abs(index) - 1].id] = Math.sign(index);
         const ops = { sort: JSON.stringify(_sort) };
         if (vnode.attrs["filter"]) ops["filter"] = vnode.attrs["filter"];
         m.route.set("/admin/provisions", ops);

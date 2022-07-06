@@ -228,7 +228,7 @@ router.get("/", async (ctx) => {
   if (!Object.keys(localCache.getUsers(ctx.state.configSnapshot)).length)
     wizard = '<script>window.location.hash = "#!/wizard";</script>';
 
-  ctx.body = `
+  ctx.body = `<!DOCTYPE html>
   <html>
     <head>
       <title>GenieACS</title>
@@ -263,6 +263,7 @@ koa.use(
       flush: constants.Z_SYNC_FLUSH,
     },
     br: {
+      flush: constants.BROTLI_OPERATION_FLUSH,
       params: {
         [constants.BROTLI_PARAM_QUALITY]: 5,
       },
