@@ -616,7 +616,7 @@ function filterParam(
 ){
   if(task.parameterNames == null)
     return
-  if(task.parameterNames.length == 1){
+  if(task.parameterNames.length == 1 && task.parameterNames[0] == filteredPath){
     task.parameterNames = [replacedPath];
     return
   }
