@@ -87,7 +87,7 @@ i {
 }
 
 body {
-  height: 100%;
+  height: 100vh;
   display: flex;
   flex-direction: column;
 }
@@ -169,6 +169,7 @@ body {
 
         & input {
           width: 100%;
+          box-sizing: border-box;
           padding: 0.3em;
           margin-top: 0.3em;
           margin-bottom: 0.3em;
@@ -291,6 +292,7 @@ body {
     & > img {
       margin: 10px;
       height: 56px;
+      vertical-align: top;
     }
 
     & > .version {
@@ -581,6 +583,7 @@ span.na {
 .all-parameters {
   & > input {
     font-family: monospace;
+    font-size: 14px;
     margin-bottom: 2px;
     padding: 4px;
     width: 700px;
@@ -588,6 +591,10 @@ span.na {
 
   & > .parameter-list {
     font-family: monospace;
+    font-size: 14px;
+    & button {
+      font-size: 16px;
+    }
     overflow-y: scroll;
     height: 200px;
 
@@ -725,6 +732,7 @@ span.long-text-overflowed {
 
 textarea.long-text {
   font-family: monospace;
+  font-size: 14px;
   min-width: 10vw;
   min-height: 10vh;
 }
@@ -746,8 +754,7 @@ span.parameter-value {
 }
 
 .icon {
-  display: inline-block;
-  vertical-align: middle;
+  display: block;
   width: 1em;
   height: 1em;
   fill: none;
@@ -796,4 +803,10 @@ span.parameter-value {
     height: 100%;
     background-color: #b12d5c;
   }
+}
+
+/* To keep consistent style after changing from Quirks to Standards mode */
+td,
+th {
+  line-height: normal;
 }

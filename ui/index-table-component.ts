@@ -20,6 +20,7 @@
 import { ClosureComponent, Component, Children } from "mithril";
 import { m } from "./components";
 import { getIcon } from "./icons";
+import debounce from "../lib/common/debounce";
 
 interface Attribute {
   id?: string;
@@ -36,7 +37,7 @@ function renderTable(
   showMoreCallback: () => void,
   selected: Set<string>,
   sortAttributes: Record<string, any>,
-  onSortChange: (obj: Record<string, number>) => void,
+  onSort: (i: number) => void,
   downloadUrl?: string,
   valueCallback?: (attr: Attribute, record: Record<string, any>) => Children,
   actionsCallback?: Children | ((sel: Set<string>) => Children),
@@ -86,9 +87,9 @@ function renderTable(
     const sortable = m(
       "button",
       {
-        onclick: () => {
-          const direction = ((sortAttributes[i] + 2) % 3) - 1;
-          return onSortChange({ [i]: direction });
+        onclick: (e) => {
+          e.redraw = false;
+          onSort(i);
         },
       },
       symbol
@@ -213,7 +214,10 @@ function renderTable(
 
 const component: ClosureComponent = (): Component => {
   let selected = new Set<string>();
-
+  let sortingfunction: (events: number[]) => void;
+  const onSort = debounce((events: number[]) => {
+    sortingfunction(events);
+  }, 500);
   return {
     view: (vnode) => {
       const attributes = vnode.attrs["attributes"];
@@ -232,6 +236,20 @@ const component: ClosureComponent = (): Component => {
         const id = record["_id"] || record["DeviceID.ID"].value[0];
         if (selected.has(id)) _selected.add(id);
       }
+
+      sortingfunction = (events) => {
+        const sortArray = new Set(
+          Object.keys(sortAttributes)
+            .map((x) => (parseInt(x) + 1) * sortAttributes[x])
+            .filter((x) => x)
+        );
+        for (const num of events) {
+          if (sortArray.delete(num + 1)) sortArray.add(-(num + 1));
+          else if (!sortArray.delete((num + 1) * -1)) sortArray.add(num + 1);
+        }
+        onSortChange(Array.from(sortArray).reverse());
+      };
+
       selected = _selected;
 
       return renderTable(
@@ -241,7 +259,7 @@ const component: ClosureComponent = (): Component => {
         showMoreCallback,
         selected,
         sortAttributes,
-        onSortChange,
+        onSort,
         downloadUrl,
         valueCallback,
         actionsCallback,

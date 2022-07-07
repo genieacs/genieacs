@@ -388,7 +388,7 @@ const component: ClosureComponent = (): Component => {
       function repositionNotifications(): void {
         let top = 10;
         for (const c of notificationElements as VnodeDOM[]) {
-          (c.dom as HTMLDivElement).style.top = `${top}`;
+          (c.dom as HTMLDivElement).style.top = `${top}px`;
           top += (c.dom as HTMLDivElement).offsetHeight + 10;
         }
       }
@@ -408,7 +408,7 @@ const component: ClosureComponent = (): Component => {
           for (const c of drawerElement.children)
             height = Math.max(height, c.dom.offsetTop + c.dom.offsetHeight);
         }
-        drawerElement.dom.style.height = height;
+        drawerElement.dom.style.height = height + "px";
       }
 
       if (stagingElements.length + queueElements.length) {
