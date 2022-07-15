@@ -80,6 +80,24 @@ ava("filterToMongoQuery", async (t) => {
     ["Tags.tag1 = 123", { "Tags.tag1": 123 }],
     ["Param1 = 'value1'", { "Param1._value": "value1" }],
     ["Param1 <> 'value1'", { "Param1._value": { $nin: ["value1", null] } }],
+    [
+      "Param1 <> 1657844103524",
+      {
+        $and: [
+          { "Param1._value": { $nin: [1657844103524, null] } },
+          { "Param1._value": { $nin: [new Date(1657844103524), null] } },
+        ],
+      },
+    ],
+    [
+      "Param1 = 1657844103524",
+      {
+        $or: [
+          { "Param1._value": 1657844103524 },
+          { "Param1._value": new Date(1657844103524) },
+        ],
+      },
+    ],
     ["Param1 > 'value'", { "Param1._value": { $gt: "value" } }],
     ["Param1 IS NOT NULL", { "Param1._value": { $ne: null } }],
     ["Param1 LIKE 'value'", { "Param1._value": /^value$/ }],

@@ -77,7 +77,8 @@ export function processDeviceFilter(filter: Expression): Expression {
       if (typeof e[2] === "number") {
         const alt = (e as any[]).slice();
         alt[2] = new Date(e[2]);
-        e = ["OR", e, alt];
+        if (exp[0] === "<>" || exp[0] === "NOT LIKE") e = ["AND", e, alt];
+        else e = ["OR", e, alt];
       }
       return e;
     }
