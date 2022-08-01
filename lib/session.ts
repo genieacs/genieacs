@@ -1624,6 +1624,20 @@ function generateGetRpcRequest(
       (a, b) => b.length - a.length
     );
     let path = paths.pop();
+
+    // Skip root GPN workaround
+    if (path && !path.length) {
+      const SKIP_ROOT_GPN = !!localCache.getConfig(
+        sessionContext.cacheSnapshot,
+        "cwmp.skipRootGpn",
+        {},
+        sessionContext.timestamp,
+        (e) => configContextCallback(sessionContext, e)
+      );
+
+      if (SKIP_ROOT_GPN) path = paths.pop();
+    }
+
     while (
       path &&
       path.length &&
