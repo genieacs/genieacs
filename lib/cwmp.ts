@@ -213,12 +213,13 @@ async function writeResponse(
     currentSessions.set(connection, sessionContext);
     if (now >= sessionContext.extendLock) {
       sessionContext.extendLock = now + 10000;
-      await cache.acquireLock(
+      const lockToken = await cache.acquireLock(
         `cwmp_session_${sessionContext.deviceId}`,
         sessionContext.timeout * 1000 + 15000,
         0,
         sessionContext.sessionId
       );
+      if (!lockToken) throw new Error("Failed to extend lock");
     }
   }
 }
@@ -1149,15 +1150,15 @@ async function processRequest(
       }
     }
 
-    try {
-      sessionContext.extendLock = sessionContext.timestamp + 10000;
-      await cache.acquireLock(
-        `cwmp_session_${sessionContext.deviceId}`,
-        sessionContext.timeout * 1000 + 15000,
-        0,
-        sessionContext.sessionId
-      );
-    } catch (err) {
+    sessionContext.extendLock = sessionContext.timestamp + 10000;
+    const lockToken = await cache.acquireLock(
+      `cwmp_session_${sessionContext.deviceId}`,
+      sessionContext.timeout * 1000 + 15000,
+      0,
+      sessionContext.sessionId
+    );
+
+    if (!lockToken) {
       logger.accessError({
         message: "CPE already in session",
         sessionContext: sessionContext,

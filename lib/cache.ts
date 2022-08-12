@@ -86,21 +86,11 @@ export async function acquireLock(
     if (Math.abs(v["timestamp"].getTime() - now) > CLOCK_SKEW_TOLERANCE)
       throw new Error("Database clock skew too great");
   } catch (err) {
-    if (err.code === 11000) {
-      if (timeout > 0) {
-        return new Promise((resolve, reject) => {
-          const w = 50 + Math.random() * 50;
-          setTimeout(() => {
-            acquireLock(lockName, ttl, timeout - w, token).then(
-              resolve,
-              reject
-            );
-          }, w);
-        });
-      }
-      throw new Error("Failed to acquire lock");
-    }
-    throw err;
+    if (err.code !== 11000) throw err;
+    if (!(timeout > 0)) return null;
+    const w = 50 + Math.random() * 50;
+    await new Promise((resolve) => setTimeout(resolve, w));
+    return acquireLock(lockName, ttl, timeout - w, token);
   }
 
   return token;
