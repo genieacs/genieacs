@@ -111,8 +111,10 @@ export function getRequestOrigin(request: IncomingMessage): RequestOrigin {
 
     const header = request.headers["forwarded"];
     if (header) {
-      const ip = parse(socketEndpoints.remoteAddress) as IPv4;
-      if (cidrs.some((cidr) => ip.match(cidr as [IPv4, number]))) {
+      const ip = parse(socketEndpoints.remoteAddress);
+      if (
+        cidrs.some((cidr) => ip.kind() === cidr[0].kind() && ip.match(cidr))
+      ) {
         const parsed = parseForwardedHeader(header);
 
         if (parsed["proto"] === "https") {
