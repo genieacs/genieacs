@@ -504,7 +504,7 @@ export async function timeoutOperations(
 export function addProvisions(
   sessionContext: SessionContext,
   channel: string,
-  provisions: (string | number | boolean)[][]
+  provisions: [string, ...Expression[]][]
 ): void {
   // Multiply by two because every iteration is two
   // phases: read and update

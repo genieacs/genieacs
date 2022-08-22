@@ -30,19 +30,20 @@ import {
   Expression,
 } from "./types";
 import Path from "./common/path";
+import * as MongoTypes from "./mongodb-types";
 
-export let tasksCollection: Collection,
+export let tasksCollection: Collection<MongoTypes.Task>,
   devicesCollection: Collection,
   presetsCollection: Collection,
   objectsCollection: Collection,
   provisionsCollection: Collection,
   virtualParametersCollection: Collection,
-  faultsCollection: Collection,
+  faultsCollection: Collection<MongoTypes.Fault>,
   filesCollection: Collection,
-  operationsCollection: Collection,
+  operationsCollection: Collection<MongoTypes.Operation>,
   permissionsCollection: Collection,
   usersCollection: Collection,
-  configCollection: Collection;
+  configCollection: Collection<MongoTypes.Config>;
 
 let clientPromise: Promise<MongoClient>;
 
@@ -643,12 +644,16 @@ export async function getFaults(
   const faults: { [channel: string]: SessionFault } = {};
   for (const r of res) {
     const channel = r._id.slice(deviceId.length + 1);
-    delete r._id;
-    delete r.channel;
-    delete r.device;
-    r.timestamp = +r.timestamp;
-    r.provisions = JSON.parse(r.provisions);
-    faults[channel] = r as SessionFault;
+    const fault: SessionFault = {
+      code: r.code,
+      message: r.message,
+      ...(r.detail && { detail: r.detail }),
+      timestamp: +r.timestamp,
+      provisions: JSON.parse(r.provisions),
+      retries: r.retries,
+      ...(r.expiry && { expiry: +r.expiry }),
+    };
+    faults[channel] = fault;
   }
 
   return faults;
@@ -660,12 +665,18 @@ export async function saveFault(
   fault: SessionFault
 ): Promise<void> {
   const id = `${deviceId}:${channel}`;
-  const f = Object.assign({}, fault) as Record<string, any>;
-  f["_id"] = id;
-  f["device"] = deviceId;
-  f["channel"] = channel;
-  f["timestamp"] = new Date(fault.timestamp);
-  f["provisions"] = JSON.stringify(fault.provisions);
+  const f: MongoTypes.Fault = {
+    _id: id,
+    device: deviceId,
+    channel: channel,
+    timestamp: new Date(fault.timestamp),
+    code: fault.code,
+    message: fault.message,
+    ...(fault.detail && { detail: fault.detail }),
+    retries: fault.retries,
+    ...(fault.expiry && { expiry: new Date(fault.expiry) }),
+    provisions: JSON.stringify(fault.provisions),
+  };
   await faultsCollection.replaceOne({ _id: id }, f, { upsert: true });
 }
 
@@ -683,20 +694,47 @@ export async function getDueTasks(
   const cur = tasksCollection.find({ device: deviceId }).sort({ timestamp: 1 });
   const tasks = [] as Task[];
 
-  for await (const task of cur) {
-    if (task.timestamp) task.timestamp = +task.timestamp;
-    if (task.expiry) task.expiry = +task.expiry;
-    if (task.timestamp >= timestamp) return [tasks, +task.timestamp];
-    task._id = String(task._id);
+  for await (const t of cur) {
+    if (+t.timestamp >= timestamp) return [tasks, +t.timestamp];
+    const task: Task = {
+      _id: t._id.toString(),
+      name: t.name,
+      ...(t.timestamp && { timestamp: +t.timestamp }),
+      ...(t.expiry && { expiry: +t.expiry }),
+      ...(t.name === "getParameterValues" && {
+        parameterNames: t.parameterNames,
+      }),
+      ...(t.name === "setParameterValues" && {
+        parameterValues: t.parameterValues,
+      }),
+      ...(t.name === "refreshObject" && {
+        objectName: t.objectName,
+      }),
+      ...(t.name === "download" && {
+        fileType: t.fileType,
+        fileName: t.fileName,
+        targetFileName: t.targetFileName,
+      }),
+      ...(t.name === "addObject" && {
+        objectName: t.objectName,
+        parameterValues: t.parameterValues,
+      }),
+      ...(t.name === "deleteObject" && {
+        objectName: t.objectName,
+      }),
+      ...(t.name === "provisions" && {
+        provisions: t.provisions,
+      }),
+    };
 
-    tasks.push(task as Task);
+    tasks.push(task);
 
     // For API compatibility
-    if (task.name === "download" && task.file) {
+    if (task.name === "download" && t["file"]) {
       let q;
-      if (ObjectId.isValid(task.file))
-        q = { _id: { $in: [task.file, new ObjectId(task.file)] } };
-      else q = { _id: task.file };
+      if (ObjectId.isValid(t["file"]))
+        q = { _id: { $in: [t["file"], new ObjectId(t["file"])] } };
+      else q = { _id: t["file"] };
 
       const res = await filesCollection.find(q).toArray();
 
@@ -730,17 +768,22 @@ export async function getOperations(
   const operations: { [commandKey: string]: Operation } = {};
   for (const r of res) {
     const commandKey = r._id.slice(deviceId.length + 1);
-    delete r._id;
     // Workaround for a bug in v1.2.1 where operation object is saved without deserialization
     if (typeof r.provisions !== "string") {
-      operations[commandKey] = r as Operation;
+      delete r._id;
+      operations[commandKey] = r as unknown as Operation;
       continue;
     }
-    r.timestamp = +r.timestamp;
-    if (r.args) r.args = JSON.parse(r.args);
-    r.provisions = JSON.parse(r.provisions);
-    r.retries = JSON.parse(r.retries);
-    operations[commandKey] = r as Operation;
+    const operation: Operation = {
+      name: r.name,
+      timestamp: +r.timestamp,
+      channels:
+        typeof r.channels === "string" ? JSON.parse(r.channels) : r.channels,
+      retries: JSON.parse(r.retries),
+      provisions: JSON.parse(r.provisions),
+      ...(r.args && { args: JSON.parse(r.args) }),
+    };
+    operations[commandKey] = operation;
   }
   return operations;
 }
@@ -751,12 +794,15 @@ export async function saveOperation(
   operation: Operation
 ): Promise<void> {
   const id = `${deviceId}:${commandKey}`;
-  const o = Object.assign({}, operation) as Record<string, any>;
-  o["_id"] = id;
-  o["timestamp"] = new Date(operation.timestamp);
-  o["provisions"] = JSON.stringify(operation.provisions);
-  o["retries"] = JSON.stringify(operation.retries);
-  o["args"] = JSON.stringify(operation.args);
+  const o: MongoTypes.Operation = {
+    _id: id,
+    name: operation.name,
+    timestamp: new Date(operation.timestamp),
+    channels: JSON.stringify(operation.channels),
+    provisions: JSON.stringify(operation.provisions),
+    retries: JSON.stringify(operation.retries),
+    args: JSON.stringify(operation.args),
+  };
   await operationsCollection.replaceOne({ _id: id }, o, {
     upsert: true,
   });

@@ -536,7 +536,7 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
               session.configContextCallback(sessionContext, e)
             )
           ),
-      ]);
+      ]) as [string, ...Expression[]][];
       if (blackList[p.channel] === 2) {
         appendProvisionsToFaults[p.channel] = (
           appendProvisionsToFaults[p.channel] || []

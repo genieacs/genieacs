@@ -115,30 +115,31 @@ export function query(
       cursor.toArray((err, docs) => {
         if (err) return reject(err);
         if (resource === "devices")
-          docs = docs.map((d) => mongodbFunctions.flattenDevice(d));
+          return resolve(docs.map((d) => mongodbFunctions.flattenDevice(d)));
         else if (resource === "faults")
-          docs = docs.map((d) => mongodbFunctions.flattenFault(d));
+          return resolve(docs.map((d) => mongodbFunctions.flattenFault(d)));
         else if (resource === "tasks")
-          docs = docs.map((d) => mongodbFunctions.flattenTask(d));
+          return resolve(docs.map((d) => mongodbFunctions.flattenTask(d)));
         else if (resource === "presets")
-          docs = docs.map((d) => mongodbFunctions.flattenPreset(d));
+          return resolve(docs.map((d) => mongodbFunctions.flattenPreset(d)));
         else if (resource === "files")
-          docs = docs.map((d) => mongodbFunctions.flattenFile(d));
+          return resolve(docs.map((d) => mongodbFunctions.flattenFile(d)));
         return resolve(docs);
       });
     } else {
       cursor.forEach(
         (doc) => {
-          if (resource === "devices") doc = mongodbFunctions.flattenDevice(doc);
+          if (resource === "devices")
+            callback(mongodbFunctions.flattenDevice(doc));
           else if (resource === "faults")
-            doc = mongodbFunctions.flattenFault(doc);
+            callback(mongodbFunctions.flattenFault(doc));
           else if (resource === "tasks")
-            doc = mongodbFunctions.flattenTask(doc);
+            callback(mongodbFunctions.flattenTask(doc));
           else if (resource === "presets")
-            doc = mongodbFunctions.flattenPreset(doc);
+            callback(mongodbFunctions.flattenPreset(doc));
           else if (resource === "files")
-            doc = mongodbFunctions.flattenFile(doc);
-          callback(doc);
+            callback(mongodbFunctions.flattenFile(doc));
+          else callback(doc);
         },
         (err) => {
           if (err) reject(err);
@@ -150,7 +151,8 @@ export function query(
 }
 
 export function count(resource: string, filter: Expression): Promise<number> {
-  let q;
+  const collection = db.collection(RESOURCE_COLLECTION[resource] || resource);
+  let q: Parameters<typeof collection.countDocuments>[0];
   filter = expression.evaluate(filter, null, Date.now());
   filter = minimize(filter, true);
 
@@ -166,13 +168,7 @@ export function count(resource: string, filter: Expression): Promise<number> {
     return Promise.resolve(0);
   }
 
-  return new Promise((resolve, reject) => {
-    const collection = db.collection(RESOURCE_COLLECTION[resource] || resource);
-    collection.find(q).count((err, c) => {
-      if (err) reject(err);
-      else resolve(c);
-    });
-  });
+  return collection.countDocuments(q);
 }
 
 export async function updateDeviceTags(

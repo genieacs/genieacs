@@ -20,11 +20,12 @@
 import { Collection } from "mongodb";
 import { onConnect } from "./db";
 import * as config from "./config";
+import { Cache } from "./mongodb-types";
 
 const CLOCK_SKEW_TOLERANCE = 30000;
 const MAX_CACHE_TTL = +config.get("MAX_CACHE_TTL");
 
-let cacheCollection: Collection;
+let cacheCollection: Collection<Cache>;
 
 onConnect(async (db) => {
   cacheCollection = db.collection("cache");
@@ -33,8 +34,7 @@ onConnect(async (db) => {
 
 export async function get(key: string): Promise<string> {
   const res = await cacheCollection.findOne({ _id: key });
-  if (res) return res["value"];
-  return null;
+  return res?.value;
 }
 
 export async function del(key: string): Promise<void> {
@@ -52,15 +52,14 @@ export async function set(
   );
   await cacheCollection.replaceOne(
     { _id: key },
-    { _id: key, value, expire, timestamp },
+    { value, expire, timestamp },
     { upsert: true }
   );
 }
 
-export async function pop(key: string): Promise<any> {
+export async function pop(key: string): Promise<string> {
   const res = await cacheCollection.findOneAndDelete({ _id: key });
-  if (res?.["value"]) return res["value"]["value"];
-  return null;
+  return res.value?.value;
 }
 
 export async function acquireLock(
@@ -72,18 +71,16 @@ export async function acquireLock(
   try {
     const now = Date.now();
     const r = await cacheCollection.findOneAndUpdate(
-      { _id: lockName, token },
+      { _id: lockName, value: token },
       {
         $set: {
-          value: token,
           expire: new Date(now + ttl + CLOCK_SKEW_TOLERANCE),
         },
-        $currentDate: { timestamp: true as unknown as Date },
+        $currentDate: { timestamp: true },
       },
       { upsert: true, returnDocument: "after" }
     );
-    const v = r.value;
-    if (Math.abs(v["timestamp"].getTime() - now) > CLOCK_SKEW_TOLERANCE)
+    if (Math.abs(r.value.timestamp.getTime() - now) > CLOCK_SKEW_TOLERANCE)
       throw new Error("Database clock skew too great");
   } catch (err) {
     if (err.code !== 11000) throw err;

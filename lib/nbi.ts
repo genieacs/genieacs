@@ -845,7 +845,7 @@ export function listener(
         cur.sort(sort);
       }
 
-      cur.count((err, total) => {
+      collection.countDocuments(q, (err, total) => {
         if (err) return void throwError(err);
 
         response.writeHead(200, {
