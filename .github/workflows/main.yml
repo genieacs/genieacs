@@ -1,0 +1,127 @@
+name: CI-CD
+
+
+on:
+  push:
+    branches: [ "master" ]
+
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+
+jobs:
+  CI-nbi:
+    runs-on: ubuntu-latest
+
+
+    steps:
+      - uses: actions/checkout@v3
+
+
+      - name: Action Docker Login - Auth user on Docker Hub
+        uses: docker/login-action@v2.0.0
+        with:
+          username: ${{secrets.DOCKERHUB_USER}}
+          password: ${{secrets.DOCKERHUB_PWD}}
+      
+      - name: Action Build and push Docker images to Docker Hub
+        uses: docker/build-push-action@v3.0.0
+        with:
+          file: ./cicd/Dockerfile-nbi
+          context: ./
+          push: true
+          tags: |
+            ewertonmarschalk/genieacs-nbi:latest
+            ewertonmarschalk/genieacs-nbi:${{github.run_number}}
+  CI-fs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+
+      - name: Action Docker Login - Auth user on Docker Hub
+        uses: docker/login-action@v2.0.0
+        with:
+          username: ${{secrets.DOCKERHUB_USER}}
+          password: ${{secrets.DOCKERHUB_PWD}}
+      
+      - name: Action Build and push Docker images to Docker Hub
+        uses: docker/build-push-action@v3.0.0
+        with:
+          file: ./cicd/Dockerfile-fs
+          context: ./
+          push: true
+          tags: |
+            ewertonmarschalk/genieacs-fs:latest
+            ewertonmarschalk/genieacs-fs:${{github.run_number}}
+  CI-ui:
+    runs-on: ubuntu-latest
+
+
+    steps:
+      - uses: actions/checkout@v3
+
+
+      - name: Action Docker Login - Auth user on Docker Hub
+        uses: docker/login-action@v2.0.0
+        with:
+          username: ${{secrets.DOCKERHUB_USER}}
+          password: ${{secrets.DOCKERHUB_PWD}}
+      
+      - name: Action Build and push Docker images to Docker Hub
+        uses: docker/build-push-action@v3.0.0
+        with:
+          file: ./cicd/Dockerfile-ui
+          context: ./
+          push: true
+          tags: |
+            creztfallen/genieacs-ui:latest
+            creztfallen/genieacs-ui:${{github.run_number}}
+  CI-cwmp:
+    runs-on: ubuntu-latest
+
+
+    steps:
+      - uses: actions/checkout@v3
+
+
+      - name: Action Docker Login - Auth user on Docker Hub
+        uses: docker/login-action@v2.0.0
+        with:
+          username: ${{secrets.DOCKERHUB_USER}}
+          password: ${{secrets.DOCKERHUB_PWD}}
+      
+      - name: Action Build and push Docker images to Docker Hub
+        uses: docker/build-push-action@v3.0.0
+        with:
+          file: ./cicd/Dockerfile-cwmp
+          context: ./
+          push: true
+          tags: |
+            ewertonmarschalk/genieacs-cwmp:latest
+            ewertonmarschalk/genieacs-cwmp:${{github.run_number}}
+  CD:
+    needs: [CI-cwmp,CI-ui,CI-nbi,CI-fs]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Kubernetes Set Context - Set Kube config
+        uses: Azure/k8s-set-context@v2
+        with:
+          method: kubeconfig
+          kubeconfig: ${{secrets.K8S_CONFIG}}
+        
+      - name: Deploy to Kubernetes cluster on DigitalOcean
+        uses: Azure/k8s-deploy@v3.1
+        with:
+          images: |
+            creztfallen/genieacs-cwmp:${{github.run_number}}
+            creztfallen/genieacs-ui:${{github.run_number}}
+            creztfallen/genieacs-nbi:${{github.run_number}}
+            creztfallen/genieacs-fs:${{github.run_number}}
+          manifests: |
+            ./cicd/deployment.yaml
