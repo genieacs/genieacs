@@ -165,7 +165,7 @@ FS_ACCESS_LOG_FILE
   Default: unset
 
 FS_URL_PREFIX
-  The URL prefix (e.g. 'https://example.com:7657/') to use when generating the
+  The URL prefix (e.g. 'https://example.com:7567/') to use when generating the
   file URL for TR-069 Download requests. Set this if genieacs-fs and
   genieacs-cwmp are behind a proxy or running on different servers.
 
