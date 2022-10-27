@@ -1,0 +1,166 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongo
+spec:
+  selector:
+    matchLabels:
+      app: mongo
+  template:
+    metadata:
+      labels:
+        app: mongo
+    spec:
+      containers:
+        - name: mongo
+          image: mongo:5.0.9
+          ports:
+            - containerPort: 27017
+          env:
+            - name: MONGO_INITDB_ROOT_USERNAME
+              value: "2flex"
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              value: "Flex@2flex"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+spec:
+  selector:
+    app: mongo
+  ports:
+    - port: 27017
+      targetPort: 27017
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cwmp
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: cwmp
+  template:
+    metadata:
+      labels:
+        app: cwmp
+    spec:
+      containers:
+        - name: cwmp
+          image: creztfallen/genieacs-cwmp:latest
+          env:
+            - name: GENIEACS_MONGODB_CONNECTION_URL
+              value: mongodb://2flex:Flex@2flex@mongo:27017/
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cwmp
+spec:
+  selector:
+    app: cwmp
+  ports:
+    - port: 7547
+      targetPort: 7547
+  type: LoadBalancer
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nbi
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nbi
+  template:
+    metadata:
+      labels:
+        app: nbi
+    spec:
+      containers:
+        - name: nbi
+          image: creztfallen/genieacs-nbi:latest
+          env:
+            - name: GENIEACS_MONGODB_CONNECTION_URL
+              value: mongodb://genieacs:genieacs@mongo:27017/
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nbi
+spec:
+  selector:
+    app: nbi
+  ports:
+    - port: 7557
+      targetPort: 7557
+  type: LoadBalancer
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fs
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: fs
+  template:
+    metadata:
+      labels:
+        app: fs
+    spec:
+      containers:
+        - name: fs
+          image: creztfallen/genieacs-fs:latest
+          env:
+            - name: GENIEACS_MONGODB_CONNECTION_URL
+              value: mongodb://genieacs:genieacs@mongo:27017/
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fs
+spec:
+  selector:
+    app: fs
+  ports:
+    - port: 7567
+      targetPort: 7567
+  type: LoadBalancer
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ui
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: ui
+  template:
+    metadata:
+      labels:
+        app: ui
+    spec:
+      containers:
+        - name: ui
+          image: creztfallen/genieacs-ui:latest
+          env:
+            - name: GENIEACS_MONGODB_CONNECTION_URL
+              value: mongodb://genieacs:genieacs@mongo:27017/
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ui
+spec:
+  selector:
+    app: ui
+  ports:
+    - port: 3000
+      targetPort: 3000
+  type: LoadBalancer
