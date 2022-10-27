@@ -85,7 +85,7 @@ spec:
           image: creztfallen/genieacs-nbi:latest
           env:
             - name: GENIEACS_MONGODB_CONNECTION_URL
-              value: mongodb://genieacs:genieacs@mongo:27017/
+              value: mongodb:///2flex:Flex@2flex@mongo:27017/
 ---
 apiVersion: v1
 kind: Service
@@ -118,7 +118,7 @@ spec:
           image: creztfallen/genieacs-fs:latest
           env:
             - name: GENIEACS_MONGODB_CONNECTION_URL
-              value: mongodb://genieacs:genieacs@mongo:27017/
+              value: mongodb:///2flex:Flex@2flex@mongo:27017/
 ---
 apiVersion: v1
 kind: Service
@@ -151,7 +151,7 @@ spec:
           image: creztfallen/genieacs-ui:latest
           env:
             - name: GENIEACS_MONGODB_CONNECTION_URL
-              value: mongodb://genieacs:genieacs@mongo:27017/
+              value: mongodb:///2flex:Flex@2flex@mongo:27017/
 ---
 apiVersion: v1
 kind: Service
