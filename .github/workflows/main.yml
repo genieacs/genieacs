@@ -32,8 +32,8 @@ jobs:
           context: ./
           push: true
           tags: |
-            ewertonmarschalk/genieacs-nbi:latest
-            ewertonmarschalk/genieacs-nbi:${{github.run_number}}
+            creztfallen/genieacs-nbi:latest
+            creztfallen/genieacs-nbi:${{github.run_number}}
   CI-fs:
     runs-on: ubuntu-latest
 
@@ -54,8 +54,8 @@ jobs:
           context: ./
           push: true
           tags: |
-            ewertonmarschalk/genieacs-fs:latest
-            ewertonmarschalk/genieacs-fs:${{github.run_number}}
+            creztfallen/genieacs-fs:latest
+            creztfallen/genieacs-fs:${{github.run_number}}
   CI-ui:
     runs-on: ubuntu-latest
 
@@ -100,8 +100,8 @@ jobs:
           context: ./
           push: true
           tags: |
-            ewertonmarschalk/genieacs-cwmp:latest
-            ewertonmarschalk/genieacs-cwmp:${{github.run_number}}
+            creztfallen/genieacs-cwmp:latest
+            creztfallen/genieacs-cwmp:${{github.run_number}}
   CD:
     needs: [CI-cwmp,CI-ui,CI-nbi,CI-fs]
     runs-on: ubuntu-latest
