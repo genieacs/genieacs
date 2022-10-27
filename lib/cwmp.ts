@@ -994,7 +994,7 @@ export function onConnection(socket: Socket): void {
     if(startCon){
       stats.currentConnections -= 1;
       connectionsInfo.delete(socket);
-      stats.totalConnectionTime += startCon;
+      stats.totalConnectionTime += Date.now() - startCon;
     }
   });
 }
@@ -1036,7 +1036,9 @@ setInterval(() => {
     });
   }
 
-  console.log(`
+  let mem = process.memoryUsage();
+  console.log(`PID: ${process.pid}
+    Memory: RSS: ${mem.rss} HT: ${mem.heapTotal} HU: ${mem.heapUsed} E: ${mem.external} A: ${mem.arrayBuffers}
     Totals: S: ${stats.initiatedSessions} R: ${stats.totalRequests} N: ${stats.totalNewDevices}
     Connections: ${stats.totalConnections} (${stats.totalConnectionTime / stats.totalConnections} ms)
     Inits: E: ${stats.totalInitExist} (${stats.totalInitExistTime / stats.totalInitExist} ms) N: ${stats.totalInitNew} (${stats.totalInitNewTime / stats.totalInitNew} ms)
