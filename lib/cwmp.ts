@@ -616,7 +616,7 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
   } = await session.rpcRequest(sessionContext, null);
 
   if(runFlashman) {
-    stats.totalExternalTime = Date.now() - flashDate;
+    stats.totalExternalTime += Date.now() - flashDate;
   }
 
   if (fault) {
