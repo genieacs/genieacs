@@ -66,11 +66,33 @@ const MAX_CONCURRENT_REQUESTS = +config.get("MAX_CONCURRENT_REQUESTS");
 const currentSessions = new WeakMap<Socket, SessionContext>();
 const sessionsNonces = new WeakMap<Socket, string>();
 
+const connectionsInfo = new WeakMap<Socket, number>();
+
 const stats = {
   concurrentRequests: 0,
   totalRequests: 0,
   droppedRequests: 0,
   initiatedSessions: 0,
+
+  currentConnections: 0,
+  totalConnections: 0,
+  totalConnectionTime: 0,
+
+  totalInitExist: 0,
+  totalInitExistTime: 0,
+  totalInitNew: 0,
+  totalInitNewTime: 0,
+
+  totalExternal: 0,
+  totalExternalTime: 0,
+
+  faultExternal: 0,
+  faultRpc:0,
+
+  totalDBSessions: 0,
+  totalDBTime: 0,
+
+  totalNewDevices: 0,
 };
 
 async function authenticate(
@@ -508,6 +530,7 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
   } = await session.rpcRequest(sessionContext, declarations);
 
   if (flt) {
+    stats.faultRpc += 1;
     recordFault(sessionContext, flt);
     session.clearProvisions(sessionContext);
     return applyPresets(sessionContext);
@@ -577,13 +600,28 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
 
   deviceData.timestamps.dirty = 0;
   deviceData.attributes.dirty = 0;
+
+  let runFlashman = false;
+  let flashDate = Date.now();
+  if(sessionContext.provisions.length == 1 &&
+     sessionContext.provisions[0] == 'flashman') {
+    stats.totalExternal += 1;
+    runFlashman = true;
+  }
+
   const {
     fault: fault,
     rpcId: id,
     rpc: acsRequest,
   } = await session.rpcRequest(sessionContext, null);
 
+  if(runFlashman) {
+    stats.totalExternalTime = Date.now() - flashDate;
+  }
+
   if (fault) {
+    stats.faultRpc += 1;
+    if(runFlashman) stats.faultExternal += 1;
     recordFault(sessionContext, fault);
     session.clearProvisions(sessionContext);
     return applyPresets(sessionContext);
@@ -618,6 +656,7 @@ async function nextRpc(sessionContext: SessionContext): Promise<void> {
   } = await session.rpcRequest(sessionContext, null);
 
   if (fault) {
+    stats.faultRpc += 1;
     recordFault(sessionContext, fault);
     session.clearProvisions(sessionContext);
     return nextRpc(sessionContext);
@@ -754,6 +793,9 @@ async function nextRpc(sessionContext: SessionContext): Promise<void> {
 async function endSession(sessionContext: SessionContext): Promise<void> {
   let saveCache = sessionContext.cacheUntil != null;
 
+  stats.totalDBSessions += 1;
+  let startDBTime = Date.now();
+
   if (sessionContext.provisions.length) {
     const fault = {
       code: "session_terminated",
@@ -827,11 +869,14 @@ async function endSession(sessionContext: SessionContext): Promise<void> {
   }
 
   await Promise.all(promises);
+  stats.totalDBTime += Date.now() - startDBTime;
+
   await cache.releaseLock(
     `cwmp_session_${sessionContext.deviceId}`,
     sessionContext.sessionId
   );
   if (sessionContext.new) {
+    stats.totalNewDevices += 1;
     logger.accessInfo({
       sessionContext: sessionContext,
       message: "New device registered",
@@ -887,6 +932,10 @@ async function sendAcsRequest(
 
 // When socket closes, store active sessions in cache
 export function onConnection(socket: Socket): void {
+  stats.totalConnections += 1;
+  stats.currentConnections += 1;
+  connectionsInfo.set(socket, Date.now());
+
   socket.on("close", async () => {
     const sessionContext = currentSessions.get(socket);
     if (!sessionContext) return;
@@ -939,6 +988,15 @@ export function onConnection(socket: Socket): void {
       Math.ceil(timeout / 1000) + 3
     );
   });
+
+  socket.on("close", async () => {
+    let startCon = connectionsInfo.get(socket);
+    if(startCon){
+      stats.currentConnections -= 1;
+      connectionsInfo.delete(socket);
+      stats.totalConnectionTime += startCon;
+    }
+  });
 }
 
 export function onClientError(err: Error, socket: Socket): void {
@@ -978,10 +1036,38 @@ setInterval(() => {
     });
   }
 
+  console.log(`
+    Totals: S: ${stats.initiatedSessions} R: ${stats.totalRequests} N: ${stats.totalNewDevices}
+    Connections: ${stats.totalConnections} (${stats.totalConnectionTime / stats.totalConnections} ms)
+    Inits: E: ${stats.totalInitExist} (${stats.totalInitExistTime / stats.totalInitExist} ms) N: ${stats.totalInitNew} (${stats.totalInitNewTime / stats.totalInitNew} ms)
+    Flashman: ${stats.totalExternal} (${stats.totalExternalTime / stats.totalExternal} ms)
+    Database: ${stats.totalDBSessions} (${stats.totalDBTime / stats.totalDBSessions} ms)
+    Faults: D: ${stats.droppedRequests} E: ${stats.faultExternal} R: ${stats.faultRpc}
+    `);
+
+  stats.totalConnections = 0;
+  stats.totalConnectionTime = 0;
+
+  stats.totalInitExist = 0;
+  stats.totalInitExistTime = 0;
+  stats.totalInitNew = 0;
+  stats.totalInitNewTime = 0;
+
+  stats.totalExternal = 0;
+  stats.totalExternalTime = 0;
+
+  stats.faultExternal = 0;
+  stats.faultRpc = 0;
+
+  stats.totalDBSessions = 0;
+  stats.totalDBTime = 0;
+
+  stats.totalNewDevices = 0;
+
   stats.totalRequests = 0;
   stats.droppedRequests = 0;
   stats.initiatedSessions = 0;
-}, 10000).unref();
+}, 60000).unref();
 
 async function getDueTasksAndFaultsAndOperations(
   deviceId,
@@ -1342,6 +1428,7 @@ export function listener(
   httpResponse: ServerResponse
 ): void {
   stats.concurrentRequests += 1;
+
   listenerAsync(httpRequest, httpResponse)
     .then(() => {
       stats.concurrentRequests -= 1;
@@ -1596,6 +1683,9 @@ async function listenerAsync(
   }
 
   if (!sessionContext && sessionId && rpc.cpeRequest?.name !== "Inform") {
+    stats.totalInitExist += 1;
+    let newTime = Date.now();
+
     await new Promise((resolve) => setTimeout(resolve, 100));
     const sessionContextString = await cache.pop(`session_${sessionId}`);
     if (sessionContextString) {
@@ -1605,6 +1695,7 @@ async function listenerAsync(
       httpRequest.socket.setTimeout(sessionContext.timeout * 1000);
       if (sessionContext.authState !== 1) sessionContext.authState = 0;
     }
+    stats.totalInitExistTime += Date.now() - newTime;
   }
 
   if (sessionContext)
@@ -1636,6 +1727,9 @@ async function listenerAsync(
     stats.droppedRequests += 1;
     return;
   }
+
+  stats.totalInitNew += 1;
+  let newTime = Date.now();
 
   stats.initiatedSessions += 1;
   const deviceId = common.generateDeviceId(rpc.cpeRequest.deviceId);
@@ -1695,6 +1789,8 @@ async function listenerAsync(
     // Device not available in database, mark as new
     _sessionContext.new = true;
   }
+
+  stats.totalInitNewTime += Date.now() - newTime;
 
   return processRequest(_sessionContext, rpc, parseWarnings, bodyStr);
 }
