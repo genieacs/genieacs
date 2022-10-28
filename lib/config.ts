@@ -98,6 +98,8 @@ const options = {
   BOOLEAN_LITERAL: { type: "bool", default: true },
   CONNECTION_REQUEST_ALLOW_BASIC_AUTH: { type: "bool", default: false },
   MAX_COMMIT_ITERATIONS: { type: "int", default: 32 },
+  LOG_INFO: { type: "string", default: "info" },
+  LOG_STATS: { type: "bool", default: false },
 
   // Should probably never be changed
   DEVICE_ONLINE_THRESHOLD: { type: "int", default: 4000 },

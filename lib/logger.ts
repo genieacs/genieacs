@@ -35,11 +35,28 @@ const REOPEN_EVERY = 60000;
 
 const LOG_FORMAT = config.get("LOG_FORMAT");
 const ACCESS_LOG_FORMAT = config.get("ACCESS_LOG_FORMAT") || LOG_FORMAT;
+const LOG_INFO = config.get("LOG_INFO");
+const LOG_STATS = config.get("LOG_STATS");
 
 const defaultMeta: { [name: string]: any } = {};
 
 let LOG_SYSTEMD = false;
 let ACCESS_LOG_SYSTEMD = false;
+
+let LOG_INFO_DATA = true;
+let LOG_WARN_DATA = true;
+let LOG_ERROR_DATA = true;
+
+if(LOG_INFO === 'warn') {
+  LOG_INFO_DATA = false;
+} else if(LOG_INFO === 'error') {
+  LOG_INFO_DATA = false;
+  LOG_WARN_DATA = false;
+} else if(LOG_INFO === 'none') {
+  LOG_INFO_DATA = false;
+  LOG_WARN_DATA = false;
+  LOG_ERROR_DATA = false;
+}
 
 let LOG_FILE, ACCESS_LOG_FILE;
 
@@ -333,16 +350,25 @@ export function accessLog(details: Record<string, unknown>): void {
 }
 
 export function accessInfo(details: Record<string, unknown>): void {
+  if(!LOG_INFO_DATA) return;
   details.severity = "info";
   accessLog(details);
 }
 
 export function accessWarn(details: Record<string, unknown>): void {
+  if(!LOG_WARN_DATA) return;
   details.severity = "warn";
   accessLog(details);
 }
 
 export function accessError(details: Record<string, unknown>): void {
+  if(!LOG_ERROR_DATA) return;
   details.severity = "error";
+  accessLog(details);
+}
+
+export function accessStats(details: Record<string, unknown>): void {
+  if(!LOG_STATS) return;
+  details.severity = "info";
   accessLog(details);
 }
