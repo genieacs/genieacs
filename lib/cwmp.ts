@@ -66,7 +66,7 @@ const MAX_CONCURRENT_REQUESTS = +config.get("MAX_CONCURRENT_REQUESTS");
 const currentSessions = new WeakMap<Socket, SessionContext>();
 const sessionsNonces = new WeakMap<Socket, string>();
 
-const connectionsInfo = new WeakMap<Socket, number>();
+const connectionsInfo = new WeakMap<Socket, {time: number, type: number}>();
 
 const stats = {
   concurrentRequests: 0,
@@ -74,9 +74,14 @@ const stats = {
   droppedRequests: 0,
   initiatedSessions: 0,
 
+  maxConcurrentRequests: 0,
+  maxConcurrentConnections: 0,
+
   currentConnections: 0,
   totalConnections: 0,
+  totalFConnections: 0,
   totalConnectionTime: 0,
+  totalFConnectionTime: 0,
 
   totalInitExist: 0,
   totalInitExistTime: 0,
@@ -607,6 +612,10 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
      sessionContext.provisions[0] == 'flashman') {
     stats.totalExternal += 1;
     runFlashman = true;
+
+    let startCon = connectionsInfo.get(sessionContext.httpRequest.socket);
+    if(startCon)
+      connectionsInfo.set(sessionContext.httpRequest.socket, {time: startCon.time, type: 1});
   }
 
   const {
@@ -934,7 +943,10 @@ async function sendAcsRequest(
 export function onConnection(socket: Socket): void {
   stats.totalConnections += 1;
   stats.currentConnections += 1;
-  connectionsInfo.set(socket, Date.now());
+  connectionsInfo.set(socket, {time: Date.now(), type: 2});
+
+  if(stats.maxConcurrentConnections < stats.currentConnections)
+    stats.maxConcurrentConnections = stats.currentConnections;
 
   socket.on("close", async () => {
     const sessionContext = currentSessions.get(socket);
@@ -994,7 +1006,12 @@ export function onConnection(socket: Socket): void {
     if(startCon){
       stats.currentConnections -= 1;
       connectionsInfo.delete(socket);
-      stats.totalConnectionTime += Date.now() - startCon;
+
+      stats.totalConnectionTime += Date.now() - startCon.time;
+      if(startCon.type == 1) {
+        stats.totalFConnections += 1;
+        stats.totalFConnectionTime += Date.now() - startCon.time;
+      }
     }
   });
 }
@@ -1039,16 +1056,21 @@ setInterval(() => {
   let mem = process.memoryUsage();
   console.log(`PID: ${process.pid}
     Memory: RSS: ${mem.rss} HT: ${mem.heapTotal} HU: ${mem.heapUsed} E: ${mem.external} A: ${mem.arrayBuffers}
-    Totals: S: ${stats.initiatedSessions} R: ${stats.totalRequests} N: ${stats.totalNewDevices}
-    Connections: ${stats.totalConnections} (${stats.totalConnectionTime / stats.totalConnections} ms)
+    Totals: S: ${stats.initiatedSessions} R: ${stats.totalRequests} N: ${stats.totalNewDevices} MR: ${stats.maxConcurrentRequests}
+    Connections: ${stats.totalConnections} (${stats.totalConnectionTime / stats.totalConnections} ms) M: ${stats.maxConcurrentConnections}
     Inits: E: ${stats.totalInitExist} (${stats.totalInitExistTime / stats.totalInitExist} ms) N: ${stats.totalInitNew} (${stats.totalInitNewTime / stats.totalInitNew} ms)
-    Flashman: ${stats.totalExternal} (${stats.totalExternalTime / stats.totalExternal} ms)
+    Flashman: ${stats.totalExternal} (${stats.totalExternalTime / stats.totalExternal} ms) C: ${stats.totalFConnections} (${stats.totalFConnectionTime / stats.totalFConnections} ms)
     Database: ${stats.totalDBSessions} (${stats.totalDBTime / stats.totalDBSessions} ms)
     Faults: D: ${stats.droppedRequests} E: ${stats.faultExternal} R: ${stats.faultRpc}
     `);
 
   stats.totalConnections = 0;
   stats.totalConnectionTime = 0;
+  stats.totalFConnections = 0;
+  stats.totalFConnectionTime = 0;
+
+  stats.maxConcurrentRequests = 0;
+  stats.maxConcurrentConnections = 0;
 
   stats.totalInitExist = 0;
   stats.totalInitExistTime = 0;
@@ -1524,6 +1546,9 @@ async function listenerAsync(
   let match;
   while ((match = COOKIE_REGEX.exec(httpRequest.headers.cookie)))
     if (match[1] === "session") sessionId = match[2];
+
+  if(stats.concurrentRequests > stats.maxConcurrentRequests)
+    stats.maxConcurrentRequests = stats.concurrentRequests;
 
   // If overloaded, ask CPE to retry in 60 seconds
   if (!sessionId && stats.concurrentRequests > MAX_CONCURRENT_REQUESTS) {
