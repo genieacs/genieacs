@@ -1054,7 +1054,8 @@ setInterval(() => {
   }
 
   let mem = process.memoryUsage();
-  console.log(`PID: ${process.pid}
+  logger.accessStats({
+      message: `PID: ${process.pid}
     Memory: RSS: ${mem.rss} HT: ${mem.heapTotal} HU: ${mem.heapUsed} E: ${mem.external} A: ${mem.arrayBuffers}
     Totals: S: ${stats.initiatedSessions} R: ${stats.totalRequests} N: ${stats.totalNewDevices} MR: ${stats.maxConcurrentRequests}
     Connections: ${stats.totalConnections} (${stats.totalConnectionTime / stats.totalConnections} ms) M: ${stats.maxConcurrentConnections}
@@ -1062,7 +1063,7 @@ setInterval(() => {
     Flashman: ${stats.totalExternal} (${stats.totalExternalTime / stats.totalExternal} ms) C: ${stats.totalFConnections} (${stats.totalFConnectionTime / stats.totalFConnections} ms)
     Database: ${stats.totalDBSessions} (${stats.totalDBTime / stats.totalDBSessions} ms)
     Faults: D: ${stats.droppedRequests} E: ${stats.faultExternal} R: ${stats.faultRpc}
-    `);
+    `});
 
   stats.totalConnections = 0;
   stats.totalConnectionTime = 0;
