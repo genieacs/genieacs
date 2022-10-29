@@ -23,7 +23,7 @@ import { onConnect, optimizeProjection } from "../db";
 import * as mongodbFunctions from "../mongodb-functions";
 import * as expression from "../common/expression";
 import { QueryOptions, Expression } from "../types";
-import { Readable, Writable } from "stream";
+import { Readable } from "stream";
 import { minimize } from "../common/boolean-expression";
 
 const RESOURCE_COLLECTION = {
@@ -342,10 +342,19 @@ export function putFile(
         metadata: metadata,
       }
     );
+
+    contentStream.on("close", () => {
+      if (!contentStream.readableEnded)
+        uploadStream.destroy(new Error("Stream closed prematurely"));
+    });
+
+    contentStream.on("error", (err) => {
+      uploadStream.destroy(err);
+    });
+
     uploadStream.on("error", reject);
-    contentStream.on("error", reject);
     uploadStream.on("finish", resolve);
-    contentStream.pipe(uploadStream as Writable);
+    contentStream.pipe(uploadStream);
   });
 }
 
