@@ -1055,10 +1055,9 @@ setInterval(() => {
 
   let mem = process.memoryUsage();
   logger.accessStats({
-      message: `PID: ${process.pid}
-    Memory: RSS: ${mem.rss} HT: ${mem.heapTotal} HU: ${mem.heapUsed} E: ${mem.external} A: ${mem.arrayBuffers}
-    Totals: S: ${stats.initiatedSessions} R: ${stats.totalRequests} N: ${stats.totalNewDevices} MR: ${stats.maxConcurrentRequests}
-    Connections: ${stats.totalConnections} (${stats.totalConnectionTime / stats.totalConnections} ms) M: ${stats.maxConcurrentConnections}
+      message: `PID: ${process.pid} S: ${stats.initiatedSessions} R: ${stats.totalRequests} N: ${stats.totalNewDevices} MR: ${stats.maxConcurrentRequests}
+    Memory: RSS: ${(mem.rss/1000000).toFixed(2)} HT: ${(mem.heapTotal/1000000).toFixed(2)} HU: ${(mem.heapUsed/1000000).toFixed(2)} E: ${(mem.external/1000000).toFixed(2)} A: ${(mem.arrayBuffers/1000000).toFixed(2)}
+    Connections: ${stats.totalConnections} (${(stats.totalConnectionTime / stats.totalConnections).toFixed(2)} ms) M: ${stats.maxConcurrentConnections}
     Inits: E: ${stats.totalInitExist} (${stats.totalInitExistTime / stats.totalInitExist} ms) N: ${stats.totalInitNew} (${stats.totalInitNewTime / stats.totalInitNew} ms)
     Flashman: ${stats.totalExternal} (${stats.totalExternalTime / stats.totalExternal} ms) C: ${stats.totalFConnections} (${stats.totalFConnectionTime / stats.totalFConnections} ms)
     Database: ${stats.totalDBSessions} (${stats.totalDBTime / stats.totalDBSessions} ms)
