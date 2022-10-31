@@ -1055,9 +1055,9 @@ setInterval(() => {
 
   let mem = process.memoryUsage();
   logger.accessStats({
-      message: `PID: ${process.pid} (RSS: ${(mem.rss/1000000).toFixed(2)} HT: ${(mem.heapTotal/1000000).toFixed(2)} HU: ${(mem.heapUsed/1000000).toFixed(2)} E: ${(mem.external/1000000).toFixed(2)} A: ${(mem.arrayBuffers/1000000).toFixed(2)}) Fault: E: ${stats.faultExternal} R: ${stats.faultRpc}
-    STAT: ((S: ${stats.initiatedSessions} R: ${stats.totalRequests} N: ${stats.totalNewDevices} MR: ${stats.maxConcurrentRequests}) (C: ${stats.totalConnections} (${(stats.totalConnectionTime / stats.totalConnections).toFixed(2)} ms) M: ${stats.maxConcurrentConnections}) (E: ${stats.totalInitExist} (${(stats.totalInitExistTime / stats.totalInitExist).toFixed(2)} ms) N: ${stats.totalInitNew} (${(stats.totalInitNewTime / stats.totalInitNew).toFixed(2)} ms))
-    Time: F: ${stats.totalExternal} (${stats.totalExternalTime / stats.totalExternal} ms) C: ${stats.totalFConnections} (${stats.totalFConnectionTime / stats.totalFConnections} ms) D(${stats.totalDBSessions} (${(stats.totalDBTime / stats.totalDBSessions).toFixed(2)} ms))
+      message: `PID: ${process.pid} (RSS: ${(mem.rss/1000000).toFixed(2)} HT: ${(mem.heapTotal/1000000).toFixed(2)} HU: ${(mem.heapUsed/1000000).toFixed(2)} E: ${(mem.external/1000000).toFixed(2)} A: ${(mem.arrayBuffers/1000000).toFixed(2)})
+    STAT: ((S: ${stats.initiatedSessions} R: ${stats.totalRequests} N: ${stats.totalNewDevices} MR: ${stats.maxConcurrentRequests}) (C: ${stats.totalConnections} (${(stats.totalConnectionTime / stats.totalConnections).toFixed(2)} ms) M: ${stats.maxConcurrentConnections}) INIT (E: ${stats.totalInitExist} (${(stats.totalInitExistTime / stats.totalInitExist).toFixed(2)} ms) N: ${stats.totalInitNew} (${(stats.totalInitNewTime / stats.totalInitNew).toFixed(2)} ms))
+    Flashman: ${stats.totalExternal} (${(stats.totalExternalTime / stats.totalExternal).toFixed(2)} ms) C: ${stats.totalFConnections} (${(stats.totalFConnectionTime / stats.totalFConnections).toFixed(2)} ms) D: ${stats.totalDBSessions} (${(stats.totalDBTime / stats.totalDBSessions).toFixed(2)} ms) Fault: E: ${stats.faultExternal} R: ${stats.faultRpc}
     `});
 
   stats.totalConnections = 0;
