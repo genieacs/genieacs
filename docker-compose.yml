@@ -1,0 +1,64 @@
+version: '3.7'
+
+services:
+  genieacs:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: base
+    environment:
+      - CWMP_WORKER_PROCESSES=1
+      - GENIEACS_MONGODB_CONNECTION_URL=mongodb://mongo/genieacs
+    volumes:
+      - .:/home/node/app/
+    container_name: genieacs
+    expose:
+      - '4000'
+      - '7547'
+    ports:
+      - "7547:7547"
+      - '4000:4000'
+    command: npm run cwmp-dev
+  genieacs-ui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: base
+    environment:
+      - CWMP_WORKER_PROCESSES=1
+      - GENIEACS_MONGODB_CONNECTION_URL=mongodb://mongo/genieacs
+    volumes:
+      - .:/home/node/app/
+    container_name: genieacs
+    expose:
+      - '4000'
+      - '7547'
+    ports:
+      - "3000:3000"
+    command: npm run ui-dev
+
+  mongo:
+      image: mongo:4.0 
+      restart: always
+      container_name: "mongo"
+      environment:
+#            - MONGO_INITDB_ROOT_USERNAME=userchange
+#            - MONGO_INITDB_ROOT_PASSWORD=passwordchange
+          - MONGO_DATA_DIR=/data/db
+          - MONGO_LOG_DIR=/var/log/mongodb
+      volumes:
+          - data_db:/data/db
+          - data_configdb:/data/configdb
+      expose: 
+          - 27017
+      ports:
+          - "27017:27017"
+  #genieacs-sim:
+  #    depends_on:
+  #        - 'genieacs'
+  #    image: drumsergio/genieacs-sim
+  #    container_name: "genieacs-sim"
+volumes:
+    data_db:
+    data_configdb:
+    opt_volume:

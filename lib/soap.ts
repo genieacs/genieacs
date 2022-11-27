@@ -296,7 +296,7 @@ function GetParameterNamesResponse(xml): GetParameterNamesResponse {
   };
 }
 
-function GetParameterValues(methodRequest): string {
+export function GetParameterValues(methodRequest): string {
   return `<cwmp:GetParameterValues><ParameterNames soap-enc:arrayType="xsd:string[${
     methodRequest.parameterNames.length
   }]">${methodRequest.parameterNames

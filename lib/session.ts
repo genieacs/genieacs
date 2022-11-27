@@ -60,6 +60,7 @@ import {
 } from "./types";
 import { getRequestOrigin } from "./forwarded";
 import * as logger from "./logger";
+import { processAnalytics } from "./common/analytics_extension";
 
 const VALID_PARAM_TYPES = new Set([
   "xsd:int",
@@ -109,7 +110,7 @@ export function init(
   return sessionContext;
 }
 
-function generateRpcId(sessionContext: SessionContext): string {
+export function generateRpcId(sessionContext: SessionContext): string {
   return (
     sessionContext.timestamp.toString(16) +
     ("0" + sessionContext.cycle.toString(16)).slice(-2) +
@@ -1024,6 +1025,7 @@ export async function rpcRequest(
   sessionContext: SessionContext,
   _declarations: Declaration[]
 ): Promise<{ fault: Fault; rpcId: string; rpc: AcsRequest }> {
+
   if (sessionContext.rpcRequest != null) {
     return {
       fault: null,
