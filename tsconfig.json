@@ -1,10 +1,9 @@
 {
   "compilerOptions": {
-    "esModuleInterop": true,
+    "lib": ["ES2019", "dom"],
+    "module": "ES2020",
     "moduleResolution": "node",
-    "module": "CommonJS",
-    "target": "ES2020",
-    "skipLibCheck":true,
+    "target": "ES2019",
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
     "alwaysStrict": true,
@@ -18,5 +17,5 @@
     "./ui/**/*",
     "./test/**/*",
     "./build/**/*"
-  ],
+  ]
 }
