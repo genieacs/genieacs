@@ -150,6 +150,7 @@ export interface SessionContext {
   rpcCount: number;
   iteration: number;
   cycle: number;
+  previousAnalyticsRun?: number;
   extensionsCache: any;
   declarations: Declaration[][];
   faults?: { [channel: string]: SessionFault };

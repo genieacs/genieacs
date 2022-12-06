@@ -881,7 +881,7 @@ async function sendAcsRequest(
 
     let analyticsRpcRequest = null
     if(!sessionContext.analyTicsIteationFinished){
-      analyticsRpcRequest = processAnalytics(
+      analyticsRpcRequest = await processAnalytics(
         sessionContext,
       )
     }

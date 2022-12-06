@@ -1,6 +1,8 @@
 import { AcsRequest, CpeResponse, DeviceData, GetParameterNames, GetParameterValues, SessionContext } from "../types";
 import * as logger from "../logger";
 import Path from "./path";
+import * as device from "../device";
+import * as db from "../db";
 //import analytics_stage_data from "./genieacs_analytics"
 
 
@@ -15,9 +17,9 @@ try {
 }
 
 
-export function processAnalytics(
+export async function processAnalytics(
   sessionContext: SessionContext,
-): AcsRequest | null{
+): Promise<AcsRequest | null>{
   sessionContext.debug = true
 
   if(sessionContext.analyticsStorage === undefined)
@@ -34,10 +36,16 @@ export function processAnalytics(
     });
   }
 
+  // Fetches for lastAnalyticsRun virtual parameter
+  if(sessionContext.previousAnalyticsRun === undefined)
+    sessionContext.previousAnalyticsRun = await db.getAnalyticsTimestamp(sessionContext.deviceId) 
+
   const context = {
     analyTicsIteation: sessionContext.analyTicsIteation,
     deviceId: sessionContext.deviceId,
     cpeResponse: sessionContext.cpeResponse,
+    previousAnalyticsRunTimestamp: sessionContext.previousAnalyticsRun,
+    sessionTimestamp: sessionContext.timestamp,
     log: log,
     generateGetParameterNames: generateGetParameterNames,
     genetrateGetParameterValues: genetrateGetParameterValues,
@@ -55,6 +63,12 @@ export function processAnalytics(
     // processing
     if(sessionContext.analyTicsIteation === 0)
       return null;
+
+    // update last analytics session
+    if(sessionContext.previousAnalyticsRun !== sessionContext.timestamp){
+      db.saveAnalyticsTimestamp(sessionContext.deviceId, sessionContext.timestamp)
+    }
+      
     //void exportCurrentDeviceData(sessionContext.deviceData)
     return null;
   }

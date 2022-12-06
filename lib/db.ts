@@ -42,7 +42,9 @@ export let tasksCollection: Collection,
   operationsCollection: Collection,
   permissionsCollection: Collection,
   usersCollection: Collection,
-  configCollection: Collection;
+  configCollection: Collection,
+  analyticsCollection: Collection;
+
 
 let clientPromise: Promise<MongoClient>;
 
@@ -83,6 +85,7 @@ onConnect(async (db) => {
   permissionsCollection = db.collection("permissions");
   usersCollection = db.collection("users");
   configCollection = db.collection("config");
+  analyticsCollection = db.collection("analyticsCollection")
 });
 
 export async function disconnect(): Promise<void> {
@@ -650,6 +653,35 @@ export async function saveOngoingSessionStatus(
   );
 
   return;
+}
+
+export async function saveAnalyticsTimestamp(
+  id: string,
+  timestamp: number,
+  ){
+  
+  const updateValues = {
+    $set: {
+      lastAnalytics: timestamp,
+    }
+  }
+
+  analyticsCollection.updateOne(
+    { _id: id },
+    updateValues,
+    { upsert: true }
+  );
+
+  return;
+}
+
+
+export async function getAnalyticsTimestamp(id: string): Promise<number> {
+  const queryResult = await analyticsCollection.findOne({ _id: id })
+  if(queryResult === null)
+    return null;
+
+  return queryResult["lastAnalytics"]
 }
 
 export async function getFaults(
