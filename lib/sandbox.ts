@@ -304,20 +304,22 @@ function ext(...args: unknown[]): any {
 }
 
 function log(msg: string, meta: Record<string, unknown>): void {
-  if (state.revision === state.maxRevision && state.extCounter >= 0) {
-    const details = Object.assign({}, meta, {
-      sessionContext: state.sessionContext,
-      message: `Script: ${msg}`,
-    });
+  if(logger.LOG_INFO_DATA) {
+    if (state.revision === state.maxRevision && state.extCounter >= 0) {
+      const details = Object.assign({}, meta, {
+        sessionContext: state.sessionContext,
+        message: `Script: ${msg}`,
+      });
 
-    delete details["hostname"];
-    delete details["pid"];
-    delete details["name"];
-    delete details["version"];
-    delete details["deviceId"];
-    delete details["remoteAddress"];
+      delete details["hostname"];
+      delete details["pid"];
+      delete details["name"];
+      delete details["version"];
+      delete details["deviceId"];
+      delete details["remoteAddress"];
 
-    logger.accessInfo(details);
+      logger.accessInfo(details);
+    }
   }
 }
 

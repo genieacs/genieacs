@@ -372,3 +372,5 @@ export function accessStats(details: Record<string, unknown>): void {
   details.severity = "info";
   accessLog(details);
 }
+
+export { LOG_INFO_DATA };
