@@ -215,3 +215,12 @@ UI_JWT_SECRET
   string can be up to 64 characters in length.
 
   Default: unset
+
+ENVIRONMENT
+  Name to differentiate deployment environments. This will be made available in 
+  the sandbox and can be used to make specific branches.
+
+  Default: development
+
+FORWARDED_HEADER
+  Range(s) of IP address that are allowed to set the forwarded HTTP header. (reverse proxys) This is used to extract te remote IP of a provision session for logging and scripting purposes.  

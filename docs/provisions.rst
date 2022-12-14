@@ -136,6 +136,32 @@ debugging. Note that you may see multiple log entries as the script can be
 executed multiple times in a session. See :ref:`this FAQ
 <administration-faq-duplicate-log-entries>`.
 
+``getRequestOriginRemoteAddress()``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Returns the remote address of the CPE (initiator of the current provisioning session). 
+
+This function supports the HTTP forwarded header in the same way that logging does. (FORWARDED_HEADER config should allow the intermediate host) 
+
+It can be used as a security measure. E.g. when there is no individual CPE to ACS authentication the remote address can be matched against the claimed
+address.
+
+``require``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+NodeJS buid-in require function made available in the sandbox. This can be used to load custom helper functions shared accros multiple scripts.
+Make sure that the required module is in the NODE_PATH
+
+Built-in variables
+------------------
+
+``environment``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Value of the ENVIRONMENT config (setable via GENIEAC_ENVIRONMENT system env var).
+Can be used to build portable provisions between various environments. e.g. development, test, staging, production
+
+
 .. _path-format:
 
 Path format

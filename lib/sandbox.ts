@@ -25,6 +25,8 @@ import * as logger from "./logger";
 import * as scheduling from "./scheduling";
 import Path from "./common/path";
 import { Fault, SessionContext, ScriptResult } from "./types";
+import { getRequestOrigin } from "./forwarded";
+import * as config from "./config";
 
 // Used for throwing to exit user script and commit
 const COMMIT = Symbol();
@@ -321,12 +323,19 @@ function log(msg: string, meta: Record<string, unknown>): void {
   }
 }
 
+function getRequestOriginRemoteAddress(): any {
+  return getRequestOrigin(state.sessionContext.httpRequest).remoteAddress;
+}
+
 Object.defineProperty(context, "Date", { value: SandboxDate });
 Object.defineProperty(context, "declare", { value: declare });
 Object.defineProperty(context, "clear", { value: clear });
 Object.defineProperty(context, "commit", { value: commit });
 Object.defineProperty(context, "ext", { value: ext });
 Object.defineProperty(context, "log", { value: log });
+Object.defineProperty(context, "getRequestOriginRemoteAddress", { value: getRequestOriginRemoteAddress});
+Object.defineProperty(context, "environment", { value: config.get("ENVIRONMENT")});
+Object.defineProperty(context, "require", { value: require});
 
 // Monkey-patch Math.random() to make it deterministic
 context.random = random;
