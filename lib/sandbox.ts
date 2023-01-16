@@ -255,6 +255,7 @@ function declare(
   }
 
   for (const [attrName, attrTimestamp] of Object.entries(timestamps)) {
+    if (!(attrTimestamp >= 1)) continue;
     if (attrName === "path") {
       declaration.pathGet = attrTimestamp;
     } else {

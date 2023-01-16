@@ -24,6 +24,7 @@ import { parse } from "../../lib/common/expression-parser";
 import memoize from "../../lib/common/memoize";
 import { getIcon } from "../icons";
 import { evaluateExpression } from "../store";
+import debounce from "../../lib/common/debounce";
 
 const memoizedParse = memoize(parse);
 
@@ -52,6 +53,12 @@ function orderKeysByDepth(device: Record<string, unknown>): string[][] {
 }
 
 const component: ClosureComponent = (): Component => {
+  let queryString: string;
+  const formQueryString = debounce((args: string[]) => {
+    queryString = args[args.length - 1];
+    m.redraw();
+  }, 500);
+
   return {
     view: (vnode) => {
       const device = vnode.attrs["device"];
@@ -62,19 +69,15 @@ const component: ClosureComponent = (): Component => {
         type: "text",
         placeholder: "Search parameters",
         oninput: (e) => {
-          vnode.state["searchString"] = e.target.value;
+          formQueryString(e.target.value);
           e.redraw = false;
-          clearTimeout(vnode.state["timeout"]);
-          vnode.state["timeout"] = setTimeout(m.redraw, 500);
         },
       });
 
       const instanceRegex = /\.[0-9]+$/;
       let re;
-      if (vnode.state["searchString"]) {
-        const keywords = vnode.state["searchString"]
-          .split(" ")
-          .filter((s) => s);
+      if (queryString) {
+        const keywords = queryString.split(" ").filter((s) => s);
         if (keywords.length)
           re = new RegExp(keywords.map((s) => escapeRegExp(s)).join(".*"), "i");
       }

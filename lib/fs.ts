@@ -19,6 +19,7 @@
 
 import * as url from "url";
 import { IncomingMessage, ServerResponse } from "http";
+import { pipeline, Readable } from "stream";
 import { Collection, GridFSBucket } from "mongodb";
 import { onConnect } from "./db";
 import * as logger from "./logger";
@@ -34,21 +35,19 @@ onConnect(async (db) => {
 });
 
 const getFile = memoize(
-  (uploadDate: number, size: number, filename: string): Promise<Buffer> => {
-    return new Promise((resolve, reject) => {
-      const buffer = Buffer.allocUnsafe(size);
-      let i = 0;
-      const downloadStream = filesBucket.openDownloadStreamByName(filename);
-      downloadStream.on("error", reject);
-      downloadStream.on("data", (data: Buffer) => {
-        data.copy(buffer, i);
-        i += data.length;
-      });
-      downloadStream.on("end", () => {
-        if (i !== size) reject(new Error("File size mismatch"));
-        else resolve(buffer);
-      });
-    });
+  async (
+    uploadDate: number,
+    size: number,
+    filename: string
+  ): Promise<Iterable<Buffer>> => {
+    const chunks: Buffer[] = [];
+    const downloadStream = filesBucket.openDownloadStreamByName(filename);
+    for await (const chunk of downloadStream) chunks.push(chunk);
+    // Node 12-14 don't throw error when stream is closed prematurely.
+    // However, we don't need to check for that since we're checking file size.
+    if (size !== chunks.reduce((a, b) => a + b.length, 0))
+      throw new Error("File size mismatch");
+    return chunks;
   }
 );
 
@@ -81,7 +80,7 @@ export async function listener(
     return;
   }
 
-  const buffer = await getFile(
+  const chunks = await getFile(
     file["uploadDate"].getTime(),
     file.length,
     filename
@@ -92,6 +91,9 @@ export async function listener(
     "Content-Length": file.length,
   });
 
-  response.end(buffer);
+  pipeline(Readable.from(chunks), response, () => {
+    // Ignore errors resulting from client disconnecting
+  });
+
   logger.accessInfo(log);
 }

@@ -125,7 +125,7 @@ router.get(`/devices/:id.csv`, async (ctx) => {
       new Date(p.objectTimestamp).toJSON(),
       p.writable,
       new Date(p.writableTimestamp).toJSON(),
-      `"${value.toString().replace(/"/g, '""')}"`,
+      `"${String(value).replace(/"/g, '""')}"`,
       type,
       new Date(p.valueTimestamp).toJSON(),
       p.notification,
@@ -660,6 +660,7 @@ router.post("/devices/:id/tags", async (ctx) => {
 });
 
 router.get("/ping/:host", async (ctx) => {
+  if (!ctx.state.user) return void (ctx.status = 401);
   return new Promise<void>((resolve) => {
     ping(ctx.params.host, (err, parsed) => {
       if (parsed) {

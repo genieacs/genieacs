@@ -380,12 +380,14 @@ async function fetchConfig(): Promise<[Config, UiConfig]> {
 async function refresh(): Promise<void> {
   if (!nextRefresh) {
     await new Promise((resolve) => setTimeout(resolve, 20));
-    await refresh();
-    return;
+    return refresh();
   }
 
-  nextRefresh = 0;
   const now = Date.now();
+
+  if (now < nextRefresh) return;
+
+  nextRefresh = 0;
 
   const dbHash = await cache.get("presets_hash");
 
@@ -394,7 +396,7 @@ async function refresh(): Promise<void> {
     return;
   }
 
-  const lockToken = await cache.acquireLock("presets_hash_lock", 5000, 5000);
+  const lockToken = await cache.acquireLock("presets_hash_lock", 5000);
 
   const res = await Promise.all([
     fetchPresets(),
@@ -427,8 +429,12 @@ async function refresh(): Promise<void> {
 
   currentSnapshot = computeHash(snapshot);
   snapshots.set(currentSnapshot, snapshot);
-  await cache.set("presets_hash", currentSnapshot, 300);
-  await cache.releaseLock("presets_hash_lock", lockToken);
+
+  if (lockToken) {
+    if (currentSnapshot !== dbHash)
+      await cache.set("presets_hash", currentSnapshot, 300);
+    await cache.releaseLock("presets_hash_lock", lockToken);
+  }
 
   nextRefresh = now + (REFRESH - (now % REFRESH));
 }

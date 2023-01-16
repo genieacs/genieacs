@@ -1,5 +1,29 @@
 # Change Log
 
+## 1.2.9 (2022-08-22)
+
+- New config option `cwmp.skipRootGpn` to enable a workaround for some
+  problematic CPEs that reject GPN requests on data model root.
+- Stream query results and CSV downloads as data becomes available instead of
+  buffering the entire response.
+- Log HTTP/HTTPS client errors in debug log.
+- Fix occasional lock expired errors after updating presets, etc.
+- Fix bug where queries containing `<>` operator may return incorrect results.
+- Fix a performance hit caused by DB calls containing the entire CPE data model
+  rather then just the updated parameters.
+- Fix bug where tags containing special characters are saved in their encoded
+  form when set via a Provision script.
+- Fix issue causing invalid `xsd:dateTime` values to be saved in DB as `NaN`
+  rather than maintain the original string value.
+- Fix bug using `$regex` operator with a numeric or a datetime string.
+- Fix ping not working on certain platforms.
+- Ping requests are now authenticated.
+- Fix error when the `FORWARDED_HEADER` environment variable contains IPv4 CIDR
+  while the listening interface is IPv6 and vice versa.
+- Fix false warning "unexpected parameter in response" showing in
+  `genieacs-cwmp` logs.
+- Other minor fixes and stability improvements.
+
 ## 1.2.8 (2021-10-27)
 
 - Fix a remote code execution security vulnerability in genieacs-ui.

@@ -48,7 +48,7 @@ import {
   CpeFault,
 } from "./types";
 import { IncomingMessage, ServerResponse } from "http";
-import { Readable } from "stream";
+import { pipeline, Readable } from "stream";
 import { promisify } from "util";
 import { decode, encodingExists } from "iconv-lite";
 import { parseXmlDeclaration } from "./xml-parser";
@@ -213,12 +213,13 @@ async function writeResponse(
     currentSessions.set(connection, sessionContext);
     if (now >= sessionContext.extendLock) {
       sessionContext.extendLock = now + 10000;
-      await cache.acquireLock(
+      const lockToken = await cache.acquireLock(
         `cwmp_session_${sessionContext.deviceId}`,
         sessionContext.timeout * 1000 + 15000,
         0,
         sessionContext.sessionId
       );
+      if (!lockToken) throw new Error("Failed to extend lock");
     }
   }
 }
@@ -535,7 +536,7 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
               session.configContextCallback(sessionContext, e)
             )
           ),
-      ]);
+      ]) as [string, ...Expression[]][];
       if (blackList[p.channel] === 2) {
         appendProvisionsToFaults[p.channel] = (
           appendProvisionsToFaults[p.channel] || []
@@ -1149,15 +1150,15 @@ async function processRequest(
       }
     }
 
-    try {
-      sessionContext.extendLock = sessionContext.timestamp + 10000;
-      await cache.acquireLock(
-        `cwmp_session_${sessionContext.deviceId}`,
-        sessionContext.timeout * 1000 + 15000,
-        0,
-        sessionContext.sessionId
-      );
-    } catch (err) {
+    sessionContext.extendLock = sessionContext.timestamp + 10000;
+    const lockToken = await cache.acquireLock(
+      `cwmp_session_${sessionContext.deviceId}`,
+      sessionContext.timeout * 1000 + 15000,
+      0,
+      sessionContext.sessionId
+    );
+
+    if (!lockToken) {
       logger.accessError({
         message: "CPE already in session",
         sessionContext: sessionContext,
@@ -1450,10 +1451,14 @@ async function listenerAsync(
   if (httpRequest.headers["content-encoding"]) {
     switch (httpRequest.headers["content-encoding"]) {
       case "gzip":
-        stream = httpRequest.pipe(zlib.createGunzip());
+        stream = pipeline(stream, zlib.createGunzip(), () => {
+          // Errors are also raised by the async iterator
+        });
         break;
       case "deflate":
-        stream = httpRequest.pipe(zlib.createInflate());
+        stream = pipeline(stream, zlib.createInflate(), () => {
+          // Errors are also raised by the async iterator
+        });
         break;
       default:
         httpResponse.writeHead(415, { Connection: "close" });
@@ -1462,34 +1467,17 @@ async function listenerAsync(
     }
   }
 
-  const body = await new Promise<Buffer>((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    let bytes = 0;
+  const chunks: Buffer[] = [];
+  try {
+    for await (const chunk of stream) chunks.push(chunk);
+    // In Node versions prior to 15, the stream will not emit an error if the
+    // connection is closed before the stream is finished.
+    if (!stream.readableEnded) throw new Error("Connection closed");
+  } catch (err) {
+    return;
+  }
 
-    stream.on("data", (chunk) => {
-      chunks.push(chunk);
-      bytes += chunk.length;
-    });
-
-    stream.on("end", () => {
-      const _body = Buffer.allocUnsafe(bytes);
-      let offset = 0;
-      for (const chunk of chunks) {
-        chunk.copy(_body, offset, 0, chunk.length);
-        offset += chunk.length;
-      }
-      resolve(_body);
-    });
-
-    stream.on("error", reject);
-
-    httpRequest.on("aborted", () => {
-      resolve(null);
-    });
-  });
-
-  // Request aborted
-  if (!body) return;
+  const body = Buffer.concat(chunks);
 
   let sessionContext = currentSessions.get(httpRequest.socket);
 

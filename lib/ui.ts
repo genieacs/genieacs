@@ -228,7 +228,7 @@ router.get("/", async (ctx) => {
   if (!Object.keys(localCache.getUsers(ctx.state.configSnapshot)).length)
     wizard = '<script>window.location.hash = "#!/wizard";</script>';
 
-  ctx.body = `
+  ctx.body = `<!DOCTYPE html>
   <html>
     <head>
       <title>GenieACS</title>

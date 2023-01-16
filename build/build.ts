@@ -28,6 +28,7 @@ import commonjs from "@rollup/plugin-commonjs";
 import postcss from "postcss";
 import postcssImport from "postcss-import";
 import postcssPresetEnv from "postcss-preset-env";
+import postcssColorMod from "postcss-color-mod-function";
 import cssnano from "cssnano";
 import { optimize } from "svgo";
 import * as xmlParser from "../lib/xml-parser";
@@ -185,10 +186,10 @@ async function generateCss(): Promise<void> {
       stage: 3,
       features: {
         "nesting-rules": true,
-        "color-mod-function": true,
       },
     }),
-    cssnano,
+    postcssColorMod,
+    ...(MODE === "production" ? [cssnano] : []),
   ]).process(cssIn, { from: cssInPath, to: cssOutPath });
   fs.writeFileSync(cssOutPath, cssOut.css);
 }

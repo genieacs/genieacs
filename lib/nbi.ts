@@ -21,7 +21,7 @@ import * as url from "url";
 import { Collection, GridFSBucket, ObjectId } from "mongodb";
 import * as vm from "vm";
 import * as config from "./config";
-import { onConnect } from "./db";
+import { onConnect, optimizeProjection } from "./db";
 import * as query from "./query";
 import * as apiFunctions from "./api-functions";
 import { IncomingMessage, ServerResponse } from "http";
@@ -821,6 +821,7 @@ export function listener(
         projection = {};
         for (const p of (urlParts.query.projection as string).split(","))
           projection[p.trim()] = 1;
+        projection = optimizeProjection(projection);
       }
 
       const cur = collection.find(q, { projection: projection });
@@ -844,7 +845,7 @@ export function listener(
         cur.sort(sort);
       }
 
-      cur.count((err, total) => {
+      collection.countDocuments(q, (err, total) => {
         if (err) return void throwError(err);
 
         response.writeHead(200, {

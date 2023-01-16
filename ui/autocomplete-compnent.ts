@@ -99,9 +99,9 @@ export default class Autocomplete {
       if (this.visible) this.hide();
       return;
     }
-    this.container.style.left = `${domRect.left + window.pageXOffset}px`;
+    this.container.style.left = `${domRect.left + window.scrollX}px`;
     this.container.style.width = `${domRect.width}px`;
-    this.container.style.top = `${domRect.bottom + window.pageYOffset}px`;
+    this.container.style.top = `${domRect.bottom + window.scrollY}px`;
   }
 
   private hide(): void {

@@ -504,7 +504,7 @@ export async function timeoutOperations(
 export function addProvisions(
   sessionContext: SessionContext,
   channel: string,
-  provisions: (string | number | boolean)[][]
+  provisions: [string, ...Expression[]][]
 ): void {
   // Multiply by two because every iteration is two
   // phases: read and update
@@ -1624,6 +1624,20 @@ function generateGetRpcRequest(
       (a, b) => b.length - a.length
     );
     let path = paths.pop();
+
+    // Skip root GPN workaround
+    if (path && !path.length) {
+      const SKIP_ROOT_GPN = !!localCache.getConfig(
+        sessionContext.cacheSnapshot,
+        "cwmp.skipRootGpn",
+        {},
+        sessionContext.timestamp,
+        (e) => configContextCallback(sessionContext, e)
+      );
+
+      if (SKIP_ROOT_GPN) path = paths.pop();
+    }
+
     while (
       path &&
       path.length &&
