@@ -383,7 +383,10 @@ export default class XmppClient extends EventEmitter {
   }
 
   close(): void {
-    this._socket.end("</stream>");
+    this._socket.end("</stream:stream>");
+    this._socket.removeAllListeners("data");
+    this._socket.removeAllListeners("error");
+    this.emit("close");
   }
 
   ref(): void {
