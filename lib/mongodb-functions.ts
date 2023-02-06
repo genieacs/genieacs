@@ -641,6 +641,14 @@ export function flattenFile(
   return f;
 }
 
+export function flattenUpload(
+  file: Record<string, unknown>
+): Record<string, unknown> {
+  const f = {};
+  f["_id"] = file["_id"];
+  return f;
+}
+
 export function preProcessPreset(
   data: Record<string, unknown>
 ): Record<string, unknown> {

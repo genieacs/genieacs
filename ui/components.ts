@@ -40,6 +40,7 @@ import ping from "./components/ping";
 import deviceLink from "./components/device-link";
 import longTextComponent from "./long-text-component";
 import loading from "./components/loading";
+import deviceUploads from "./components/device-uploads";
 
 const comps = {
   parameter,
@@ -55,6 +56,7 @@ const comps = {
   ping,
   "device-link": deviceLink,
   "long-text": longTextComponent,
+  "device-uploads": deviceUploads,
   loading: loading,
 };
 

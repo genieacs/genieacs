@@ -17,7 +17,7 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MongoClient, ObjectId, Collection, Db } from "mongodb";
+import { MongoClient, ObjectId, Collection, Db, GridFSBucket } from "mongodb";
 import { get } from "./config";
 import { decodeTag, encodeTag, escapeRegExp } from "./common";
 import { parse } from "./common/expression-parser";
@@ -40,10 +40,12 @@ export let tasksCollection: Collection<MongoTypes.Task>,
   virtualParametersCollection: Collection,
   faultsCollection: Collection<MongoTypes.Fault>,
   filesCollection: Collection,
+  uploadsCollection: Collection,
   operationsCollection: Collection<MongoTypes.Operation>,
   permissionsCollection: Collection,
   usersCollection: Collection,
-  configCollection: Collection<MongoTypes.Config>;
+  configCollection: Collection<MongoTypes.Config>,
+  uploadsBucket: GridFSBucket;
 
 let clientPromise: Promise<MongoClient>;
 
@@ -77,6 +79,7 @@ onConnect(async (db) => {
   presetsCollection = db.collection("presets");
   objectsCollection = db.collection("objects");
   filesCollection = db.collection("fs.files");
+  uploadsCollection = db.collection("uploads.files");
   provisionsCollection = db.collection("provisions");
   virtualParametersCollection = db.collection("virtualParameters");
   faultsCollection = db.collection("faults");
@@ -84,6 +87,7 @@ onConnect(async (db) => {
   permissionsCollection = db.collection("permissions");
   usersCollection = db.collection("users");
   configCollection = db.collection("config");
+  uploadsBucket = new GridFSBucket(db, { bucketName: "uploads" });
 });
 
 export async function disconnect(): Promise<void> {
@@ -466,6 +470,16 @@ export async function saveDevice(
 
         break;
       default:
+        if (
+          diff[0].segments[0] === "Uploads" &&
+          diff[0].segments[2] === "LastFileName" &&
+          value1 &&
+          value1 !== value2
+        ) {
+          uploadsBucket.delete(value1 as any, () => {
+            // Ignore error due to mising files
+          });
+        }
         if (!diff[2]) {
           let pathStr = path.toString();
           // Paths with that suffix are encoded and need to be decoded
@@ -715,6 +729,10 @@ export async function getDueTasks(
         fileName: t.fileName,
         targetFileName: t.targetFileName,
       }),
+      ...(t.name === "upload" && {
+        fileType: t.fileType,
+        fileName: t.fileName,
+      }),
       ...(t.name === "addObject" && {
         objectName: t.objectName,
         parameterValues: t.parameterValues,
@@ -866,4 +884,15 @@ interface User {
 
 export async function getUsers(): Promise<User[]> {
   return usersCollection.find().toArray() as unknown as User[];
+}
+
+export async function deleteDeviceUploads(deviceId: string): Promise<void> {
+  const files = await uploadsCollection
+    .find({
+      _id: {
+        $regex: `^${escapeRegExp(deviceId)}\\/`,
+      },
+    })
+    .toArray();
+  await Promise.all(files.map((f) => uploadsBucket.delete(f["_id"])));
 }

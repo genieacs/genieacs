@@ -28,6 +28,7 @@ import { minimize } from "../common/boolean-expression";
 
 const RESOURCE_COLLECTION = {
   files: "fs.files",
+  uploads: "uploads.files"
 };
 
 let db: Db;
@@ -124,6 +125,8 @@ export function query(
           return resolve(docs.map((d) => mongodbFunctions.flattenPreset(d)));
         else if (resource === "files")
           return resolve(docs.map((d) => mongodbFunctions.flattenFile(d)));
+        else if (resource === "uploads")
+          return resolve(docs.map((d) => mongodbFunctions.flattenUpload(d)));
         return resolve(docs);
       });
     } else {
@@ -139,6 +142,8 @@ export function query(
             callback(mongodbFunctions.flattenPreset(doc));
           else if (resource === "files")
             callback(mongodbFunctions.flattenFile(doc));
+          else if (resource === "uploads")
+            callback(mongodbFunctions.flattenUpload(doc));
           else callback(doc);
         },
         (err) => {
@@ -366,6 +371,16 @@ export function deleteFile(filename: string): Promise<void> {
       resolve();
     });
   });
+}
+
+export async function deleteUpload(filename: string): Promise<void> {
+  const bucket = new GridFSBucket(db, { bucketName: "uploads" });
+  await bucket.delete(filename as any);
+}
+
+export function getUploadBlob(filename: string): Readable {
+  const bucket = new GridFSBucket(db, { bucketName: "uploads" });
+  return bucket.openDownloadStreamByName(filename);
 }
 
 export function deleteFault(id: string): Promise<void> {
