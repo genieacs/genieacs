@@ -49,6 +49,7 @@ const RESOURCE_IDS = {
   presets: "_id",
   provisions: "_id",
   files: "_id",
+  uploads: "_id",
   virtualParameters: "_id",
   config: "_id",
   permissions: "_id",
@@ -62,6 +63,7 @@ const resources = {
   presets: 0 | RESOURCE_DELETE | RESOURCE_PUT,
   provisions: 0 | RESOURCE_DELETE | RESOURCE_PUT,
   files: 0 | RESOURCE_DELETE,
+  uploads: 0 | RESOURCE_DELETE,
   virtualParameters: 0 | RESOURCE_DELETE | RESOURCE_PUT,
   config: 0 | RESOURCE_DELETE | RESOURCE_PUT,
   permissions: 0 | RESOURCE_DELETE | RESOURCE_PUT,
@@ -394,7 +396,7 @@ for (const [resource, flags] of Object.entries(resources)) {
   });
 
   if (flags & RESOURCE_DELETE) {
-    router.delete(`/${resource}/:id`, async (ctx) => {
+    router.delete(`/${resource}/:id(.+)`, async (ctx) => {
       const authorizer: Authorizer = ctx.state.authorizer;
       const log = {
         message: `Delete ${resource}`,
@@ -540,6 +542,36 @@ router.put("/files/:id", async (ctx) => {
   logger.accessInfo(log);
 
   ctx.body = "";
+});
+
+router.get("/blob/uploads/:id(.+)", async (ctx) => {
+  const authorizer: Authorizer = ctx.state.authorizer;
+  const resource = "uploads";
+  const id = ctx.params.id;
+
+  const log = {
+    message: `Download ${resource}`,
+    context: ctx,
+    id: id,
+  };
+
+  const filter = and(authorizer.getFilter(resource, 2), [
+    "=",
+    ["PARAM", RESOURCE_IDS[resource]],
+    ctx.params.id,
+  ]);
+
+  if (!authorizer.hasAccess(resource, 2)) {
+    logUnauthorizedWarning(log);
+    return void (ctx.status = 403);
+  }
+
+  const count = await db.count(resource, filter);
+  if (!count) return void (ctx.status = 404);
+
+  logger.accessInfo(log);
+  ctx.body = db.getUploadBlob(id);
+  ctx.attachment(id);
 });
 
 router.post("/devices/:id/tasks", async (ctx) => {

@@ -22,6 +22,7 @@ import { m } from "../components";
 import * as taskQueue from "../task-queue";
 import * as notifications from "../notifications";
 import * as store from "../store";
+import * as overlay from "../overlay";
 
 const component: ClosureComponent = (): Component => {
   return {
@@ -75,6 +76,30 @@ const component: ClosureComponent = (): Component => {
             },
           },
           "Push file"
+        )
+      );
+
+      buttons.push(
+        m(
+          "button.primary",
+          {
+            title: "Fetch files from device",
+            onclick: () => {
+              const deviceId = device["DeviceID.ID"].value[0];
+              overlay.open(() => {
+                const dev = store.fetch("devices", [
+                  "=",
+                  ["PARAM", "DeviceID.ID"],
+                  deviceId,
+                ]);
+                return [
+                  m("h3", `Uploads from ${deviceId}`),
+                  m("device-uploads", { device: dev.value[0] }),
+                ];
+              });
+            },
+          },
+          "Uploads"
         )
       );
 

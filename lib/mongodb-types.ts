@@ -57,6 +57,12 @@ interface TaskDownload extends TaskBase {
   targetFileName?: string;
 }
 
+interface TaskUpload extends TaskBase {
+  name: "upload";
+  fileType: string;
+  fileName: string;
+}
+
 interface TaskAddObject extends TaskBase {
   name: "addObject";
   objectName: string;
@@ -80,6 +86,7 @@ export type Task =
   | TaskReboot
   | TaskFactoryReset
   | TaskDownload
+  | TaskUpload
   | TaskAddObject
   | TaskDeleteObject
   | TaskProvisions;

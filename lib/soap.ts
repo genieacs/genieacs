@@ -45,6 +45,7 @@ import {
   RebootResponse,
   FactoryResetResponse,
   DownloadResponse,
+  UploadResponse,
   GetRPCMethodsRequest,
   RequestDownloadRequest,
   AcsResponse,
@@ -525,6 +526,24 @@ function Download(methodRequest): string {
   )}</FailureURL></cwmp:Download>`;
 }
 
+function Upload(methodRequest): string {
+  return `<cwmp:Upload><CommandKey>${
+    methodRequest.commandKey || ""
+  }</CommandKey><FileType>${methodRequest.fileType}</FileType><URL>${
+    methodRequest.url
+  }</URL><Username>${encodeEntities(
+    methodRequest.username || ""
+  )}</Username><Password>${encodeEntities(
+    methodRequest.password || ""
+  )}</Password><DelaySeconds>${
+    methodRequest.delaySeconds || "0"
+  }</DelaySeconds><SuccessURL>${encodeEntities(
+    methodRequest.successUrl || ""
+  )}</SuccessURL><FailureURL>${encodeEntities(
+    methodRequest.failureUrl || ""
+  )}</FailureURL></cwmp:Upload>`;
+}
+
 function DownloadResponse(xml: Element): DownloadResponse {
   let status: number, startTime: number, completeTime: number;
   for (const c of xml.children) {
@@ -567,6 +586,35 @@ function DownloadResponse(xml: Element): DownloadResponse {
 
   return {
     name: "DownloadResponse",
+    status: status,
+    startTime: startTime,
+    completeTime: completeTime,
+  };
+}
+
+function UploadResponse(xml: Element): UploadResponse {
+  let status: number, startTime: number, completeTime: number;
+  for (const c of xml.children) {
+    switch (c.localName) {
+      case "Status":
+        status = parseInt(c.text);
+        break;
+      case "StartTime":
+        startTime = Date.parse(c.text);
+        break;
+      case "CompleteTime":
+        completeTime = Date.parse(c.text);
+        break;
+    }
+  }
+
+  if (!(status >= 0)) {
+    warnings.push({ message: "Invalid UploadResponse status" });
+    status = 0;
+  }
+
+  return {
+    name: "UploadResponse",
     status: status,
     startTime: startTime,
     completeTime: completeTime,
@@ -968,6 +1016,9 @@ export function request(
     case "DownloadResponse":
       rpc.cpeResponse = DownloadResponse(methodElement);
       break;
+    case "UploadResponse":
+      rpc.cpeResponse = UploadResponse(methodElement);
+      break;
     case "Fault":
       rpc.cpeFault = fault(methodElement);
       break;
@@ -1064,6 +1115,9 @@ export function response(rpc: {
         break;
       case "Download":
         body = Download(rpc.acsRequest);
+        break;
+      case "Upload":
+        body = Upload(rpc.acsRequest);
         break;
       default:
         throw new Error(
