@@ -12,7 +12,7 @@ Install [Node.js](http://nodejs.org/) and [MongoDB](http://www.mongodb.org/).
 Refer to their corresponding documentation for installation instructions. The
 supported versions are:
 
-- Node.js: 12.3+
+- Node.js: 14.0+
 - MongoDB: 3.6+
 
 Install GenieACS from NPM:
