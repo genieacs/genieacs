@@ -65,9 +65,9 @@ export async function connectionRequest(
       ] || {}
     ).value || [""])[0];
   } else {
-    connectionRequestUrl = (device[
-      "Device.ManagementServer.ConnectionRequestURL"
-    ].value || [""])[0];
+    connectionRequestUrl = ((
+      device["Device.ManagementServer.ConnectionRequestURL"] || {}
+    ).value || [""])[0];
     udpConnectionRequestAddress = ((
       device["Device.ManagementServer.UDPConnectionRequestAddress"] || {}
     ).value || [""])[0];
@@ -79,7 +79,20 @@ export async function connectionRequest(
     ).value || [""])[0];
   }
 
-  const remoteAddress = new URL(connectionRequestUrl).hostname;
+  // ANLIX: Some routers have empty connectionRequestUrl
+  // or not present in the tree
+  if(!connectionRequestUrl)
+    return "Empty connectionRequestUrl";
+
+  // ANLIX: Control if URL is valid
+  let URLdata: URL|undefined = undefined;
+  try {
+    URLdata = new URL(connectionRequestUrl);
+  } catch (TypeError) {
+    return "Invalid connectionRequestUrl";
+  }
+
+  const remoteAddress = URLdata.hostname;
 
   const evalCallback = (exp): Expression => {
     if (!Array.isArray(exp)) return exp;
