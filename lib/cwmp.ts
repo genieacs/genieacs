@@ -55,6 +55,7 @@ import { parseXmlDeclaration } from "./xml-parser";
 import * as debug from "./debug";
 import { getRequestOrigin } from "./forwarded";
 import { getSocketEndpoints } from "./server";
+import { allowed } from "./allowed";
 
 const gzipPromisified = promisify(zlib.gzip);
 const deflatePromisified = promisify(zlib.deflate);
@@ -1101,6 +1102,9 @@ async function processRequest(
   parseWarnings: Record<string, unknown>[],
   body: string
 ): Promise<void> {
+  const allowedResult = await allowed(sessionContext);
+  if (!allowedResult) return;
+  
   for (const w of parseWarnings) {
     w.sessionContext = sessionContext;
     logger.accessWarn(w);
