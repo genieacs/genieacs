@@ -1119,7 +1119,16 @@ export async function rpcRequest(
     return rpcRequest(sessionContext, null);
   }
 
-  if (sessionContext.rpcCount >= 255) {
+  const MAX_RPCCOUNT = +localCache.getConfig(
+    sessionContext.cacheSnapshot,
+    "cwmp.maxRpcCount",
+    {},
+    sessionContext.timestamp,
+    (e) => configContextCallback(sessionContext, e)
+  );
+
+
+  if (sessionContext.rpcCount >= MAX_RPCCOUNT) {
     return {
       fault: {
         code: "too_many_rpcs",

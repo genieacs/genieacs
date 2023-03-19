@@ -496,6 +496,7 @@ export function getConfig(
     "cwmp.connectionRequestAllowBasicAuth":
       "CONNECTION_REQUEST_ALLOW_BASIC_AUTH",
     "cwmp.maxCommitIterations": "MAX_COMMIT_ITERATIONS",
+    "cwmp.maxRpcCount": "MAX_RPC_COUNT",
     "cwmp.deviceOnlineThreshold": "DEVICE_ONLINE_THRESHOLD",
     "cwmp.udpConnectionRequestPort": "UDP_CONNECTION_REQUEST_PORT",
   };
