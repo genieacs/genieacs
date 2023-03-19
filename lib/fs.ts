@@ -25,6 +25,7 @@ import { onConnect } from "./db";
 import * as logger from "./logger";
 import { getRequestOrigin } from "./forwarded";
 import memoize from "./common/memoize";
+import { allowedFS } from "./allowed";
 
 let filesCollection: Collection;
 let filesBucket: GridFSBucket;
@@ -55,6 +56,9 @@ export async function listener(
   request: IncomingMessage,
   response: ServerResponse
 ): Promise<void> {
+  const allowedResult = await allowedFS(request, response);
+  if (!allowedResult) return;
+
   if (request.method !== "GET") {
     response.writeHead(405, { Allow: "GET" });
     response.end("405 Method Not Allowed");
