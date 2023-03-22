@@ -100,6 +100,9 @@ const options = {
   MAX_COMMIT_ITERATIONS: { type: "int", default: 32 },
   MAX_RPC_COUNT: { type: "int", default: 256 },
   ALLOW_FROM: { type: "string", default: "all" },
+  AUTH_USERNAME: { type: "string", default: "" },
+  AUTH_PASSWORD: { type: "string", default: "" },
+
   // Should probably never be changed
   DEVICE_ONLINE_THRESHOLD: { type: "int", default: 4000 },
 };

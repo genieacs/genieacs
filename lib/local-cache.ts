@@ -481,7 +481,6 @@ export function getConfig(
 ): string | number | boolean | null {
   const snapshot = snapshots.get(snapshotKey);
   if (!snapshot) throw new Error("Cache snapshot does not exist");
-
   const oldOpts = {
     "cwmp.downloadTimeout": "DOWNLOAD_TIMEOUT",
     "cwmp.debug": "DEBUG",
@@ -525,7 +524,17 @@ export function getConfigExpression(
 ): Expression {
   const snapshot = snapshots.get(snapshotKey);
   if (!snapshot) throw new Error("Cache snapshot does not exist");
-
+  if (key === "cwmp.auth") {
+    const auth_username = config.get("AUTH_USERNAME");
+    const auth_password = config.get("AUTH_PASSWORD");
+    if (
+      typeof auth_username === "string" &&
+      auth_username.trim().length > 0 &&
+      typeof auth_password === "string" &&
+      auth_password.trim().length > 0
+    )
+      return ["FUNC", "AUTH", auth_username, auth_password];
+  }
   return snapshot.config[key];
 }
 
