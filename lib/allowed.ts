@@ -62,7 +62,7 @@ export async function allowed(
 
   logger.accessWarn({
     sessionContext: sessionContext,
-    message: "403 Forbidden, not in out allow list ",
+    message: "403 Forbidden, not in our allow list ",
     parameter: sessionContext.httpRequest.socket.remoteAddress,
   });
 
