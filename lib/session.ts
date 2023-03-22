@@ -1127,7 +1127,6 @@ export async function rpcRequest(
     (e) => configContextCallback(sessionContext, e)
   );
 
-
   if (sessionContext.rpcCount >= MAX_RPCCOUNT) {
     return {
       fault: {
@@ -2702,7 +2701,7 @@ export async function rpcResponse(
     const wildcardParams: Path[] = [root.concat(wildcardPath)];
 
     for (const [path, object, writable] of rpcRes.parameterList) {
-	  if (Ignore(path.toString())) continue;
+      if (Ignore(path.toString())) continue;
       if (
         !path.toString().startsWith(rpcReq.parameterPath) &&
         !(`${path.toString()}.` === rpcReq.parameterPath && !rpcReq.nextLevel)
