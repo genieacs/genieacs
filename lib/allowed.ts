@@ -2,7 +2,9 @@ import * as config from "./config";
 import { SessionContext } from "./types";
 import * as debug from "./debug";
 import { BlockList } from "net";
+import { getRequestOrigin } from "./forwarded";
 import { IncomingMessage, ServerResponse } from "http";
+import * as logger from "./logger";
 
 const ALLOWED = config.get("ALLOW_FROM");
 
@@ -45,7 +47,6 @@ export async function allowed(
   sessionContext: SessionContext
 ): Promise<boolean> {
   if (allowedArray.length === 0) return true;
-
   if (allowedList.check(sessionContext.httpRequest.socket.remoteAddress))
     return true;
   const httpResponse = sessionContext.httpResponse;
@@ -58,6 +59,13 @@ export async function allowed(
   if (sessionContext.debug)
     debug.outgoingHttpResponse(httpResponse, sessionContext.deviceId, body);
   httpResponse.end(body);
+
+  logger.accessWarn({
+    sessionContext: sessionContext,
+    message: "403 Forbidden, not in out allow list ",
+    parameter: sessionContext.httpRequest.socket.remoteAddress,
+  });
+
   return false;
 }
 
@@ -76,5 +84,12 @@ export async function allowedFS(
   httpResponse.setHeader("Content-Length", Buffer.byteLength(body));
   httpResponse.writeHead(403, resHeaders);
   httpResponse.end(body);
+  const log = {
+    message: "Fetch file 403 Forbidden",
+    filename: "",
+    remoteAddress: getRequestOrigin(request).remoteAddress,
+  };
+  logger.accessError(log);
+
   return false;
 }

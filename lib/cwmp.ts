@@ -1104,7 +1104,7 @@ async function processRequest(
 ): Promise<void> {
   const allowedResult = await allowed(sessionContext);
   if (!allowedResult) return;
-  
+
   for (const w of parseWarnings) {
     w.sessionContext = sessionContext;
     logger.accessWarn(w);
