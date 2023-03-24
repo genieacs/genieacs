@@ -25,6 +25,7 @@ import * as logger from "./logger";
 import * as scheduling from "./scheduling";
 import Path from "./common/path";
 import { Fault, SessionContext, ScriptResult } from "./types";
+import { metricsExporter } from "./metrics";
 
 // Used for throwing to exit user script and commit
 const COMMIT = Symbol();
@@ -372,7 +373,8 @@ export async function run(
   sessionContext: SessionContext,
   startRevision: number,
   maxRevision: number,
-  extCounter = 0
+  extCounter = 0,
+  name?:string,
 ): Promise<ScriptResult> {
   state = {
     sessionContext: sessionContext,
@@ -386,6 +388,11 @@ export async function run(
     extCounter: extCounter,
   };
 
+  const endTimer = 
+    metricsExporter.provisionDuration.
+    labels({name:name??'unknown', ext_counter:extCounter})
+    .startTimer()
+  
   for (const n of Object.keys(context)) delete context[n];
 
   Object.assign(context, globals);
@@ -440,6 +447,8 @@ export async function run(
       extCounter - _state.extCounter
     );
   }
+
+  endTimer();
 
   return {
     fault: null,

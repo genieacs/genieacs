@@ -1483,6 +1483,7 @@ async function listenerAsync(
   const body = Buffer.concat(chunks);
 
   let sessionContext = currentSessions.get(httpRequest.socket);
+  const isNewSession = Boolean(!sessionContext && sessionId);
 
   if (sessionContext) {
     currentSessions.delete(httpRequest.socket);
@@ -1524,7 +1525,7 @@ async function listenerAsync(
   const bodyStr = decodeString(body, charset);
 
   if (bodyStr == null) {
-    if (!sessionContext && sessionId) {
+    if (isNewSession) {
       await new Promise((resolve) => setTimeout(resolve, 100));
       const sessionContextString = await cache.pop(`session_${sessionId}`);
       if (sessionContextString) {
@@ -1557,7 +1558,7 @@ async function listenerAsync(
   try {
     rpc = soap.request(bodyStr, parseWarnings);
   } catch (err) {
-    if (!sessionContext && sessionId) {
+    if (isNewSession) {
       await new Promise((resolve) => setTimeout(resolve, 100));
       const sessionContextString = await cache.pop(`session_${sessionId}`);
       if (sessionContextString) {
@@ -1585,7 +1586,7 @@ async function listenerAsync(
     );
   }
 
-  if (!sessionContext && sessionId && rpc.cpeRequest?.name !== "Inform") {
+  if ( isNewSession && rpc.cpeRequest?.name !== "Inform") {
     await new Promise((resolve) => setTimeout(resolve, 100));
     const sessionContextString = await cache.pop(`session_${sessionId}`);
     if (sessionContextString) {

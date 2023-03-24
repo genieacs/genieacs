@@ -644,7 +644,8 @@ async function runProvisions(
         { args: provision.slice(1) },
         sessionContext,
         startRevision,
-        endRevision
+        endRevision,
+        provision[0]
       );
     })
   );
