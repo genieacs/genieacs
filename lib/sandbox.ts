@@ -373,7 +373,7 @@ export async function run(
   sessionContext: SessionContext,
   startRevision: number,
   maxRevision: number,
-  extCounter = 0,
+  extCounter,
   name?:string,
 ): Promise<ScriptResult> {
   state = {
@@ -444,7 +444,8 @@ export async function run(
       sessionContext,
       startRevision,
       maxRevision,
-      extCounter - _state.extCounter
+      extCounter - _state.extCounter,
+      name
     );
   }
 

@@ -1340,6 +1340,7 @@ export function listener(
 ): void {
   
   stats.concurrentRequests += 1;
+  metricsExporter.totalRequests.labels({server:'cwmp'}).inc();
   
   listenerAsync(httpRequest, httpResponse)
     .then(() => {
@@ -1416,7 +1417,6 @@ async function listenerAsync(
   httpRequest: IncomingMessage,
   httpResponse: ServerResponse
 ): Promise<void> {
-  metricsExporter.totalRequests.labels({server:'cwmp'}).inc();
 
   if (httpRequest.method === 'GET' && url.parse(httpRequest.url).pathname === '/metrics' ) {
     httpResponse.write(await promClient.register.metrics());
