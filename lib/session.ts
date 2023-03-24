@@ -696,7 +696,9 @@ async function runVirtualParameters(
         globals,
         sessionContext,
         startRevision,
-        endRevision
+        endRevision,
+        0,
+        provision[0]
       );
 
       if (r.done && !r.fault) {
