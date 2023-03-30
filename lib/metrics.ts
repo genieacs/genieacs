@@ -1,96 +1,96 @@
 import * as promClient from 'prom-client'
 
-type CollectCallback = (()=>void)
+type CollectCallback = (() => void)
 type CallbackEntry = {
-  labels: {[k:string]:string|number},
-  cb: (()=>number)
+  labels: { [k: string]: string | number },
+  cb: (() => number)
 }
 
-const registeredCallbacks : {[metricName:string]:CallbackEntry[]} = {}
+const registeredCallbacks: { [metricName: string]: CallbackEntry[] } = {}
 
 
-function collectorCallback( metricName:string) : CollectCallback {
-  return function() {
+function collectorCallback(metricName: string): CollectCallback {
+  return function () {
     if (registeredCallbacks[metricName] && this instanceof promClient.Gauge) {
-      for (const entry of registeredCallbacks[metricName] )
+      for (const entry of registeredCallbacks[metricName])
         this.labels(entry.labels).set(entry.cb())
     }
   }
 }
-const callbackEntryCreator = function(metricName:string) {
-  return function( entry:CallbackEntry ) : void {
+const callbackEntryCreator = function (metricName: string) {
+  return function (entry: CallbackEntry): void {
     if (!registeredCallbacks[metricName])
       registeredCallbacks[metricName] = []
     registeredCallbacks[metricName].push(entry);
-  } 
-} 
+  }
+}
 
 export const metricsExporter = {
-  socketConnections : new promClient.Gauge({
-    name:'genieacs_socket_connections',
-    help:'Current socket connections active',
-    labelNames: ['server','type']
+  socketConnections: new promClient.Gauge({
+    name: 'genieacs_socket_connections',
+    help: 'Current socket connections active',
+    labelNames: ['server', 'type']
   }),
 
-  sessionInit : new promClient.Gauge({
-    name:'genieacs_session_init',
-    help:'Initiated connection sessions.',
+  sessionInit: new promClient.Gauge({
+    name: 'genieacs_session_init',
+    help: 'Initiated connection sessions.',
     labelNames: ['server']
   }),
 
-  totalConnectionTime : new promClient.Summary({
-    name:'genieacs_total_connection_time',
-    help:'Socket connection times',
+  totalConnectionTime: new promClient.Summary({
+    name: 'genieacs_total_connection_time',
+    help: 'Socket connection times',
     labelNames: ['server'],
     maxAgeSeconds: 300,
     ageBuckets: 5,
-    percentiles: [0.05,0.5,0.95]
+    percentiles: [0.05, 0.5, 0.95]
   }),
 
-  faultRpc : new promClient.Gauge({
-    name:'genieacs_fault_rpc',
-    help:'RPC faults',
+  faultRpc: new promClient.Gauge({
+    name: 'genieacs_fault_rpc',
+    help: 'RPC faults',
   }),
 
-  registeredDevice : new promClient.Gauge({
-    name:'genieacs_registered_devices',
-    help:'Registered devices',
+  registeredDevice: new promClient.Gauge({
+    name: 'genieacs_registered_devices',
+    help: 'Registered devices',
   }),
 
-  totalRequests : new promClient.Gauge({
-    name:'genieacs_total_requests',
-    help:'Total incoming http requests on genieacs',
+  totalRequests: new promClient.Gauge({
+    name: 'genieacs_total_requests',
+    help: 'Total incoming http requests on genieacs',
     labelNames: ['server']
   }),
 
-  droppedRequests : new promClient.Gauge({
-    name:'genieacs_dropped_requests',
-    help:'droppedRequests',
+  droppedRequests: new promClient.Gauge({
+    name: 'genieacs_dropped_requests',
+    help: 'droppedRequests',
     labelNames: ['server']
   }),
 
-  provisionDuration : new promClient.Histogram({
-    name:'genieacs_provision_duration',
-    help:'Provision durations in milliseconds. This can be',
-    labelNames: ['name','ext_counter'],
-    buckets: [0.001,0.01,0.1,1,5],
+  provisionDuration: new promClient.Histogram({
+    name: 'genieacs_provision_duration',
+    help: 'Provision durations in seconds',
+    labelNames: ['name', 'ext_counter'],
+    buckets: [0.001, 0.01, 0.1, 1, 5],
   }),
 
-  extensionDuration : new promClient.Histogram({
-    name:'genieacs_extension_duration',
-    help:'Extension durations in milliseconds',
+  extensionDuration: new promClient.Histogram({
+    name: 'genieacs_extension_duration',
+    help: 'Extension durations in seconds',
     labelNames: ['script_name'],
-    buckets: [0.001,0.01,0.1,1,5],
+    buckets: [0.001, 0.01, 0.1, 1, 5],
   }),
 
   // Below gauge metrics are collected by callbacks.
   // We don't export the metrics, only the callback.
-  concurrentRequestsCB : callbackEntryCreator('concurrentRequests')
+  concurrentRequestsCB: callbackEntryCreator('concurrentRequests')
 }
 
 new promClient.Gauge({
-  name:'genieacs_concurrent_requests',
-  help:'concurrentRequests',
+  name: 'genieacs_concurrent_requests',
+  help: 'concurrentRequests',
   labelNames: ['server'],
   collect: collectorCallback('concurrentRequests'),
 });
