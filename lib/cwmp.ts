@@ -65,11 +65,12 @@ const deflatePromisified = promisify(zlib.deflate);
 const REALM = "GenieACS";
 const MAX_CYCLES = 4;
 const MAX_CONCURRENT_REQUESTS = +config.get("MAX_CONCURRENT_REQUESTS");
+const PROMETHEUS_METRICS = config.get("CWMP_PROMETHEUS_METRICS");
 
 const currentSessions = new WeakMap<Socket, SessionContext>();
 const sessionsNonces = new WeakMap<Socket, string>();
 
-const connectionsInfo = new WeakMap<Socket, {time: number, type: number}>();
+const connectionsInfo = new WeakMap<Socket, { time: number, type: number }>();
 
 const stats = {
   concurrentRequests: 0
@@ -587,7 +588,7 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
     rpc: acsRequest,
   } = await session.rpcRequest(sessionContext, null);
 
-  
+
   if (fault) {
     recordFault(sessionContext, fault);
     session.clearProvisions(sessionContext);
@@ -894,14 +895,14 @@ async function sendAcsRequest(
 
 // When socket closes, store active sessions in cache
 export function onConnection(socket: Socket): void {
-  metricsExporter.socketConnections.labels({server:'cwmp',type:'open'}).inc()
-  connectionsInfo.set(socket, {time: Date.now(), type: 2});
+  metricsExporter.socketConnections.labels({ server: 'cwmp', type: 'open' }).inc()
+  connectionsInfo.set(socket, { time: Date.now(), type: 2 });
 
   socket.on("close", async () => {
-    metricsExporter.socketConnections.labels({server:'cwmp',type:'close'}).inc()
+    metricsExporter.socketConnections.labels({ server: 'cwmp', type: 'close' }).inc()
     const sessionContext = currentSessions.get(socket);
     if (!sessionContext) return;
-    metricsExporter.totalConnectionTime.labels({server:'cwmp'}).observe( Date.now() - sessionContext.timestamp )
+    metricsExporter.totalConnectionTime.labels({ server: 'cwmp' }).observe(Date.now() - sessionContext.timestamp)
     currentSessions.delete(socket);
     if (sessionContext.authState !== 2) {
       logger.accessError({
@@ -1338,10 +1339,10 @@ export function listener(
   httpRequest: IncomingMessage,
   httpResponse: ServerResponse
 ): void {
-  
+
   stats.concurrentRequests += 1;
-  metricsExporter.totalRequests.labels({server:'cwmp'}).inc();
-  
+  metricsExporter.totalRequests.labels({ server: 'cwmp' }).inc();
+
   listenerAsync(httpRequest, httpResponse)
     .then(() => {
       stats.concurrentRequests -= 1;
@@ -1418,8 +1419,11 @@ async function listenerAsync(
   httpResponse: ServerResponse
 ): Promise<void> {
 
-  if (httpRequest.method === 'GET' && url.parse(httpRequest.url).pathname === '/metrics' ) {
-    httpResponse.write(await promClient.register.metrics());
+  if (httpRequest.method === 'GET' && url.parse(httpRequest.url).pathname === '/metrics') {
+    if (PROMETHEUS_METRICS)
+      httpResponse.write(await promClient.register.metrics());
+    else
+      httpResponse.write('# Metrics not enabled\nup 1');
     httpResponse.end();
     return;
   } else if (httpRequest.method !== "POST") {
@@ -1446,7 +1450,7 @@ async function listenerAsync(
       Connection: "close",
     });
     httpResponse.end("503 Service Unavailable");
-    metricsExporter.droppedRequests.labels({server:'cwmp'}).inc()
+    metricsExporter.droppedRequests.labels({ server: 'cwmp' }).inc()
     return;
   }
 
@@ -1586,7 +1590,7 @@ async function listenerAsync(
     );
   }
 
-  if ( isNewSession && rpc.cpeRequest?.name !== "Inform") {
+  if (isNewSession && rpc.cpeRequest?.name !== "Inform") {
     await new Promise((resolve) => setTimeout(resolve, 100));
     const sessionContextString = await cache.pop(`session_${sessionId}`);
     if (sessionContextString) {
@@ -1624,14 +1628,14 @@ async function listenerAsync(
     // from the previous session
     httpResponse.writeHead(503, { "Retry-after": 60, Connection: "close" });
     httpResponse.end("503 Service Unavailable");
-    metricsExporter.droppedRequests.labels({server:'cwmp'}).inc()
+    metricsExporter.droppedRequests.labels({ server: 'cwmp' }).inc()
     return;
   }
 
   const deviceId = common.generateDeviceId(rpc.cpeRequest.deviceId);
   const cacheSnapshot = await localCache.getCurrentSnapshot();
 
-  metricsExporter.sessionInit.labels({server:'cwmp'}).inc();
+  metricsExporter.sessionInit.labels({ server: 'cwmp' }).inc();
   const _sessionContext = session.init(
     deviceId,
     rpc.cwmpVersion,
@@ -1690,6 +1694,6 @@ async function listenerAsync(
 }
 
 metricsExporter.concurrentRequestsCB({
-  labels: {server:'cwmp'},
-  cb: ()=>stats.concurrentRequests
+  labels: { server: 'cwmp' },
+  cb: () => stats.concurrentRequests
 })
