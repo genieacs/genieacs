@@ -33,6 +33,7 @@
     "mongodb": "^4.9.0",
     "parsimmon": "^1.18.1",
     "prom-client": "^14.2.0",
+    "redis": "^4.6.5",
     "seedrandom": "^3.0.5"
   },
   "devDependencies": {
