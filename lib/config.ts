@@ -30,6 +30,8 @@ while (!existsSync(`${ROOT_DIR}/package.json`)) {
   }
   ROOT_DIR = d;
 }
+if (!ROOT_DIR.endsWith('/dist')) 
+  ROOT_DIR = resolve(ROOT_DIR,'dist');
 
 // For compatibility with v1.1
 let configDir, cwmpSsl, nbiSsl, fsSsl, uiSsl, fsHostname;
