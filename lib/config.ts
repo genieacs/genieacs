@@ -38,9 +38,15 @@ let configDir, cwmpSsl, nbiSsl, fsSsl, uiSsl, fsHostname;
 
 const options = {
   EXT_DIR: { type: "path", default: resolve(ROOT_DIR, "config/ext") },
+  
   MONGODB_CONNECTION_URL: {
     type: "string",
     default: "mongodb://127.0.0.1/genieacs",
+  },
+  
+  REDIS_CONNECTION_URL: {
+    type: "string",
+    default: "redis://127.0.0.1:6379",
   },
 
   CWMP_WORKER_PROCESSES: { type: "int", default: 0 },
