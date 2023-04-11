@@ -23,7 +23,7 @@ import * as config from "./config";
 import { Fault } from "./types";
 import { ROOT_DIR } from "./config";
 import * as logger from "./logger";
-import readline from "readline";
+import * as readline from "readline";
 import { metricsExporter } from "./metrics";
 
 const TIMEOUT = +config.get("EXT_TIMEOUT");
