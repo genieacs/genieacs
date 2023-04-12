@@ -602,6 +602,8 @@ async function runProvisions(
 ): Promise<ScriptResult> {
   const allProvisions = localCache.getProvisions(sessionContext.cacheSnapshot);
 
+  if (sessionContext.skipProvision) provisions = [];
+
   const res = await Promise.all(
     provisions.map(async (provision) => {
       if (!allProvisions[provision[0]]) {

@@ -49,6 +49,7 @@ const options = {
     default: "redis://127.0.0.1:6379",
   },
 
+  CWMP_FLASHMAN_URL: { type: "string", default: "http://localhost:8000"},
   CWMP_WORKER_PROCESSES: { type: "int", default: 0 },
   CWMP_PORT: { type: "int", default: 7547 },
   CWMP_INTERFACE: { type: "string", default: "::" },
