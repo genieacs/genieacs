@@ -32,6 +32,7 @@
     "koa-static": "^5.0.0",
     "mongodb": "^4.9.0",
     "parsimmon": "^1.18.1",
+    "prom-client": "^14.2.0",
     "seedrandom": "^3.0.5"
   },
   "devDependencies": {
