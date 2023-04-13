@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-var-requires */
 /**
  * Copyright 2013-2019  GenieACS Inc.
  *
@@ -17,7 +18,7 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import parsimmon from "parsimmon";
+import * as parsimmon from 'parsimmon'
 import { Expression } from "../types";
 
 // Turn escaped characters into real ones (e.g. "\\n" becomes "\n").
