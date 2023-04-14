@@ -30,6 +30,8 @@ while (!existsSync(`${ROOT_DIR}/package.json`)) {
   }
   ROOT_DIR = d;
 }
+if (!ROOT_DIR.endsWith('/dist')) 
+  ROOT_DIR = resolve(ROOT_DIR,'dist');
 
 // For compatibility with v1.1
 let configDir, cwmpSsl, nbiSsl, fsSsl, uiSsl, fsHostname;
@@ -47,6 +49,7 @@ const options = {
     default: "redis://127.0.0.1:6379",
   },
 
+  CWMP_FLASHMAN_URL: { type: "string", default: "http://localhost:8000"},
   CWMP_WORKER_PROCESSES: { type: "int", default: 0 },
   CWMP_PORT: { type: "int", default: 7547 },
   CWMP_INTERFACE: { type: "string", default: "::" },

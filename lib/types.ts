@@ -154,6 +154,7 @@ export interface SessionContext {
   httpRequest?: IncomingMessage;
   faultsTouched?: { [channel: string]: boolean };
   presetCycles?: number;
+  skipProvision?: boolean;
   new?: boolean;
   debug?: boolean;
   state: number;

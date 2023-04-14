@@ -58,6 +58,7 @@ import * as debug from "./debug";
 import { getRequestOrigin } from "./forwarded";
 import { getSocketEndpoints } from "./server";
 import { metricsExporter } from "./metrics";
+import { sendFlashmanInformRequest } from './flashman'
 
 const gzipPromisified = promisify(zlib.gzip);
 const deflatePromisified = promisify(zlib.deflate);
@@ -1104,6 +1105,7 @@ async function processRequest(
     logger.accessWarn(w);
   }
 
+  // This is the inform request of this session
   if (sessionContext.state === 0) {
     if (rpc.cpeRequest?.name !== "Inform")
       return reportBadState(sessionContext);
@@ -1330,7 +1332,7 @@ async function processRequest(
         operations[i].channels
       );
     }
-
+    // task flow - gonna search for something else to do
     return nextRpc(sessionContext);
   }
 }
@@ -1690,6 +1692,27 @@ async function listenerAsync(
     _sessionContext.new = true;
   }
 
+  const periodicOnly 
+    = rpc.cpeRequest != null
+    && rpc.cpeRequest.event.length===1
+    && rpc.cpeRequest.event[0]==='2 PERIODIC';
+  
+  if (periodicOnly) {    
+    const flashmanResponse 
+      = await sendFlashmanInformRequest(rpc, parameters)
+      .catch((reason) => {
+        logger.error({
+          message: reason,
+        })
+        return {
+          success: false,
+          measure: false,
+        }
+      });
+      _sessionContext.skipProvision 
+        = (flashmanResponse.success && !flashmanResponse.measure);
+  }
+  
   return processRequest(_sessionContext, rpc, parseWarnings, bodyStr);
 }
 
