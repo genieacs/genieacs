@@ -75,7 +75,12 @@ Configure systemd
     GENIEACS_DEBUG_FILE=/var/log/genieacs/genieacs-debug.yaml
     NODE_OPTIONS=--enable-source-maps
     GENIEACS_EXT_DIR=/opt/genieacs/ext
-    GENIEACS_UI_JWT_SECRET=secret
+
+  Generate a secure JWT secret and append to :file:`/opt/genieacs/genieacs.env`:
+
+  .. code:: bash
+
+    node -e "console.log(\"GENIEACS_UI_JWT_SECRET=\" + require('crypto').randomBytes(128).toString('hex'))" >> /opt/genieacs/genieacs.env
   
   Set file ownership and permissions:
 
