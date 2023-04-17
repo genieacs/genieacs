@@ -602,7 +602,8 @@ async function runProvisions(
 ): Promise<ScriptResult> {
   const allProvisions = localCache.getProvisions(sessionContext.cacheSnapshot);
 
-  if (sessionContext.skipProvision) provisions = [];
+  if (sessionContext.skipProvision)
+    provisions = provisions.filter((arr)=>arr[0]!=='flashman');
 
   const res = await Promise.all(
     provisions.map(async (provision) => {
