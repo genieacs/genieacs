@@ -67,6 +67,7 @@ const REALM = "GenieACS";
 const MAX_CYCLES = 4;
 const MAX_CONCURRENT_REQUESTS = +config.get("MAX_CONCURRENT_REQUESTS");
 const PROMETHEUS_METRICS = config.get("CWMP_PROMETHEUS_METRICS");
+const SKIP_FLASHMAN_INFORM = config.get("SKIP_FLASHMAN_INFORM");
 
 const currentSessions = new WeakMap<Socket, SessionContext>();
 const sessionsNonces = new WeakMap<Socket, string>();
@@ -1692,13 +1693,14 @@ async function listenerAsync(
     _sessionContext.new = true;
   }
 
-  const periodicOnly 
-    = rpc.cpeRequest != null
-    && rpc.cpeRequest.event.length===1
-    && rpc.cpeRequest.event[0]==='2 PERIODIC';
   
-  if (periodicOnly) {    
-    const flashmanResponse 
+  if ( SKIP_FLASHMAN_INFORM) {    
+    const periodicOnly 
+      = rpc.cpeRequest != null
+      && rpc.cpeRequest.event.length===1
+      && rpc.cpeRequest.event[0]==='2 PERIODIC';
+    if (periodicOnly) {
+      const flashmanResponse 
       = await sendFlashmanInformRequest(rpc, parameters)
       .catch((reason) => {
         logger.error({
@@ -1711,6 +1713,7 @@ async function listenerAsync(
       });
       _sessionContext.skipProvision 
         = (flashmanResponse.success && !flashmanResponse.measure);
+    }
   }
   
   return processRequest(_sessionContext, rpc, parseWarnings, bodyStr);

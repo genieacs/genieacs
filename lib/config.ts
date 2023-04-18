@@ -110,6 +110,7 @@ const options = {
   MAX_COMMIT_ITERATIONS: { type: "int", default: 32 },
   LOG_INFO: { type: "string", default: "info" },
   LOG_STATS: { type: "bool", default: false },
+  SKIP_FLASHMAN_INFORM: { type: "bool", default: true },
 
   // Should probably never be changed
   DEVICE_ONLINE_THRESHOLD: { type: "int", default: 4000 },

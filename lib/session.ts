@@ -17,6 +17,7 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import * as config from "./config";
 import * as device from "./device";
 import * as sandbox from "./sandbox";
 import * as localCache from "./local-cache";
@@ -535,6 +536,11 @@ export function addProvisions(
     sessionContext.iteration = sessionContext.cycle * MAX_ITERATIONS;
   }
 
+  if (sessionContext.skipProvision) {
+    logger.accessInfo({msg:'Skipping flashman provision'});
+    provisions = provisions.filter((arr)=>arr[0]!=='flashman');
+  } 
+
   sessionContext.channels[channel] |= 0;
 
   for (const provision of provisions) {
@@ -601,9 +607,6 @@ async function runProvisions(
   endRevision: number
 ): Promise<ScriptResult> {
   const allProvisions = localCache.getProvisions(sessionContext.cacheSnapshot);
-
-  if (sessionContext.skipProvision)
-    provisions = provisions.filter((arr)=>arr[0]!=='flashman');
 
   const res = await Promise.all(
     provisions.map(async (provision) => {
