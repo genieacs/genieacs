@@ -19,7 +19,7 @@
 
 import * as url from "url";
 import { IncomingMessage, ServerResponse } from "http";
-import { pipeline, Readable } from "stream";
+import { PassThrough, pipeline, Readable } from "stream";
 import { Collection, GridFSBucket } from "mongodb";
 import { onConnect } from "./db";
 import * as logger from "./logger";
@@ -41,7 +41,16 @@ const getFile = memoize(
     filename: string
   ): Promise<Iterable<Buffer>> => {
     const chunks: Buffer[] = [];
-    const downloadStream = filesBucket.openDownloadStreamByName(filename);
+    // Using for-await over the download stream can throw ERR_STREAM_PREMATURE_CLOSE
+    // for very small files. Possibly a bug in MongoDB driver or Nodejs itself.
+    // Using a PassThrough stream to avoid this.
+    const downloadStream = pipeline(
+      filesBucket.openDownloadStreamByName(filename),
+      new PassThrough(),
+      (err) => {
+        if (err) throw err;
+      }
+    );
     for await (const chunk of downloadStream) chunks.push(chunk);
     // Node 12-14 don't throw error when stream is closed prematurely.
     // However, we don't need to check for that since we're checking file size.
