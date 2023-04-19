@@ -536,11 +536,6 @@ export function addProvisions(
     sessionContext.iteration = sessionContext.cycle * MAX_ITERATIONS;
   }
 
-  if (sessionContext.skipProvision) {
-    logger.accessInfo({msg:'Skipping flashman provision'});
-    provisions = provisions.filter((arr)=>arr[0]!=='flashman');
-  } 
-
   sessionContext.channels[channel] |= 0;
 
   for (const provision of provisions) {
@@ -644,16 +639,25 @@ async function runProvisions(
         }
         return null;
       }
-
-      return sandbox.run(
-        allProvisions[provision[0]].script,
-        { args: provision.slice(1) },
-        sessionContext,
-        startRevision,
-        endRevision,
-        0,
-        provision[0]
-      );
+      if (sessionContext.skipProvision && provision[0]==='flashman') {
+        return {
+          fault: null,
+          clear: [],
+          declare: [],
+          done: true,
+          returnValue: undefined,
+        }
+      } else {
+        return sandbox.run(
+          allProvisions[provision[0]].script,
+          { args: provision.slice(1) },
+          sessionContext,
+          startRevision,
+          endRevision,
+          0,
+          provision[0]
+        );
+      }
     })
   );
 

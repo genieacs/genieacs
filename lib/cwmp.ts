@@ -1711,8 +1711,14 @@ async function listenerAsync(
           measure: false,
         }
       });
-      _sessionContext.skipProvision 
-        = (flashmanResponse.success && !flashmanResponse.measure);
+      if (flashmanResponse.success && !flashmanResponse.measure) {
+        _sessionContext.skipProvision = true;
+        logger.accessInfo({
+          sessionContext: _sessionContext,
+          message:'Skipping flashman provision',
+          rpc: rpc,
+        });
+      }
     }
   }
   
