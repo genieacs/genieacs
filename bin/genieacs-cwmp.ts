@@ -30,6 +30,7 @@ logger.init("cwmp", VERSION);
 
 const SERVICE_ADDRESS = config.get("CWMP_INTERFACE") as string;
 const SERVICE_PORT = config.get("CWMP_PORT") as number;
+const SERVICE_SSL_PORT = config.get("CWMP_SSL_PORT") as number;
 
 function exitWorkerGracefully(): void {
   setTimeout(exitWorkerUngracefully, 5000).unref();
@@ -56,6 +57,7 @@ if (!cluster.worker) {
   });
 
   cluster.start(WORKER_COUNT, SERVICE_PORT, SERVICE_ADDRESS);
+  cluster.start(WORKER_COUNT, SERVICE_SSL_PORT, SERVICE_ADDRESS);
 
   process.on("SIGINT", () => {
     logger.info({
@@ -80,6 +82,16 @@ if (!cluster.worker) {
 
   const options = {
     port: SERVICE_PORT,
+    host: SERVICE_ADDRESS,
+    ssl: null,
+    onConnection: cwmp.onConnection,
+    onClientError: cwmp.onClientError,
+    timeout: 30000,
+    keepAliveTimeout: 0,
+  };
+
+  const optionsSsl = {
+    port: SERVICE_SSL_PORT,
     host: SERVICE_ADDRESS,
     ssl: key && cert ? { key, cert } : null,
     onConnection: cwmp.onConnection,
@@ -109,14 +121,36 @@ if (!cluster.worker) {
       });
     });
 
+  const initPromiseSsl = db
+      .connect()
+      .then(() => {
+        server.start(optionsSsl, cwmp.listener);
+      })
+      .catch((err) => {
+        logger.info({
+          message: `initPromiseSsl err = ${JSON.stringify(err)}`,
+          pid: process.pid,
+          version: VERSION,
+        });
+        setTimeout(() => {
+          throw err;
+        });
+      });
+
   process.on("SIGINT", () => {
     initPromise.finally(() => {
+      server.stop().then(exitWorkerGracefully).catch(exitWorkerUngracefully);
+    });
+    initPromiseSsl.finally(() => {
       server.stop().then(exitWorkerGracefully).catch(exitWorkerUngracefully);
     });
   });
 
   process.on("SIGTERM", () => {
     initPromise.finally(() => {
+      server.stop().then(exitWorkerGracefully).catch(exitWorkerUngracefully);
+    });
+    initPromiseSsl.finally(() => {
       server.stop().then(exitWorkerGracefully).catch(exitWorkerUngracefully);
     });
   });

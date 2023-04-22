@@ -44,6 +44,7 @@ const options = {
   CWMP_WORKER_PROCESSES: { type: "int", default: 0 },
   CWMP_PORT: { type: "int", default: 7547 },
   CWMP_INTERFACE: { type: "string", default: "::" },
+  CWMP_SSL_PORT: { type: "int", default: 7546 },
   CWMP_SSL_CERT: { type: "string", default: "" },
   CWMP_SSL_KEY: { type: "string", default: "" },
   CWMP_LOG_FILE: { type: "path", default: "" },
