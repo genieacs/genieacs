@@ -46,6 +46,7 @@ const PROVISIONS_REGEX = /^\/provisions\/([a-zA-Z0-9\-_%]+)\/?$/;
 const VIRTUAL_PARAMETERS_REGEX =
   /^\/virtual_parameters\/([a-zA-Z0-9\-_%]+)\/?$/;
 const FAULTS_REGEX = /^\/faults\/([a-zA-Z0-9\-_%:]+)\/?$/;
+const NBI_AUTHENTICATION_KEY = config.get("NBI_AUTHENTICATION_KEY");
 
 const collections: Record<string, Collection> = {
   tasks: null as Collection,
@@ -103,6 +104,21 @@ export function listener(
     const body = getBody();
     const urlParts = url.parse(request.url, true);
     const socketEndpoints = getSocketEndpoints(request.socket);
+
+    if (
+      NBI_AUTHENTICATION_KEY !== "" &&
+      request.headers["x-api-key"] !== NBI_AUTHENTICATION_KEY
+    ) {
+      logger.accessInfo(
+        Object.assign({}, urlParts.query, {
+          remoteAddress: socketEndpoints.remoteAddress,
+          message: `${request.method} ${urlParts.pathname} - denied (incorrect authentication key)`,
+        })
+      );
+      response.writeHead(401);
+      response.end("401 Unauthorized");
+      return;
+    }
 
     logger.accessInfo(
       Object.assign({}, urlParts.query, {
