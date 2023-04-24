@@ -28,16 +28,16 @@ const redisClient = redis.createClient({
 
 
 redisClient.connect()
-.then(()=>{
-  logger.info({
-    message:'Connected to redis server'
+  .then(() => {
+    logger.info({
+      message: 'Connected to redis server'
+    })
   })
-})
-.catch((reason) => {
-  logger.error({
-    message: reason
-  })
-});
+  .catch((reason) => {
+    logger.error({
+      message: reason
+    })
+  });
 
 
 const CLOCK_SKEW_TOLERANCE = 30000;
@@ -68,7 +68,7 @@ export async function set(
   await redisClient
     .multi()
     .set(key, value)
-    .expire(key, ttl_s + CLOCK_SKEW_TOLERANCE/1000)
+    .expire(key, ttl_s + CLOCK_SKEW_TOLERANCE / 1000)
     .exec()
 }
 
@@ -82,20 +82,19 @@ export async function acquireLock(
   timeout = 0,
   token = Math.random().toString(36).slice(2)
 ): Promise<string> {
-  const key = `${lockName}@${token}`;
-  let exists = ((await redisClient.exists(key)) === 1)
-  
-  while (exists && timeout>0 ) {
+  let exists = ((await redisClient.exists(lockName)) === 1)
+
+  while (exists && timeout > 0) {
     const t = Date.now();
     const w = 50 + Math.random() * 50;
     await new Promise((resolve) => setTimeout(resolve, w));
-    exists = ((await redisClient.exists(key)) === 1);
+    exists = ((await redisClient.exists(lockName)) === 1);
     timeout -= (Date.now() - t);
   }
 
   if (!(timeout >= 0)) return null;
 
-  await set(key, token, Math.ceil(ttl_ms/1000) )
+  await set(lockName, token, Math.ceil(ttl_ms / 1000))
 
   return token;
 }
@@ -104,7 +103,9 @@ export async function releaseLock(
   lockName: string,
   token: string
 ): Promise<void> {
-  const key = `${lockName}@${token}`;
-  const deletedCount = await redisClient.del(key);
-  if (deletedCount !== 1) throw new Error(`Lock ${key} expired`);
+  const currentToken = await redisClient.get(lockName);
+  let deletedCount = 0;
+  if (currentToken === token)
+    deletedCount = await redisClient.del(lockName);
+  if (deletedCount !== 1) throw new Error(`Lock ${lockName} expired`);
 }
