@@ -1694,7 +1694,7 @@ async function listenerAsync(
   }
 
   
-  if ( SKIP_FLASHMAN_INFORM) {    
+  if ( SKIP_FLASHMAN_INFORM && parameters ) {    
     const periodicOnly 
       = rpc.cpeRequest != null
       && rpc.cpeRequest.event.length===1
