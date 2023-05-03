@@ -92,7 +92,7 @@ export async function acquireLock(
     timeout -= (Date.now() - t);
   }
 
-  if (!(timeout > 0)) return null;
+  if (exists && !(timeout > 0)) return null;
 
   await set(lockName, token, Math.ceil(ttl_ms / 1000))
 
