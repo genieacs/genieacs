@@ -82,18 +82,19 @@ export async function acquireLock(
   timeout = 0,
   token = Math.random().toString(36).slice(2)
 ): Promise<string> {
-  let exists = ((await redisClient.exists(lockName)) === 1)
-
-  while (exists && timeout > 0) {
-    const t = Date.now();
-    const w = 50 + Math.random() * 50;
-    await new Promise((resolve) => setTimeout(resolve, w));
-    exists = ((await redisClient.exists(lockName)) === 1);
-    timeout -= (Date.now() - t);
+  let currentToken = await redisClient.get(lockName);
+  
+  while (currentToken && currentToken!==token) {
+    if (timeout>0){
+      const t = Date.now();
+      const w = 50 + Math.random() * 50;
+      await new Promise((resolve) => setTimeout(resolve, w));
+      currentToken = await redisClient.get(lockName);
+      timeout -= (Date.now() - t);
+    } else {
+      return null;
+    }
   }
-
-  if (exists && !(timeout > 0)) return null;
-
   await set(lockName, token, Math.ceil(ttl_ms / 1000))
 
   return token;
