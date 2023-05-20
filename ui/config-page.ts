@@ -297,6 +297,7 @@ export const component: ClosureComponent = (): Component => {
           { name: "filters", prefix: "ui.filters.", data: [] },
           { name: "index page", prefix: "ui.index.", data: [] },
           { name: "device page", prefix: "ui.device.", data: [] },
+          { name: "device tab page", prefix: "ui.deviceTabs.", data: [] },
         ];
 
         if (confs.fulfilled) {
