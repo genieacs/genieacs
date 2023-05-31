@@ -1625,7 +1625,43 @@ async function listenerAsync(
   }
 
   stats.initiatedSessions += 1;
-  const deviceId = common.generateDeviceId(rpc.cpeRequest.deviceId);
+  // Verifying SerialNumber against invalid values and using alternatives
+  let altSerialValue = '';
+  if (rpc.cpeRequest.deviceId["SerialNumber"] == "AABBCCDDEEFF") {
+    const keyStr =
+    'InternetGatewayDevice.LANDevice.1.LANEthernetInterfaceConfig.1.MACAddress';
+    let altSerialFound = false;
+
+    for (const p of rpc.cpeRequest.parameterList) {
+      if (p[0] && p[0]['_string']) {
+        if (p[0]['_string'] == keyStr) {
+          altSerialFound = true;
+          altSerialValue = <string> p[1];
+          break;
+        }
+      }
+    }
+
+    if (!altSerialFound) {
+      logger.accessError({
+        message: "Invalid serial number",
+        sessionContext: {
+          httpRequest: httpRequest,
+          httpResponse: httpResponse,
+        },
+      });
+
+      return clientError(
+        httpRequest,
+        httpResponse,
+        null,
+        bodyStr,
+        "Invalid serial number"
+      );
+    }
+  }
+  const deviceId = common.generateDeviceId(rpc.cpeRequest.deviceId,
+    altSerialValue);
 
   const cacheSnapshot = await localCache.getCurrentSnapshot();
 
