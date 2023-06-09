@@ -96,6 +96,8 @@ let warnings: Record<string, unknown>[];
 const memoizedParseAttrs = memoize(parseAttrs);
 
 function parseBool(v: string): boolean {
+  // Some CPEs return "TRUE" or "FALSE"
+  v = v.toLowerCase();
   if (v === "true" || v === "1") return true;
   if (v === "false" || v === "0") return false;
   return null;
