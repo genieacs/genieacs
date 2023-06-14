@@ -64,8 +64,8 @@ export async function listener(
   request: IncomingMessage,
   response: ServerResponse
 ): Promise<void> {
-  if (request.method !== "GET") {
-    response.writeHead(405, { Allow: "GET" });
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    response.writeHead(405, { Allow: "GET, HEAD" });
     response.end("405 Method Not Allowed");
     return;
   }
@@ -74,7 +74,7 @@ export async function listener(
   const filename = decodeURIComponent(urlParts.pathname.substring(1));
 
   const log = {
-    message: "Fetch file",
+    message: "Fetch file (" + request.method + ")",
     filename: filename,
     remoteAddress: getRequestOrigin(request).remoteAddress,
   };
