@@ -62,8 +62,8 @@ export async function listener(
   request: IncomingMessage,
   response: ServerResponse
 ): Promise<void> {
-  if (request.method !== "GET") {
-    response.writeHead(405, { Allow: "GET" });
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    response.writeHead(405, { Allow: "GET, HEAD" });
     response.end("405 Method Not Allowed");
     return;
   }
@@ -75,6 +75,7 @@ export async function listener(
     message: "Fetch file",
     filename: filename,
     remoteAddress: getRequestOrigin(request).remoteAddress,
+    method: request.method,
   };
 
   const file = await collections.files.findOne({ _id: filename });
@@ -87,20 +88,25 @@ export async function listener(
     return;
   }
 
+  response.writeHead(200, {
+    "Content-Type": "application/octet-stream",
+    "Content-Length": file.length,
+  });
+
+  logger.accessInfo(log);
+
+  if (request.method === "HEAD") {
+    response.end();
+    return;
+  }
+
   const chunks = await getFile(
     file["uploadDate"].getTime(),
     file.length,
     filename
   );
 
-  response.writeHead(200, {
-    "Content-Type": "application/octet-stream",
-    "Content-Length": file.length,
-  });
-
   pipeline(Readable.from(chunks), response, () => {
     // Ignore errors resulting from client disconnecting
   });
-
-  logger.accessInfo(log);
 }
