@@ -1631,14 +1631,14 @@ async function listenerAsync(
   stats.initiatedSessions += 1;
   // Verifying SerialNumber against invalid values and using alternatives
   let altSerialValue = '';
-  if (rpc.cpeRequest.deviceId["SerialNumber"] == "AABBCCDDEEFF") {
+  if (rpc.cpeRequest.deviceId["SerialNumber"] === "AABBCCDDEEFF") {
     const keyStr =
     'InternetGatewayDevice.LANDevice.1.LANEthernetInterfaceConfig.1.MACAddress';
     let altSerialFound = false;
 
     for (const p of rpc.cpeRequest.parameterList) {
       if (p[0] && p[0]['_string']) {
-        if (p[0]['_string'] == keyStr) {
+        if (p[0]['_string'] === keyStr) {
           altSerialFound = true;
           altSerialValue = <string> p[1];
           break;
