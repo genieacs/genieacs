@@ -93,11 +93,17 @@ export function value(
   )
     throw new Error("Invalid arguments");
 
-  let attr: string, val: any;
+  let attr: string, val: any, mandatory = false;
 
-  if (provision.length === 3) {
+  // Test against the default task, with three arguments or with four arguments
+  // that brings the mandatory flag.
+  if (
+    provision.length === 3 ||
+    (provision.length === 4 && provision[0] === "value")
+  ) {
     attr = "value";
     val = provision[2];
+    mandatory = (provision[3] && provision[3] === true);
   } else {
     attr = (provision[2] as string) || "";
     val = provision[3];
@@ -117,7 +123,10 @@ export function value(
     pathGet: 1,
     pathSet: null,
     attrGet: { [attr]: 1 },
-    attrSet: { [attr]: val },
+    attrSet: {
+      [attr]: val,
+      mandatory: mandatory,
+    },
     defer: true,
   });
 

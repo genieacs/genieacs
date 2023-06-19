@@ -805,6 +805,7 @@ function runDeclarations(
         accessList: new Set(),
       },
       spv: new Map(),
+      spvMandatory: new Map(),
       spa: new Map(),
       gpn: new Set<Path>(),
       gpnPatterns: new Map(),
@@ -1851,7 +1852,14 @@ function generateSetRpcRequest(
 
   const parameterValues: [string, string | number | boolean, string][] = [];
   for (const [k, v] of syncState.spv) {
+    const mandatory = syncState.spvMandatory.get(k);
+
     syncState.spv.delete(k);
+
+    // If the mandatory was registred, remove it
+    if (mandatory === false || mandatory === true)
+      syncState.spvMandatory.delete(k);
+
     const attrs = sessionContext.deviceData.attributes.get(k);
     const curVal = attrs.value?.[1];
     if (curVal && canWrite(attrs)) {
@@ -1867,7 +1875,8 @@ function generateSetRpcRequest(
       )
         val[0] -= val[0] % 1000;
 
-      if (val[0] !== curVal[0] || val[1] !== curVal[1])
+      // Only send the parameter if it's mandatory or if the value has changed
+      if (mandatory || val[0] !== curVal[0] || val[1] !== curVal[1])
         parameterValues.push([k.toString(), val[0], val[1]]);
 
       if (parameterValues.length >= GPV_BATCH_SIZE) break;
@@ -2321,8 +2330,15 @@ function processDeclarations(
             }
           }
           if (declareAttributeValues) {
-            if (declareAttributeValues.value != null)
+            // If the declaration must be executed (only for
+            // value/setParameterValue attribute)
+            let mandatory = false;
+            if (declareAttributeValues.mandatory === true) mandatory = true;
+
+            if (declareAttributeValues.value != null) {
               syncState.spv.set(currentPath, declareAttributeValues.value);
+              syncState.spvMandatory.set(currentPath, mandatory);
+            }
 
             if (declareAttributeValues.notification != null) {
               const spa = syncState.spa.get(currentPath);
