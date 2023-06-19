@@ -694,8 +694,12 @@ async function nextRpc(sessionContext: SessionContext): Promise<void> {
       // Set channel in case params array is empty
       sessionContext.channels[`task_${task._id}`] = 0;
       for (const p of task.parameterValues) {
+        // Check if it needs to set the value even though it's already set
+        let mandatory = false;
+        if (p && p[3] && p[3] === true) mandatory = true;
+
         session.addProvisions(sessionContext, `task_${task._id}`, [
-          ["value", p[0], p[1]],
+          ["value", p[0], p[1], mandatory],
         ]);
       }
 
