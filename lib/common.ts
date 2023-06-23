@@ -18,7 +18,7 @@
  */
 
 export function generateDeviceId(
-  deviceIdStruct: Record<string, string>
+  deviceIdStruct: Record<string, string>, alternativeSerial: string
 ): string {
   // Escapes everything except alphanumerics and underscore
   function esc(str): string {
@@ -29,6 +29,12 @@ export function generateDeviceId(
       return rep;
     });
   }
+  let serialNumber = deviceIdStruct["SerialNumber"];
+
+  if (alternativeSerial !== '') {
+    // Remove some special chars
+    serialNumber = alternativeSerial.replace(/[^A-Za-z0-9_]/g, "");
+  }
 
   // Guaranteeing globally unique id as defined in TR-069
   if (deviceIdStruct["ProductClass"]) {
@@ -37,10 +43,10 @@ export function generateDeviceId(
       "-" +
       esc(deviceIdStruct["ProductClass"]) +
       "-" +
-      esc(deviceIdStruct["SerialNumber"])
+      esc(serialNumber)
     );
   }
-  return esc(deviceIdStruct["OUI"]) + "-" + esc(deviceIdStruct["SerialNumber"]);
+  return esc(deviceIdStruct["OUI"]) + "-" + esc(serialNumber);
 }
 
 // Source: http://stackoverflow.com/a/6969486
