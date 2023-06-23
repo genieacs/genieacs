@@ -17,6 +17,7 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import * as config from "./config";
 import * as device from "./device";
 import * as sandbox from "./sandbox";
 import * as localCache from "./local-cache";
@@ -638,14 +639,25 @@ async function runProvisions(
         }
         return null;
       }
-
-      return sandbox.run(
-        allProvisions[provision[0]].script,
-        { args: provision.slice(1) },
-        sessionContext,
-        startRevision,
-        endRevision
-      );
+      if (sessionContext.skipProvision && provision[0]==='flashman') {
+        return {
+          fault: null,
+          clear: [],
+          declare: [],
+          done: true,
+          returnValue: undefined,
+        }
+      } else {
+        return sandbox.run(
+          allProvisions[provision[0]].script,
+          { args: provision.slice(1) },
+          sessionContext,
+          startRevision,
+          endRevision,
+          0,
+          provision[0]
+        );
+      }
     })
   );
 
@@ -694,7 +706,9 @@ async function runVirtualParameters(
         globals,
         sessionContext,
         startRevision,
-        endRevision
+        endRevision,
+        0,
+        provision[0]
       );
 
       if (r.done && !r.fault) {

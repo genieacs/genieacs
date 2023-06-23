@@ -201,8 +201,10 @@ export async function awaitSessionStart(
     { _id: deviceId },
     { projection: { _lastInform: 1 } }
   );
-  const li = (device["_lastInform"] as Date).getTime();
-  if (li > lastInform) return true;
+  if (device) {
+    const li = (device["_lastInform"] as Date).getTime();
+    if (li > lastInform) return true;
+  }
   const token = await cache.get(`cwmp_session_${deviceId}`);
   if (token) return true;
   if (timeout < 500) return false;

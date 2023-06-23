@@ -17,7 +17,9 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import * as promClient from 'prom-client'
 import * as zlib from "zlib";
+import * as url from 'url';
 import * as crypto from "crypto";
 import { Socket } from "net";
 import * as auth from "./auth";
@@ -55,6 +57,8 @@ import { parseXmlDeclaration } from "./xml-parser";
 import * as debug from "./debug";
 import { getRequestOrigin } from "./forwarded";
 import { getSocketEndpoints } from "./server";
+import { metricsExporter } from "./metrics";
+import { sendFlashmanInformRequest } from './flashman'
 
 const gzipPromisified = promisify(zlib.gzip);
 const deflatePromisified = promisify(zlib.deflate);
@@ -62,15 +66,16 @@ const deflatePromisified = promisify(zlib.deflate);
 const REALM = "GenieACS";
 const MAX_CYCLES = 4;
 const MAX_CONCURRENT_REQUESTS = +config.get("MAX_CONCURRENT_REQUESTS");
+const PROMETHEUS_METRICS = config.get("CWMP_PROMETHEUS_METRICS");
+const SKIP_FLASHMAN_INFORM = config.get("SKIP_FLASHMAN_INFORM");
 
 const currentSessions = new WeakMap<Socket, SessionContext>();
 const sessionsNonces = new WeakMap<Socket, string>();
 
+const connectionsInfo = new WeakMap<Socket, { time: number, type: number }>();
+
 const stats = {
-  concurrentRequests: 0,
-  totalRequests: 0,
-  droppedRequests: 0,
-  initiatedSessions: 0,
+  concurrentRequests: 0
 };
 
 async function authenticate(
@@ -280,6 +285,7 @@ function recordFault(
       channel: channel,
       retries: sessionContext.retries[channel],
     });
+    metricsExporter.faultRpc.inc()
   }
 
   for (let i = 0; i < provisions.length; ++i) {
@@ -577,11 +583,13 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
 
   deviceData.timestamps.dirty = 0;
   deviceData.attributes.dirty = 0;
+
   const {
     fault: fault,
     rpcId: id,
     rpc: acsRequest,
   } = await session.rpcRequest(sessionContext, null);
+
 
   if (fault) {
     recordFault(sessionContext, fault);
@@ -827,11 +835,13 @@ async function endSession(sessionContext: SessionContext): Promise<void> {
   }
 
   await Promise.all(promises);
+
   await cache.releaseLock(
     `cwmp_session_${sessionContext.deviceId}`,
     sessionContext.sessionId
   );
   if (sessionContext.new) {
+    metricsExporter.registeredDevice.inc();
     logger.accessInfo({
       sessionContext: sessionContext,
       message: "New device registered",
@@ -887,9 +897,14 @@ async function sendAcsRequest(
 
 // When socket closes, store active sessions in cache
 export function onConnection(socket: Socket): void {
+  metricsExporter.socketConnections.labels({ server: 'cwmp', type: 'open' }).inc()
+  connectionsInfo.set(socket, { time: Date.now(), type: 2 });
+
   socket.on("close", async () => {
+    metricsExporter.socketConnections.labels({ server: 'cwmp', type: 'close' }).inc()
     const sessionContext = currentSessions.get(socket);
     if (!sessionContext) return;
+    metricsExporter.totalConnectionTime.labels({ server: 'cwmp' }).observe(Date.now() - sessionContext.timestamp)
     currentSessions.delete(socket);
     if (sessionContext.authState !== 2) {
       logger.accessError({
@@ -967,21 +982,6 @@ export function onClientError(err: Error, socket: Socket): void {
     });
 }
 
-setInterval(() => {
-  if (stats.droppedRequests) {
-    logger.warn({
-      message: "Worker overloaded",
-      droppedRequests: stats.droppedRequests,
-      totalRequests: stats.totalRequests,
-      initiatedSessions: stats.initiatedSessions,
-      pid: process.pid,
-    });
-  }
-
-  stats.totalRequests = 0;
-  stats.droppedRequests = 0;
-  stats.initiatedSessions = 0;
-}, 10000).unref();
 
 async function getDueTasksAndFaultsAndOperations(
   deviceId,
@@ -1106,6 +1106,7 @@ async function processRequest(
     logger.accessWarn(w);
   }
 
+  // This is the inform request of this session
   if (sessionContext.state === 0) {
     if (rpc.cpeRequest?.name !== "Inform")
       return reportBadState(sessionContext);
@@ -1332,7 +1333,7 @@ async function processRequest(
         operations[i].channels
       );
     }
-
+    // task flow - gonna search for something else to do
     return nextRpc(sessionContext);
   }
 }
@@ -1341,7 +1342,10 @@ export function listener(
   httpRequest: IncomingMessage,
   httpResponse: ServerResponse
 ): void {
+
   stats.concurrentRequests += 1;
+  metricsExporter.totalRequests.labels({ server: 'cwmp' }).inc();
+
   listenerAsync(httpRequest, httpResponse)
     .then(() => {
       stats.concurrentRequests -= 1;
@@ -1417,9 +1421,15 @@ async function listenerAsync(
   httpRequest: IncomingMessage,
   httpResponse: ServerResponse
 ): Promise<void> {
-  stats.totalRequests += 1;
 
-  if (httpRequest.method !== "POST") {
+  if (httpRequest.method === 'GET' && url.parse(httpRequest.url).pathname === '/metrics') {
+    if (PROMETHEUS_METRICS)
+      httpResponse.write(await promClient.register.metrics());
+    else
+      httpResponse.write('# Metrics not enabled\nup 1');
+    httpResponse.end();
+    return;
+  } else if (httpRequest.method !== "POST") {
     httpResponse.writeHead(405, {
       Allow: "POST",
       Connection: "close",
@@ -1443,7 +1453,7 @@ async function listenerAsync(
       Connection: "close",
     });
     httpResponse.end("503 Service Unavailable");
-    stats.droppedRequests += 1;
+    metricsExporter.droppedRequests.labels({ server: 'cwmp' }).inc()
     return;
   }
 
@@ -1480,6 +1490,7 @@ async function listenerAsync(
   const body = Buffer.concat(chunks);
 
   let sessionContext = currentSessions.get(httpRequest.socket);
+  const isNewSession = Boolean(!sessionContext && sessionId);
 
   if (sessionContext) {
     currentSessions.delete(httpRequest.socket);
@@ -1521,7 +1532,7 @@ async function listenerAsync(
   const bodyStr = decodeString(body, charset);
 
   if (bodyStr == null) {
-    if (!sessionContext && sessionId) {
+    if (isNewSession) {
       await new Promise((resolve) => setTimeout(resolve, 100));
       const sessionContextString = await cache.pop(`session_${sessionId}`);
       if (sessionContextString) {
@@ -1554,7 +1565,7 @@ async function listenerAsync(
   try {
     rpc = soap.request(bodyStr, parseWarnings);
   } catch (err) {
-    if (!sessionContext && sessionId) {
+    if (isNewSession) {
       await new Promise((resolve) => setTimeout(resolve, 100));
       const sessionContextString = await cache.pop(`session_${sessionId}`);
       if (sessionContextString) {
@@ -1582,7 +1593,7 @@ async function listenerAsync(
     );
   }
 
-  if (!sessionContext && sessionId && rpc.cpeRequest?.name !== "Inform") {
+  if (isNewSession && rpc.cpeRequest?.name !== "Inform") {
     await new Promise((resolve) => setTimeout(resolve, 100));
     const sessionContextString = await cache.pop(`session_${sessionId}`);
     if (sessionContextString) {
@@ -1620,11 +1631,10 @@ async function listenerAsync(
     // from the previous session
     httpResponse.writeHead(503, { "Retry-after": 60, Connection: "close" });
     httpResponse.end("503 Service Unavailable");
-    stats.droppedRequests += 1;
+    metricsExporter.droppedRequests.labels({ server: 'cwmp' }).inc()
     return;
   }
 
-  stats.initiatedSessions += 1;
   // Verifying SerialNumber against invalid values and using alternatives
   let altSerialValue = '';
   if (rpc.cpeRequest.deviceId["SerialNumber"] == "AABBCCDDEEFF") {
@@ -1665,6 +1675,7 @@ async function listenerAsync(
 
   const cacheSnapshot = await localCache.getCurrentSnapshot();
 
+  metricsExporter.sessionInit.labels({ server: 'cwmp' }).inc();
   const _sessionContext = session.init(
     deviceId,
     rpc.cwmpVersion,
@@ -1719,5 +1730,39 @@ async function listenerAsync(
     _sessionContext.new = true;
   }
 
+  
+  if ( SKIP_FLASHMAN_INFORM && parameters ) {    
+    const periodicOnly 
+      = rpc.cpeRequest != null
+      && rpc.cpeRequest.event.length===1
+      && rpc.cpeRequest.event[0]==='2 PERIODIC';
+    if (periodicOnly) {
+      const flashmanResponse 
+      = await sendFlashmanInformRequest(rpc, parameters)
+      .catch((reason) => {
+        logger.error({
+          message: reason,
+        })
+        return {
+          success: false,
+          measure: false,
+        }
+      });
+      if (flashmanResponse.success && !flashmanResponse.measure) {
+        _sessionContext.skipProvision = true;
+        logger.accessInfo({
+          sessionContext: _sessionContext,
+          message:'Skipping flashman provision',
+          rpc: rpc,
+        });
+      }
+    }
+  }
+  
   return processRequest(_sessionContext, rpc, parseWarnings, bodyStr);
 }
+
+metricsExporter.concurrentRequestsCB({
+  labels: { server: 'cwmp' },
+  cb: () => stats.concurrentRequests
+})

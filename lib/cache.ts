@@ -17,78 +17,85 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Collection } from "mongodb";
-import { onConnect } from "./db";
+
 import * as config from "./config";
-import { Cache } from "./mongodb-types";
+import * as redis from 'redis'
+import * as logger from "./logger";
+
+const redisClient = redis.createClient({
+  url: config.get('REDIS_CONNECTION_URL') as string
+});
+
+
+redisClient.connect()
+  .then(() => {
+    logger.info({
+      message: 'Connected to redis server'
+    })
+  })
+  .catch((reason) => {
+    logger.error({
+      message: reason
+    })
+  });
+
 
 const CLOCK_SKEW_TOLERANCE = 30000;
 const MAX_CACHE_TTL = +config.get("MAX_CACHE_TTL");
 
-let cacheCollection: Collection<Cache>;
-
-onConnect(async (db) => {
-  cacheCollection = db.collection("cache");
-  await cacheCollection.createIndex({ expire: 1 }, { expireAfterSeconds: 0 });
-});
-
 export async function get(key: string): Promise<string> {
-  const res = await cacheCollection.findOne({ _id: key });
-  return res?.value;
+  return redisClient.get(key);
 }
 
 export async function del(key: string): Promise<void> {
-  await cacheCollection.deleteOne({ _id: key });
+  await redisClient.del(key);
 }
 
 export async function set(
   key: string,
   value: string,
-  ttl: number = MAX_CACHE_TTL
+  ttl_s: number = MAX_CACHE_TTL
 ): Promise<void> {
-  const timestamp = new Date();
-  const expire = new Date(
-    timestamp.getTime() + CLOCK_SKEW_TOLERANCE + ttl * 1000
-  );
-  await cacheCollection.replaceOne(
-    { _id: key },
-    { value, expire, timestamp },
-    { upsert: true }
-  );
+  //const timestamp = new Date();
+  //const expire = new Date(
+  //  timestamp.getTime() + CLOCK_SKEW_TOLERANCE + ttl * 1000
+  //);
+  //await cacheCollection.replaceOne(
+  //  { _id: key },
+  //  { value, expire, timestamp },
+  //  { upsert: true }
+  //);
+  await redisClient
+    .multi()
+    .set(key, value)
+    .expire(key, ttl_s + CLOCK_SKEW_TOLERANCE / 1000)
+    .exec()
 }
 
 export async function pop(key: string): Promise<string> {
-  const res = await cacheCollection.findOneAndDelete({ _id: key });
-  return res.value?.value;
+  return redisClient.getDel(key)
 }
 
 export async function acquireLock(
   lockName: string,
-  ttl: number,
+  ttl_ms: number,
   timeout = 0,
   token = Math.random().toString(36).slice(2)
 ): Promise<string> {
-  try {
-    const now = Date.now();
-    const r = await cacheCollection.findOneAndUpdate(
-      { _id: lockName, value: token },
-      {
-        $set: {
-          expire: new Date(now + ttl + CLOCK_SKEW_TOLERANCE),
-        },
-        $currentDate: { timestamp: true },
-      },
-      { upsert: true, returnDocument: "after" }
-    );
-    if (Math.abs(r.value.timestamp.getTime() - now) > CLOCK_SKEW_TOLERANCE)
-      throw new Error("Database clock skew too great");
-  } catch (err) {
-    if (err.code !== 11000) throw err;
-    if (!(timeout > 0)) return null;
-    const w = 50 + Math.random() * 50;
-    await new Promise((resolve) => setTimeout(resolve, w));
-    return acquireLock(lockName, ttl, timeout - w, token);
+  let currentToken = await redisClient.get(lockName);
+  
+  while (currentToken && currentToken!==token) {
+    if (timeout>0){
+      const t = Date.now();
+      const w = 50 + Math.random() * 50;
+      await new Promise((resolve) => setTimeout(resolve, w));
+      currentToken = await redisClient.get(lockName);
+      timeout -= (Date.now() - t);
+    } else {
+      return null;
+    }
   }
+  await set(lockName, token, Math.ceil(ttl_ms / 1000))
 
   return token;
 }
@@ -97,9 +104,9 @@ export async function releaseLock(
   lockName: string,
   token: string
 ): Promise<void> {
-  const res = await cacheCollection.deleteOne({
-    _id: lockName,
-    value: token,
-  });
-  if (res.deletedCount !== 1) throw new Error("Lock expired");
+  const currentToken = await redisClient.get(lockName);
+  let deletedCount = 0;
+  if (currentToken === token)
+    deletedCount = await redisClient.del(lockName);
+  if (deletedCount !== 1) throw new Error(`Lock ${lockName} expired`);
 }

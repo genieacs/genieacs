@@ -23,7 +23,8 @@ import * as config from "./config";
 import { Fault } from "./types";
 import { ROOT_DIR } from "./config";
 import * as logger from "./logger";
-import readline from "readline";
+import * as readline from "readline";
+import { metricsExporter } from "./metrics";
 
 const TIMEOUT = +config.get("EXT_TIMEOUT");
 
@@ -31,8 +32,11 @@ const processes: { [script: string]: ChildProcess } = {};
 const jobs = new Map();
 
 export function run(args: string[]): Promise<{ fault: Fault; value: any }> {
+  const scriptName = args[0];
+  const endTimer =
+    metricsExporter.extensionDuration
+    .labels({script_name:scriptName}).startTimer()
   return new Promise((resolve) => {
-    const scriptName = args[0];
 
     const id = crypto.randomBytes(8).toString("hex");
     jobs.set(id, resolve);
@@ -46,6 +50,7 @@ export function run(args: string[]): Promise<{ fault: Fault; value: any }> {
       p.on("error", (err) => {
         if (processes[scriptName] === p) {
           if (jobs.delete(id)) {
+            endTimer();
             resolve({
               fault: { code: err.name, message: err.message },
               value: null,
@@ -68,6 +73,7 @@ export function run(args: string[]): Promise<{ fault: Fault; value: any }> {
           jobs.delete(message[0]);
           // Wait for any disconnect even to fire
           setTimeout(() => {
+            endTimer();
             func({ fault: message[1], value: message[2] });
           });
         }
@@ -86,6 +92,7 @@ export function run(args: string[]): Promise<{ fault: Fault; value: any }> {
 
     setTimeout(() => {
       if (jobs.delete(id)) {
+        endTimer();
         resolve({
           fault: { code: "timeout", message: "Extension timed out" },
           value: null,

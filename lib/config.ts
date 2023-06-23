@@ -30,17 +30,26 @@ while (!existsSync(`${ROOT_DIR}/package.json`)) {
   }
   ROOT_DIR = d;
 }
+if (!ROOT_DIR.endsWith('/dist')) 
+  ROOT_DIR = resolve(ROOT_DIR,'dist');
 
 // For compatibility with v1.1
 let configDir, cwmpSsl, nbiSsl, fsSsl, uiSsl, fsHostname;
 
 const options = {
   EXT_DIR: { type: "path", default: resolve(ROOT_DIR, "config/ext") },
+  
   MONGODB_CONNECTION_URL: {
     type: "string",
     default: "mongodb://127.0.0.1/genieacs",
   },
+  
+  REDIS_CONNECTION_URL: {
+    type: "string",
+    default: "redis://127.0.0.1:6379",
+  },
 
+  CWMP_FLASHMAN_URL: { type: "string", default: "http://localhost:8000"},
   CWMP_WORKER_PROCESSES: { type: "int", default: 0 },
   CWMP_PORT: { type: "int", default: 7547 },
   CWMP_INTERFACE: { type: "string", default: "::" },
@@ -48,6 +57,7 @@ const options = {
   CWMP_SSL_KEY: { type: "string", default: "" },
   CWMP_LOG_FILE: { type: "path", default: "" },
   CWMP_ACCESS_LOG_FILE: { type: "path", default: "" },
+  CWMP_PROMETHEUS_METRICS: { type: "bool", default: false },
 
   NBI_WORKER_PROCESSES: { type: "int", default: 0 },
   NBI_PORT: { type: "int", default: 7557 },
@@ -100,6 +110,7 @@ const options = {
   MAX_COMMIT_ITERATIONS: { type: "int", default: 32 },
   LOG_INFO: { type: "string", default: "info" },
   LOG_STATS: { type: "bool", default: false },
+  SKIP_FLASHMAN_INFORM: { type: "bool", default: true },
 
   // Should probably never be changed
   DEVICE_ONLINE_THRESHOLD: { type: "int", default: 4000 },
