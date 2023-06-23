@@ -702,8 +702,12 @@ async function nextRpc(sessionContext: SessionContext): Promise<void> {
       // Set channel in case params array is empty
       sessionContext.channels[`task_${task._id}`] = 0;
       for (const p of task.parameterValues) {
+        // Check if it needs to set the value even though it's already set
+        let mandatory = false;
+        if (p && p[3] && p[3] === true) mandatory = true;
+
         session.addProvisions(sessionContext, `task_${task._id}`, [
-          ["value", p[0], p[1]],
+          ["value", p[0], p[1], mandatory],
         ]);
       }
 
@@ -1637,14 +1641,14 @@ async function listenerAsync(
 
   // Verifying SerialNumber against invalid values and using alternatives
   let altSerialValue = '';
-  if (rpc.cpeRequest.deviceId["SerialNumber"] == "AABBCCDDEEFF") {
+  if (rpc.cpeRequest.deviceId["SerialNumber"] === "AABBCCDDEEFF") {
     const keyStr =
     'InternetGatewayDevice.LANDevice.1.LANEthernetInterfaceConfig.1.MACAddress';
     let altSerialFound = false;
 
     for (const p of rpc.cpeRequest.parameterList) {
       if (p[0] && p[0]['_string']) {
-        if (p[0]['_string'] == keyStr) {
+        if (p[0]['_string'] === keyStr) {
           altSerialFound = true;
           altSerialValue = <string> p[1];
           break;

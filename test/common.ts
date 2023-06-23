@@ -30,7 +30,7 @@ ava("generateDeviceId", (t) => {
   ];
   t.plan(cases.length);
   for (const c of cases)
-    t.is(common.generateDeviceId(c[0] as Record<string, string>), c[1]);
+    t.is(common.generateDeviceId(c[0] as Record<string, string>, ""), c[1]);
 });
 
 ava("escapeRegExp", (t) => {
