@@ -895,7 +895,11 @@ async function sendAcsRequest(
     rpc: rpc,
   });
 
-  const res = soap.response(rpc);
+  let sessionId = undefined;
+  if (sessionContext.needCookieOnEveryTask)
+    sessionId = sessionContext.sessionId;
+
+  const res = soap.response(rpc, sessionId);
   return writeResponse(sessionContext, res);
 }
 
@@ -1685,6 +1689,11 @@ async function listenerAsync(
     rpc.cwmpVersion,
     rpc.sessionTimeout
   );
+
+  // Some routers need to set cookie on every rpc
+  _sessionContext.needCookieOnEveryTask = false;
+  if (rpc.cpeRequest.deviceId["ProductClass"] === "DM955")
+    _sessionContext.needCookieOnEveryTask = true;
 
   _sessionContext.cacheSnapshot = cacheSnapshot;
 

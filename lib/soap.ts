@@ -51,7 +51,7 @@ import {
 } from "./types";
 import Path from "./common/path";
 
-const SERVER_NAME = `GenieACS/${VERSION}`;
+const SERVER_NAME = `AnlixACS/${VERSION}`;
 
 const NAMESPACES = {
   "1.0": {
@@ -1005,7 +1005,7 @@ export function response(rpc: {
   acsResponse?: AcsResponse;
   acsFault?: CpeFault;
   cwmpVersion?: string;
-}): { code: number; headers: Record<string, string>; data: string } {
+}, sessionId?: string): { code: number; headers: Record<string, string>; data: string } {
   const headers = {
     Server: SERVER_NAME,
     SOAPServer: SERVER_NAME,
@@ -1077,6 +1077,8 @@ export function response(rpc: {
   }
 
   headers["Content-Type"] = 'text/xml; charset="utf-8"';
+  if (sessionId) headers["Set-Cookie"] = `session=${sessionId}`;
+
   return {
     code: 200,
     headers: headers,
