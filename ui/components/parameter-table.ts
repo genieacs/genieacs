@@ -21,7 +21,7 @@ import { ClosureComponent, Component } from "mithril";
 import { m } from "../components";
 import * as taskQueue from "../task-queue";
 import { evaluateExpression } from "../store";
-import * as expressionParser from "../../lib/common/expression-parser";
+import * as expressionParser from "../../lib/common/expression/parser";
 import { getIcon } from "../icons";
 
 const component: ClosureComponent = (): Component => {

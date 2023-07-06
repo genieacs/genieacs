@@ -21,10 +21,9 @@ import { Db, GridFSBucket, ObjectId } from "mongodb";
 import { Script } from "vm";
 import { onConnect, optimizeProjection } from "../db";
 import * as mongodbFunctions from "../mongodb-functions";
-import * as expression from "../common/expression";
+import { evaluate } from "../common/expression/util";
 import { QueryOptions, Expression } from "../types";
 import { Readable } from "stream";
-import { minimize } from "../common/boolean-expression";
 
 const RESOURCE_COLLECTION = {
   files: "fs.files",
@@ -54,28 +53,9 @@ export function query(
   callback?: (doc: any) => void
 ): Promise<void | any[]> {
   options = options || {};
-  let q;
-  filter = expression.evaluate(filter, null, Date.now());
-  filter = minimize(filter, true);
-
-  if (Array.isArray(filter)) {
-    if (resource === "devices") {
-      filter = mongodbFunctions.processDeviceFilter(filter);
-    } else if (resource === "tasks") {
-      filter = mongodbFunctions.processTasksFilter(filter);
-    } else if (resource === "faults") {
-      filter = mongodbFunctions.processFaultsFilter(filter);
-    } else if (resource === "users") {
-      // Protect against brute force, and dictionary attacks
-      const params = expression.extractParams(filter);
-      if (params.includes("password") || params.includes("salt"))
-        return Promise.reject(new Error("Invalid users filter"));
-    }
-
-    q = mongodbFunctions.filterToMongoQuery(filter);
-  } else if (!filter) {
-    return Promise.resolve([]);
-  }
+  filter = evaluate(filter, null, Date.now());
+  const q = mongodbFunctions.toMongoQuery(filter, resource);
+  if (!q) return Promise.resolve([]);
 
   return new Promise((resolve, reject) => {
     const collection = db.collection(RESOURCE_COLLECTION[resource] || resource);
@@ -152,22 +132,9 @@ export function query(
 
 export function count(resource: string, filter: Expression): Promise<number> {
   const collection = db.collection(RESOURCE_COLLECTION[resource] || resource);
-  let q: Parameters<typeof collection.countDocuments>[0];
-  filter = expression.evaluate(filter, null, Date.now());
-  filter = minimize(filter, true);
-
-  if (Array.isArray(filter)) {
-    if (resource === "devices")
-      filter = mongodbFunctions.processDeviceFilter(filter);
-    else if (resource === "tasks")
-      filter = mongodbFunctions.processTasksFilter(filter);
-    else if (resource === "faults")
-      filter = mongodbFunctions.processFaultsFilter(filter);
-    q = mongodbFunctions.filterToMongoQuery(filter);
-  } else if (!filter) {
-    return Promise.resolve(0);
-  }
-
+  filter = evaluate(filter, null, Date.now());
+  const q = mongodbFunctions.toMongoQuery(filter, resource);
+  if (!q) return Promise.resolve(0);
   return collection.countDocuments(q);
 }
 

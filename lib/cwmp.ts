@@ -25,7 +25,11 @@ import * as config from "./config";
 import * as common from "./common";
 import * as soap from "./soap";
 import * as session from "./session";
-import { evaluateAsync, evaluate, extractParams } from "./common/expression";
+import {
+  evaluateAsync,
+  evaluate,
+  extractParams,
+} from "./common/expression/util";
 import * as cache from "./cache";
 import * as localCache from "./local-cache";
 import * as db from "./db";

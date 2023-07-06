@@ -132,7 +132,7 @@ export function expand(
         if (v && (v["$ne"] != null || v["$not"] != null)) {
           if (Object.keys(v).length > 1)
             throw new Error("Cannot mix $ne or $not with other operators");
-          for (const c of conditions) newQuery["$an"].push(c);
+          for (const c of conditions) newQuery["$and"].push(c);
         } else {
           newQuery["$and"].push({ $or: conditions });
         }

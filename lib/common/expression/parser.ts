@@ -18,7 +18,7 @@
  */
 
 import parsimmon from "parsimmon";
-import { Expression } from "../types";
+import { Expression } from "../../types";
 
 // Turn escaped characters into real ones (e.g. "\\n" becomes "\n").
 function interpretEscapes(str): string {
@@ -40,10 +40,7 @@ function interpretEscapes(str): string {
   });
 }
 
-export function map(
-  exp: Expression,
-  callback: (e: Expression) => Expression
-): Expression {
+export function map<T>(exp: Expression, callback: (e: Expression) => T): T {
   if (!Array.isArray(exp)) return callback(exp);
 
   let clone;

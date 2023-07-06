@@ -21,14 +21,14 @@ import { ClosureComponent, Component, VnodeDOM } from "mithril";
 import { m } from "../components";
 import * as taskQueue from "../task-queue";
 import * as store from "../store";
-import * as expression from "../../lib/common/expression";
+import { evaluate } from "../../lib/common/expression/util";
 import memoize from "../../lib/common/memoize";
 import timeAgo from "../timeago";
 import { getIcon } from "../icons";
 
 const evaluateParam = memoize((exp, obj, now: number) => {
   let timestamp = now;
-  exp = expression.evaluate(exp, null, now, (e) => {
+  exp = evaluate(exp, null, now, (e) => {
     if (!Array.isArray(e)) return e;
     for (let i = 1; i < e.length; ++i) {
       if (

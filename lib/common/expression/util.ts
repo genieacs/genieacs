@@ -17,8 +17,8 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { map, mapAsync, parseLikePattern } from "./expression-parser";
-import { Expression } from "../types";
+import { map, mapAsync, parseLikePattern } from "./parser";
+import { Expression } from "../../types";
 
 const isArray = Array.isArray;
 

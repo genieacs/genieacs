@@ -23,7 +23,7 @@ import * as store from "./store";
 import { yaml } from "./dynamic-loader";
 import * as configFunctions from "./config-functions";
 import codeEditorComponent from "./code-editor-component";
-import { parse } from "../lib/common/expression-parser";
+import { parse } from "../lib/common/expression/parser";
 
 function putActionHandler(prefix: string[], dataYaml: string): Promise<any> {
   return new Promise((resolve, reject) => {

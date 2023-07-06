@@ -21,7 +21,7 @@ import * as crypto from "crypto";
 import * as dgram from "dgram";
 import { URL } from "url";
 import * as http from "http";
-import { evaluateAsync } from "./common/expression";
+import { evaluateAsync } from "./common/expression/util";
 import { Expression } from "./types";
 import * as auth from "./auth";
 import * as extensions from "./extensions";

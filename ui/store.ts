@@ -18,15 +18,15 @@
  */
 
 import m from "mithril";
-import { stringify } from "../lib/common/expression-parser";
-import { or, and, evaluate } from "../lib/common/expression";
+import { stringify } from "../lib/common/expression/parser";
+import { or, and, evaluate } from "../lib/common/expression/util";
 import memoize from "../lib/common/memoize";
 import { QueryOptions, Expression } from "../lib/types";
 import * as notifications from "./notifications";
 import { configSnapshot, genieacsVersion } from "./config";
 import { QueueTask } from "./task-queue";
 import { PingResult } from "../lib/ping";
-import { unionDiff, covers } from "../lib/common/boolean-expression";
+import { unionDiff, covers } from "../lib/common/expression/synth";
 
 const memoizedStringify = memoize(stringify);
 const memoizedEvaluate = memoize(evaluate);

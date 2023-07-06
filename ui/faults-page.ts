@@ -26,7 +26,7 @@ import * as store from "./store";
 import * as notifications from "./notifications";
 import memoize from "../lib/common/memoize";
 import * as smartQuery from "./smart-query";
-import { map, parse, stringify } from "../lib/common/expression-parser";
+import { map, parse, stringify } from "../lib/common/expression/parser";
 import { stringify as yamlStringify } from "../lib/common/yaml";
 
 const PAGE_SIZE = config.ui.pageSize || 10;

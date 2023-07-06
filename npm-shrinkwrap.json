@@ -10,7 +10,7 @@
       "license": "AGPL-3.0",
       "dependencies": {
         "@breejs/later": "^4.1.0",
-        "espresso-iisojs": "^1.0.4",
+        "espresso-iisojs": "^1.0.7",
         "iconv-lite": "^0.6.3",
         "ipaddr.js": "^2.0.1",
         "jsonwebtoken": "^8.5.1",
@@ -3041,9 +3041,9 @@
       }
     },
     "node_modules/espresso-iisojs": {
-      "version": "1.0.4",
-      "resolved": "https://registry.npmjs.org/espresso-iisojs/-/espresso-iisojs-1.0.4.tgz",
-      "integrity": "sha512-QmdiGu97ky2pLjnBOmyTVqDQMrTOFVnJKF4Aj/dw6QoOwa29+Hk2sTmy8GQxnMW7f8av2hRgqI6mmWXdhi1jVw=="
+      "version": "1.0.7",
+      "resolved": "https://registry.npmjs.org/espresso-iisojs/-/espresso-iisojs-1.0.7.tgz",
+      "integrity": "sha512-yHEY+CC9wqEyA1N+KC03xmyN+lFPZdpXaLUxf6vrofE0cMXXIkOg08tXXPmq5fnOoLgxRfm5ikrmYD8/gIhRig=="
     },
     "node_modules/esprima": {
       "version": "4.0.1",
@@ -10177,9 +10177,9 @@
       }
     },
     "espresso-iisojs": {
-      "version": "1.0.4",
-      "resolved": "https://registry.npmjs.org/espresso-iisojs/-/espresso-iisojs-1.0.4.tgz",
-      "integrity": "sha512-QmdiGu97ky2pLjnBOmyTVqDQMrTOFVnJKF4Aj/dw6QoOwa29+Hk2sTmy8GQxnMW7f8av2hRgqI6mmWXdhi1jVw=="
+      "version": "1.0.7",
+      "resolved": "https://registry.npmjs.org/espresso-iisojs/-/espresso-iisojs-1.0.7.tgz",
+      "integrity": "sha512-yHEY+CC9wqEyA1N+KC03xmyN+lFPZdpXaLUxf6vrofE0cMXXIkOg08tXXPmq5fnOoLgxRfm5ikrmYD8/gIhRig=="
     },
     "esprima": {
       "version": "4.0.1",

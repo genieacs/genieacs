@@ -1,6 +1,8 @@
 import ava from "ava";
+import { EJSON } from "bson";
+import { Filter } from "mongodb";
 import * as mongodbFunctions from "../lib/mongodb-functions";
-import { stringify, parse } from "../lib/common/expression-parser";
+import { stringify, parse } from "../lib/common/expression/parser";
 
 ava("convertOldPrecondition", (t) => {
   const tests = [
@@ -71,21 +73,31 @@ ava("convertOldPrecondition", (t) => {
   }
 });
 
-ava("filterToMongoQuery", async (t) => {
-  const queries: [string, Record<string, unknown>][] = [
+ava("toMongoQuery", async (t) => {
+  const queries: [string, Filter<unknown> | false][] = [
     ["true", {}],
-    ["Tags.tag1 = true", { _tags: "tag1" }],
-    ["Tags.tag1 <> false", { _tags: "tag1" }],
+    ["Tags.tag1 = true", { _tags: { $eq: "tag1" } }],
+    ["Tags.tag1 <> false", { _tags: { $eq: "tag1" } }],
     ["Tags.tag1 IS NULL", { _tags: { $ne: "tag1" } }],
-    ["Tags.tag1 = 123", { "Tags.tag1": 123 }],
-    ["Param1 = 'value1'", { "Param1._value": "value1" }],
-    ["Param1 <> 'value1'", { "Param1._value": { $nin: ["value1", null] } }],
+    ["Tags.tag1 = 123", false],
+    ["Param1 = 'value1'", { "Param1._value": { $eq: "value1" } }],
+    [
+      "Param1 <> 'value1'",
+      {
+        "Param1._value": { $ne: "value1" },
+        $and: [{ "Param1._value": { $ne: null } }],
+      },
+    ],
     [
       "Param1 <> 1657844103524",
       {
+        "Param1._value": { $ne: 1657844103524 },
+
         $and: [
-          { "Param1._value": { $nin: [1657844103524, null] } },
-          { "Param1._value": { $nin: [new Date(1657844103524), null] } },
+          {
+            "Param1._value": { $ne: { $date: "2022-07-15T00:15:03.524Z" } },
+          },
+          { "Param1._value": { $ne: null } },
         ],
       },
     ],
@@ -93,66 +105,70 @@ ava("filterToMongoQuery", async (t) => {
       "Param1 = 1657844103524",
       {
         $or: [
-          { "Param1._value": 1657844103524 },
-          { "Param1._value": new Date(1657844103524) },
+          { "Param1._value": { $eq: { $date: "2022-07-15T00:15:03.524Z" } } },
+          { "Param1._value": { $eq: 1657844103524 } },
         ],
       },
     ],
     ["Param1 > 'value'", { "Param1._value": { $gt: "value" } }],
     ["Param1 IS NOT NULL", { "Param1._value": { $ne: null } }],
-    ["Param1 LIKE 'value'", { "Param1._value": /^value$/ }],
-    ["LOWER(Param1) LIKE 'value'", { "Param1._value": /^value$/i }],
+    [
+      "Param1 LIKE 'value'",
+      {
+        "Param1._value": {
+          $regularExpression: { options: "s", pattern: "^value$" },
+        },
+      },
+    ],
+
+    [
+      "LOWER(Param1) LIKE 'value'",
+      {
+        "Param1._value": {
+          $regularExpression: { options: "is", pattern: "^value$" },
+        },
+      },
+    ],
     [
       "Param1 <> 'value2' OR NOT (Param2 = 'value1' OR Param1 < 'value2')",
       {
         $or: [
-          { "Param1._value": { $nin: ["value2", null] } },
           {
-            $and: [
-              { "Param2._value": { $nin: ["value1", null] } },
-              { "Param1._value": { $gte: "value2" } },
-            ],
+            "Param2._value": { $ne: null },
+            $and: [{ "Param2._value": { $ne: "value1" } }],
+            "Param1._value": { $eq: "value2" },
+          },
+          {
+            "Param1._value": { $ne: "value2" },
+            $and: [{ "Param1._value": { $ne: null } }],
           },
         ],
       },
     ],
     [
       "Param1 <> 'value2' OR Param1 IS NULL",
-      {
-        $or: [
-          { "Param1._value": { $nin: ["value2", null] } },
-          { "Param1._value": null },
-        ],
-      },
+      { "Param1._value": { $ne: "value2" } },
     ],
   ];
 
   for (const [expStr, expect] of queries) {
     const exp = parse(expStr);
-    const query = mongodbFunctions.filterToMongoQuery(
-      mongodbFunctions.processDeviceFilter(exp)
-    );
+    let query = mongodbFunctions.toMongoQuery(exp, "devices");
+    if (query) query = EJSON.serialize(query);
     t.deepEqual(query, expect);
   }
 
   const failQueries: [any, string][] = [
-    ["Param1 = Param2", "Invalid RHS operand of = clause"],
-    ["Param1 LIKE Param2", "Invalid RHS operand of LIKE clause"],
-    ["1 LIKE '1'", "Invalid LHS operand of LIKE clause"],
-    ["1 = 2", "Invalid LHS operand of = clause"],
-    ["1 IS NULL", "Invalid LHS operand of IS NULL clause"],
-    ["false", "Primitives are not valid queries"],
-    ["UPPER(Param1) LIKE 'value'", "Invalid RHS operand of LIKE clause"],
+    ["Param1 = Param2", "Right-hand operand must be a literal value"],
+    ["Param1 LIKE Param2", "Right-hand operand of 'LIKE' must be a string"],
+    ["NOW() = 1", "Left-hand operand must be a parameter"],
+    ["param{param2} = 1", "Left-hand operand must be a parameter"],
   ];
 
   for (const [expStr, err] of failQueries) {
     const exp = parse(expStr);
-    t.throws(
-      () =>
-        mongodbFunctions.filterToMongoQuery(
-          mongodbFunctions.processDeviceFilter(exp)
-        ),
-      { message: err }
-    );
+    t.throws(() => mongodbFunctions.toMongoQuery(exp, "devices"), {
+      message: err,
+    });
   }
 });

@@ -28,7 +28,7 @@ import putFormComponent from "./put-form-component";
 import indexTableComponent from "./index-table-component";
 import * as overlay from "./overlay";
 import * as smartQuery from "./smart-query";
-import { map, parse, stringify } from "../lib/common/expression-parser";
+import { map, parse, stringify } from "../lib/common/expression/parser";
 
 const PAGE_SIZE = config.ui.pageSize || 10;
 

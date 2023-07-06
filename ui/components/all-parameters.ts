@@ -20,7 +20,7 @@
 import { ClosureComponent, Component } from "mithril";
 import { m } from "../components";
 import * as taskQueue from "../task-queue";
-import { parse } from "../../lib/common/expression-parser";
+import { parse } from "../../lib/common/expression/parser";
 import memoize from "../../lib/common/memoize";
 import { getIcon } from "../icons";
 import { evaluateExpression } from "../store";

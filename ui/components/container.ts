@@ -18,7 +18,7 @@
  */
 
 import { Attributes, ClosureComponent, Component } from "mithril";
-import { map } from "../../lib/common/expression-parser";
+import { map } from "../../lib/common/expression/parser";
 import memoize from "../../lib/common/memoize";
 import { Expression } from "../../lib/types";
 import { m } from "../components";

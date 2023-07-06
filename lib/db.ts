@@ -20,7 +20,7 @@
 import { MongoClient, ObjectId, Collection, Db } from "mongodb";
 import { get } from "./config";
 import { decodeTag, encodeTag, escapeRegExp } from "./common";
-import { parse } from "./common/expression-parser";
+import { parse } from "./common/expression/parser";
 import {
   DeviceData,
   Attributes,

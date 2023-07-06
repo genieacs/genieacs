@@ -26,7 +26,7 @@ import putFormComponent from "./put-form-component";
 import indexTableComponent from "./index-table-component";
 import * as overlay from "./overlay";
 import * as smartQuery from "./smart-query";
-import { map, parse, stringify } from "../lib/common/expression-parser";
+import { map, parse, stringify } from "../lib/common/expression/parser";
 import filterComponent from "./filter-component";
 import changePasswordComponent from "./change-password-component";
 import { Children, ClosureComponent, Component } from "mithril";

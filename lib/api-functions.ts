@@ -31,7 +31,7 @@ import {
 } from "./connection-request";
 import { Expression, Task } from "./types";
 import { flattenDevice } from "./mongodb-functions";
-import { evaluate } from "./common/expression";
+import { evaluate } from "./common/expression/util";
 
 export async function connectionRequest(
   deviceId: string,

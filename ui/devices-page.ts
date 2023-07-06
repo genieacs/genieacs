@@ -25,11 +25,10 @@ import filterComponent from "./filter-component";
 import * as store from "./store";
 import { queueTask, stageDownload } from "./task-queue";
 import * as notifications from "./notifications";
-import { parse, stringify } from "../lib/common/expression-parser";
-import { evaluate, extractParams } from "../lib/common/expression";
+import { parse, stringify, map } from "../lib/common/expression/parser";
+import { evaluate, extractParams } from "../lib/common/expression/util";
 import memoize from "../lib/common/memoize";
 import * as smartQuery from "./smart-query";
-import * as expressionParser from "../lib/common/expression-parser";
 
 const PAGE_SIZE = config.ui.pageSize || 10;
 
@@ -54,7 +53,7 @@ const getDownloadUrl = memoize((filter, indexParameters) => {
 });
 
 const unpackSmartQuery = memoize((query) => {
-  return expressionParser.map(query, (e) => {
+  return map(query, (e) => {
     if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "Q")
       return smartQuery.unpack("devices", e[2], e[3]);
     return e;

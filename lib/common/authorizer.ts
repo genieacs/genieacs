@@ -18,7 +18,7 @@
  */
 
 import { PermissionSet, Expression } from "../types";
-import { evaluate, or } from "./expression";
+import { evaluate, or } from "./expression/util";
 
 export default class Authorizer {
   private declare permissionSets: PermissionSet[];

@@ -19,7 +19,7 @@
 
 import { ClosureComponent, Component, Children } from "mithril";
 import { m } from "./components";
-import { stringify } from "../lib/common/expression-parser";
+import { stringify } from "../lib/common/expression/parser";
 import memoize from "../lib/common/memoize";
 
 const memoizedStringify = memoize(stringify);

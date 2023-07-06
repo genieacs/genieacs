@@ -25,8 +25,8 @@ import * as cache from "./cache";
 import { convertOldPrecondition } from "./mongodb-functions";
 import * as logger from "./logger";
 import * as scheduling from "./scheduling";
-import * as expression from "./common/expression";
-import { parse } from "./common/expression-parser";
+import * as expression from "./common/expression/util";
+import { parse } from "./common/expression/parser";
 import {
   Preset,
   Expression,

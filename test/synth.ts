@@ -1,6 +1,6 @@
 import ava, { TestInterface } from "ava";
-import { minimize, unionDiff } from "../lib/common/boolean-expression";
-import { parse, stringify } from "../lib/common/expression-parser";
+import { minimize, unionDiff } from "../lib/common/expression/synth";
+import { parse, stringify } from "../lib/common/expression/parser";
 import initSqlJs from "sql.js/dist/sql-asm.js";
 
 const test = ava as TestInterface<{
