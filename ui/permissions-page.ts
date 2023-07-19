@@ -29,7 +29,6 @@ import * as smartQuery from "./smart-query";
 import { map, parse, stringify } from "../lib/common/expression/parser";
 import filterComponent from "./filter-component";
 import { Children, ClosureComponent, Component } from "mithril";
-import { getIcon } from "./icons";
 
 const PAGE_SIZE = config.ui.pageSize || 10;
 
@@ -76,7 +75,7 @@ interface ValidationErrors {
   [prop: string]: string;
 }
 
-function putActionHandler(action, _object): Promise<ValidationErrors> {
+function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
   return new Promise((resolve, reject) => {
     const object = Object.assign({}, _object);
     if (action === "save") {
@@ -116,15 +115,22 @@ function putActionHandler(action, _object): Promise<ValidationErrors> {
       store
         .resourceExists("permissions", id)
         .then((exists) => {
-          if (exists) {
+          if (exists && isNew) {
             store.setTimestamp(Date.now());
             return void resolve({ _id: "Permission already exists" });
+          }
+          if (!exists && !isNew) {
+            store.setTimestamp(Date.now());
+            return void resolve({ _id: "Permission does not exist" });
           }
 
           store
             .putResource("permissions", id, object)
             .then(() => {
-              notifications.push("success", "Permission created");
+              notifications.push(
+                "success",
+                `Permission ${exists ? "updated" : "created"}`
+              );
               store.setTimestamp(Date.now());
               resolve(null);
             })
@@ -251,25 +257,67 @@ export const component: ClosureComponent = (): Component => {
 
       if (window.authorizer.hasAccess("permissions", 3)) {
         attrs["recordActionsCallback"] = (permission) => {
+          const val = permission["access"];
+          if (val === 1) permission["access"] = "1: count";
+          if (val === 2) permission["access"] = "2: read";
+          if (val === 3) permission["access"] = "3: write";
           return [
             m(
-              "button",
+              "a",
               {
-                title: "Delete permission",
                 onclick: () => {
-                  if (
-                    !confirm(
-                      `Deleting ${permission._id} permission. Are you sure?`
+                  let cb: () => Children = null;
+                  const comp = m(
+                    putFormComponent,
+                    Object.assign(
+                      {
+                        base: permission,
+                        oncreate: (_vnode) => {
+                          _vnode.dom.querySelector(
+                            "input[name='role']"
+                          ).disabled = true;
+                          _vnode.dom.querySelector(
+                            "select[name='access']"
+                          ).disabled = true;
+                          _vnode.dom.querySelector(
+                            "select[name='resource']"
+                          ).disabled = true;
+                        },
+                        actionHandler: (action, object) => {
+                          return new Promise<void>((resolve) => {
+                            putActionHandler(action, object, false)
+                              .then((errors) => {
+                                const errorList = errors
+                                  ? Object.values(errors)
+                                  : [];
+                                if (errorList.length) {
+                                  for (const err of errorList)
+                                    notifications.push("error", err);
+                                } else {
+                                  overlay.close(cb);
+                                }
+                                resolve();
+                              })
+                              .catch((err) => {
+                                notifications.push("error", err.message);
+                                resolve();
+                              });
+                          });
+                        },
+                      },
+                      formData
                     )
-                  )
-                    return;
-
-                  putActionHandler("delete", permission).catch((err) => {
-                    notifications.push("error", err.message);
-                  });
+                  );
+                  cb = () => comp;
+                  overlay.open(
+                    cb,
+                    () =>
+                      !comp.state["current"]["modified"] ||
+                      confirm("You have unsaved changes. Close anyway?")
+                  );
                 },
               },
-              getIcon("remove")
+              "Show"
             ),
           ];
         };
@@ -288,7 +336,7 @@ export const component: ClosureComponent = (): Component => {
                       {
                         actionHandler: (action, object) => {
                           return new Promise<void>((resolve) => {
-                            putActionHandler(action, object)
+                            putActionHandler(action, object, true)
                               .then((errors) => {
                                 const errorList = errors
                                   ? Object.values(errors)
