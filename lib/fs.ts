@@ -20,17 +20,15 @@
 import * as url from "url";
 import { IncomingMessage, ServerResponse } from "http";
 import { PassThrough, pipeline, Readable } from "stream";
-import { Collection, GridFSBucket } from "mongodb";
-import { onConnect } from "./db";
+import { GridFSBucket } from "mongodb";
+import { onConnect, collections } from "./db";
 import * as logger from "./logger";
 import { getRequestOrigin } from "./forwarded";
 import memoize from "./common/memoize";
 
-let filesCollection: Collection;
 let filesBucket: GridFSBucket;
 
 onConnect(async (db) => {
-  filesCollection = db.collection("fs.files");
   filesBucket = new GridFSBucket(db);
 });
 
@@ -79,7 +77,7 @@ export async function listener(
     remoteAddress: getRequestOrigin(request).remoteAddress,
   };
 
-  const file = await filesCollection.findOne({ _id: filename });
+  const file = await collections.files.findOne({ _id: filename });
 
   if (!file) {
     response.writeHead(404);

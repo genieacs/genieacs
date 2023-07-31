@@ -61,6 +61,7 @@ const builtins = [
   "url",
   "readline",
   "stream",
+  "bson", // not a built-in but not a direct dependency either
 ];
 
 function rmDirSync(dirPath): void {

@@ -1473,10 +1473,15 @@ async function listenerAsync(
 
   const chunks: Buffer[] = [];
   try {
+    let readableEnded = false;
+    stream.on("end", () => {
+      readableEnded = true;
+    });
     for await (const chunk of stream) chunks.push(chunk);
     // In Node versions prior to 15, the stream will not emit an error if the
     // connection is closed before the stream is finished.
-    if (!stream.readableEnded) throw new Error("Connection closed");
+    // For Node 12.9+ we can just use stream.readableEnded
+    if (!readableEnded) throw new Error("Connection closed");
   } catch (err) {
     return;
   }

@@ -32,18 +32,20 @@ import {
 import Path from "./common/path";
 import * as MongoTypes from "./mongodb-types";
 
-export let tasksCollection: Collection<MongoTypes.Task>,
-  devicesCollection: Collection,
-  presetsCollection: Collection,
-  objectsCollection: Collection,
-  provisionsCollection: Collection,
-  virtualParametersCollection: Collection,
-  faultsCollection: Collection<MongoTypes.Fault>,
-  filesCollection: Collection,
-  operationsCollection: Collection<MongoTypes.Operation>,
-  permissionsCollection: Collection,
-  usersCollection: Collection,
-  configCollection: Collection<MongoTypes.Config>;
+export const collections = {
+  devices: null as Collection<MongoTypes.Device>,
+  presets: null as Collection<MongoTypes.Preset>,
+  objects: null as Collection<MongoTypes.Object>,
+  provisions: null as Collection<MongoTypes.Provision>,
+  virtualParameters: null as Collection<MongoTypes.VirtualParameter>,
+  faults: null as Collection<MongoTypes.Fault>,
+  tasks: null as Collection<MongoTypes.Task>,
+  files: null as Collection<MongoTypes.File>,
+  operations: null as Collection<MongoTypes.Operation>,
+  permissions: null as Collection<MongoTypes.Permission>,
+  users: null as Collection<MongoTypes.User>,
+  config: null as Collection<MongoTypes.Config>,
+};
 
 let clientPromise: Promise<MongoClient>;
 
@@ -70,20 +72,20 @@ export async function connect(): Promise<void> {
 }
 
 onConnect(async (db) => {
-  tasksCollection = db.collection("tasks");
-  await tasksCollection.createIndex({ device: 1, timestamp: 1 });
+  collections.tasks = db.collection("tasks");
+  await collections.tasks.createIndex({ device: 1, timestamp: 1 });
 
-  devicesCollection = db.collection("devices");
-  presetsCollection = db.collection("presets");
-  objectsCollection = db.collection("objects");
-  filesCollection = db.collection("fs.files");
-  provisionsCollection = db.collection("provisions");
-  virtualParametersCollection = db.collection("virtualParameters");
-  faultsCollection = db.collection("faults");
-  operationsCollection = db.collection("operations");
-  permissionsCollection = db.collection("permissions");
-  usersCollection = db.collection("users");
-  configCollection = db.collection("config");
+  collections.devices = db.collection("devices");
+  collections.presets = db.collection("presets");
+  collections.objects = db.collection("objects");
+  collections.files = db.collection("fs.files");
+  collections.provisions = db.collection("provisions");
+  collections.virtualParameters = db.collection("virtualParameters");
+  collections.faults = db.collection("faults");
+  collections.operations = db.collection("operations");
+  collections.permissions = db.collection("permissions");
+  collections.users = db.collection("users");
+  collections.config = db.collection("config");
 });
 
 export async function disconnect(): Promise<void> {
@@ -130,7 +132,7 @@ export async function fetchDevice(
     ],
   ];
 
-  const device = await devicesCollection.findOne({ _id: id });
+  const device = await collections.devices.findOne({ _id: id });
   if (!device) return null;
 
   function storeParams(
@@ -194,7 +196,7 @@ export async function fetchDevice(
       res.push([Path.parse(path + ".*"), obj["_timestamp"]]);
   }
 
-  const ts: number = device["_timestamp"] || 0;
+  const ts: number = +device["_timestamp"] || 0;
   if (ts) res.push([Path.parse("*"), ts]);
 
   for (const [k, v] of Object.entries(device)) {
@@ -621,15 +623,19 @@ export async function saveDevice(
     delete update["$pull"];
   }
 
-  const result = await devicesCollection.updateOne({ _id: deviceId }, update, {
-    upsert: isNew,
-  });
+  const result = await collections.devices.updateOne(
+    { _id: deviceId },
+    update,
+    {
+      upsert: isNew,
+    }
+  );
 
   if (!result.matchedCount && !result.upsertedCount)
     throw new Error(`Device ${deviceId} not found in database`);
 
   if (update2) {
-    await devicesCollection.updateOne({ _id: deviceId }, update2);
+    await collections.devices.updateOne({ _id: deviceId }, update2);
     return;
   }
 }
@@ -637,7 +643,7 @@ export async function saveDevice(
 export async function getFaults(
   deviceId: string
 ): Promise<{ [channel: string]: SessionFault }> {
-  const res = await faultsCollection
+  const res = await collections.faults
     .find({ _id: { $regex: `^${escapeRegExp(deviceId)}\\:` } })
     .toArray();
 
@@ -677,21 +683,23 @@ export async function saveFault(
     ...(fault.expiry && { expiry: new Date(fault.expiry) }),
     provisions: JSON.stringify(fault.provisions),
   };
-  await faultsCollection.replaceOne({ _id: id }, f, { upsert: true });
+  await collections.faults.replaceOne({ _id: id }, f, { upsert: true });
 }
 
 export async function deleteFault(
   deviceId: string,
   channel: string
 ): Promise<void> {
-  await faultsCollection.deleteOne({ _id: `${deviceId}:${channel}` });
+  await collections.faults.deleteOne({ _id: `${deviceId}:${channel}` });
 }
 
 export async function getDueTasks(
   deviceId: string,
   timestamp: number
 ): Promise<[Task[], number]> {
-  const cur = tasksCollection.find({ device: deviceId }).sort({ timestamp: 1 });
+  const cur = collections.tasks
+    .find({ device: deviceId })
+    .sort({ timestamp: 1 });
   const tasks = [] as Task[];
 
   for await (const t of cur) {
@@ -736,7 +744,7 @@ export async function getDueTasks(
         q = { _id: { $in: [t["file"], new ObjectId(t["file"])] } };
       else q = { _id: t["file"] };
 
-      const res = await filesCollection.find(q).toArray();
+      const res = await collections.files.find(q).toArray();
 
       if (res[0]) {
         if (!task.fileType) task.fileType = res[0].metadata.fileType;
@@ -753,7 +761,7 @@ export async function clearTasks(
   deviceId: string,
   taskIds: string[]
 ): Promise<void> {
-  await tasksCollection.deleteMany({
+  await collections.tasks.deleteMany({
     _id: { $in: taskIds.map((id) => new ObjectId(id)) },
   });
 }
@@ -761,7 +769,7 @@ export async function clearTasks(
 export async function getOperations(
   deviceId: string
 ): Promise<{ [commandKey: string]: Operation }> {
-  const res = await operationsCollection
+  const res = await collections.operations
     .find({ _id: { $regex: `^${escapeRegExp(deviceId)}\\:` } })
     .toArray();
 
@@ -803,7 +811,7 @@ export async function saveOperation(
     retries: JSON.stringify(operation.retries),
     args: JSON.stringify(operation.args),
   };
-  await operationsCollection.replaceOne({ _id: id }, o, {
+  await collections.operations.replaceOne({ _id: id }, o, {
     upsert: true,
   });
 }
@@ -812,33 +820,33 @@ export async function deleteOperation(
   deviceId: string,
   commandKey: string
 ): Promise<void> {
-  await operationsCollection.deleteOne({ _id: `${deviceId}:${commandKey}` });
+  await collections.operations.deleteOne({ _id: `${deviceId}:${commandKey}` });
 }
 
 export async function getPresets(): Promise<Record<string, any>[]> {
-  return presetsCollection.find().toArray();
+  return collections.presets.find().toArray();
 }
 
 export async function getObjects(): Promise<Record<string, any>[]> {
-  return objectsCollection.find().toArray();
+  return collections.objects.find().toArray();
 }
 
 export async function getProvisions(): Promise<Record<string, any>[]> {
-  return provisionsCollection.find().toArray();
+  return collections.provisions.find().toArray();
 }
 
 export async function getVirtualParameters(): Promise<Record<string, any>[]> {
-  return virtualParametersCollection.find().toArray();
+  return collections.virtualParameters.find().toArray();
 }
 
 export function getFiles(): Promise<Record<string, any>[]> {
-  return filesCollection.find().toArray();
+  return collections.files.find().toArray();
 }
 
 export async function getConfig(): Promise<
   { id: string; value: Expression }[]
 > {
-  const res = await configCollection.find().toArray();
+  const res = await collections.config.find().toArray();
   return res.map((c) => ({
     id: c["_id"],
     value: parse(c["value"]),
@@ -854,7 +862,7 @@ interface Permission {
 }
 
 export async function getPermissions(): Promise<Permission[]> {
-  return permissionsCollection.find().toArray() as unknown as Permission[];
+  return collections.permissions.find().toArray() as unknown as Permission[];
 }
 
 interface User {
@@ -865,5 +873,5 @@ interface User {
 }
 
 export async function getUsers(): Promise<User[]> {
-  return usersCollection.find().toArray() as unknown as User[];
+  return collections.users.find().toArray() as unknown as User[];
 }

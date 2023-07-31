@@ -17,7 +17,7 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import * as db from "./db";
+import { collections } from "./db";
 import * as common from "./common";
 import * as cache from "./cache";
 import {
@@ -38,7 +38,7 @@ export async function connectionRequest(
   device?: Record<string, { value?: [boolean | number | string, string] }>
 ): Promise<string> {
   if (!device) {
-    const res = await db.devicesCollection.findOne({ _id: deviceId });
+    const res = await collections.devices.findOne({ _id: deviceId });
     if (!res) throw new Error("No such device");
     device = flattenDevice(res);
   }
@@ -184,7 +184,7 @@ export async function awaitSessionStart(
   timeout: number
 ): Promise<boolean> {
   const now = Date.now();
-  const device = await db.devicesCollection.findOne(
+  const device = await collections.devices.findOne(
     { _id: deviceId },
     { projection: { _lastInform: 1 } }
   );
@@ -322,26 +322,27 @@ export async function insertTasks(tasks: any[]): Promise<Task[]> {
   for (const task of tasks) {
     sanitizeTask(task);
     if (task.uniqueKey) {
-      await db.tasksCollection.deleteOne({
+      await collections.tasks.deleteOne({
         device: task.device,
         uniqueKey: task.uniqueKey,
       });
     }
   }
-  await db.tasksCollection.insertMany(tasks);
+  await collections.tasks.insertMany(tasks);
+  for (const task of tasks) task._id = task._id.toString();
   return tasks;
 }
 
 export async function deleteDevice(deviceId: string): Promise<void> {
   await Promise.all([
-    db.tasksCollection.deleteMany({ device: deviceId }),
-    db.devicesCollection.deleteOne({ _id: deviceId }),
-    db.faultsCollection.deleteMany({
+    collections.tasks.deleteMany({ device: deviceId }),
+    collections.devices.deleteOne({ _id: deviceId }),
+    collections.faults.deleteMany({
       _id: {
         $regex: `^${common.escapeRegExp(deviceId)}\\:`,
       },
     }),
-    db.operationsCollection.deleteMany({
+    collections.operations.deleteMany({
       _id: {
         $regex: `^${common.escapeRegExp(deviceId)}\\:`,
       },

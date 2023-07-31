@@ -25,6 +25,7 @@ interface TaskBase {
   timestamp?: Date;
   expiry?: Date;
   name: string;
+  device: string;
 }
 
 interface TaskGetParameterValues extends TaskBase {
@@ -104,4 +105,62 @@ export interface Cache {
   value: string;
   timestamp: Date;
   expire: Date;
+}
+
+export interface Device {
+  _id: string;
+  _lastInform: Date;
+  _registered: Date;
+  _tags?: string[];
+  _timestamp?: Date;
+}
+
+export interface Preset {
+  _id: string;
+  weight: number;
+  channels: string;
+  provisions: string;
+  events: Record<string, boolean>;
+  configurations: { type: string; name: string; args: Expression[] }[];
+}
+
+export interface Object {
+  _id: string;
+}
+
+export interface Provision {
+  _id: string;
+  script: string;
+}
+
+export interface VirtualParameter {
+  _id: string;
+  script: string;
+}
+
+export interface File {
+  _id: string;
+  length: number;
+  filename: string;
+  metadata?: {
+    fileType?: string;
+    oui?: string;
+    productClass?: string;
+    version?: string;
+  };
+}
+
+export interface Permission {
+  _id: string;
+  role: string;
+  resource: string;
+  access: 1 | 2 | 3;
+  validate: string;
+}
+
+export interface User {
+  _id: string;
+  password: string;
+  roles: string;
+  salt: string;
 }

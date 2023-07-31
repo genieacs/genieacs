@@ -145,19 +145,19 @@ export async function postTasks(
     };
   }
 
-  const promises = [];
+  const promises: Promise<number>[] = [];
   for (const s of statuses) {
-    promises.push(db.query("tasks", ["=", ["PARAM", "_id"], s._id]));
+    promises.push(db.count("tasks", ["=", ["PARAM", "_id"], s._id]));
     promises.push(
-      db.query("faults", ["=", ["PARAM", "_id"], `${deviceId}:task_${s._id}`])
+      db.count("faults", ["=", ["PARAM", "_id"], `${deviceId}:task_${s._id}`])
     );
   }
 
   const res = await Promise.all(promises);
   for (const [i, r] of statuses.entries()) {
-    if (res[i * 2].length === 0) {
+    if (!res[i * 2]) {
       r.status = "done";
-    } else if (res[i * 2 + 1].length === 1) {
+    } else if (res[i * 2 + 1]) {
       r.status = "fault";
       r["fault"] = res[i * 2 + 1][0];
     }

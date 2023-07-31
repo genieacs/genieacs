@@ -221,16 +221,11 @@ for (const [resource, flags] of Object.entries(resources)) {
 
     let c = 0;
     ctx.body.write("[\n");
-    db.query(resource, filter, options, (obj) => {
+    for await (const obj of db.query(resource, filter, options))
       ctx.body.write((c++ ? "," : "") + JSON.stringify(obj) + "\n");
-    })
-      .then(() => {
-        ctx.body.end("]");
-        logger.accessInfo(log);
-      })
-      .catch((err) => {
-        ctx.body.emit("error", err);
-      });
+
+    ctx.body.end("]");
+    logger.accessInfo(log);
   });
 
   // CSV download
@@ -289,7 +284,7 @@ for (const [resource, flags] of Object.entries(resources)) {
     ctx.body.write(
       Object.keys(columns).map((k) => `"${k.replace(/"/, '""')}"`) + "\n"
     );
-    db.query(resource, filter, options, (obj) => {
+    for await (const obj of db.query(resource, filter, options)) {
       const arr = Object.values(columns).map((exp) => {
         const v = evaluate(exp, obj, null, (e) => {
           if (Array.isArray(e)) {
@@ -331,14 +326,9 @@ for (const [resource, flags] of Object.entries(resources)) {
         return v;
       });
       ctx.body.write(arr.join(",") + "\n");
-    })
-      .then(() => {
-        ctx.body.end();
-        logger.accessInfo(log);
-      })
-      .catch((err) => {
-        ctx.body.emit("error", err);
-      });
+    }
+    ctx.body.end();
+    logger.accessInfo(log);
   });
 
   router.head(`/${resource}/:id`, async (ctx) => {
@@ -359,9 +349,9 @@ for (const [resource, flags] of Object.entries(resources)) {
       return void (ctx.status = 403);
     }
 
-    const res = await db.query(resource, filter);
+    const count = await db.count(resource, filter);
 
-    if (!res.length) return void (ctx.status = 404);
+    if (!count) return void (ctx.status = 404);
 
     logger.accessInfo(log);
     ctx.body = "";
@@ -385,12 +375,12 @@ for (const [resource, flags] of Object.entries(resources)) {
       return void (ctx.status = 403);
     }
 
-    const res = await db.query(resource, filter);
+    const { value: res } = await db.query(resource, filter).next();
 
-    if (!res.length) return void (ctx.status = 404);
+    if (!res) return void (ctx.status = 404);
 
     logger.accessInfo(log);
-    ctx.body = res[0];
+    ctx.body = res;
   });
 
   if (flags & RESOURCE_DELETE) {
@@ -411,10 +401,10 @@ for (const [resource, flags] of Object.entries(resources)) {
         logUnauthorizedWarning(log);
         return void (ctx.status = 403);
       }
-      const res = await db.query(resource, filter);
-      if (!res.length) return void (ctx.status = 404);
+      const { value: res } = await db.query(resource, filter).next();
+      if (!res) return void (ctx.status = 404);
 
-      const validate = authorizer.getValidator(resource, res[0]);
+      const validate = authorizer.getValidator(resource, res);
       if (!validate("delete")) {
         logUnauthorizedWarning(log);
         return void (ctx.status = 403);
@@ -560,9 +550,8 @@ router.post("/devices/:id/tasks", async (ctx) => {
     logUnauthorizedWarning(log);
     return void (ctx.status = 403);
   }
-  const devices = await db.query("devices", filter);
-  if (!devices.length) return void (ctx.status = 404);
-  const device = devices[0];
+  const { value: device } = await db.query("devices", filter).next();
+  if (!device) return void (ctx.status = 404);
 
   const validate = authorizer.getValidator("devices", device);
   for (const t of ctx.request.body) {
@@ -636,10 +625,10 @@ router.post("/devices/:id/tags", async (ctx) => {
     logUnauthorizedWarning(log);
     return void (ctx.status = 403);
   }
-  const res = await db.query("devices", filter);
-  if (!res.length) return void (ctx.status = 404);
+  const { value: res } = await db.query("devices", filter).next();
+  if (!res) return void (ctx.status = 404);
 
-  const validate = authorizer.getValidator("devices", res[0]);
+  const validate = authorizer.getValidator("devices", res);
   if (!validate("tags", ctx.request.body)) {
     logUnauthorizedWarning(log);
     return void (ctx.status = 403);
@@ -707,12 +696,12 @@ router.put("/users/:id/password", async (ctx) => {
     ["PARAM", RESOURCE_IDS.users],
     username,
   ]);
-  const res = await db.query("users", filter);
-  if (!res.length) return void (ctx.status = 404);
+  const { value: res } = await db.query("users", filter).next();
+  if (!res) return void (ctx.status = 404);
 
   const newPassword = ctx.request.body.newPassword;
   if (ctx.state.user) {
-    const validate = authorizer.getValidator("users", res[0]);
+    const validate = authorizer.getValidator("users", res);
     if (!validate("password", { password: newPassword })) {
       logUnauthorizedWarning(log);
       return void (ctx.status = 403);

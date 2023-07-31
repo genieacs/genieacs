@@ -17,121 +17,73 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Db, GridFSBucket, ObjectId } from "mongodb";
+import { Collection, GridFSBucket, ObjectId } from "mongodb";
 import { Script } from "vm";
-import { onConnect, optimizeProjection } from "../db";
+import { collections, onConnect, optimizeProjection } from "../db";
 import * as mongodbFunctions from "../mongodb-functions";
 import { evaluate } from "../common/expression/util";
 import { QueryOptions, Expression } from "../types";
 import { Readable } from "stream";
 
-const RESOURCE_COLLECTION = {
-  files: "fs.files",
-};
+let filesBucket: GridFSBucket;
 
-let db: Db;
-
-onConnect(async (_db) => {
-  db = _db;
+onConnect(async (db) => {
+  filesBucket = new GridFSBucket(db);
 });
 
-export function query(
+export async function* query(
   resource: string,
   filter: Expression,
   options?: QueryOptions
-): Promise<any[]>;
-export function query(
-  resource: string,
-  filter: Expression,
-  options: QueryOptions,
-  callback: (doc: any) => void
-): Promise<void>;
-export function query(
-  resource: string,
-  filter: Expression,
-  options?: QueryOptions,
-  callback?: (doc: any) => void
-): Promise<void | any[]> {
+): AsyncGenerator<any, void, undefined> {
   options = options || {};
   filter = evaluate(filter, null, Date.now());
   const q = mongodbFunctions.toMongoQuery(filter, resource);
-  if (!q) return Promise.resolve([]);
+  if (!q) return;
 
-  return new Promise((resolve, reject) => {
-    const collection = db.collection(RESOURCE_COLLECTION[resource] || resource);
-    const cursor = collection.find(q);
-    if (options.projection) {
-      let projection = options.projection;
-      if (resource === "devices") {
-        projection = mongodbFunctions.processDeviceProjection(
-          options.projection
-        );
-      }
+  const collection = collections[resource] as Collection<any>;
+  const cursor = collection.find(q);
+  if (options.projection) {
+    let projection = options.projection;
+    if (resource === "devices")
+      projection = mongodbFunctions.processDeviceProjection(options.projection);
 
-      if (resource === "presets") projection.configurations = 1;
-      projection = optimizeProjection(projection);
-      cursor.project(projection);
-    }
+    if (resource === "presets") projection.configurations = 1;
+    projection = optimizeProjection(projection);
+    cursor.project(projection);
+  }
 
-    if (resource === "users") cursor.project({ password: 0, salt: 0 });
+  if (resource === "users") cursor.project({ password: 0, salt: 0 });
 
-    if (options.skip) cursor.skip(options.skip);
-    if (options.limit) cursor.limit(options.limit);
+  if (options.skip) cursor.skip(options.skip);
+  if (options.limit) cursor.limit(options.limit);
 
-    if (options.sort) {
-      let s = Object.entries(options.sort)
-        .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
-        .reduce(
-          (obj, [k, v]) =>
-            Object.assign(obj, { [k]: Math.min(Math.max(v, -1), 1) }),
-          {}
-        );
-
-      if (resource === "devices") s = mongodbFunctions.processDeviceSort(s);
-      cursor.sort(s);
-    }
-
-    if (!callback) {
-      cursor.toArray((err, docs) => {
-        if (err) return reject(err);
-        if (resource === "devices")
-          return resolve(docs.map((d) => mongodbFunctions.flattenDevice(d)));
-        else if (resource === "faults")
-          return resolve(docs.map((d) => mongodbFunctions.flattenFault(d)));
-        else if (resource === "tasks")
-          return resolve(docs.map((d) => mongodbFunctions.flattenTask(d)));
-        else if (resource === "presets")
-          return resolve(docs.map((d) => mongodbFunctions.flattenPreset(d)));
-        else if (resource === "files")
-          return resolve(docs.map((d) => mongodbFunctions.flattenFile(d)));
-        return resolve(docs);
-      });
-    } else {
-      cursor.forEach(
-        (doc) => {
-          if (resource === "devices")
-            callback(mongodbFunctions.flattenDevice(doc));
-          else if (resource === "faults")
-            callback(mongodbFunctions.flattenFault(doc));
-          else if (resource === "tasks")
-            callback(mongodbFunctions.flattenTask(doc));
-          else if (resource === "presets")
-            callback(mongodbFunctions.flattenPreset(doc));
-          else if (resource === "files")
-            callback(mongodbFunctions.flattenFile(doc));
-          else callback(doc);
-        },
-        (err) => {
-          if (err) reject(err);
-          else resolve();
-        }
+  if (options.sort) {
+    let s = Object.entries(options.sort)
+      .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+      .reduce(
+        (obj, [k, v]) =>
+          Object.assign(obj, { [k]: Math.min(Math.max(v, -1), 1) }),
+        {}
       );
-    }
-  });
+
+    if (resource === "devices") s = mongodbFunctions.processDeviceSort(s);
+    cursor.sort(s);
+  }
+
+  for await (let doc of cursor) {
+    if (resource === "devices") doc = mongodbFunctions.flattenDevice(doc);
+    else if (resource === "faults") doc = mongodbFunctions.flattenFault(doc);
+    else if (resource === "tasks") doc = mongodbFunctions.flattenTask(doc);
+    else if (resource === "presets") doc = mongodbFunctions.flattenPreset(doc);
+    else if (resource === "files") doc = mongodbFunctions.flattenFile(doc);
+
+    yield doc;
+  }
 }
 
 export function count(resource: string, filter: Expression): Promise<number> {
-  const collection = db.collection(RESOURCE_COLLECTION[resource] || resource);
+  const collection = collections[resource] as Collection<unknown>;
   filter = evaluate(filter, null, Date.now());
   const q = mongodbFunctions.toMongoQuery(filter, resource);
   if (!q) return Promise.resolve(0);
@@ -150,37 +102,25 @@ export async function updateDeviceTags(
     if (onOff) add.push(tag);
     else pull.push(tag);
   }
-
-  const collection = db.collection("devices");
   const object = {};
 
   if (add?.length) object["$addToSet"] = { _tags: { $each: add } };
   if (pull?.length) object["$pullAll"] = { _tags: pull };
 
-  await collection.updateOne({ _id: deviceId }, object);
+  await collections.devices.updateOne({ _id: deviceId }, object);
 }
 
-function putResource(resource, id, object): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const collection = db.collection(RESOURCE_COLLECTION[resource] || resource);
-    collection.replaceOne({ _id: id }, object, { upsert: true }, (err) => {
-      if (err) return void reject(err);
-      resolve();
-    });
-  });
+async function putResource(resource, id, object): Promise<void> {
+  const collection = collections[resource] as Collection<unknown>;
+  await collection.replaceOne({ _id: id }, object, { upsert: true });
 }
 
-function deleteResource(
+async function deleteResource(
   resource: string,
   id: string | ObjectId
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const collection = db.collection(RESOURCE_COLLECTION[resource] || resource);
-    collection.deleteOne({ _id: id }, (err) => {
-      if (err) return void reject(err);
-      resolve();
-    });
-  });
+  const collection = collections[resource] as Collection<unknown>;
+  await collection.deleteOne({ _id: id });
 }
 
 export function putPreset(
@@ -267,23 +207,16 @@ export function deletePermission(id: string): Promise<void> {
   return deleteResource("permissions", id);
 }
 
-export function putUser(
+export async function putUser(
   id: string,
   object: Record<string, unknown>
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const collection = db.collection("users");
-    // update instead of replace to keep the password if not set by user
-    collection.updateOne(
-      { _id: id },
-      { $set: object },
-      { upsert: true },
-      (err) => {
-        if (err) return void reject(err);
-        resolve();
-      }
-    );
-  });
+  // update instead of replace to keep the password if not set by user
+  await collections.users.updateOne(
+    { _id: id },
+    { $set: object },
+    { upsert: true }
+  );
 }
 
 export function deleteUser(id: string): Promise<void> {
@@ -291,8 +224,7 @@ export function deleteUser(id: string): Promise<void> {
 }
 
 export function downloadFile(filename: string): Readable {
-  const bucket = new GridFSBucket(db);
-  return bucket.openDownloadStreamByName(filename);
+  return filesBucket.openDownloadStreamByName(filename);
 }
 
 export function putFile(
@@ -301,8 +233,7 @@ export function putFile(
   contentStream: Readable
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const bucket = new GridFSBucket(db);
-    const uploadStream = bucket.openUploadStreamWithId(
+    const uploadStream = filesBucket.openUploadStreamWithId(
       filename as unknown as ObjectId,
       filename,
       {
@@ -310,8 +241,15 @@ export function putFile(
       }
     );
 
+    let readableEnded = false;
+    contentStream.on("end", () => {
+      readableEnded = true;
+    });
     contentStream.on("close", () => {
-      if (!contentStream.readableEnded)
+      // In Node versions prior to 15, the stream will not emit an error if the
+      // connection is closed before the stream is finished.
+      // For Node 12.9+ we can just use stream.readableEnded
+      if (!readableEnded)
         uploadStream.destroy(new Error("Stream closed prematurely"));
     });
 
@@ -325,14 +263,8 @@ export function putFile(
   });
 }
 
-export function deleteFile(filename: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const bucket = new GridFSBucket(db);
-    bucket.delete(filename as any, (err) => {
-      if (err) return void reject(err);
-      resolve();
-    });
-  });
+export async function deleteFile(filename: string): Promise<void> {
+  await filesBucket.delete(filename as any);
 }
 
 export function deleteFault(id: string): Promise<void> {
