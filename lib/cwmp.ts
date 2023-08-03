@@ -1741,6 +1741,16 @@ async function listenerAsync(
   } else {
     // Device not available in database, mark as new
     _sessionContext.new = true;
+    
+    if (process.env.BLOCK_NEW_CPE) {
+      httpResponse.writeHead(403, { Connection: "close" });
+      httpResponse.end("403 Forbidden");
+
+      console.log(`${new Date().toISOString()} Blocked new device with id '${deviceId}'.`)
+      metricsExporter.blockedNewCpe.inc();
+
+      return;
+    }
   }
 
   
