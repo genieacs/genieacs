@@ -89,7 +89,7 @@ onConnect(async (db) => {
 });
 
 export async function disconnect(): Promise<void> {
-  if (clientPromise) await (await clientPromise).close();
+  if (clientPromise != null) await (await clientPromise).close();
 }
 
 // Optimize projection by removing overlaps

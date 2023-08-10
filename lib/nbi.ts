@@ -66,10 +66,10 @@ async function getBody(request: IncomingMessage): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
-export function listener(
+export async function listener(
   request: IncomingMessage,
   response: ServerResponse
-): void {
+): Promise<void> {
   response.setHeader("GenieACS-Version", VERSION);
 
   const origin = getRequestOrigin(request);
@@ -78,32 +78,17 @@ export function listener(
     (origin.encrypted ? "https://" : "http://") + origin.host
   );
 
-  let readableEnded = false;
-  // For Node 12.9+ we can just use stream.readableEnded
-  request.on("end", () => {
-    readableEnded = true;
-  });
+  const body = await getBody(request).catch(() => null);
+  // Ignore incomplete requests
+  if (body == null) return;
 
-  getBody(request)
-    .then((body) => {
-      logger.accessInfo(
-        Object.assign({}, Object.fromEntries(url.searchParams), {
-          remoteAddress: origin.remoteAddress,
-          message: `${request.method} ${url.pathname}`,
-        })
-      );
-      return handler(request, response, url, body);
+  logger.accessInfo(
+    Object.assign({}, Object.fromEntries(url.searchParams), {
+      remoteAddress: origin.remoteAddress,
+      message: `${request.method} ${url.pathname}`,
     })
-    .catch((err) => {
-      // Ignore incomplete requests
-      if (!readableEnded) return;
-
-      if (!response.headersSent) {
-        response.writeHead(500, { Connection: "close" });
-        response.end(`${err.name}: ${err.message}`);
-      }
-      throw err;
-    });
+  );
+  return handler(request, response, url, body);
 }
 
 async function handler(

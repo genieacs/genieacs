@@ -25,7 +25,8 @@ import * as path from "path";
 import { ROOT_DIR } from "./config";
 
 let server: http.Server | https.Server;
-let listener: (...args) => void;
+let listener: http.RequestListener;
+let stopping = false;
 
 function closeServer(timeout, callback): void {
   if (!server) return void callback();
@@ -73,11 +74,29 @@ interface SocketEndpoint {
 // Save this info as they're not accessible after a socket has been closed
 const socketEndpoints: WeakMap<Socket, SocketEndpoint> = new WeakMap();
 
+type Promisify<T extends (...args: any) => any> = (
+  ...args: Parameters<T>
+) => Promise<ReturnType<T>>;
+
 export function start(
   options: ServerOptions,
-  _listener: http.RequestListener
+  _listener: Promisify<http.RequestListener>
 ): void {
-  listener = _listener;
+  listener = (req, res) => {
+    if (stopping) res.setHeader("Connection", "close");
+    _listener(req, res).catch((err) => {
+      try {
+        res.socket.unref();
+        if (res.headersSent) {
+          res.writeHead(500, { Connection: "close" });
+          res.end(`${err.name}: ${err.message}`);
+        }
+      } catch (err) {
+        // Ignore
+      }
+      throw err;
+    });
+  };
 
   if (options.ssl) {
     const opts = {
@@ -124,7 +143,8 @@ export function start(
   server.listen({ port: options.port, host: options.host });
 }
 
-export function stop(): Promise<void> {
+export function stop(terminateConnections = true): Promise<void> {
+  stopping = terminateConnections;
   return new Promise((resolve, reject) => {
     setTimeout(() => {
       reject(new Error("Could not close server in a timely manner"));

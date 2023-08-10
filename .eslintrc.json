@@ -32,6 +32,7 @@
       { "allowExpressions": true }
     ],
     "@typescript-eslint/no-floating-promises": "error",
+    "@typescript-eslint/no-misused-promises": "error",
     "require-atomic-updates": 0,
     "no-prototype-builtins": 0
   }
