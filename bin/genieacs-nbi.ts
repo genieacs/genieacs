@@ -84,6 +84,11 @@ if (!cluster.worker) {
     timeout: 30000,
   };
 
+  // Need this for Node < 15
+  process.on("unhandledRejection", (err) => {
+    throw err;
+  });
+
   process.on("uncaughtException", (err) => {
     if ((err as NodeJS.ErrnoException).code === "ERR_IPC_DISCONNECTED") return;
     logger.error({

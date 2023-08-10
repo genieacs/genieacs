@@ -54,6 +54,11 @@ function errorToFault(err: Error): Fault {
   return fault;
 }
 
+// Need this for Node < 15
+process.on("unhandledRejection", (err) => {
+  throw err;
+});
+
 process.on("uncaughtException", (err) => {
   const fault = errorToFault(err);
   jobs.forEach((jobId) => {
