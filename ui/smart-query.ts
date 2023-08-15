@@ -76,7 +76,7 @@ export function getLabels(resource: string): string[] {
   return Object.keys(resources[resource]);
 }
 
-function queryNumber(param: string, value: string): Expression {
+function queryNumber(param: Expression, value: string): Expression {
   let op = "=";
   for (const o of ["<>", "=", "<=", "<", ">=", ">"]) {
     if (value.startsWith(o)) {
@@ -92,7 +92,7 @@ function queryNumber(param: string, value: string): Expression {
   return [op, param, v];
 }
 
-function queryTimestamp(param, value): Expression {
+function queryTimestamp(param: Expression, value: string): Expression {
   let op = "=";
   for (const o of ["<>", "=", "<=", "<", ">=", ">"]) {
     if (value.startsWith(o)) {
@@ -108,18 +108,33 @@ function queryTimestamp(param, value): Expression {
   return [op, param, v];
 }
 
-function queryString(param, value): Expression {
+function queryString(param: Expression, value: string): Expression {
   return ["LIKE", ["FUNC", "LOWER", param], value.toLowerCase()];
 }
 
-function queryMac(param, value): Expression {
+function queryStringCaseSensitive(
+  param: Expression,
+  value: string
+): Expression {
+  return ["LIKE", param, value];
+}
+
+function queryStringMonoCase(param: Expression, value: string): Expression {
+  return [
+    "OR",
+    ["LIKE", param, value.toLowerCase()],
+    ["LIKE", param, value.toUpperCase()],
+  ];
+}
+
+function queryMac(param: Expression, value: string): Expression {
   value = value.replace(/[^a-f0-9]/gi, "").toLowerCase();
   if (!value) return null;
   if (value.length === 12) {
     return [
-      "LIKE",
-      ["FUNC", "LOWER", param],
-      value.replace(/(..)(?!$)/g, "$1:"),
+      "OR",
+      ["=", param, value.replace(/(..)(?!$)/g, "$1:").toLowerCase()],
+      ["=", param, value.replace(/(..)(?!$)/g, "$1:").toUpperCase()],
     ];
   }
 
@@ -136,6 +151,29 @@ function queryMac(param, value): Expression {
       `%${value.replace(/(.)(.)/g, "$1:$2")}%`,
     ],
   ];
+}
+
+function queryMacWildcard(param: Expression, value: string): Expression {
+  if (!/^[a-f0-9%]+$/i.test(value)) return queryStringMonoCase(param, value);
+  const parts = value.split("%");
+
+  const groups = parts.map((p) => [
+    p.replace(/..(?=.)/gi, "$&:"),
+    p.replace(/(.)(.)/gi, "$1:$2"),
+  ]);
+
+  const res = new Set();
+  for (let i = 0; i < 2 ** groups.length; ++i) {
+    const r = groups.map((g, j) => g[(i >> j) & 1]).join("%");
+    if (/^[a-f0-9]:/i.test(r) || /:[a-f0-9]$/i.test(r)) continue;
+    res.add(r.toLocaleLowerCase());
+    res.add(r.toUpperCase());
+  }
+  if (!res.size) return queryStringMonoCase(param, value);
+
+  const clauses = [...res].map((r) => ["LIKE", param, r]);
+  if (clauses.length === 1) return clauses[0];
+  return ["OR", ...clauses];
 }
 
 function queryTag(tag: string): Expression {
@@ -156,6 +194,12 @@ export function getTip(resource: string, label: string): string {
         case "string":
           tips.push("case insensitive string pattern");
           break;
+        case "string-casesensitive":
+          tips.push("case sensitive string pattern");
+          break;
+        case "string-monocase":
+          tips.push("case insensitive string pattern");
+          break;
         case "number":
           tips.push("numeric value");
           break;
@@ -166,6 +210,9 @@ export function getTip(resource: string, label: string): string {
           break;
         case "mac":
           tips.push("partial case insensitive MAC address");
+          break;
+        case "mac-wildcard":
+          tips.push("case insensitive MAC address");
           break;
         case "tag":
           tips.push("case sensitive string");
@@ -203,8 +250,26 @@ export function unpack(
     if (q) res.push(q);
   }
 
+  if (type.includes("string-casesensitive")) {
+    const q = queryStringCaseSensitive(
+      resources[resource][label].parameter,
+      value
+    );
+    if (q) res.push(q);
+  }
+
+  if (type.includes("string-monocase")) {
+    const q = queryStringMonoCase(resources[resource][label].parameter, value);
+    if (q) res.push(q);
+  }
+
   if (type.includes("mac")) {
     const q = queryMac(resources[resource][label].parameter, value);
+    if (q) res.push(q);
+  }
+
+  if (type.includes("mac-wildcard")) {
+    const q = queryMacWildcard(resources[resource][label].parameter, value);
     if (q) res.push(q);
   }
 
