@@ -1,8 +1,9 @@
-import * as fs from "node:fs";
+import { readFileSync } from "node:fs";
 import * as http from "node:http";
 import * as https from "node:https";
 import { Socket } from "node:net";
 import * as path from "node:path";
+import { X509Certificate, createPrivateKey } from "node:crypto";
 import { ROOT_DIR } from "./config.ts";
 
 let server: http.Server | https.Server;
@@ -59,6 +60,40 @@ type Promisify<T extends (...args: any) => any> = (
   ...args: Parameters<T>
 ) => Promise<ReturnType<T>>;
 
+function getValidPrivKeys(value: string): Buffer[] {
+  return value.split(":").map((str) => {
+    str = str.trim();
+    const buf = str.startsWith("-----BEGIN ")
+      ? Buffer.from(str)
+      : readFileSync(path.resolve(ROOT_DIR, str));
+
+    try {
+      createPrivateKey(buf);
+    } catch (err) {
+      throw new Error(`Invalid private key: ${err.message}`);
+    }
+
+    return buf;
+  });
+}
+
+function getValidCerts(value: string): Buffer[] {
+  return value.split(":").map((str) => {
+    str = str.trim();
+    const buf = str.startsWith("-----BEGIN ")
+      ? Buffer.from(str)
+      : readFileSync(path.resolve(ROOT_DIR, str));
+
+    try {
+      new X509Certificate(buf);
+    } catch (err) {
+      throw new Error(`Invalid certificate: ${err.message}`);
+    }
+
+    return buf;
+  });
+}
+
 export function start(
   options: ServerOptions,
   _listener: Promisify<http.RequestListener>,
@@ -81,12 +116,8 @@ export function start(
 
   if (options.ssl) {
     const opts = {
-      key: options.ssl.key
-        .split(":")
-        .map((f) => fs.readFileSync(path.resolve(ROOT_DIR, f.trim()))),
-      cert: options.ssl.cert
-        .split(":")
-        .map((f) => fs.readFileSync(path.resolve(ROOT_DIR, f.trim()))),
+      key: getValidPrivKeys(options.ssl.key),
+      cert: getValidCerts(options.ssl.cert),
     };
 
     server = https.createServer(opts, listener);
