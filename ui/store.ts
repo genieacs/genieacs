@@ -21,7 +21,7 @@ import m from "mithril";
 import { stringify } from "../lib/common/expression/parser";
 import { or, and, evaluate } from "../lib/common/expression/util";
 import memoize from "../lib/common/memoize";
-import { QueryOptions, Expression } from "../lib/types";
+import { QueryOptions, Expression, Task } from "../lib/types";
 import * as notifications from "./notifications";
 import { configSnapshot, genieacsVersion } from "./config";
 import { QueueTask } from "./task-queue";
@@ -60,7 +60,6 @@ const resources: Resources = {};
 for (const r of [
   "devices",
   "faults",
-  "files",
   "presets",
   "provisions",
   "virtualParameters",
@@ -596,15 +595,19 @@ export function postTasks(
   deviceId: string,
   tasks: QueueTask[]
 ): Promise<string> {
+  const tasks2: Task[] = [];
   for (const t of tasks) {
     t.status = "pending";
-    t.device = deviceId;
+    const t2 = Object.assign({}, t);
+    delete t2.device;
+    delete t2.status;
+    tasks2.push(t2);
   }
 
   return xhrRequest({
     method: "POST",
     url: `api/devices/${encodeURIComponent(deviceId)}/tasks`,
-    body: tasks,
+    body: tasks2,
     extract: (xhr) => {
       if (xhr.status === 403) throw new Error("Not authorized");
       if (!xhr.status) throw new Error("Server is unreachable");

@@ -98,7 +98,7 @@ export function commit(
     _tasks: QueueTask[]
   ) => void
 ): Promise<void> {
-  const devices: { [deviceId: string]: any[] } = {};
+  const devices: { [deviceId: string]: QueueTask[] } = {};
 
   if (!canQueue(tasks))
     return Promise.reject(new Error("Too many tasks in queue"));
