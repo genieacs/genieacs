@@ -2969,8 +2969,8 @@ export async function rpcFault(
     if (toClear) {
       for (const c of toClear)
         device.clear(sessionContext.deviceData, c[0], c[1], c[2], c[3]);
+      return null;
     }
-    return null;
   }
 
   const fault: Fault = {
