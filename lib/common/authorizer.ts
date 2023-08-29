@@ -119,7 +119,7 @@ export default class Authorizer {
           value = object[entry];
           for (const seg of paramName.split(".")) {
             // typeof null is "object"
-            if (value != null && typeof value !== "object") value = null;
+            if (value !== null && typeof value !== "object") value = null;
             else value = value[seg];
             if (value == null) break;
           }
