@@ -93,8 +93,8 @@ router.get(`/devices/:id.csv`, async (ctx) => {
     return void (ctx.status = 403);
   }
 
-  const res = await db.query("devices", filter);
-  if (!res[0]) return void (ctx.status = 404);
+  const { value: device } = await db.query("devices", filter).next();
+  if (!device) return void (ctx.status = 404);
 
   ctx.type = "text/csv";
   ctx.attachment(
@@ -108,8 +108,8 @@ router.get(`/devices/:id.csv`, async (ctx) => {
     "Parameter,Object,Object timestamp,Writable,Writable timestamp,Value,Value type,Value timestamp,Notification,Notification timestamp,Access list,Access list timestamp\n"
   );
 
-  for (const k of Object.keys(res[0]).sort()) {
-    const p = res[0][k];
+  for (const k of Object.keys(device).sort()) {
+    const p = device[k];
     let value = "";
     let type = "";
     if (p.value) {
