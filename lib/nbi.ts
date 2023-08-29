@@ -226,17 +226,31 @@ async function handler(
     const deviceId = decodeURIComponent(r[1]);
     const tag = decodeURIComponent(r[2]);
     if (request.method === "POST") {
-      await collections.devices.updateOne(
+      const updateRes = await collections.devices.updateOne(
         { _id: deviceId },
         { $addToSet: { _tags: tag } }
       );
+
+      if (!updateRes.matchedCount) {
+        response.writeHead(404);
+        response.end("No such device");
+        return;
+      }
+
       response.writeHead(200);
       response.end();
     } else if (request.method === "DELETE") {
-      await collections.devices.updateOne(
+      const updateRes = await collections.devices.updateOne(
         { _id: deviceId },
         { $pull: { _tags: tag } }
       );
+
+      if (!updateRes.matchedCount) {
+        response.writeHead(404);
+        response.end("No such device");
+        return;
+      }
+
       response.writeHead(200);
       response.end();
     } else {
