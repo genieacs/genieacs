@@ -840,10 +840,23 @@ async function endSession(sessionContext: SessionContext): Promise<void> {
 
   await Promise.all(promises);
 
-  await cache.releaseLock(
-    `cwmp_session_${sessionContext.deviceId}`,
-    sessionContext.sessionId
-  );
+  try {
+    await cache.releaseLock(
+      `cwmp_session_${sessionContext.deviceId}`,
+      sessionContext.sessionId
+    );
+  } catch (e) {
+    if (sessionContext.deviceId === 'C83A35-ACtion%20RG1200-d83214881173') {
+      logger.accessInfo({
+        sessionContext: sessionContext,
+        message: 'We found you messing up once again, Action RG1200 on SoftwareVersion=2.1.2...',
+      });
+    } else {
+      // Rethrow
+      throw e;
+    }
+  }
+
   if (sessionContext.new) {
     metricsExporter.registeredDevice.inc();
     logger.accessInfo({
