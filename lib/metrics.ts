@@ -83,6 +83,11 @@ export const metricsExporter = {
     buckets: [0.001, 0.01, 0.1, 1, 5],
   }),
 
+  blockedNewCpe: new promClient.Gauge({
+    name: 'genieacs_blocked_new_cpe',
+    help: 'New CPEs that were blocked before registering',
+  }),
+
   // Below gauge metrics are collected by callbacks.
   // We don't export the metrics, only the callback.
   concurrentRequestsCB: callbackEntryCreator('concurrentRequests')
