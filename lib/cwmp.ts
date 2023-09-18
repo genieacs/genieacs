@@ -846,7 +846,7 @@ async function endSession(sessionContext: SessionContext): Promise<void> {
       sessionContext.sessionId
     );
   } catch (e) {
-    if (sessionContext.deviceId === 'C83A35-ACtion%20RG1200-d83214881173') {
+    if (sessionContext.deviceId.startsWith('C83A35-ACtion%20RG1200')) {
       logger.accessInfo({
         sessionContext: sessionContext,
         message: 'We found you messing up once again, Action RG1200 on SoftwareVersion=2.1.2...',
