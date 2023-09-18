@@ -68,6 +68,7 @@ const MAX_CYCLES = 4;
 const MAX_CONCURRENT_REQUESTS = +config.get("MAX_CONCURRENT_REQUESTS");
 const PROMETHEUS_METRICS = config.get("CWMP_PROMETHEUS_METRICS");
 const SKIP_FLASHMAN_INFORM = config.get("SKIP_FLASHMAN_INFORM");
+const BLOCK_NEW_CPE = config.get("BLOCK_NEW_CPE");
 
 const currentSessions = new WeakMap<Socket, SessionContext>();
 const sessionsNonces = new WeakMap<Socket, string>();
@@ -1754,6 +1755,13 @@ async function listenerAsync(
   } else {
     // Device not available in database, mark as new
     _sessionContext.new = true;
+
+    if (BLOCK_NEW_CPE) {
+      httpResponse.writeHead(403, { Connection: "close" });
+      httpResponse.end("403 Forbidden");
+      metricsExporter.blockedNewCpe.inc();
+      return;
+    }
   }
 
   
