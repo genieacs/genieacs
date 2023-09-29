@@ -22,7 +22,7 @@ import { m } from "../components";
 import * as notifications from "../notifications";
 import * as store from "../store";
 import { getIcon } from "../icons";
-import { decodeTag } from "../../lib/common";
+import { decodeTag } from "../../lib/util";
 
 const component: ClosureComponent = (): Component => {
   return {

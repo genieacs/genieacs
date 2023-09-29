@@ -1,5 +1,5 @@
 import ava from "ava";
-import * as common from "../lib/common";
+import * as common from "../lib/util";
 
 ava("generateDeviceId", (t) => {
   const space = [" ", "%20"];

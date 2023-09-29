@@ -23,7 +23,7 @@ import * as cluster from "../lib/cluster";
 import * as server from "../lib/server";
 import { listener } from "../lib/ui";
 import * as extensions from "../lib/extensions";
-import * as db from "../lib/db";
+import * as db from "../lib/db/db";
 import { version as VERSION } from "../package.json";
 
 logger.init("ui", VERSION);

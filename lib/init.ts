@@ -17,9 +17,16 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import * as localCache from "./local-cache";
+import { getRevision, getUiConfig, getUsers } from "./ui/local-cache";
 import { generateSalt, hashPassword } from "./auth";
-import * as db from "./ui/db";
+import { collections } from "./db/db";
+import {
+  putConfig,
+  putPermission,
+  putPreset,
+  putProvision,
+  putUser,
+} from "./ui/db";
 import { del } from "./cache";
 
 interface Status {
@@ -84,14 +91,16 @@ declare("Device.ManagementServer.PeriodicInformTime", {value: daily}, {value: in
 `.trim();
 
 export async function getStatus(): Promise<Status> {
-  const configSnapshot = await localCache.getCurrentSnapshot();
-  const users = localCache.getUsers(configSnapshot);
-  const presets = localCache.getPresets(configSnapshot);
-  const ui = localCache.getUiConfig(configSnapshot);
+  const [configSnapshot, presetCount] = await Promise.all([
+    getRevision(),
+    collections.presets.countDocuments(),
+  ]);
+  const users = getUsers(configSnapshot);
+  const ui = getUiConfig(configSnapshot);
 
   return {
     users: !Object.keys(users).length,
-    presets: !presets.length,
+    presets: !presetCount,
     filters: !Object.keys(ui["filters"]).length,
     device: !Object.keys(ui["device"]).length,
     index: !Object.keys(ui["index"]).length,
@@ -395,7 +404,7 @@ export async function seed(options: Record<string, boolean>): Promise<void> {
   if (resources["permissions"]) {
     for (const p of resources["permissions"]) {
       p["_id"] = `${p["role"]}:${p["resource"]}:${p["access"]}`;
-      proms.push(db.putPermission(p["_id"], p));
+      proms.push(putPermission(p["_id"], p));
     }
   }
 
@@ -406,21 +415,21 @@ export async function seed(options: Record<string, boolean>): Promise<void> {
       u["roles"] = (u["roles"] || []).join(",");
       u["_id"] = u["username"];
       delete u["username"];
-      proms.push(db.putUser(u["_id"], u));
+      proms.push(putUser(u["_id"], u));
     }
   }
 
   if (resources["provisions"]) {
     for (const p of resources["provisions"])
-      proms.push(db.putProvision(p["_id"], p));
+      proms.push(putProvision(p["_id"], p));
   }
 
   if (resources["presets"])
-    for (const p of resources["presets"]) proms.push(db.putPreset(p["_id"], p));
+    for (const p of resources["presets"]) proms.push(putPreset(p["_id"], p));
 
   if (resources["config"])
-    for (const c of resources["config"]) proms.push(db.putConfig(c["_id"], c));
+    for (const c of resources["config"]) proms.push(putConfig(c["_id"], c));
 
   await proms;
-  return del("presets_hash");
+  await Promise.all([del("ui-local-cache-hash"), del("cwmp-local-cache-hash")]);
 }

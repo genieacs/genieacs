@@ -20,17 +20,17 @@
 import { PassThrough } from "stream";
 import Router from "koa-router";
 import * as db from "./db";
-import * as apiFunctions from "./api-functions";
+import * as apiFunctions from "../api-functions";
 import { evaluate, and, extractParams } from "../common/expression/util";
 import { parse } from "../common/expression/parser";
 import * as logger from "../logger";
-import { getConfig } from "../local-cache";
-import { QueryOptions, Expression } from "../types";
+import { getConfig } from "../ui/local-cache";
+import { Expression } from "../types";
 import { generateSalt, hashPassword } from "../auth";
 import { del } from "../cache";
 import Authorizer from "../common/authorizer";
 import { ping } from "../ping";
-import { decodeTag } from "../common";
+import { decodeTag } from "../util";
 import { stringify as yamlStringify } from "../common/yaml";
 
 const router = new Router();
@@ -178,7 +178,7 @@ for (const [resource, flags] of Object.entries(resources)) {
 
   router.get(`/${resource}`, async (ctx) => {
     const authorizer: Authorizer = ctx.state.authorizer;
-    const options: QueryOptions = {};
+    const options: Parameters<typeof db.query>[2] = {};
     let filter: Expression = authorizer.getFilter(resource, 2);
     if (ctx.request.query.filter)
       filter = and(filter, parse(singleParam(ctx.request.query.filter)));
@@ -231,7 +231,7 @@ for (const [resource, flags] of Object.entries(resources)) {
   // CSV download
   router.get(`/${resource}.csv`, async (ctx) => {
     const authorizer: Authorizer = ctx.state.authorizer;
-    const options: QueryOptions = { projection: {} };
+    const options: Parameters<typeof db.query>[2] = { projection: {} };
     let filter: Expression = authorizer.getFilter(resource, 2);
     if (ctx.request.query.filter)
       filter = and(filter, parse(singleParam(ctx.request.query.filter)));
@@ -712,7 +712,7 @@ router.put("/users/:id/password", async (ctx) => {
   const password = await hashPassword(newPassword, salt);
   await db.putUser(username, { password, salt });
 
-  await del("presets_hash");
+  await del("ui-local-cache-hash");
 
   logger.accessInfo(log);
   ctx.body = "";

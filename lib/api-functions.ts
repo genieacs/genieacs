@@ -17,21 +17,42 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { collections } from "./db";
-import * as common from "./common";
+import { ObjectId } from "mongodb";
+import { collections } from "./db/db";
+import {
+  count,
+  deleteConfig,
+  deleteFault,
+  deleteFile,
+  deletePermission,
+  deletePreset,
+  deleteProvision,
+  deleteTask,
+  deleteUser,
+  deleteVirtualParameter,
+  putConfig,
+  putPermission,
+  putPreset,
+  putProvision,
+  putUser,
+  putVirtualParameter,
+} from "./ui/db";
+import * as common from "./util";
 import * as cache from "./cache";
 import {
-  getCurrentSnapshot,
+  getRevision,
   getConfig,
   getConfigExpression,
-} from "./local-cache";
+  getUsers,
+} from "./ui/local-cache";
 import {
   httpConnectionRequest,
   udpConnectionRequest,
 } from "./connection-request";
 import { Expression, Task } from "./types";
-import { flattenDevice } from "./mongodb-functions";
 import { evaluate } from "./common/expression/util";
+import { hashPassword } from "./auth";
+import { flattenDevice } from "./ui/db";
 
 export async function connectionRequest(
   deviceId: string,
@@ -103,7 +124,7 @@ export async function connectionRequest(
     return exp;
   };
 
-  const snapshot = await getCurrentSnapshot();
+  const snapshot = await getRevision();
   const now = Date.now();
   const UDP_CONNECTION_REQUEST_PORT = +getConfig(
     snapshot,
@@ -349,4 +370,177 @@ export async function deleteDevice(deviceId: string): Promise<void> {
     }),
     cache.del(`${deviceId}_tasks_faults_operations`),
   ]);
+}
+
+export async function deleteResource(
+  resource: string,
+  id: string
+): Promise<void> {
+  if (resource === "devices") {
+    await deleteDevice(id);
+  } else if (resource === "files") {
+    await deleteFile(id);
+    await cache.del("cwmp-local-cache-hash");
+  } else if (resource === "faults") {
+    const deviceId = id.split(":", 1)[0];
+    const channel = id.slice(deviceId.length + 1);
+    const proms = [deleteFault(id)];
+    if (channel.startsWith("task_"))
+      proms.push(deleteTask(new ObjectId(channel.slice(5))));
+    await Promise.all(proms);
+    await cache.del(`${deviceId}_tasks_faults_operations`);
+  } else if (resource === "provisions") {
+    await deleteProvision(id);
+    await cache.del("cwmp-local-cache-hash");
+  } else if (resource === "presets") {
+    await deletePreset(id);
+    await cache.del("cwmp-local-cache-hash");
+  } else if (resource === "virtualParameters") {
+    await deleteVirtualParameter(id);
+    await cache.del("cwmp-local-cache-hash");
+  } else if (resource === "config") {
+    await deleteConfig(id);
+    await Promise.all([
+      cache.del("ui-local-cache-hash"),
+      cache.del("cwmp-local-cache-hash"),
+    ]);
+  } else if (resource === "permissions") {
+    await deletePermission(id);
+    await cache.del("ui-local-cache-hash");
+  } else if (resource === "users") {
+    await deleteUser(id);
+    await cache.del("ui-local-cache-hash");
+  } else {
+    throw new Error(`Unknown resource ${resource}`);
+  }
+}
+
+export async function postTasks(
+  deviceId: string,
+  tasks: Task[],
+  timeout: number,
+  device: Record<string, { value?: [boolean | number | string, string] }>
+): Promise<{ connectionRequest: string; tasks: any[] }> {
+  for (const task of tasks) {
+    delete task._id;
+    task["device"] = deviceId;
+  }
+
+  tasks = await insertTasks(tasks);
+  const statuses = tasks.map((t) => {
+    return { _id: t._id, status: "pending" };
+  });
+  const lastInform = Date.now();
+  const notInSession = await awaitSessionEnd(deviceId, 30000);
+  if (!notInSession) {
+    await Promise.all(statuses.map((t) => deleteTask(new ObjectId(t._id))));
+    return {
+      connectionRequest: "Session took too long to complete",
+      tasks: statuses,
+    };
+  }
+
+  await cache.del(`${deviceId}_tasks_faults_operations`);
+
+  const status = await connectionRequest(deviceId, device);
+
+  if (status) {
+    await Promise.all(statuses.map((t) => deleteTask(new ObjectId(t._id))));
+    return {
+      connectionRequest: status,
+      tasks: statuses,
+    };
+  }
+
+  const sessionStarted = await awaitSessionStart(deviceId, lastInform, timeout);
+  if (!sessionStarted) {
+    await Promise.all(statuses.map((t) => deleteTask(new ObjectId(t._id))));
+    return {
+      connectionRequest: "No contact from CPE",
+      tasks: statuses,
+    };
+  }
+
+  const sessionEnded = await awaitSessionEnd(deviceId, 120000);
+  if (!sessionEnded) {
+    await Promise.all(statuses.map((t) => deleteTask(new ObjectId(t._id))));
+    return {
+      connectionRequest: "Session took too long to complete",
+      tasks: statuses,
+    };
+  }
+
+  const promises: Promise<number>[] = [];
+  for (const s of statuses) {
+    promises.push(count("tasks", ["=", ["PARAM", "_id"], s._id]));
+    promises.push(
+      count("faults", ["=", ["PARAM", "_id"], `${deviceId}:task_${s._id}`])
+    );
+  }
+
+  const res = await Promise.all(promises);
+  for (const [i, r] of statuses.entries()) {
+    if (!res[i * 2]) {
+      r.status = "done";
+    } else if (res[i * 2 + 1]) {
+      r.status = "fault";
+      r["fault"] = res[i * 2 + 1][0];
+    }
+  }
+
+  await Promise.all(statuses.map((t) => deleteTask(new ObjectId(t._id))));
+
+  return { connectionRequest: "OK", tasks: statuses };
+}
+
+// TODO Implement validation
+export async function putResource(
+  resource: string,
+  id: string,
+  data: any
+): Promise<void> {
+  if (resource === "presets") {
+    await putPreset(id, data);
+    await cache.del("cwmp-local-cache-hash");
+  } else if (resource === "provisions") {
+    await putProvision(id, data);
+    await cache.del("cwmp-local-cache-hash");
+  } else if (resource === "virtualParameters") {
+    await putVirtualParameter(id, data);
+    await cache.del("cwmp-local-cache-hash");
+  } else if (resource === "config") {
+    await putConfig(id, data);
+    await Promise.all([
+      cache.del("ui-local-cache-hash"),
+      cache.del("cwmp-local-cache-hash"),
+    ]);
+  } else if (resource === "permissions") {
+    await putPermission(id, data);
+    await cache.del("ui-local-cache-hash");
+  } else if (resource === "users") {
+    delete data["password"];
+    delete data["salt"];
+    await putUser(id, data);
+    await cache.del("ui-local-cache-hash");
+  } else {
+    throw new Error(`Unknown resource ${resource}`);
+  }
+}
+
+export function authLocal(
+  snapshot: string,
+  username: string,
+  password: string
+): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const users = getUsers(snapshot);
+    const user = users[username];
+    if (!user?.password) return void resolve(null);
+    hashPassword(password, user.salt)
+      .then((hash) => {
+        if (hash === user.password) resolve(true);
+        else resolve(false);
+      })
+      .catch(reject);
+  });
 }

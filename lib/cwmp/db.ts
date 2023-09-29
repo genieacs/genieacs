@@ -1,53 +1,16 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import { MongoClient, ObjectId, Collection, Db } from "mongodb";
-import { get } from "./config";
-import { decodeTag, encodeTag, escapeRegExp } from "./common";
-import { parse } from "./common/expression/parser";
+import { decodeTag, encodeTag, escapeRegExp } from "../util";
 import {
   DeviceData,
   Attributes,
   SessionFault,
   Task,
   Operation,
-  Expression,
-} from "./types";
-import Path from "./common/path";
-import * as MongoTypes from "./mongodb-types";
-
-export const collections = {
-  devices: null as Collection<MongoTypes.Device>,
-  presets: null as Collection<MongoTypes.Preset>,
-  objects: null as Collection<MongoTypes.Object>,
-  provisions: null as Collection<MongoTypes.Provision>,
-  virtualParameters: null as Collection<MongoTypes.VirtualParameter>,
-  faults: null as Collection<MongoTypes.Fault>,
-  tasks: null as Collection<MongoTypes.Task>,
-  files: null as Collection<MongoTypes.File>,
-  operations: null as Collection<MongoTypes.Operation>,
-  permissions: null as Collection<MongoTypes.Permission>,
-  users: null as Collection<MongoTypes.User>,
-  config: null as Collection<MongoTypes.Config>,
-};
-
-let clientPromise: Promise<MongoClient>;
+} from "../types";
+import Path from "../common/path";
+import { collections } from "../db/db";
+import { optimizeProjection } from "../db/util";
+import * as MongoTypes from "../db/types";
+import { ObjectId } from "mongodb";
 
 const INVALID_PATH_SUFFIX = "__invalid";
 
@@ -55,64 +18,6 @@ function compareAccessLists(list1: string[], list2: string[]): boolean {
   if (list1.length !== list2.length) return false;
   for (const [i, v] of list1.entries()) if (v !== list2[i]) return false;
   return true;
-}
-
-const onConnectCallbacks: ((db: Db) => Promise<void>)[] = [];
-
-export function onConnect(callback: (db: Db) => Promise<void>): void {
-  onConnectCallbacks.push(callback);
-}
-
-export async function connect(): Promise<void> {
-  clientPromise = MongoClient.connect("" + get("MONGODB_CONNECTION_URL"));
-
-  const client = await clientPromise;
-  const db = client.db();
-  await Promise.all(onConnectCallbacks.map((c) => c(db)));
-}
-
-onConnect(async (db) => {
-  collections.tasks = db.collection("tasks");
-  await collections.tasks.createIndex({ device: 1, timestamp: 1 });
-
-  collections.devices = db.collection("devices");
-  collections.presets = db.collection("presets");
-  collections.objects = db.collection("objects");
-  collections.files = db.collection("fs.files");
-  collections.provisions = db.collection("provisions");
-  collections.virtualParameters = db.collection("virtualParameters");
-  collections.faults = db.collection("faults");
-  collections.operations = db.collection("operations");
-  collections.permissions = db.collection("permissions");
-  collections.users = db.collection("users");
-  collections.config = db.collection("config");
-});
-
-export async function disconnect(): Promise<void> {
-  if (clientPromise != null) await (await clientPromise).close();
-}
-
-// Optimize projection by removing overlaps
-// This can modify the object
-export function optimizeProjection(obj: { [path: string]: 1 }): {
-  [path: string]: 1;
-} {
-  if (obj[""]) return { "": obj[""] };
-
-  const keys = Object.keys(obj).sort();
-  if (keys.length <= 1) return obj;
-
-  for (let i = 1; i < keys.length; ++i) {
-    const a = keys[i - 1];
-    const b = keys[i];
-    if (b.startsWith(a)) {
-      if (b.charAt(a.length) === "." || b.charAt(a.length - 1) === ".") {
-        delete obj[b];
-        keys.splice(i--, 1);
-      }
-    }
-  }
-  return obj;
 }
 
 export async function fetchDevice(
@@ -821,57 +726,4 @@ export async function deleteOperation(
   commandKey: string
 ): Promise<void> {
   await collections.operations.deleteOne({ _id: `${deviceId}:${commandKey}` });
-}
-
-export async function getPresets(): Promise<Record<string, any>[]> {
-  return collections.presets.find().toArray();
-}
-
-export async function getObjects(): Promise<Record<string, any>[]> {
-  return collections.objects.find().toArray();
-}
-
-export async function getProvisions(): Promise<Record<string, any>[]> {
-  return collections.provisions.find().toArray();
-}
-
-export async function getVirtualParameters(): Promise<Record<string, any>[]> {
-  return collections.virtualParameters.find().toArray();
-}
-
-export function getFiles(): Promise<Record<string, any>[]> {
-  return collections.files.find().toArray();
-}
-
-export async function getConfig(): Promise<
-  { id: string; value: Expression }[]
-> {
-  const res = await collections.config.find().toArray();
-  return res.map((c) => ({
-    id: c["_id"],
-    value: parse(c["value"]),
-  }));
-}
-
-interface Permission {
-  role: string;
-  resource: string;
-  access: number;
-  filter: string;
-  validate: string;
-}
-
-export async function getPermissions(): Promise<Permission[]> {
-  return collections.permissions.find().toArray() as unknown as Permission[];
-}
-
-interface User {
-  _id: string;
-  password: string;
-  salt: string;
-  roles: string;
-}
-
-export async function getUsers(): Promise<User[]> {
-  return collections.users.find().toArray() as unknown as User[];
 }

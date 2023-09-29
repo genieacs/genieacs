@@ -21,7 +21,7 @@ import m from "mithril";
 import { stringify } from "../lib/common/expression/parser";
 import { or, and, evaluate } from "../lib/common/expression/util";
 import memoize from "../lib/common/memoize";
-import { QueryOptions, Expression, Task } from "../lib/types";
+import { Expression, Task } from "../lib/types";
 import * as notifications from "./notifications";
 import { configSnapshot, genieacsVersion } from "./config";
 import { QueueTask } from "./task-queue";
@@ -342,7 +342,7 @@ function inferQuery(resourceType, queryResponse): void {
 export function fetch(
   resourceType: string,
   filter: Expression,
-  options: QueryOptions = {}
+  options: { limit?: number; sort?: { [param: string]: number } } = {}
 ): QueryResponse {
   const filterStr = memoizedStringify(filter);
   const sort = Object.assign({}, options.sort);

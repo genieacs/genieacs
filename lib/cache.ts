@@ -17,28 +17,19 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Collection } from "mongodb";
-import { onConnect } from "./db";
+import { collections } from "./db/db";
 import * as config from "./config";
-import { Cache } from "./mongodb-types";
 
 const CLOCK_SKEW_TOLERANCE = 30000;
 const MAX_CACHE_TTL = +config.get("MAX_CACHE_TTL");
 
-let cacheCollection: Collection<Cache>;
-
-onConnect(async (db) => {
-  cacheCollection = db.collection("cache");
-  await cacheCollection.createIndex({ expire: 1 }, { expireAfterSeconds: 0 });
-});
-
 export async function get(key: string): Promise<string> {
-  const res = await cacheCollection.findOne({ _id: key });
+  const res = await collections.cache.findOne({ _id: key });
   return res?.value;
 }
 
 export async function del(key: string): Promise<void> {
-  await cacheCollection.deleteOne({ _id: key });
+  await collections.cache.deleteOne({ _id: key });
 }
 
 export async function set(
@@ -50,7 +41,7 @@ export async function set(
   const expire = new Date(
     timestamp.getTime() + CLOCK_SKEW_TOLERANCE + ttl * 1000
   );
-  await cacheCollection.replaceOne(
+  await collections.cache.replaceOne(
     { _id: key },
     { value, expire, timestamp },
     { upsert: true }
@@ -58,7 +49,7 @@ export async function set(
 }
 
 export async function pop(key: string): Promise<string> {
-  const res = await cacheCollection.findOneAndDelete({ _id: key });
+  const res = await collections.cache.findOneAndDelete({ _id: key });
   return res.value?.value;
 }
 
@@ -70,7 +61,7 @@ export async function acquireLock(
 ): Promise<string> {
   try {
     const now = Date.now();
-    const r = await cacheCollection.findOneAndUpdate(
+    const r = await collections.cache.findOneAndUpdate(
       { _id: lockName, value: token },
       {
         $set: {
@@ -97,7 +88,7 @@ export async function releaseLock(
   lockName: string,
   token: string
 ): Promise<void> {
-  const res = await cacheCollection.deleteOne({
+  const res = await collections.cache.deleteOne({
     _id: lockName,
     value: token,
   });

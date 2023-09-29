@@ -22,7 +22,7 @@ import { parse, stringify, map } from "../lib/common/expression/parser";
 import memoize from "../lib/common/memoize";
 import Autocomplete from "./autocomplete-compnent";
 import * as smartQuery from "./smart-query";
-import { validQuery } from "../lib/mongodb-functions";
+import { validQuery } from "../lib/db/synth";
 import { Expression } from "../lib/types";
 
 const getAutocomplete = memoize((resource) => {

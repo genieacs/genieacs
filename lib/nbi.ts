@@ -17,10 +17,11 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Collection, GridFSBucket, ObjectId } from "mongodb";
+import { Collection, ObjectId } from "mongodb";
 import * as vm from "vm";
 import * as config from "./config";
-import { onConnect, optimizeProjection, collections } from "./db";
+import { filesBucket, collections } from "./db/db";
+import { optimizeProjection } from "./db/util";
 import * as query from "./query";
 import * as apiFunctions from "./api-functions";
 import { IncomingMessage, ServerResponse } from "http";
@@ -28,7 +29,7 @@ import * as cache from "./cache";
 import { version as VERSION } from "../package.json";
 import { ping } from "./ping";
 import * as logger from "./logger";
-import { flattenDevice } from "./mongodb-functions";
+import { flattenDevice } from "./ui/db";
 import { getRequestOrigin } from "./forwarded";
 
 const DEVICE_TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-_%]+)\/tasks\/?$/;
@@ -45,12 +46,6 @@ const PROVISIONS_REGEX = /^\/provisions\/([a-zA-Z0-9\-_%]+)\/?$/;
 const VIRTUAL_PARAMETERS_REGEX =
   /^\/virtual_parameters\/([a-zA-Z0-9\-_%]+)\/?$/;
 const FAULTS_REGEX = /^\/faults\/([a-zA-Z0-9\-_%:]+)\/?$/;
-
-let filesBucket: GridFSBucket;
-
-onConnect(async (db) => {
-  filesBucket = new GridFSBucket(db);
-});
 
 async function getBody(request: IncomingMessage): Promise<Buffer> {
   const chunks: Buffer[] = [];
@@ -112,12 +107,12 @@ async function handler(
       await collections.presets.replaceOne({ _id: presetName }, preset, {
         upsert: true,
       });
-      await cache.del("presets_hash");
+      await cache.del("cwmp-local-cache-hash");
       response.writeHead(200);
       response.end();
     } else if (request.method === "DELETE") {
       await collections.presets.deleteOne({ _id: presetName });
-      await cache.del("presets_hash");
+      await cache.del("cwmp-local-cache-hash");
       response.writeHead(200);
       response.end();
     } else {
@@ -139,12 +134,12 @@ async function handler(
       await collections.objects.replaceOne({ _id: objectName }, object, {
         upsert: true,
       });
-      await cache.del("presets_hash");
+      await cache.del("cwmp-local-cache-hash");
       response.writeHead(200);
       response.end();
     } else if (request.method === "DELETE") {
       await collections.objects.deleteOne({ _id: objectName });
-      await cache.del("presets_hash");
+      await cache.del("cwmp-local-cache-hash");
       response.writeHead(200);
       response.end();
     } else {
@@ -172,12 +167,12 @@ async function handler(
       await collections.provisions.replaceOne({ _id: provisionName }, object, {
         upsert: true,
       });
-      await cache.del("presets_hash");
+      await cache.del("cwmp-local-cache-hash");
       response.writeHead(200);
       response.end();
     } else if (request.method === "DELETE") {
       await collections.provisions.deleteOne({ _id: provisionName });
-      await cache.del("presets_hash");
+      await cache.del("cwmp-local-cache-hash");
       response.writeHead(200);
       response.end();
     } else {
@@ -207,14 +202,14 @@ async function handler(
         object,
         { upsert: true }
       );
-      await cache.del("presets_hash");
+      await cache.del("cwmp-local-cache-hash");
       response.writeHead(200);
       response.end();
     } else if (request.method === "DELETE") {
       await collections.virtualParameters.deleteOne({
         _id: virtualParameterName,
       });
-      await cache.del("presets_hash");
+      await cache.del("cwmp-local-cache-hash");
       response.writeHead(200);
       response.end();
     } else {

@@ -29,9 +29,9 @@ import * as config from "./config";
 import api from "./ui/api";
 import Authorizer from "./common/authorizer";
 import * as logger from "./logger";
-import * as localCache from "./local-cache";
+import * as localCache from "./ui/local-cache";
 import { PermissionSet } from "./types";
-import { authLocal } from "./ui/api-functions";
+import { authLocal } from "./api-functions";
 import * as init from "./init";
 import { version as VERSION } from "../package.json";
 import memoize from "./common/memoize";
@@ -68,7 +68,7 @@ koa.on("error", (err, ctx) => {
 });
 
 koa.use(async (ctx, next) => {
-  const configSnapshot = await localCache.getCurrentSnapshot();
+  const configSnapshot = await localCache.getRevision();
   ctx.state.configSnapshot = configSnapshot;
   ctx.set("X-Config-Snapshot", configSnapshot);
   ctx.set("GenieACS-Version", VERSION);

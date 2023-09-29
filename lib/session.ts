@@ -19,7 +19,7 @@
 
 import * as device from "./device";
 import * as sandbox from "./sandbox";
-import * as localCache from "./local-cache";
+import * as localCache from "./cwmp/local-cache";
 import * as defaultProvisions from "./default-provisions";
 import { estimateGpnCount } from "./gpn-heuristic";
 import Path from "./common/path";
@@ -3004,7 +3004,7 @@ export async function deserialize(
 
   sessionContext.deviceData = deviceData;
   // Ensure cache is populated
-  await localCache.getCurrentSnapshot();
+  await localCache.getRevision();
 
   return sessionContext;
 }

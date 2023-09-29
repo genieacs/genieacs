@@ -1,8 +1,9 @@
 import ava from "ava";
 import { EJSON } from "bson";
 import { Filter } from "mongodb";
-import * as mongodbFunctions from "../lib/mongodb-functions";
 import { stringify, parse } from "../lib/common/expression/parser";
+import { convertOldPrecondition } from "../lib/db/util";
+import { toMongoQuery } from "../lib/db/synth";
 
 ava("convertOldPrecondition", (t) => {
   const tests = [
@@ -53,20 +54,14 @@ ava("convertOldPrecondition", (t) => {
   t.plan(tests.length + 2 * shouldFailTests.length);
   for (const test of tests) {
     t.is(
-      stringify(
-        mongodbFunctions.convertOldPrecondition(
-          test[0] as Record<string, unknown>
-        )
-      ),
+      stringify(convertOldPrecondition(test[0] as Record<string, unknown>)),
       test[1]
     );
   }
 
   for (const test of shouldFailTests) {
     const func = (): void => {
-      mongodbFunctions.convertOldPrecondition(
-        test[0] as Record<string, unknown>
-      );
+      convertOldPrecondition(test[0] as Record<string, unknown>);
     };
     const error = t.throws(func, { instanceOf: Error });
     t.is(error.message, test[1]);
@@ -153,7 +148,7 @@ ava("toMongoQuery", async (t) => {
 
   for (const [expStr, expect] of queries) {
     const exp = parse(expStr);
-    let query = mongodbFunctions.toMongoQuery(exp, "devices");
+    let query = toMongoQuery(exp, "devices");
     if (query) query = EJSON.serialize(query);
     t.deepEqual(query, expect);
   }
@@ -167,7 +162,7 @@ ava("toMongoQuery", async (t) => {
 
   for (const [expStr, err] of failQueries) {
     const exp = parse(expStr);
-    t.throws(() => mongodbFunctions.toMongoQuery(exp, "devices"), {
+    t.throws(() => toMongoQuery(exp, "devices"), {
       message: err,
     });
   }

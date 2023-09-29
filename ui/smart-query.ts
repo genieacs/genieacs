@@ -19,7 +19,7 @@
 
 import config from "./config";
 import { Expression } from "../lib/types";
-import { encodeTag } from "../lib/common";
+import { encodeTag } from "../lib/util";
 
 const resources = {
   devices: {},

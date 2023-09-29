@@ -20,17 +20,10 @@
 import * as url from "url";
 import { IncomingMessage, ServerResponse } from "http";
 import { PassThrough, pipeline, Readable } from "stream";
-import { GridFSBucket } from "mongodb";
-import { onConnect, collections } from "./db";
+import { filesBucket, collections } from "./db/db";
 import * as logger from "./logger";
 import { getRequestOrigin } from "./forwarded";
 import memoize from "./common/memoize";
-
-let filesBucket: GridFSBucket;
-
-onConnect(async (db) => {
-  filesBucket = new GridFSBucket(db);
-});
 
 const getFile = memoize(
   async (

@@ -1,5 +1,5 @@
 import { ObjectId } from "mongodb";
-import { Expression, FaultStruct } from "./types";
+import { Expression, FaultStruct } from "../types";
 
 export interface Fault {
   _id: string;
@@ -115,13 +115,21 @@ export interface Device {
   _timestamp?: Date;
 }
 
+type Configuration =
+  | { type: "age"; name: string; age: number }
+  | { type: "value"; name: string; value: boolean | number | string }
+  | { type: "add_tag"; tag: string }
+  | { type: "delete_tag"; tag: string }
+  | { type: "add_object"; name: string; object: string }
+  | { type: "delete_object"; name: string; object: string }
+  | { type: "provision"; name: string; args?: Expression[] };
+
 export interface Preset {
   _id: string;
   weight: number;
-  channels: string;
-  provisions: string;
+  channel: string;
   events: Record<string, boolean>;
-  configurations: { type: string; name: string; args: Expression[] }[];
+  configurations: Configuration[];
 }
 
 export interface Object {
@@ -155,7 +163,8 @@ export interface Permission {
   role: string;
   resource: string;
   access: 1 | 2 | 3;
-  validate: string;
+  filter?: string;
+  validate?: string;
 }
 
 export interface User {
