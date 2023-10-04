@@ -37,6 +37,7 @@ export const collections = {
   users: null as Collection<MongoTypes.User>,
   config: null as Collection<MongoTypes.Config>,
   cache: null as Collection<MongoTypes.Cache>,
+  locks: null as Collection<MongoTypes.Lock>,
 };
 
 let clientPromise: Promise<MongoClient>;
@@ -60,11 +61,13 @@ export async function connect(): Promise<void> {
   collections.users = db.collection("users");
   collections.config = db.collection("config");
   collections.cache = db.collection("cache");
+  collections.locks = db.collection("locks");
   filesBucket = new GridFSBucket(db);
 
   await Promise.all([
     collections.tasks.createIndex({ device: 1, timestamp: 1 }),
     collections.cache.createIndex({ expire: 1 }, { expireAfterSeconds: 0 }),
+    collections.locks.createIndex({ expire: 1 }, { expireAfterSeconds: 0 }),
   ]);
 }
 

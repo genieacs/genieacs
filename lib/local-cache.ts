@@ -18,7 +18,8 @@
  */
 
 import { setTimeoutPromise } from "./util";
-import { acquireLock, get, releaseLock, set } from "./cache";
+import { get, set } from "./cache";
+import { acquireLock, releaseLock } from "./lock";
 
 const REFRESH = 5000;
 const EVICT_TIMEOUT = 120000;

@@ -173,3 +173,10 @@ export interface User {
   roles: string;
   salt: string;
 }
+
+export interface Lock {
+  _id: string;
+  value: string;
+  timestamp: Date;
+  expire: Date;
+}
