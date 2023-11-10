@@ -51,6 +51,27 @@ const getFile = memoize(
   }
 );
 
+async function* partialContent(
+  chunks: Iterable<Buffer>,
+  start: number,
+  end: number
+): AsyncIterable<Buffer> {
+  let bytesToSkip = start;
+  let bytesToRead = end - start;
+
+  for (let chunk of chunks) {
+    if (bytesToRead <= 0) return;
+    if (bytesToSkip >= chunk.length) {
+      bytesToSkip -= chunk.length;
+      continue;
+    }
+    chunk = chunk.subarray(bytesToSkip, bytesToSkip + bytesToRead);
+    bytesToRead -= chunk.length;
+    bytesToSkip = 0;
+    yield chunk;
+  }
+}
+
 export async function listener(
   request: IncomingMessage,
   response: ServerResponse
@@ -81,9 +102,37 @@ export async function listener(
     return;
   }
 
-  response.writeHead(200, {
+  let start = 0;
+  let end = file.length;
+  const rangeRequest = !!request.headers.range;
+
+  if (rangeRequest) {
+    const match = request.headers.range.match(/^bytes=(\d*)-(\d*)$/);
+    let rangeSatisfiable = false;
+    if (match && (match[1] || match[2])) {
+      if (match[2]) end = parseInt(match[2]) + 1;
+      if (match[1]) start = parseInt(match[1]);
+      else start = file.length - parseInt(match[2]);
+      rangeSatisfiable = start < end && end <= file.length;
+    }
+
+    if (!rangeSatisfiable) {
+      response.writeHead(416, {
+        "Content-Range": `bytes */${file.length}`,
+        "Content-Length": "0",
+      });
+      response.end();
+      return;
+    }
+  }
+
+  response.writeHead(rangeRequest ? 206 : 200, {
     "Content-Type": "application/octet-stream",
-    "Content-Length": file.length,
+    "Content-Length": end - start,
+    "Accept-Ranges": "bytes",
+    ...(rangeRequest && {
+      "Content-Range": `bytes ${start}-${end - 1}/${file.length}`,
+    }),
   });
 
   logger.accessInfo(log);
@@ -99,7 +148,7 @@ export async function listener(
     filename
   );
 
-  pipeline(Readable.from(chunks), response, () => {
+  pipeline(Readable.from(partialContent(chunks, start, end)), response, () => {
     // Ignore errors resulting from client disconnecting
   });
 }
