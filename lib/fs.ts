@@ -20,6 +20,7 @@
 import * as url from "url";
 import { IncomingMessage, ServerResponse } from "http";
 import { PassThrough, pipeline, Readable } from "stream";
+import { createHash } from "crypto";
 import { filesBucket, collections } from "./db/db";
 import * as logger from "./logger";
 import { getRequestOrigin } from "./forwarded";
@@ -27,7 +28,7 @@ import memoize from "./common/memoize";
 
 const getFile = memoize(
   async (
-    uploadDate: number,
+    etag: string,
     size: number,
     filename: string
   ): Promise<Iterable<Buffer>> => {
@@ -72,6 +73,31 @@ async function* partialContent(
   }
 }
 
+function generateETag(file: {
+  _id: string;
+  uploadDate: Date;
+  length: number;
+}): string {
+  const hash = createHash("md5");
+  hash.update(`${file._id}-${file.uploadDate.getTime()}-${file.length}`);
+  return hash.digest("hex");
+}
+
+function matchEtag(etag: string, header: string): boolean {
+  for (let t of header.split(",")) {
+    t = t.trim();
+    if (t.startsWith("W/")) t = t.substring(2);
+    try {
+      t = JSON.parse(t);
+    } catch (e) {
+      // Ignore
+    }
+    if (t === "*") return true;
+    if (etag === t) return true;
+  }
+  return false;
+}
+
 export async function listener(
   request: IncomingMessage,
   response: ServerResponse
@@ -102,51 +128,93 @@ export async function listener(
     return;
   }
 
+  logger.accessInfo(log);
+
+  const etag = generateETag(file);
+  const lastModified = file["uploadDate"];
+  lastModified.setMilliseconds(0);
+
+  let status = 200;
   let start = 0;
   let end = file.length;
-  const rangeRequest = !!request.headers.range;
 
-  if (rangeRequest) {
+  if (request.headers["if-match"])
+    if (!matchEtag(etag, request.headers["if-match"])) status = 412;
+
+  if (request.headers["if-unmodified-since"]) {
+    const d = new Date(request.headers["if-unmodified-since"]);
+    if (lastModified > d) status = 412;
+  }
+
+  if (request.headers["if-none-match"]) {
+    if (matchEtag(etag, request.headers["if-none-match"])) status = 304;
+  } else if (request.headers["if-modified-since"]) {
+    const d = new Date(request.headers["if-modified-since"]);
+    if (lastModified <= d) status = 304;
+  }
+
+  if (request.headers.range && status === 200) {
     const match = request.headers.range.match(/^bytes=(\d*)-(\d*)$/);
-    let rangeSatisfiable = false;
+    status = 416;
     if (match && (match[1] || match[2])) {
       if (match[2]) end = parseInt(match[2]) + 1;
       if (match[1]) start = parseInt(match[1]);
       else start = file.length - parseInt(match[2]);
-      rangeSatisfiable = start < end && end <= file.length;
+      if (start < end && end <= file.length) status = 206;
     }
 
-    if (!rangeSatisfiable) {
-      response.writeHead(416, {
-        "Content-Range": `bytes */${file.length}`,
-        "Content-Length": "0",
-      });
-      response.end();
-      return;
+    if (request.headers["if-range"]) {
+      const h = request.headers["if-range"] as string;
+      const d = new Date(h);
+      if (!matchEtag(etag, h) && !(lastModified <= d)) {
+        status = 200;
+        start = 0;
+        end = file.length;
+      }
     }
   }
 
-  response.writeHead(rangeRequest ? 206 : 200, {
+  if (status === 412) {
+    response.writeHead(412);
+    response.end();
+    return;
+  }
+
+  if (status === 304) {
+    response.writeHead(304, {
+      ETag: etag,
+      "Last-Modified": lastModified.toUTCString(),
+    });
+    response.end();
+    return;
+  }
+
+  if (status === 416) {
+    response.writeHead(416, {
+      "Content-Range": `bytes */${file.length}`,
+      "Content-Length": "0",
+    });
+    response.end();
+    return;
+  }
+
+  response.writeHead(status, {
     "Content-Type": "application/octet-stream",
     "Content-Length": end - start,
     "Accept-Ranges": "bytes",
-    ...(rangeRequest && {
+    ETag: etag,
+    "Last-Modified": lastModified.toUTCString(),
+    ...(status === 206 && {
       "Content-Range": `bytes ${start}-${end - 1}/${file.length}`,
     }),
   });
-
-  logger.accessInfo(log);
 
   if (request.method === "HEAD") {
     response.end();
     return;
   }
 
-  const chunks = await getFile(
-    file["uploadDate"].getTime(),
-    file.length,
-    filename
-  );
+  const chunks = await getFile(etag, file.length, filename);
 
   pipeline(Readable.from(partialContent(chunks, start, end)), response, () => {
     // Ignore errors resulting from client disconnecting

@@ -150,6 +150,7 @@ export interface File {
   _id: string;
   length: number;
   filename: string;
+  uploadDate: Date;
   metadata?: {
     fileType?: string;
     oui?: string;
