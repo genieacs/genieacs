@@ -32,9 +32,9 @@ const SERVICE_PORT = config.get("FS_PORT") as number;
 
 function exitWorkerGracefully(): void {
   setTimeout(exitWorkerUngracefully, 5000).unref();
-  Promise.all([db.disconnect(), cluster.worker.disconnect()]).catch(
-    exitWorkerUngracefully
-  );
+  Promise.all([db.disconnect(), cluster.worker.disconnect()])
+    .then(logger.close)
+    .catch(exitWorkerUngracefully);
 }
 
 function exitWorkerUngracefully(): void {

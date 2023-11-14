@@ -37,7 +37,9 @@ function exitWorkerGracefully(): void {
     db.disconnect(),
     extensions.killAll(),
     cluster.worker.disconnect(),
-  ]).catch(exitWorkerUngracefully);
+  ])
+    .then(logger.close)
+    .catch(exitWorkerUngracefully);
 }
 
 function exitWorkerUngracefully(): void {
