@@ -39,6 +39,7 @@ import {
 } from "./ui/db";
 import * as common from "./util";
 import * as cache from "./cache";
+import { lockExists } from "./lock";
 import {
   getRevision,
   getConfig,
@@ -211,8 +212,7 @@ export async function awaitSessionStart(
   );
   const li = (device["_lastInform"] as Date).getTime();
   if (li > lastInform) return true;
-  const token = await cache.get(`cwmp_session_${deviceId}`);
-  if (token) return true;
+  if (await lockExists(`cwmp_session_${deviceId}`)) return true;
   if (timeout < 500) return false;
   await new Promise((resolve) => setTimeout(resolve, 500));
   timeout -= Date.now() - now;
@@ -224,8 +224,7 @@ export async function awaitSessionEnd(
   timeout: number
 ): Promise<boolean> {
   const now = Date.now();
-  const token = await cache.get(`cwmp_session_${deviceId}`);
-  if (!token) return true;
+  if (!(await lockExists(`cwmp_session_${deviceId}`))) return true;
   if (timeout < 500) return false;
   await new Promise((resolve) => setTimeout(resolve, 500));
   timeout -= Date.now() - now;

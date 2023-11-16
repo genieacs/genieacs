@@ -67,7 +67,7 @@ export class LocalCache<T> {
       return;
     }
 
-    const lockToken = await acquireLock(this.cacheKey + "_lock", 5000);
+    const lockToken = await acquireLock(this.cacheKey, 5000);
 
     const [hash, snapshot] = await this.callback();
 
@@ -84,7 +84,7 @@ export class LocalCache<T> {
 
     if (lockToken) {
       if (hash !== dbHash) await set(this.cacheKey, hash, 300);
-      await releaseLock(this.cacheKey + "_lock", lockToken);
+      await releaseLock(this.cacheKey, lockToken);
     }
 
     this.nextRefresh = now + (REFRESH - (now % REFRESH));

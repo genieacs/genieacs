@@ -43,3 +43,8 @@ export async function releaseLock(
   });
   if (res.deletedCount !== 1) throw new Error("Lock expired");
 }
+
+export async function lockExists(lockName: string): Promise<boolean> {
+  const res = await collections.locks.findOne({ _id: lockName });
+  return res != null;
+}
