@@ -53,10 +53,8 @@ import {
   SessionContext,
   AcsRequest,
   SessionFault,
-  Operation,
   Fault,
   Expression,
-  Task,
   SoapMessage,
   InformRequest,
   Preset,
@@ -768,8 +766,6 @@ async function nextRpc(sessionContext: SessionContext): Promise<void> {
 }
 
 async function endSession(sessionContext: SessionContext): Promise<void> {
-  let saveCache = sessionContext.cacheUntil != null;
-
   if (sessionContext.provisions.length) {
     const fault = {
       code: "session_terminated",
@@ -794,7 +790,6 @@ async function endSession(sessionContext: SessionContext): Promise<void> {
 
   if (sessionContext.operationsTouched) {
     for (const k of Object.keys(sessionContext.operationsTouched)) {
-      saveCache = true;
       if (sessionContext.operations[k]) {
         promises.push(
           saveOperation(
@@ -810,7 +805,6 @@ async function endSession(sessionContext: SessionContext): Promise<void> {
   }
 
   if (sessionContext.doneTasks?.length) {
-    saveCache = true;
     promises.push(
       clearTasks(sessionContext.deviceId, sessionContext.doneTasks)
     );
@@ -818,7 +812,6 @@ async function endSession(sessionContext: SessionContext): Promise<void> {
 
   if (sessionContext.faultsTouched) {
     for (const k of Object.keys(sessionContext.faultsTouched)) {
-      saveCache = true;
       if (sessionContext.faults[k]) {
         sessionContext.faults[k].retries = sessionContext.retries[k];
         promises.push(
@@ -828,18 +821,6 @@ async function endSession(sessionContext: SessionContext): Promise<void> {
         promises.push(deleteFault(sessionContext.deviceId, k));
       }
     }
-  }
-
-  if (saveCache) {
-    promises.push(
-      cacheDueTasksAndFaultsAndOperations(
-        sessionContext.deviceId,
-        sessionContext.tasks,
-        sessionContext.faults,
-        sessionContext.operations,
-        sessionContext.cacheUntil
-      )
-    );
   }
 
   await Promise.all(promises);
@@ -986,66 +967,6 @@ setInterval(() => {
   stats.droppedRequests = 0;
   stats.initiatedSessions = 0;
 }, 10000).unref();
-
-async function getDueTasksAndFaultsAndOperations(
-  deviceId,
-  timestamp
-): Promise<{
-  tasks: Task[];
-  faults: { [channel: string]: SessionFault };
-  operations: { [commandKey: string]: Operation };
-  ttl: number;
-}> {
-  const res = await cache.get(`${deviceId}_tasks_faults_operations`);
-  if (res) {
-    const resParsed = JSON.parse(res);
-    return {
-      tasks: resParsed.tasks || [],
-      faults: resParsed.faults || {},
-      operations: resParsed.operations || {},
-      ttl: 0,
-    };
-  }
-
-  const res2 = await Promise.all([
-    getDueTasks(deviceId, timestamp),
-    getFaults(deviceId),
-    getOperations(deviceId),
-  ]);
-  return {
-    tasks: res2[0][0],
-    faults: res2[1],
-    operations: res2[2],
-    ttl: res2[0][1] || 0,
-  };
-}
-
-async function cacheDueTasksAndFaultsAndOperations(
-  deviceId,
-  tasks,
-  faults,
-  operations,
-  cacheUntil
-): Promise<void> {
-  const v = {
-    tasks: null,
-    faults: null,
-    operations: null,
-  };
-  if (tasks.length) v.tasks = tasks;
-  if (Object.keys(faults).length) v.faults = faults;
-  if (Object.keys(operations).length) v.operations = operations;
-
-  let ttl;
-  if (cacheUntil) ttl = Math.trunc((Date.now() - cacheUntil) / 1000);
-  else ttl = config.get("MAX_CACHE_TTL", deviceId);
-
-  await cache.set(
-    `${deviceId}_tasks_faults_operations`,
-    JSON.stringify(v),
-    ttl
-  );
-}
 
 async function reportBadState(sessionContext: SessionContext): Promise<void> {
   logger.accessError({
@@ -1640,19 +1561,14 @@ async function listenerAsync(
   _sessionContext.httpResponse = httpResponse;
   _sessionContext.sessionId = crypto.randomBytes(8).toString("hex");
 
-  const {
-    tasks: dueTasks,
-    faults,
-    operations,
-    ttl: cacheUntil,
-  } = await getDueTasksAndFaultsAndOperations(
-    deviceId,
-    _sessionContext.timestamp
-  );
+  const [dueTasks, faults, operations] = await Promise.all([
+    getDueTasks(deviceId, _sessionContext.timestamp),
+    getFaults(deviceId),
+    getOperations(deviceId),
+  ]);
 
-  _sessionContext.tasks = dueTasks;
+  _sessionContext.tasks = dueTasks[0];
   _sessionContext.operations = operations;
-  _sessionContext.cacheUntil = cacheUntil;
   _sessionContext.faults = faults;
   _sessionContext.retries = {};
   for (const [k, v] of Object.entries(_sessionContext.faults)) {

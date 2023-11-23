@@ -160,7 +160,6 @@ export interface SessionContext {
   authState: number;
   tasks?: Task[];
   operations?: { [commandKey: string]: Operation };
-  cacheUntil?: number;
   syncState?: SyncState;
   lastActivity?: number;
   extendLock?: number;
