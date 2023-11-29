@@ -23,6 +23,7 @@ import * as cluster from "../lib/cluster";
 import * as server from "../lib/server";
 import * as cwmp from "../lib/cwmp";
 import * as db from "../lib/db";
+import * as Client from "../lib/redis"
 import * as extensions from "../lib/extensions";
 import { version as VERSION } from "../package.json";
 
@@ -98,8 +99,10 @@ if (!cluster.worker) {
     server.stop().then(exitWorkerGracefully).catch(exitWorkerUngracefully);
   });
 
-  const initPromise = db
-    .connect()
+  const initDBPromise = db.connect();
+  const initRedisPromise = Client.connect();
+
+  const initPromise = Promise.all([initDBPromise, initRedisPromise])
     .then(() => {
       server.start(options, cwmp.listener);
     })

@@ -29,6 +29,7 @@ import * as cache from "./cache";
 import { version as VERSION } from "../package.json";
 import { ping } from "./ping";
 import * as logger from "./logger";
+import * as redis from "./redis"
 import { flattenDevice } from "./mongodb-functions";
 import { getSocketEndpoints } from "./server";
 
@@ -103,6 +104,12 @@ export function listener(
     const body = getBody();
     const urlParts = url.parse(request.url, true);
     const socketEndpoints = getSocketEndpoints(request.socket);
+
+    if (!redis.online()) {
+      response.writeHead(500, { Connection: "close" });
+      response.end(`Cache offline`);
+      return;
+    }
 
     logger.accessInfo(
       Object.assign({}, urlParts.query, {
