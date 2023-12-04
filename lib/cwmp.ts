@@ -31,6 +31,7 @@ import { evaluateAsync, evaluate, extractParams } from "./common/expression";
 import * as cache from "./cache";
 import * as localCache from "./local-cache";
 import * as db from "./db";
+import * as redis from "./redis"
 import * as logger from "./logger";
 import * as scheduling from "./scheduling";
 import Path from "./common/path";
@@ -1469,7 +1470,7 @@ async function listenerAsync(
     if (match[1] === "session") sessionId = match[2];
 
   // If overloaded, ask CPE to retry in 60 seconds
-  if (!sessionId && stats.concurrentRequests > MAX_CONCURRENT_REQUESTS) {
+  if (!redis.online() || (!sessionId && stats.concurrentRequests > MAX_CONCURRENT_REQUESTS)) {
     httpResponse.writeHead(503, {
       "Retry-after": 60,
       Connection: "close",

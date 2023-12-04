@@ -19,26 +19,7 @@
 
 
 import * as config from "./config";
-import * as redis from 'redis'
-import * as logger from "./logger";
-
-const redisClient = redis.createClient({
-  url: config.get('REDIS_CONNECTION_URL') as string
-});
-
-
-redisClient.connect()
-  .then(() => {
-    logger.info({
-      message: 'Connected to redis server'
-    })
-  })
-  .catch((reason) => {
-    logger.error({
-      message: reason
-    })
-  });
-
+import * as redisClient from './redis'
 
 const CLOCK_SKEW_TOLERANCE = 30000;
 const MAX_CACHE_TTL = +config.get("MAX_CACHE_TTL");
@@ -65,15 +46,12 @@ export async function set(
   //  { value, expire, timestamp },
   //  { upsert: true }
   //);
-  await redisClient
-    .multi()
-    .set(key, value)
-    .expire(key, ttl_s + CLOCK_SKEW_TOLERANCE / 1000)
-    .exec()
+  await redisClient.setWithExpire(key, value, 
+    ttl_s + CLOCK_SKEW_TOLERANCE / 1000);
 }
 
 export async function pop(key: string): Promise<string> {
-  return redisClient.getDel(key)
+  return redisClient.pop(key);
 }
 
 export async function acquireLock(
