@@ -24,7 +24,7 @@ import * as server from "../lib/server";
 import { listener } from "../lib/ui";
 import * as extensions from "../lib/extensions";
 import * as db from "../lib/db";
-import * as Client from "../lib/redis"
+import * as redisClient from "../lib/redis"
 import { version as VERSION } from "../package.json";
 
 logger.init("ui", VERSION);
@@ -104,7 +104,7 @@ if (!cluster.worker) {
   };
 
   const initDBPromise = db.connect();
-  const initRedisPromise = Client.connect();
+  const initRedisPromise = redisClient.connect();
 
   const initPromise = Promise.all([initDBPromise, initRedisPromise])
     .then(() => {
