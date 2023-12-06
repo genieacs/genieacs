@@ -618,7 +618,6 @@ export function postTasks(
       for (const [i, t] of st.entries()) {
         tasks[i]._id = t._id;
         tasks[i].status = t.status;
-        tasks[i]["fault"] = t.fault;
       }
       return connectionRequestStatus;
     },

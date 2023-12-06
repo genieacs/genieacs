@@ -19,19 +19,23 @@
 
 import { PassThrough } from "stream";
 import Router from "koa-router";
+import { ObjectId } from "mongodb";
 import * as db from "./db";
 import * as apiFunctions from "../api-functions";
 import { evaluate, and, extractParams } from "../common/expression/util";
 import { parse } from "../common/expression/parser";
 import * as logger from "../logger";
 import { getConfig } from "../ui/local-cache";
-import { Expression } from "../types";
+import { Expression, Task } from "../types";
 import { generateSalt, hashPassword } from "../auth";
 import { del } from "../cache";
 import Authorizer from "../common/authorizer";
 import { ping } from "../ping";
 import { decodeTag } from "../util";
 import { stringify as yamlStringify } from "../common/yaml";
+import { ResourceLockedError } from "../common/errors";
+import { acquireLock, releaseLock } from "../lock";
+import { collections } from "../db/db";
 
 const router = new Router();
 export default router;
@@ -410,7 +414,18 @@ for (const [resource, flags] of Object.entries(resources)) {
         return void (ctx.status = 403);
       }
 
-      await apiFunctions.deleteResource(resource, ctx.params.id);
+      try {
+        await apiFunctions.deleteResource(resource, ctx.params.id);
+      } catch (err) {
+        if (err instanceof ResourceLockedError) {
+          log.message += " failed";
+          logger.accessWarn(log);
+          ctx.status = 503;
+          ctx.body = err.message;
+          return;
+        }
+        throw err;
+      }
 
       logger.accessInfo(log);
 
@@ -533,32 +548,69 @@ router.put("/files/:id", async (ctx) => {
 });
 
 router.post("/devices/:id/tasks", async (ctx) => {
+  const deviceId = ctx.params.id;
   const authorizer: Authorizer = ctx.state.authorizer;
   const log = {
     message: "Commit tasks",
     context: ctx,
-    deviceId: ctx.params.id,
+    deviceId: deviceId,
     tasks: null,
   };
 
-  const filter = and(authorizer.getFilter("devices", 3), [
-    "=",
-    ["PARAM", "DeviceID.ID"],
-    ctx.params.id,
-  ]);
   if (!authorizer.hasAccess("devices", 3)) {
     logUnauthorizedWarning(log);
     return void (ctx.status = 403);
   }
-  const { value: device } = await db.query("devices", filter).next();
-  if (!device) return void (ctx.status = 404);
 
-  const validate = authorizer.getValidator("devices", device);
-  for (const t of ctx.request.body) {
-    if (!validate("task", t)) {
-      logUnauthorizedWarning(log);
-      return void (ctx.status = 403);
+  const socketTimeout: number = ctx.socket.timeout;
+
+  // Extend socket timeout while waiting for session
+  if (socketTimeout) ctx.socket.setTimeout(300000);
+
+  const token = await acquireLock(`cwmp_session_${deviceId}`, 5000, 30000);
+  if (!token) {
+    log.message += " failed";
+    logger.accessWarn(log);
+    ctx.body = "Device is in session";
+    ctx.status = 503;
+    // Restore socket timeout
+    if (socketTimeout) ctx.socket.setTimeout(socketTimeout);
+    return;
+  }
+
+  let device;
+
+  let statuses: { _id: string; status: string }[];
+
+  try {
+    const filter = and(authorizer.getFilter("devices", 3), [
+      "=",
+      ["PARAM", "DeviceID.ID"],
+      deviceId,
+    ]);
+    device = (await db.query("devices", filter).next()).value;
+    if (!device) return void (ctx.status = 404);
+
+    const validate = authorizer.getValidator("devices", device);
+    for (const t of ctx.request.body) {
+      if (!validate("task", t)) {
+        logUnauthorizedWarning(log);
+        return void (ctx.status = 403);
+      }
     }
+
+    let tasks = ctx.request.body as Task[];
+
+    for (const task of tasks) {
+      delete task._id;
+      task["device"] = deviceId;
+    }
+
+    tasks = await apiFunctions.insertTasks(tasks);
+
+    statuses = tasks.map((t) => ({ _id: t._id, status: "pending" }));
+  } finally {
+    await releaseLock(`cwmp_session_${deviceId}`, token);
   }
 
   const onlineThreshold = getConfig(
@@ -584,27 +636,43 @@ router.post("/devices/:id/tasks", async (ctx) => {
     }
   ) as number;
 
-  const socketTimeout: number = ctx.socket["timeout"];
+  const lastInform = device["Events.Inform"].value[0] as number;
 
-  // Disable socket timeout while waiting for postTasks()
-  if (socketTimeout) ctx.socket.setTimeout(0);
+  let status = await apiFunctions.connectionRequest(deviceId, device);
+  if (!status) {
+    const sessionStarted = await apiFunctions.awaitSessionStart(
+      deviceId,
+      lastInform,
+      onlineThreshold
+    );
+    if (!sessionStarted) {
+      status = "No contact from CPE";
+    } else {
+      const sessionEnded = await apiFunctions.awaitSessionEnd(deviceId, 120000);
+      if (!sessionEnded) status = "Session took too long to complete";
+    }
+  }
 
-  const res = await apiFunctions.postTasks(
-    ctx.params.id,
-    ctx.request.body,
-    onlineThreshold,
-    device
-  );
+  if (!status) {
+    const promises = statuses.map((t) =>
+      collections.faults.count({ _id: `${deviceId}:task_${t._id}` })
+    );
+
+    const res = await Promise.all(promises);
+    for (const [i, r] of statuses.entries())
+      r.status = res[i] ? "fault" : "done";
+  }
+
+  await Promise.all(statuses.map((t) => db.deleteTask(new ObjectId(t._id))));
 
   // Restore socket timeout
   if (socketTimeout) ctx.socket.setTimeout(socketTimeout);
 
-  log.tasks = res.tasks.map((t) => t._id).join(",");
-
+  log.tasks = statuses.map((t) => t._id).join(",");
   logger.accessInfo(log);
 
-  ctx.set("Connection-Request", res.connectionRequest);
-  ctx.body = res.tasks;
+  ctx.set("Connection-Request", status || "OK");
+  ctx.body = statuses;
 });
 
 router.post("/devices/:id/tags", async (ctx) => {

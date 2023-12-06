@@ -19,7 +19,7 @@
 
 import { Collection, ObjectId } from "mongodb";
 import * as vm from "vm";
-import * as config from "./config";
+import { getRevision, getConfig } from "./ui/local-cache";
 import { filesBucket, collections } from "./db/db";
 import { optimizeProjection } from "./db/util";
 import * as query from "./query";
@@ -31,6 +31,8 @@ import { ping } from "./ping";
 import * as logger from "./logger";
 import { flattenDevice } from "./ui/db";
 import { getRequestOrigin } from "./forwarded";
+import { acquireLock, releaseLock } from "./lock";
+import { ResourceLockedError } from "./common/errors";
 
 const DEVICE_TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-_%]+)\/tasks\/?$/;
 const TASKS_REGEX = /^\/tasks\/([a-zA-Z0-9\-_%]+)(\/[a-zA-Z_]*)?$/;
@@ -255,15 +257,15 @@ async function handler(
   } else if (FAULTS_REGEX.test(url.pathname)) {
     if (request.method === "DELETE") {
       const faultId = decodeURIComponent(FAULTS_REGEX.exec(url.pathname)[1]);
-      const deviceId = faultId.split(":", 1)[0];
-      const channel = faultId.slice(deviceId.length + 1);
-      await collections.faults.deleteOne({ _id: faultId });
-      if (channel.startsWith("task_")) {
-        const objId = new ObjectId(channel.slice(5));
-        await collections.tasks.deleteOne({ _id: objId });
-        response.writeHead(200);
-        response.end();
-        return;
+      try {
+        await apiFunctions.deleteFault(faultId);
+      } catch (err) {
+        if (err instanceof ResourceLockedError) {
+          response.writeHead(503);
+          response.end("Device is in session");
+          return;
+        }
+        throw err;
       }
 
       response.writeHead(200);
@@ -277,153 +279,159 @@ async function handler(
       const deviceId = decodeURIComponent(
         DEVICE_TASKS_REGEX.exec(url.pathname)[1]
       );
+
+      const conReq = url.searchParams.has("connection_request");
+      let task;
       if (body.length) {
-        let task;
         try {
           task = JSON.parse(body.toString());
+          task.device = deviceId;
         } catch (err) {
           response.writeHead(400);
           response.end(`${err.name}: ${err.message}`);
           return;
         }
-        task.device = deviceId;
-        const dev = await collections.devices.findOne({
-          _id: deviceId,
-        });
+      }
+
+      if (!task && !conReq) {
+        response.writeHead(400);
+        response.end();
+        return;
+      }
+
+      if (!task || !conReq) {
+        const dev = await collections.devices.findOne({ _id: deviceId });
         if (!dev) {
           response.writeHead(404);
           response.end("No such device");
           return;
         }
 
-        const device = flattenDevice(dev);
+        if (task) {
+          await apiFunctions.insertTasks(task);
+          response.writeHead(202, { "Content-Type": "application/json" });
+          response.end(JSON.stringify(task));
+        } else {
+          const status = await apiFunctions.connectionRequest(
+            deviceId,
+            flattenDevice(dev)
+          );
+          if (status) {
+            response.writeHead(504, status);
+            response.end(status);
+          } else {
+            response.writeHead(200);
+            response.end();
+          }
+        }
+        return;
+      }
+
+      const socketTimeout: number = request.socket.timeout;
+
+      // Extend socket timeout while waiting for session
+      if (socketTimeout) request.socket.setTimeout(300000);
+
+      const token = await acquireLock(`cwmp_session_${deviceId}`, 5000, 30000);
+      if (!token) {
+        // Restore socket timeout
+        if (socketTimeout) request.socket.setTimeout(socketTimeout);
+        const dev = await collections.devices.findOne({ _id: deviceId });
+        if (!dev) {
+          response.writeHead(404);
+          response.end("No such device");
+          return;
+        }
+
         await apiFunctions.insertTasks(task);
+        response.writeHead(202, "Task queued but not processed", {
+          "Content-Type": "application/json",
+        });
+        response.end(JSON.stringify(task));
+        return;
+      }
 
-        const lastInform = Date.now();
+      let dev;
 
-        const socketTimeout: number = request.socket["timeout"];
-
-        // Disable socket timeout while waiting for session
-        if (socketTimeout) request.socket.setTimeout(0);
-
-        const notInSession = await apiFunctions.awaitSessionEnd(
-          deviceId,
-          30000
-        );
-        if (url.searchParams.has("connection_request")) {
-          if (socketTimeout) request.socket.setTimeout(socketTimeout);
-          response.writeHead(202, {
-            "Content-Type": "application/json",
-          });
-          response.end(JSON.stringify(task));
+      try {
+        dev = await collections.devices.findOne({ _id: deviceId });
+        if (!dev) {
+          response.writeHead(404);
+          response.end("No such device");
           return;
         }
+        await apiFunctions.insertTasks(task);
+      } finally {
+        await releaseLock(`cwmp_session_${deviceId}`, token);
+      }
 
-        if (!notInSession) {
-          if (socketTimeout) request.socket.setTimeout(socketTimeout);
-          response.writeHead(202, "Task queued but not processed", {
-            "Content-Type": "application/json",
-          });
-          response.end(JSON.stringify(task));
-          return;
-        }
+      const lastInform = (dev["_lastInform"] as Date).getTime();
+      const device = flattenDevice(dev);
 
-        const status = await apiFunctions.connectionRequest(deviceId, device);
+      let onlineThreshold: number;
+      if (url.searchParams.has("timeout")) {
+        onlineThreshold = parseInt(url.searchParams.get("timeout"));
+      } else {
+        const revision = await getRevision();
+        onlineThreshold = getConfig(
+          revision,
+          "cwmp.deviceOnlineThreshold",
+          {},
+          Date.now(),
+          (exp) => {
+            if (!Array.isArray(exp)) return exp;
+            if (exp[0] === "PARAM") {
+              const p = device[exp[1]];
+              if (p?.value) return p.value[0];
+            } else if (exp[0] === "FUNC") {
+              if (exp[1] === "REMOTE_ADDRESS") {
+                for (const root of ["InternetGatewayDevice", "Device"]) {
+                  const p =
+                    device[`${root}.ManagementServer.ConnectionRequestURL`];
+                  if (p?.value) return new URL(p.value[0] as string).hostname;
+                }
+                return null;
+              }
+            }
+            return exp;
+          }
+        ) as number;
+      }
 
-        if (status) {
-          if (socketTimeout) request.socket.setTimeout(socketTimeout);
-          response.writeHead(202, status, {
-            "Content-Type": "application/json",
-          });
-          response.end(JSON.stringify(task));
-          return;
-        }
-
-        const onlineThreshold =
-          (url.searchParams.has("timeout") &&
-            parseInt(url.searchParams.get("timeout"))) ||
-          (config.get("DEVICE_ONLINE_THRESHOLD", deviceId) as number);
-
+      let status = await apiFunctions.connectionRequest(deviceId, device);
+      if (!status) {
         const sessionStarted = await apiFunctions.awaitSessionStart(
           deviceId,
           lastInform,
           onlineThreshold
         );
         if (!sessionStarted) {
-          if (socketTimeout) request.socket.setTimeout(socketTimeout);
-          response.writeHead(202, "Task queued but not processed", {
-            "Content-Type": "application/json",
-          });
-          response.end(JSON.stringify(task));
-          return;
-        }
-
-        const sessionEnded = await apiFunctions.awaitSessionEnd(
-          deviceId,
-          120000
-        );
-        if (!sessionEnded) {
-          if (socketTimeout) request.socket.setTimeout(socketTimeout);
-          response.writeHead(202, "Task queued but not processed", {
-            "Content-Type": "application/json",
-          });
-          response.end(JSON.stringify(task));
-          return;
-        }
-
-        const prom1 = collections.tasks.findOne(
-          { _id: task._id },
-          { projection: { _id: 1 } }
-        );
-        const prom2 = collections.faults.findOne(
-          { _id: `${deviceId}:task_${task._id}` },
-          {
-            projection: { _id: 1 },
-          }
-        );
-
-        const [t, f] = await Promise.all([prom1, prom2]);
-
-        // Restore socket timeout
-        if (socketTimeout) request.socket.setTimeout(socketTimeout);
-
-        if (f) {
-          response.writeHead(202, "Task faulted", {
-            "Content-Type": "application/json",
-          });
-          response.end(JSON.stringify(t || task));
-        } else if (t) {
-          response.writeHead(202, "Task queued but not processed", {
-            "Content-Type": "application/json",
-          });
-          response.end(JSON.stringify(t));
+          status = "Task queued but not processed";
         } else {
-          response.writeHead(200, {
-            "Content-Type": "application/json",
-          });
-          response.end(JSON.stringify(task));
+          const sessionEnded = await apiFunctions.awaitSessionEnd(
+            deviceId,
+            120000
+          );
+          if (!sessionEnded) {
+            status = "Task queued but not processed";
+          } else {
+            const f = await collections.faults.count({
+              _id: `${deviceId}:task_${task._id}`,
+            });
+            if (f) status = "Task faulted";
+          }
         }
-      } else if (url.searchParams.has("connection_request")) {
-        // No task, send connection request only
-        const dev = await collections.devices.findOne({
-          _id: deviceId,
-        });
-        if (!dev) {
-          response.writeHead(404);
-          response.end("No such device");
-          return;
-        }
-        const status = await apiFunctions.connectionRequest(deviceId);
-        if (status) {
-          response.writeHead(504, status);
-          response.end(status);
-          return;
-        }
-        response.writeHead(200);
-        response.end();
+      }
+
+      // Restore socket timeout
+      if (socketTimeout) request.socket.setTimeout(socketTimeout);
+
+      if (status) {
+        response.writeHead(202, status, { "Content-Type": "application/json" });
+        response.end(JSON.stringify(task));
       } else {
-        response.writeHead(400);
-        response.end();
+        response.writeHead(200, { "Content-Type": "application/json" });
+        response.end(JSON.stringify(task));
       }
     } else {
       response.writeHead(405, { Allow: "POST" });
@@ -447,11 +455,21 @@ async function handler(
         }
 
         const deviceId = task.device;
-        await collections.tasks.deleteOne({ _id: new ObjectId(taskId) });
+        const token = await acquireLock(`cwmp_session_${deviceId}`, 5000);
+        if (!token) {
+          response.writeHead(503);
+          response.end("Device is in session");
+          return;
+        }
 
-        await collections.faults.deleteOne({
-          _id: `${deviceId}:task_${taskId}`,
-        });
+        try {
+          await Promise.all([
+            collections.tasks.deleteOne({ _id: new ObjectId(taskId) }),
+            collections.faults.deleteOne({ _id: `${deviceId}:task_${taskId}` }),
+          ]);
+        } finally {
+          await releaseLock(`cwmp_session_${deviceId}`, token);
+        }
 
         response.writeHead(200);
         response.end();
@@ -467,9 +485,19 @@ async function handler(
         );
 
         const deviceId = task.device;
-        await collections.faults.deleteOne({
-          _id: `${deviceId}:task_${taskId}`,
-        });
+        const token = await acquireLock(`cwmp_session_${deviceId}`, 5000);
+        if (!token) {
+          response.writeHead(503);
+          response.end("Device is in session");
+          return;
+        }
+        try {
+          await collections.faults.deleteOne({
+            _id: `${deviceId}:task_${taskId}`,
+          });
+        } finally {
+          await releaseLock(`cwmp_session_${deviceId}`, token);
+        }
 
         response.writeHead(200);
         response.end();
@@ -563,7 +591,18 @@ async function handler(
     const deviceId = decodeURIComponent(
       DELETE_DEVICE_REGEX.exec(url.pathname)[1]
     );
-    await apiFunctions.deleteDevice(deviceId);
+
+    try {
+      await apiFunctions.deleteDevice(deviceId);
+    } catch (err) {
+      if (err instanceof ResourceLockedError) {
+        response.writeHead(503);
+        response.end("Device is in session");
+        return;
+      }
+      throw err;
+    }
+
     response.writeHead(200);
     response.end();
   } else if (QUERY_REGEX.test(url.pathname)) {

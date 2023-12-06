@@ -231,7 +231,7 @@ async function writeResponse(
         `cwmp_session_${sessionContext.deviceId}`,
         sessionContext.timeout * 1000 + 15000,
         0,
-        sessionContext.sessionId
+        `cwmp_session_${sessionContext.sessionId}`
       );
       if (!lockToken) throw new Error("Failed to extend lock");
     }
@@ -826,7 +826,7 @@ async function endSession(sessionContext: SessionContext): Promise<void> {
   await Promise.all(promises);
   await lock.releaseLock(
     `cwmp_session_${sessionContext.deviceId}`,
-    sessionContext.sessionId
+    `cwmp_session_${sessionContext.sessionId}`
   );
   if (sessionContext.new) {
     logger.accessInfo({
@@ -1080,7 +1080,7 @@ async function processRequest(
       `cwmp_session_${sessionContext.deviceId}`,
       sessionContext.timeout * 1000 + 15000,
       0,
-      sessionContext.sessionId
+      `cwmp_session_${sessionContext.sessionId}`
     );
 
     if (!lockToken) {

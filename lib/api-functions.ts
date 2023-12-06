@@ -20,9 +20,8 @@
 import { ObjectId } from "mongodb";
 import { collections } from "./db/db";
 import {
-  count,
   deleteConfig,
-  deleteFault,
+  deleteFault as dbDeleteFault,
   deleteFile,
   deletePermission,
   deletePreset,
@@ -39,7 +38,7 @@ import {
 } from "./ui/db";
 import * as common from "./util";
 import * as cache from "./cache";
-import { lockExists } from "./lock";
+import { acquireLock, getToken, releaseLock } from "./lock";
 import {
   getRevision,
   getConfig,
@@ -54,6 +53,7 @@ import { Expression, Task } from "./types";
 import { evaluate } from "./common/expression/util";
 import { hashPassword } from "./auth";
 import { flattenDevice } from "./ui/db";
+import { ResourceLockedError } from "./common/errors";
 
 export async function connectionRequest(
   deviceId: string,
@@ -212,7 +212,8 @@ export async function awaitSessionStart(
   );
   const li = (device["_lastInform"] as Date).getTime();
   if (li > lastInform) return true;
-  if (await lockExists(`cwmp_session_${deviceId}`)) return true;
+  const token = await getToken(`cwmp_session_${deviceId}`);
+  if (token?.startsWith("cwmp_session_")) return true;
   if (timeout < 500) return false;
   await new Promise((resolve) => setTimeout(resolve, 500));
   timeout -= Date.now() - now;
@@ -224,7 +225,8 @@ export async function awaitSessionEnd(
   timeout: number
 ): Promise<boolean> {
   const now = Date.now();
-  if (!(await lockExists(`cwmp_session_${deviceId}`))) return true;
+  const token = await getToken(`cwmp_session_${deviceId}`);
+  if (!token?.startsWith("cwmp_session_")) return true;
   if (timeout < 500) return false;
   await new Promise((resolve) => setTimeout(resolve, 500));
   timeout -= Date.now() - now;
@@ -354,20 +356,41 @@ export async function insertTasks(tasks: any[]): Promise<Task[]> {
 }
 
 export async function deleteDevice(deviceId: string): Promise<void> {
-  await Promise.all([
-    collections.tasks.deleteMany({ device: deviceId }),
-    collections.devices.deleteOne({ _id: deviceId }),
-    collections.faults.deleteMany({
-      _id: {
-        $regex: `^${common.escapeRegExp(deviceId)}\\:`,
-      },
-    }),
-    collections.operations.deleteMany({
-      _id: {
-        $regex: `^${common.escapeRegExp(deviceId)}\\:`,
-      },
-    }),
-  ]);
+  const token = await acquireLock(`cwmp_session_${deviceId}`, 5000);
+  if (!token) throw new ResourceLockedError("Device is in session");
+  try {
+    await Promise.all([
+      collections.tasks.deleteMany({ device: deviceId }),
+      collections.devices.deleteOne({ _id: deviceId }),
+      collections.faults.deleteMany({
+        _id: {
+          $regex: `^${common.escapeRegExp(deviceId)}\\:`,
+        },
+      }),
+      collections.operations.deleteMany({
+        _id: {
+          $regex: `^${common.escapeRegExp(deviceId)}\\:`,
+        },
+      }),
+    ]);
+  } finally {
+    await releaseLock(`cwmp_session_${deviceId}`, token);
+  }
+}
+
+export async function deleteFault(id: string): Promise<void> {
+  const deviceId = id.split(":", 1)[0];
+  const channel = id.slice(deviceId.length + 1);
+  const token = await acquireLock(`cwmp_session_${deviceId}`, 5000);
+  if (!token) throw new ResourceLockedError("Device is in session");
+  try {
+    const proms = [dbDeleteFault(id)];
+    if (channel.startsWith("task_"))
+      proms.push(deleteTask(new ObjectId(channel.slice(5))));
+    await Promise.all(proms);
+  } finally {
+    await releaseLock(`cwmp_session_${deviceId}`, token);
+  }
 }
 
 export async function deleteResource(
@@ -380,12 +403,7 @@ export async function deleteResource(
     await deleteFile(id);
     await cache.del("cwmp-local-cache-hash");
   } else if (resource === "faults") {
-    const deviceId = id.split(":", 1)[0];
-    const channel = id.slice(deviceId.length + 1);
-    const proms = [deleteFault(id)];
-    if (channel.startsWith("task_"))
-      proms.push(deleteTask(new ObjectId(channel.slice(5))));
-    await Promise.all(proms);
+    await deleteFault(id);
   } else if (resource === "provisions") {
     await deleteProvision(id);
     await cache.del("cwmp-local-cache-hash");
@@ -410,82 +428,6 @@ export async function deleteResource(
   } else {
     throw new Error(`Unknown resource ${resource}`);
   }
-}
-
-export async function postTasks(
-  deviceId: string,
-  tasks: Task[],
-  timeout: number,
-  device: Record<string, { value?: [boolean | number | string, string] }>
-): Promise<{ connectionRequest: string; tasks: any[] }> {
-  for (const task of tasks) {
-    delete task._id;
-    task["device"] = deviceId;
-  }
-
-  tasks = await insertTasks(tasks);
-  const statuses = tasks.map((t) => {
-    return { _id: t._id, status: "pending" };
-  });
-  const lastInform = Date.now();
-  const notInSession = await awaitSessionEnd(deviceId, 30000);
-  if (!notInSession) {
-    await Promise.all(statuses.map((t) => deleteTask(new ObjectId(t._id))));
-    return {
-      connectionRequest: "Session took too long to complete",
-      tasks: statuses,
-    };
-  }
-
-  const status = await connectionRequest(deviceId, device);
-
-  if (status) {
-    await Promise.all(statuses.map((t) => deleteTask(new ObjectId(t._id))));
-    return {
-      connectionRequest: status,
-      tasks: statuses,
-    };
-  }
-
-  const sessionStarted = await awaitSessionStart(deviceId, lastInform, timeout);
-  if (!sessionStarted) {
-    await Promise.all(statuses.map((t) => deleteTask(new ObjectId(t._id))));
-    return {
-      connectionRequest: "No contact from CPE",
-      tasks: statuses,
-    };
-  }
-
-  const sessionEnded = await awaitSessionEnd(deviceId, 120000);
-  if (!sessionEnded) {
-    await Promise.all(statuses.map((t) => deleteTask(new ObjectId(t._id))));
-    return {
-      connectionRequest: "Session took too long to complete",
-      tasks: statuses,
-    };
-  }
-
-  const promises: Promise<number>[] = [];
-  for (const s of statuses) {
-    promises.push(count("tasks", ["=", ["PARAM", "_id"], s._id]));
-    promises.push(
-      count("faults", ["=", ["PARAM", "_id"], `${deviceId}:task_${s._id}`])
-    );
-  }
-
-  const res = await Promise.all(promises);
-  for (const [i, r] of statuses.entries()) {
-    if (!res[i * 2]) {
-      r.status = "done";
-    } else if (res[i * 2 + 1]) {
-      r.status = "fault";
-      r["fault"] = res[i * 2 + 1][0];
-    }
-  }
-
-  await Promise.all(statuses.map((t) => deleteTask(new ObjectId(t._id))));
-
-  return { connectionRequest: "OK", tasks: statuses };
 }
 
 // TODO Implement validation
