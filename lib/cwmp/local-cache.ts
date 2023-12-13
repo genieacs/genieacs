@@ -30,8 +30,6 @@ function flattenObject<T extends Record<keyof T, unknown>>(
   prefix = "",
   dst = {} as T
 ): T {
-  const t: Record<string, string> = {};
-  t["hi"] = "hi";
   for (const k of Object.keys(src)) {
     const v = src[k];
     if (typeof v === "object" && !Array.isArray(v))
@@ -201,7 +199,7 @@ async function fetchProvisions(): Promise<[string, Provisions]> {
       .digest("hex");
     provisions[r._id].script = new vm.Script(
       `"use strict";(function(){\n${r.script}\n})();`,
-      { filename: r._id, lineOffset: -1, timeout: 50 }
+      { filename: r._id, lineOffset: -1 }
     );
   }
 
@@ -222,7 +220,7 @@ async function fetchVirtualParameters(): Promise<[string, VirtualParameters]> {
       .digest("hex");
     virtualParameters[r._id].script = new vm.Script(
       `"use strict";(function(){\n${r.script}\n})();`,
-      { filename: r._id, lineOffset: -1, timeout: 50 }
+      { filename: r._id, lineOffset: -1 }
     );
   }
 

@@ -25,6 +25,7 @@ import adminMenu from "./admin-menu";
 import * as overlay from "./overlay";
 import { version as VERSION } from "../package.json";
 import datalist from "./datalist";
+import { LOGO_SVG } from "../build/assets";
 
 const adminPages = [
   "presets",
@@ -55,7 +56,7 @@ const component: ClosureComponent = (): Component => {
         m("#header", [
           m(
             "div.logo",
-            m("img", { src: "logo.svg" }),
+            m("img", { src: LOGO_SVG }),
             m("span.version", "v" + VERSION)
           ),
           m(userMenu),

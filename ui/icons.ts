@@ -19,11 +19,12 @@
 
 import { Children } from "mithril";
 import m from "mithril";
+import { ICONS_SVG } from "../build/assets";
 
 export function getIcon(name: string): Children {
   return m(
     `svg.icon.icon-${name}`,
     { key: `icon-${name}` },
-    m("use", { href: `icons.svg#icon-${name}` })
+    m("use", { href: `${ICONS_SVG}#icon-${name}` })
   );
 }

@@ -103,4 +103,4 @@ export function asIntN(a: number, b: bigint): bigint {
 
 const _BigInt = BigInt;
 type _bigint = bigint;
-export { _BigInt as BigInt, _bigint as bigint };
+export { _BigInt as BigInt, type _bigint as bigint };

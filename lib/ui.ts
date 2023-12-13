@@ -35,6 +35,7 @@ import { authLocal } from "./api-functions";
 import * as init from "./init";
 import { version as VERSION } from "../package.json";
 import memoize from "./common/memoize";
+import { APP_JS, APP_CSS, FAVICON_PNG } from "../build/assets";
 
 declare module "koa" {
   interface Request {
@@ -232,8 +233,8 @@ router.get("/", async (ctx) => {
   <html>
     <head>
       <title>GenieACS</title>
-      <link rel="shortcut icon" type="image/png" href="favicon.png" />
-      <link rel="stylesheet" href="app.css">
+      <link rel="shortcut icon" type="image/png" href="${FAVICON_PNG}" />
+      <link rel="stylesheet" href="${APP_CSS}">
     </head>
     <body>
     <noscript>GenieACS UI requires JavaScript to work. Please enable JavaScript in your browser.</noscript>
@@ -248,7 +249,7 @@ router.get("/", async (ctx) => {
         )};
         window.permissionSets = ${JSON.stringify(permissionSets)};
       </script>
-      <script type="module" src="app.js"></script>${wizard} 
+      <script type="module" src="${APP_JS}"></script>${wizard} 
     </body>
   </html>
   `;

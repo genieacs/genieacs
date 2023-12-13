@@ -35,10 +35,6 @@
     "seedrandom": "^3.0.5"
   },
   "devDependencies": {
-    "@rollup/plugin-commonjs": "^22.0.2",
-    "@rollup/plugin-json": "^4.1.0",
-    "@rollup/plugin-node-resolve": "^13.3.0",
-    "@rollup/plugin-typescript": "^8.3.4",
     "@types/codemirror": "^5.60.5",
     "@types/jsonwebtoken": "^8.5.8",
     "@types/koa": "^2.13.5",
@@ -53,21 +49,13 @@
     "@typescript-eslint/parser": "^5.33.1",
     "ava": "^3.15.0",
     "codemirror": "^5.65.8",
-    "cssnano": "^5.1.13",
+    "esbuild": "^0.19.9",
     "eslint": "^8.22.0",
     "eslint-config-prettier": "^8.5.0",
-    "esm": "^3.2.25",
     "mithril": "^2.2.2",
-    "postcss": "^8.4.16",
-    "postcss-color-mod-function": "^3.0.3",
-    "postcss-import": "^14.1.0",
-    "postcss-preset-env": "^7.8.0",
     "prettier": "^2.7.1",
-    "rollup": "^2.78.1",
-    "rollup-plugin-terser": "^7.0.2",
     "sql.js": "^1.7.0",
     "svgo": "^2.8.0",
-    "ts-node": "^10.9.1",
     "typescript": "^4.7.4",
     "yaml": "^1.10.2"
   },
@@ -75,11 +63,11 @@
     "node": ">=12.13.0"
   },
   "scripts": {
-    "test": "ava --verbose --color",
+    "test": "esbuild --log-level=warning --bundle --platform=node --target=node12 --packages=external --outdir=test test/*.ts && ava --verbose --color && rm test/*.js",
     "lint-eslint": "eslint --fix \"bin/*.ts\" \"lib/**/*.ts\" \"ui/**/*.ts\" \"test/**/*.ts\" \"build/**/*.ts\"",
     "lint-prettier": "prettier --prose-wrap always --write .",
     "lint-tsc": "tsc --noEmit",
     "lint": "npm run lint-eslint && npm run lint-prettier && npm run lint-tsc",
-    "build": "node -r esm -r ts-node/register/transpile-only build/build"
+    "build": "esbuild build/build.ts --bundle --platform=node --target=node12 --packages=external | node"
   }
 }

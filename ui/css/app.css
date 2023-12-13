@@ -34,10 +34,10 @@
 
   --disabled: #666;
 
-  --status-red: hsl(0, 80%, 80%);
-  --status-green: hsl(125, 80%, 80%);
-  --status-gray: hsl(58, 3%, 80%);
-  --status-yellow: hsl(46, 79%, 80%);
+  --status-red: 0 80% 80%;
+  --status-green: 125 80% 80%;
+  --status-gray: 58 3% 80%;
+  --status-yellow: 46 79% 80%;
 }
 
 body,
@@ -79,7 +79,7 @@ i {
 
 @keyframes pending-blink {
   from {
-    background-color: color-mod(var(--status-green) a(90%));
+    background-color: hsl(var(--status-green) / 0.9);
   }
   to {
     background-color: transparent;
@@ -142,10 +142,10 @@ body {
           }
         }
         & > .stale.active {
-          background-color: color-mod(var(--status-gray) a(90%));
+          background-color: hsl(var(--status-gray) / 0.9);
         }
         & > .fault.active {
-          background-color: color-mod(var(--status-red) a(90%));
+          background-color: hsl(var(--status-red) / 0.9);
         }
         & > .queued.active {
           font-weight: bold;
@@ -187,11 +187,11 @@ body {
           border-radius: 0.4em;
         }
         & > .stale {
-          background-color: color-mod(var(--status-gray) a(90%));
+          background-color: hsl(var(--status-gray) / 0.9);
           border-radius: 0.4em;
         }
         & > .fault {
-          background-color: color-mod(var(--status-red) a(90%));
+          background-color: hsl(var(--status-red) / 0.9);
           border-radius: 0.4em;
         }
         & .parameter {
@@ -231,16 +231,16 @@ body {
         transition: opacity var(--fade), top var(--fade);
 
         &.error {
-          background-color: color-mod(var(--status-red) a(90%));
-          border: 1px solid var(--status-red);
+          background-color: hsl(var(--status-red) / 0.9);
+          border: 1px solid hsl(var(--status-red));
         }
         &.success {
-          background-color: color-mod(var(--status-green) a(90%));
-          border: 1px solid var(--status-green);
+          background-color: hsl(var(--status-green) / 0.9);
+          border: 1px solid hsl(var(--status-green));
         }
         &.warning {
-          background-color: color-mod(var(--status-yellow) a(90%));
-          border: 1px solid var(--status-yellow);
+          background-color: hsl(var(--status-yellow) / 0.9);
+          border: 1px solid hsl(var(--status-yellow));
         }
       }
     }
