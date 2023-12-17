@@ -92,7 +92,7 @@ function restartWorker(worker, code, signal): void {
 export function start(
   workerCount: number,
   servicePort: number,
-  serviceAddress: string
+  serviceAddress: string,
 ): void {
   cluster.on("listening", (worker, address) => {
     if (

@@ -52,7 +52,7 @@ const component: ClosureComponent<Attrs> = () => {
             oncreate: (_vnode) => {
               (_vnode.dom as HTMLSelectElement).focus();
             },
-          })
+          }),
         ),
       ];
 
@@ -75,8 +75,8 @@ const component: ClosureComponent<Attrs> = () => {
               oninput: (e) => {
                 vnode.state[f] = e.target.value;
               },
-            })
-          )
+            }),
+          ),
         );
       }
 
@@ -85,7 +85,7 @@ const component: ClosureComponent<Attrs> = () => {
         {
           type: "submit",
         },
-        "Change password"
+        "Change password",
       ) as VnodeDOM;
 
       form.push(m(".actions-bar", submit));
@@ -109,19 +109,19 @@ const component: ClosureComponent<Attrs> = () => {
               ) {
                 notifications.push(
                   "error",
-                  "Password confirm doesn't match new password"
+                  "Password confirm doesn't match new password",
                 );
               } else {
                 (submit.dom as HTMLFormElement).disabled = true;
                 changePassword(
                   vnode.state["username"],
                   vnode.state["newPassword"],
-                  vnode.state["authPassword"]
+                  vnode.state["authPassword"],
                 )
                   .then(() => {
                     notifications.push(
                       "success",
-                      "Password updated successfully"
+                      "Password updated successfully",
                     );
                     if (onPasswordChange) onPasswordChange();
                     (submit.dom as HTMLFormElement).disabled = false;
@@ -133,7 +133,7 @@ const component: ClosureComponent<Attrs> = () => {
               }
             },
           },
-          form
+          form,
         ),
       ];
 

@@ -25,7 +25,7 @@ import * as overlay from "./overlay";
 import changePasswordComponent from "./change-password-component";
 
 export function init(
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   return Promise.resolve(args);
 }
@@ -53,7 +53,7 @@ export const component: ClosureComponent = (): Component => {
               oninput: (e) => {
                 vnode.state["username"] = e.target.value;
               },
-            })
+            }),
           ),
           m(
             "p",
@@ -65,7 +65,7 @@ export const component: ClosureComponent = (): Component => {
               oninput: (e) => {
                 vnode.state["password"] = e.target.value;
               },
-            })
+            }),
           ),
           m(
             "p",
@@ -87,9 +87,9 @@ export const component: ClosureComponent = (): Component => {
                   return false;
                 },
               },
-              "Login"
-            )
-          )
+              "Login",
+            ),
+          ),
         ),
         m(
           "a",
@@ -107,7 +107,7 @@ export const component: ClosureComponent = (): Component => {
               overlay.open(cb);
             },
           },
-          "Change password"
+          "Change password",
         ),
       ];
     },

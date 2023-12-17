@@ -74,7 +74,7 @@ function putActionHandler(action, _object, isNew?): Promise<ValidationErrors> {
             .then(() => {
               notifications.push(
                 "success",
-                `Config ${exists ? "updated" : "created"}`
+                `Config ${exists ? "updated" : "created"}`,
               );
               store.setTimestamp(Date.now());
               resolve(null);
@@ -112,7 +112,7 @@ function escapeRegExp(str): string {
 export function init(): Promise<Record<string, unknown>> {
   if (!window.authorizer.hasAccess("config", 2)) {
     return Promise.reject(
-      new Error("You are not authorized to view this page")
+      new Error("You are not authorized to view this page"),
     );
   }
   return new Promise((resolve, reject) => {
@@ -173,19 +173,19 @@ function renderTable(confsResponse, searchString): Children {
                   });
                 },
               },
-              formData
-            )
+              formData,
+            ),
           );
           cb = () => comp;
           overlay.open(
             cb,
             () =>
               !comp.state["current"]["modified"] ||
-              confirm("You have unsaved changes. Close anyway?")
+              confirm("You have unsaved changes. Close anyway?"),
           );
         },
       },
-      getIcon("edit")
+      getIcon("edit"),
     );
 
     const del = m(
@@ -200,7 +200,7 @@ function renderTable(confsResponse, searchString): Children {
           });
         },
       },
-      getIcon("remove")
+      getIcon("remove"),
     );
 
     rows.push(
@@ -210,9 +210,9 @@ function renderTable(confsResponse, searchString): Children {
         m("td.left", m("long-text", { text: conf._id })),
         m(
           "td.right",
-          m("span", [m("long-text", { text: `${conf.value}` }), edit, del])
-        )
-      )
+          m("span", [m("long-text", { text: `${conf.value}` }), edit, del]),
+        ),
+      ),
     );
   }
 
@@ -276,19 +276,19 @@ export const component: ClosureComponent = (): Component => {
                       });
                     },
                   },
-                  formData
-                )
+                  formData,
+                ),
               );
               cb = () => comp;
               overlay.open(
                 cb,
                 () =>
                   !comp.state["current"]["modified"] ||
-                  confirm("You have unsaved changes. Close anyway?")
+                  confirm("You have unsaved changes. Close anyway?"),
               );
             },
           },
-          "New config"
+          "New config",
         );
 
         const subsData = [
@@ -332,8 +332,8 @@ export const component: ClosureComponent = (): Component => {
                               "success",
                               `${sub.name.replace(
                                 /^[a-z]/,
-                                sub.name[0].toUpperCase()
-                              )} config updated`
+                                sub.name[0].toUpperCase(),
+                              )} config updated`,
                             );
                             overlay.close(cb);
                           }
@@ -345,20 +345,20 @@ export const component: ClosureComponent = (): Component => {
                           overlay.close(cb);
                         },
                       },
-                      attrs
-                    )
+                      attrs,
+                    ),
                   );
                   cb = () => comp;
                   overlay.open(
                     cb,
                     () =>
                       !comp.state["modified"] ||
-                      confirm("You have unsaved changes. Close anyway?")
+                      confirm("You have unsaved changes. Close anyway?"),
                   );
                 },
               },
-              `Edit ${sub.name}`
-            )
+              `Edit ${sub.name}`,
+            ),
           );
         }
       }
@@ -374,10 +374,10 @@ export const component: ClosureComponent = (): Component => {
             m(
               ".parameter-list",
               { style: "height: 400px" },
-              renderTable(confs, vnode.state["searchString"])
+              renderTable(confs, vnode.state["searchString"]),
             ),
-            m(".actions-bar", [newConfig].concat(subs))
-          )
+            m(".actions-bar", [newConfig].concat(subs)),
+          ),
         ),
       ];
     },

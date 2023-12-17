@@ -131,7 +131,7 @@ function roundOid(oid: string, roundUp: boolean): string {
 
 function groupBy<T, K>(
   input: T[],
-  callback: (item: T) => K
+  callback: (item: T) => K,
 ): Iterable<[K, T[]]> {
   const groups = new Map<K, T[]>();
   for (const item of input) {
@@ -155,7 +155,7 @@ abstract class MongoClause {
 class MongoClauseArray extends MongoClause {
   constructor(
     public readonly parameter: string,
-    public readonly value: string
+    public readonly value: string,
   ) {
     super();
   }
@@ -171,7 +171,7 @@ class MongoClauseCompare<T> extends MongoClause {
     public readonly parameter: string,
     public readonly op: "$eq" | "$gt" | "$lt" | "$gte" | "$lte",
     public readonly value: T,
-    public readonly type: "" | "bool" | "number" | "string" | "date" | "oid"
+    public readonly type: "" | "bool" | "number" | "string" | "date" | "oid",
   ) {
     super();
   }
@@ -189,7 +189,10 @@ class MongoClauseCompare<T> extends MongoClause {
 }
 
 class MongoClauseType extends MongoClause {
-  constructor(public readonly parameter: string, public readonly type: string) {
+  constructor(
+    public readonly parameter: string,
+    public readonly type: string,
+  ) {
     super();
   }
 
@@ -205,7 +208,7 @@ class MongoClauseLike extends MongoClause {
     public readonly parameter: string,
     pat: string,
     esc: string,
-    public readonly caseSensitive: boolean
+    public readonly caseSensitive: boolean,
   ) {
     super();
     this.pattern = parseLikePattern(pat, esc);
@@ -357,8 +360,8 @@ class MongoSynthContext extends SynthContextBase<Clause, MongoClause> {
                 param,
                 "$gte",
                 "000000000000000000000000",
-                "oid"
-              )
+                "oid",
+              ),
             );
           }
         }
@@ -417,30 +420,30 @@ class MongoSynthContext extends SynthContextBase<Clause, MongoClause> {
 
     for (const [parameter, clauses2] of groupBy(clauses, (c) => c.parameter)) {
       const comparisons = clauses2.filter(
-        (c) => c instanceof MongoClauseCompare && c.value !== null
+        (c) => c instanceof MongoClauseCompare && c.value !== null,
       ) as MongoClauseCompare<unknown>[];
 
       for (const [type, clauses3] of groupBy(comparisons, (c) => c.type)) {
         const isType = this.getVar(new MongoClauseType(parameter, type));
         const values = new Set(clauses3.map((c) => c.value));
         const valuesSorted = Array.from(values).sort((a, b) =>
-          a > b ? 1 : -1
+          a > b ? 1 : -1,
         );
         for (const [i, v] of valuesSorted.entries()) {
           const eq = this.getVar(
-            new MongoClauseCompare(parameter, "$eq", v, type)
+            new MongoClauseCompare(parameter, "$eq", v, type),
           );
           const gt = this.getVar(
-            new MongoClauseCompare(parameter, "$gt", v, type)
+            new MongoClauseCompare(parameter, "$gt", v, type),
           );
           const lt = this.getVar(
-            new MongoClauseCompare(parameter, "$lt", v, type)
+            new MongoClauseCompare(parameter, "$lt", v, type),
           );
           const gte = this.getVar(
-            new MongoClauseCompare(parameter, "$gte", v, type)
+            new MongoClauseCompare(parameter, "$gte", v, type),
           );
           const lte = this.getVar(
-            new MongoClauseCompare(parameter, "$lte", v, type)
+            new MongoClauseCompare(parameter, "$lte", v, type),
           );
 
           if (type === "bool") {
@@ -472,16 +475,16 @@ class MongoSynthContext extends SynthContextBase<Clause, MongoClause> {
                 parameter,
                 "$gt",
                 valuesSorted[i - 1],
-                type
-              )
+                type,
+              ),
             );
             const lte2 = this.getVar(
               new MongoClauseCompare(
                 parameter,
                 "$lte",
                 valuesSorted[i - 1],
-                type
-              )
+                type,
+              ),
             );
             dcSet.push([(gt2 << 1) ^ 0, (gte << 1) ^ 1]);
             dcSet.push([(gt2 << 1) ^ 0, (lte2 << 1) ^ 0, (lt << 1) ^ 1]);
@@ -493,7 +496,7 @@ class MongoSynthContext extends SynthContextBase<Clause, MongoClause> {
       }
 
       const likes = clauses2.filter(
-        (c) => c instanceof MongoClauseLike
+        (c) => c instanceof MongoClauseLike,
       ) as MongoClauseLike[];
       if (likes.length) {
         const isType = this.getVar(new MongoClauseType(parameter, "string"));
@@ -535,11 +538,11 @@ class MongoSynthContext extends SynthContextBase<Clause, MongoClause> {
       }
 
       const isNull = this.getVar(
-        new MongoClauseCompare(parameter, "$eq", null, "")
+        new MongoClauseCompare(parameter, "$eq", null, ""),
       );
 
       const types = getTypes(parameter, this.collection).map((t) =>
-        this.getVar(new MongoClauseType(parameter, t))
+        this.getVar(new MongoClauseType(parameter, t)),
       );
 
       dcSet.push([(isNull << 1) ^ 0, ...types.map((t) => (t << 1) ^ 0)]);
@@ -621,7 +624,7 @@ class MongoSynthContext extends SynthContextBase<Clause, MongoClause> {
 
 export function toMongoQuery(
   exp: Expression,
-  resource: string
+  resource: string,
 ): Filter<unknown> | false {
   exp = normalize(exp);
   const clause = Clause.fromExpression(normalize(exp));

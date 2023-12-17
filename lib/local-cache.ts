@@ -31,7 +31,7 @@ export class LocalCache<T> {
 
   constructor(
     private cacheKey: string,
-    private callback: () => Promise<[string, T]>
+    private callback: () => Promise<[string, T]>,
   ) {}
 
   async getRevision(): Promise<string> {

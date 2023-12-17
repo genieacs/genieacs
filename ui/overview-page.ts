@@ -47,7 +47,7 @@ function queryCharts(charts: Record<string, unknown>): Record<string, unknown> {
 export function init(): Promise<Record<string, unknown>> {
   if (!window.authorizer.hasAccess("devices", 1)) {
     return Promise.reject(
-      new Error("You are not authorized to view this page")
+      new Error("You are not authorized to view this page"),
     );
   }
 

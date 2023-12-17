@@ -43,7 +43,7 @@ function exitWorkerGracefully(): void {
 }
 
 function exitWorkerUngracefully(): void {
-  extensions.killAll().finally(() => {
+  void extensions.killAll().finally(() => {
     process.exit(1);
   });
 }
@@ -113,13 +113,13 @@ if (!cluster.worker) {
     });
 
   process.on("SIGINT", () => {
-    initPromise.finally(() => {
+    void initPromise.finally(() => {
       server.stop().then(exitWorkerGracefully).catch(exitWorkerUngracefully);
     });
   });
 
   process.on("SIGTERM", () => {
-    initPromise.finally(() => {
+    void initPromise.finally(() => {
       server.stop().then(exitWorkerGracefully).catch(exitWorkerUngracefully);
     });
   });

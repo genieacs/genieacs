@@ -20,7 +20,7 @@
 import { EventEmitter } from "events";
 
 export function generateDeviceId(
-  deviceIdStruct: Record<string, string>
+  deviceIdStruct: Record<string, string>,
 ): string {
   // Escapes everything except alphanumerics and underscore
   function esc(str): string {
@@ -54,7 +54,7 @@ export function encodeTag(tag: string): string {
   return encodeURIComponent(tag)
     .replace(
       /[!~*'().]/g,
-      (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase()
+      (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase(),
     )
     .replace(/0x(?=[0-9A-Z]{2})/g, "0%78")
     .replace(/%/g, "0x");
@@ -67,7 +67,7 @@ export function decodeTag(tag: string): string {
 export function once(
   emitter: EventEmitter,
   event: string,
-  timeout: number
+  timeout: number,
 ): Promise<unknown[]> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {

@@ -30,8 +30,8 @@ const component: ClosureComponent = (): Component => {
           m(
             "li",
             { class: active["overview"] },
-            m("a", { href: "#!/overview" }, "Overview")
-          )
+            m("a", { href: "#!/overview" }, "Overview"),
+          ),
         );
       }
 
@@ -40,8 +40,8 @@ const component: ClosureComponent = (): Component => {
           m(
             "li",
             { class: active["devices"] },
-            m("a", { href: "#!/devices" }, "Devices")
-          )
+            m("a", { href: "#!/devices" }, "Devices"),
+          ),
         );
       }
 
@@ -50,8 +50,8 @@ const component: ClosureComponent = (): Component => {
           m(
             "li",
             { class: active["faults"] },
-            m("a", { href: "#!/faults" }, "Faults")
-          )
+            m("a", { href: "#!/faults" }, "Faults"),
+          ),
         );
       }
 
@@ -67,8 +67,8 @@ const component: ClosureComponent = (): Component => {
             m(
               "li",
               { class: active["admin"] },
-              m("a", { href: "#!/admin" }, "Admin")
-            )
+              m("a", { href: "#!/admin" }, "Admin"),
+            ),
           );
           break;
         }

@@ -31,7 +31,7 @@ const notifications = new Set<Notification>();
 export function push(
   type: string,
   message: string,
-  actions?: { [label: string]: () => void }
+  actions?: { [label: string]: () => void },
 ): Notification {
   const n: Notification = {
     type: type,

@@ -47,7 +47,7 @@ const component: ClosureComponent = (): Component => {
               cy: "0.5em",
               r: "0.4em",
               fill: slice["color"],
-            })
+            }),
           );
           return m("span.overview-dot", dot, `${slice["label"]}`);
         }

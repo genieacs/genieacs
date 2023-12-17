@@ -17,24 +17,35 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ClosureComponent, Component, VnodeDOM } from "mithril";
+import { ClosureComponent, VnodeDOM } from "mithril";
 import { m } from "../components";
-import { evaluateExpression } from "../store";
+import { QueryResponse, evaluateExpression } from "../store";
+import { FlatDevice } from "../../lib/ui/db";
+import { Expression } from "../../lib/types";
 
-const component: ClosureComponent = (): Component => {
+interface Attrs {
+  device: FlatDevice;
+  parameters: Record<
+    string,
+    { type?: Expression; label: string; parameter: Expression }
+  >;
+  deviceQuery: QueryResponse;
+}
+
+const component: ClosureComponent<Attrs> = () => {
   return {
     view: (vnode) => {
-      const device = vnode.attrs["device"];
+      const device = vnode.attrs.device;
 
-      const rows = Object.values(vnode.attrs["parameters"]).map((parameter) => {
-        const type = evaluateExpression(parameter["type"], device);
+      const rows = Object.values(vnode.attrs.parameters).map((parameter) => {
+        const type = evaluateExpression(parameter.type, device);
         const p = m.context(
           {
             device: device,
-            parameter: parameter["parameter"],
+            parameter: parameter.parameter,
           },
           (type as string) || "parameter",
-          parameter
+          parameter,
         );
 
         return m(
@@ -52,14 +63,14 @@ const component: ClosureComponent = (): Component => {
             },
           },
           m("th", parameter["label"]),
-          m("td", p)
+          m("td", p),
         );
       });
 
       return m(
         "loading",
-        { queries: [vnode.attrs["deviceQuery"]] },
-        m("table.parameter-list", rows)
+        { queries: [vnode.attrs.deviceQuery] },
+        m("table.parameter-list", rows),
       );
     },
   };

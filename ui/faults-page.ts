@@ -66,11 +66,11 @@ const unpackSmartQuery = memoize((query) => {
 });
 
 export function init(
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   if (!window.authorizer.hasAccess("faults", 2)) {
     return Promise.reject(
-      new Error("You are not authorized to view this page")
+      new Error("You are not authorized to view this page"),
     );
   }
 
@@ -131,7 +131,7 @@ export const component: ClosureComponent = (): Component => {
       const valueCallback = (attr, fault): Children => {
         if (attr.id === "device") {
           const deviceHref = `#!/devices/${encodeURIComponent(
-            fault["device"]
+            fault["device"],
           )}`;
 
           return m("a", { href: deviceHref }, fault["device"]);
@@ -175,13 +175,13 @@ export const component: ClosureComponent = (): Component => {
 
                 Promise.all(
                   Array.from(selected).map((id) =>
-                    store.deleteResource("faults", id)
-                  )
+                    store.deleteResource("faults", id),
+                  ),
                 )
                   .then((res) => {
                     notifications.push(
                       "success",
-                      `${res.length} faults deleted`
+                      `${res.length} faults deleted`,
                     );
                     store.setTimestamp(Date.now());
                   })
@@ -191,7 +191,7 @@ export const component: ClosureComponent = (): Component => {
                   });
               },
             },
-            "Delete"
+            "Delete",
           );
         };
       }
@@ -208,7 +208,7 @@ export const component: ClosureComponent = (): Component => {
         m(
           "loading",
           { queries: [faults, count] },
-          m(indexTableComponent, attrs)
+          m(indexTableComponent, attrs),
         ),
       ];
     },

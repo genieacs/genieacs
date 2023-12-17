@@ -156,13 +156,13 @@ export function close(): void {
 }
 
 export function flatten(
-  details: Record<string, unknown>
+  details: Record<string, unknown>,
 ): Record<string, unknown> {
   if (details.sessionContext) {
     const sessionContext = details.sessionContext as SessionContext;
     details.deviceId = sessionContext.deviceId;
     details.remoteAddress = getRequestOrigin(
-      sessionContext.httpRequest
+      sessionContext.httpRequest,
     ).remoteAddress;
     delete details.sessionContext;
   }
@@ -220,7 +220,7 @@ export function flatten(
   // For genieacs-ui
   if (details.context) {
     details.remoteAddress = getRequestOrigin(
-      details.context["req"]
+      details.context["req"],
     ).remoteAddress;
     if (details.context["state"].user)
       details.user = details.context["state"].user.username;
@@ -235,7 +235,7 @@ export function flatten(
 
 function formatJson(
   details: Record<string, unknown>,
-  systemd: boolean
+  systemd: boolean,
 ): string {
   if (systemd) {
     let severity = "";
@@ -251,7 +251,7 @@ function formatJson(
 
 function formatSimple(
   details: Record<string, unknown>,
-  systemd: boolean
+  systemd: boolean,
 ): string {
   const skip = {
     user: true,

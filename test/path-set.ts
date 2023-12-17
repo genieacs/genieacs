@@ -38,31 +38,31 @@ ava("find", (t) => {
 
   t.deepEqual(
     pathSet.find(Path.parse(""), true, true, 1).map((p) => p.toString()),
-    ["a"]
+    ["a"],
   );
 
   t.deepEqual(
     pathSet.find(Path.parse(""), false, false, 2).map((p) => p.toString()),
-    ["a", "a.*", "a.a", "*.a", "*.*"]
+    ["a", "a.*", "a.a", "*.a", "*.*"],
   );
 
   t.deepEqual(
     pathSet.find(Path.parse("a.*"), false, false).map((p) => p.toString()),
-    ["a.*"]
+    ["a.*"],
   );
 
   t.deepEqual(
     pathSet.find(Path.parse("a.*"), false, true).map((p) => p.toString()),
-    ["a.*", "a.a"]
+    ["a.*", "a.a"],
   );
 
   t.deepEqual(
     pathSet.find(Path.parse("a.*"), true, false).map((p) => p.toString()),
-    ["a.*", "*.*"]
+    ["a.*", "*.*"],
   );
 
   t.deepEqual(
     pathSet.find(Path.parse("a.*"), true, true).map((p) => p.toString()),
-    ["a.*", "a.a", "*.a", "*.*"]
+    ["a.*", "a.a", "*.a", "*.*"],
   );
 });

@@ -19,7 +19,7 @@
 
 type AutocompleteCallback = (
   value: string,
-  callback: (suggestions: { value: string; tip?: string }[]) => void
+  callback: (suggestions: { value: string; tip?: string }[]) => void,
 ) => void;
 
 export default class Autocomplete {
@@ -180,14 +180,14 @@ export default class Autocomplete {
       if (selectedElement) {
         this.container.scrollTop = Math.min(
           this.container.scrollTop,
-          selectedElement.offsetTop
+          selectedElement.offsetTop,
         );
 
         this.container.scrollTop = Math.max(
           this.container.scrollTop,
           selectedElement.offsetTop +
             selectedElement.scrollHeight -
-            this.container.clientHeight
+            this.container.clientHeight,
         );
       }
     });

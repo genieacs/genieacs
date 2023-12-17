@@ -62,7 +62,7 @@ function runExtension(sessionContext, key, extCall): Promise<Fault> {
             resolve(fault);
           })
           .catch(reject);
-      }))
+      })),
     );
   }
 
@@ -78,7 +78,7 @@ class SandboxDate {
       number?,
       number?,
       number?,
-      number?
+      number?,
     ]
   ) {
     if (argumentList.length) return new Date(...argumentList);
@@ -143,7 +143,7 @@ class ParameterWrapper {
             unpacked = device.unpack(
               state.sessionContext.deviceData,
               path,
-              state.revision
+              state.revision,
             );
           }
 
@@ -151,7 +151,7 @@ class ParameterWrapper {
 
           const attr = state.sessionContext.deviceData.attributes.get(
             unpacked[0],
-            state.revision
+            state.revision,
           )[attrName];
 
           if (!attr) return UNDEFINED;
@@ -170,7 +170,7 @@ class ParameterWrapper {
           unpacked = device.unpack(
             state.sessionContext.deviceData,
             path,
-            state.revision
+            state.revision,
           );
         }
 
@@ -189,7 +189,7 @@ class ParameterWrapper {
           unpacked = device.unpack(
             state.sessionContext.deviceData,
             path,
-            state.revision
+            state.revision,
           );
         }
 
@@ -207,7 +207,7 @@ class ParameterWrapper {
         unpacked = device.unpack(
           state.sessionContext.deviceData,
           path,
-          state.revision
+          state.revision,
         );
       }
 
@@ -220,7 +220,7 @@ class ParameterWrapper {
 function declare(
   path: string,
   timestamps: { [attr: string]: number },
-  values: { [attr: string]: any }
+  values: { [attr: string]: any },
 ): ParameterWrapper {
   state.uncommitted = true;
   if (!timestamps) timestamps = {};
@@ -286,7 +286,7 @@ function commit(): void {
     throw COMMIT;
   } else if (state.revision > state.maxRevision + 1) {
     throw new Error(
-      "Declare function should not be called from within a try/catch block"
+      "Declare function should not be called from within a try/catch block",
     );
   }
 }
@@ -351,12 +351,12 @@ function errorToFault(err: Error): Fault {
     fault.detail["stack"] = err.stack;
     // Trim the stack trace at the self-executing anonymous wrapper function
     const stackTrimIndex = fault.detail["stack"].match(
-      /\s+at\s[^\s]+\s+at\s[^\s]+\s\(vm\.js.+\)/
+      /\s+at\s[^\s]+\s+at\s[^\s]+\s\(vm\.js.+\)/,
     );
     if (stackTrimIndex) {
       fault.detail["stack"] = fault.detail["stack"].slice(
         0,
-        stackTrimIndex.index
+        stackTrimIndex.index,
       );
     }
   }
@@ -370,7 +370,7 @@ export async function run(
   sessionContext: SessionContext,
   startRevision: number,
   maxRevision: number,
-  extCounter = 0
+  extCounter = 0,
 ): Promise<ScriptResult> {
   state = {
     sessionContext: sessionContext,
@@ -415,7 +415,7 @@ export async function run(
   await Promise.all(
     Object.entries(_state.extensions).map(async ([k, v]) => {
       fault = (await runExtension(_state.sessionContext, k, v)) || fault;
-    })
+    }),
   );
 
   if (fault) {
@@ -435,7 +435,7 @@ export async function run(
       sessionContext,
       startRevision,
       maxRevision,
-      extCounter - _state.extCounter
+      extCounter - _state.extCounter,
     );
   }
 

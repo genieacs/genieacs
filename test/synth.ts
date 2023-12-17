@@ -21,7 +21,7 @@ test.before(async (t) => {
   };
 
   db.run(
-    "CREATE TABLE test (id INTEGER PRIMARY KEY, string STRING, decimal DECIMAL(4,2))"
+    "CREATE TABLE test (id INTEGER PRIMARY KEY, string STRING, decimal DECIMAL(4,2))",
   );
 
   const stmt = db.prepare("INSERT INTO test (string, decimal) VALUES (?, ?)");
@@ -72,16 +72,16 @@ test("minimize", async (t) => {
     STRING_VALUES.filter((s) => s),
     STRING_VALUES.filter((s) => s),
     [">", "=", "<"],
-    ["<>", ">="]
+    ["<>", ">="],
   )) {
     cases.push(
-      `string ${op1} "${s1}" OR string ='${s2}' OR NOT string ${op2} '${s3}'`
+      `string ${op1} "${s1}" OR string ='${s2}' OR NOT string ${op2} '${s3}'`,
     );
   }
 
   for (const [s1, s2] of getPermutations(
     STRING_VALUES.filter((s) => s),
-    STRING_VALUES.filter((s) => s)
+    STRING_VALUES.filter((s) => s),
   ))
     cases.push(`string > "${s1}" AND string < '${s2}'`);
 

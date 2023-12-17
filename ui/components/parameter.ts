@@ -78,7 +78,7 @@ const component: ClosureComponent = (): Component => {
       const { value, timestamp, parameter } = evaluateParam(
         vnode.attrs["parameter"],
         device,
-        store.getTimestamp() + store.getClockSkew()
+        store.getTimestamp() + store.getClockSkew(),
       );
 
       if (value == null) return null;
@@ -103,7 +103,7 @@ const component: ClosureComponent = (): Component => {
               });
             },
           },
-          getIcon("edit")
+          getIcon("edit"),
         );
       }
 
@@ -124,7 +124,7 @@ const component: ClosureComponent = (): Component => {
           },
         },
         el,
-        edit
+        edit,
       );
     },
   };

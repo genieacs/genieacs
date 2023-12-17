@@ -138,7 +138,7 @@ export default class VersionedMap<K, V> {
     const del = revisionsObj.delete || 0;
     const mutations = Object.keys(revisionsObj).reduce(
       (acc, cur) => (cur === "delete" ? acc : acc | (1 << +cur)),
-      del
+      del,
     );
 
     const revisions = [];

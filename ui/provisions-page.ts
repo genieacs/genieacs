@@ -80,7 +80,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
             .then(() => {
               notifications.push(
                 "success",
-                `Provision ${exists ? "updated" : "created"}`
+                `Provision ${exists ? "updated" : "created"}`,
               );
               store.setTimestamp(Date.now());
               resolve(null);
@@ -127,11 +127,11 @@ const getDownloadUrl = memoize((filter) => {
 });
 
 export function init(
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   if (!window.authorizer.hasAccess("provisions", 2)) {
     return Promise.reject(
-      new Error("You are not authorized to view this page")
+      new Error("You are not authorized to view this page"),
     );
   }
 
@@ -237,19 +237,19 @@ export const component: ClosureComponent = (): Component => {
                         });
                       },
                     },
-                    formData
-                  )
+                    formData,
+                  ),
                 );
                 cb = () => comp;
                 overlay.open(
                   cb,
                   () =>
                     !comp.state["current"]["modified"] ||
-                    confirm("You have unsaved changes. Close anyway?")
+                    confirm("You have unsaved changes. Close anyway?"),
                 );
               },
             },
-            "Show"
+            "Show",
           ),
         ];
       };
@@ -289,19 +289,19 @@ export const component: ClosureComponent = (): Component => {
                           });
                         },
                       },
-                      formData
-                    )
+                      formData,
+                    ),
                   );
                   cb = () => comp;
                   overlay.open(
                     cb,
                     () =>
                       !comp.state["current"]["modified"] ||
-                      confirm("You have unsaved changes. Close anyway?")
+                      confirm("You have unsaved changes. Close anyway?"),
                   );
                 },
               },
-              "New"
+              "New",
             ),
             m(
               "button.primary",
@@ -311,7 +311,7 @@ export const component: ClosureComponent = (): Component => {
                 onclick: (e) => {
                   if (
                     !confirm(
-                      `Deleting ${selected.size} provisions. Are you sure?`
+                      `Deleting ${selected.size} provisions. Are you sure?`,
                     )
                   )
                     return;
@@ -320,13 +320,13 @@ export const component: ClosureComponent = (): Component => {
                   e.target.disabled = true;
                   Promise.all(
                     Array.from(selected).map((id) =>
-                      store.deleteResource("provisions", id)
-                    )
+                      store.deleteResource("provisions", id),
+                    ),
                   )
                     .then((res) => {
                       notifications.push(
                         "success",
-                        `${res.length} provisions deleted`
+                        `${res.length} provisions deleted`,
                       );
                       store.setTimestamp(Date.now());
                     })
@@ -336,7 +336,7 @@ export const component: ClosureComponent = (): Component => {
                     });
                 },
               },
-              "Delete"
+              "Delete",
             ),
           ];
         };
@@ -354,7 +354,7 @@ export const component: ClosureComponent = (): Component => {
         m(
           "loading",
           { queries: [provisions, count] },
-          m(indexTableComponent, attrs)
+          m(indexTableComponent, attrs),
         ),
       ];
     },

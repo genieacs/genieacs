@@ -55,7 +55,7 @@ ava("convertOldPrecondition", (t) => {
   for (const test of tests) {
     t.is(
       stringify(convertOldPrecondition(test[0] as Record<string, unknown>)),
-      test[1]
+      test[1],
     );
   }
 

@@ -23,11 +23,11 @@ import config from "./config";
 import * as store from "./store";
 
 export function init(
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   if (!window.authorizer.hasAccess("devices", 2)) {
     return Promise.reject(
-      new Error("You are not authorized to view this page")
+      new Error("You are not authorized to view this page"),
     );
   }
 
@@ -49,7 +49,7 @@ export const component: ClosureComponent = (): Component => {
         return m(
           "loading",
           { queries: [dev] },
-          m("div", { style: "height: 100px;" })
+          m("div", { style: "height: 100px;" }),
         );
       }
 
@@ -58,7 +58,7 @@ export const component: ClosureComponent = (): Component => {
 
       for (const c of Object.values(conf)) {
         cmps.push(
-          m.context({ device: dev.value[0], deviceQuery: dev }, c["type"], c)
+          m.context({ device: dev.value[0], deviceQuery: dev }, c["type"], c),
         );
       }
 

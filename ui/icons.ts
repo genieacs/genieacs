@@ -25,6 +25,6 @@ export function getIcon(name: string): Children {
   return m(
     `svg.icon.icon-${name}`,
     { key: `icon-${name}` },
-    m("use", { href: `${ICONS_SVG}#icon-${name}` })
+    m("use", { href: `${ICONS_SVG}#icon-${name}` }),
   );
 }

@@ -57,7 +57,7 @@ const component: ClosureComponent = (): Component => {
           onupdate: (vnode2) => {
             if (vnode2.dom.clientWidth === vnode2.dom.scrollWidth) {
               (vnode2.dom as HTMLElement).classList.remove(
-                "long-text-overflowed"
+                "long-text-overflowed",
               );
               (vnode2.dom as HTMLElement).onclick = null;
             } else {
@@ -67,7 +67,7 @@ const component: ClosureComponent = (): Component => {
           class: "long-text",
           title: text,
         },
-        text
+        text,
       );
     },
   };

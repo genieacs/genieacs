@@ -75,7 +75,7 @@ export default class PathSet {
     path: Path,
     superset = false,
     subset = false,
-    depth: number = path.length
+    depth: number = path.length,
   ): Path[] {
     if (path.alias) throw new Error("PathSet does not support aliased paths");
 
@@ -115,7 +115,7 @@ export default class PathSet {
           res = [...fragmentIndexSet1, ...fragmentIndexSet2];
         } else {
           res = res.filter(
-            (r) => fragmentIndexSet1.has(r) || fragmentIndexSet2.has(r)
+            (r) => fragmentIndexSet1.has(r) || fragmentIndexSet2.has(r),
           );
         }
       }

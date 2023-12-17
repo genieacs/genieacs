@@ -54,7 +54,7 @@ const component: ClosureComponent<Attrs> = () => {
                   if (vnode.attrs.onSubmit) vnode.attrs.onSubmit(_vnode.dom);
                 },
               },
-            }
+            },
           );
 
           if (vnode.attrs.onChange) {

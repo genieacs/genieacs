@@ -27,7 +27,7 @@ ava("digest", (t) => {
       uri,
       method,
       body,
-      wwwAuthHeader
+      wwwAuthHeader,
     );
     const authHeader = auth.parseAuthorizationHeader(solution);
     t.is(
@@ -42,8 +42,8 @@ ava("digest", (t) => {
         authHeader["qop"],
         body,
         authHeader["cnonce"],
-        authHeader["nc"]
-      )
+        authHeader["nc"],
+      ),
     );
   }
 });

@@ -85,7 +85,7 @@ ava("unpack", (t) => {
   let unpacked: Path[];
   unpacked = device.unpack(
     deviceData,
-    Path.parse("a.[b:b,c:c].a.[b:b1,c:c1].a")
+    Path.parse("a.[b:b,c:c].a.[b:b1,c:c1].a"),
   );
   t.is(unpacked.length, 2);
   t.is(unpacked[0].toString(), "a.1.a.1.a");

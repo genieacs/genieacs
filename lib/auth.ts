@@ -63,7 +63,7 @@ export function parseAuthorizationHeader(authHeader: string): {
     // Inspired by https://github.com/jshttp/basic-auth
     const USER_PASS_REGEX = /^([^:]*):(.*)$/;
     const creds = USER_PASS_REGEX.exec(
-      Buffer.from(authHeader.slice(method.length + 1), "base64").toString()
+      Buffer.from(authHeader.slice(method.length + 1), "base64").toString(),
     );
 
     if (!creds) throw new Error("Unable to parse auth header");
@@ -77,7 +77,7 @@ export function parseAuthorizationHeader(authHeader: string): {
 }
 
 export function parseWwwAuthenticateHeader(
-  authHeader: string
+  authHeader: string,
 ): Record<string, string> {
   authHeader = authHeader.trim();
   const method = authHeader.split(" ", 1)[0];
@@ -100,7 +100,7 @@ export function digest(
   qop?: string | Buffer,
   body?: string | Buffer,
   cnonce?: string | Buffer,
-  nc?: string | Buffer
+  nc?: string | Buffer,
 ): string {
   const ha1 = createHash("md5");
   ha1.update(username).update(":").update(realm).update(":").update(password);
@@ -141,7 +141,7 @@ export function solveDigest(
   uri: string | Buffer,
   httpMethod: string | Buffer,
   body: string | Buffer,
-  authHeader: Record<string, string>
+  authHeader: Record<string, string>,
 ): string {
   const cnonce = randomBytes(8).toString("hex");
   const nc = "00000001";
@@ -163,7 +163,7 @@ export function solveDigest(
     qop,
     body,
     cnonce,
-    nc
+    nc,
   );
 
   let authString = `Digest username="${username}"`;

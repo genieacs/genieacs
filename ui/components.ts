@@ -63,10 +63,11 @@ const vnodeContext = new WeakMap<Vnode, Attributes>();
 
 interface MC extends Static {
   context: {
-    (ctx: Attributes, selector: string, ...children: Children[]): Vnode<
-      any,
-      any
-    >;
+    (
+      ctx: Attributes,
+      selector: string,
+      ...children: Children[]
+    ): Vnode<any, any>;
     (
       ctx: Attributes,
       selector: string,
@@ -150,7 +151,7 @@ export function contextifyComponent(component: ComponentTypes): ComponentTypes {
                 title: "Click to print stack trace to console",
                 onclick: () => console.error(err),
               },
-              "Error!"
+              "Error!",
             );
           }
         };

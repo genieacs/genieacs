@@ -43,7 +43,7 @@ function parseBool(v): boolean {
 }
 
 export function sanitizeParameterValue(
-  parameterValue: [string | number | boolean, string]
+  parameterValue: [string | number | boolean, string],
 ): [string | number | boolean, string] {
   if (parameterValue[0] != null) {
     switch (parameterValue[1]) {
@@ -87,7 +87,7 @@ export function sanitizeParameterValue(
 export function getAliasDeclarations(
   path: Path,
   timestamp: number,
-  attrGet = null
+  attrGet = null,
 ): Declaration[] {
   const stripped = path.stripAlias();
   let decs: Declaration[] = [
@@ -109,7 +109,7 @@ export function getAliasDeclarations(
           decs = decs.concat(
             getAliasDeclarations(parent.concat(p), timestamp, {
               value: timestamp,
-            })
+            }),
           );
         }
       }
@@ -122,7 +122,7 @@ export function getAliasDeclarations(
 export function unpack(
   deviceData: DeviceData,
   path: Path,
-  revision?: number
+  revision?: number,
 ): Path[] {
   let allMatches = [] as Path[];
   if (!path.alias) {
@@ -194,7 +194,7 @@ export function clear(
   path: Path,
   timestamp: number,
   attributes: AttributeTimestamps,
-  changeFlags = 0
+  changeFlags = 0,
 ): void {
   const changeTrackers = {};
 
@@ -212,7 +212,7 @@ export function clear(
     path,
     true,
     true,
-    descendantsTimestamp ? 99 : path.length
+    descendantsTimestamp ? 99 : path.length,
   )) {
     const tracker = deviceData.trackers.get(p);
     for (const k in tracker) changeTrackers[k] |= tracker[k];
@@ -274,7 +274,7 @@ export function set(
   path: Path,
   timestamp: number,
   attributes: Attributes,
-  toClear?: Clear[]
+  toClear?: Clear[],
 ): Clear[] {
   path = deviceData.paths.add(path);
 
@@ -315,7 +315,7 @@ export function set(
         else if (
           !compareEquality(
             attributes[attrName][1],
-            currentAttributes[attrName][1]
+            currentAttributes[attrName][1],
           )
         )
           changeFlags |= CHANGE_FLAGS[attrName];
@@ -334,7 +334,7 @@ export function set(
           path.slice(0, path.length - 1),
           timestamp,
           { object: [timestamp, 1] },
-          toClear
+          toClear,
         );
       }
     }
@@ -377,7 +377,7 @@ export function track(
   deviceData: DeviceData,
   path: Path,
   marker: string,
-  attributes?: string[]
+  attributes?: string[],
 ): void {
   path = deviceData.paths.add(path);
   let f = 1;
@@ -396,7 +396,7 @@ export function track(
 
 export function clearTrackers(
   deviceData: DeviceData,
-  tracker: string | string[]
+  tracker: string | string[],
 ): void {
   if (Array.isArray(tracker)) {
     for (const v of deviceData.trackers.values())

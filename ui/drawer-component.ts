@@ -73,7 +73,7 @@ function renderStagingSpv(task: StageTask, queueFunc, cancelFunc): Children {
       [
         m("option", { value: "true" }, "true"),
         m("option", { value: "false" }, "false"),
-      ]
+      ],
     );
   } else {
     const type = task.parameterValues[0][2];
@@ -134,8 +134,8 @@ function renderStagingDownload(task: StageTask): Children {
     m(
       "option",
       { disabled: !t, value: t, selected: (task.fileType || "") === t },
-      t
-    )
+      t,
+    ),
   );
 
   const filesList = [""]
@@ -145,16 +145,16 @@ function renderStagingDownload(task: StageTask): Children {
           (f) =>
             (!f["metadata.oui"] || f["metadata.oui"] === oui) &&
             (!f["metadata.productClass"] ||
-              f["metadata.productClass"] === productClass)
+              f["metadata.productClass"] === productClass),
         )
-        .map((f) => f._id)
+        .map((f) => f._id),
     )
     .map((f) =>
       m(
         "option",
         { disabled: !f, value: f, selected: (task.fileName || "") === f },
-        f
-      )
+        f,
+      ),
     );
 
   return [
@@ -172,7 +172,7 @@ function renderStagingDownload(task: StageTask): Children {
         disabled: files.fulfilling,
         style: "width: 350px",
       },
-      filesList
+      filesList,
     ),
     " as ",
     m(
@@ -182,7 +182,7 @@ function renderStagingDownload(task: StageTask): Children {
           task.fileType = e.target.value;
         },
       },
-      typesList
+      typesList,
     ),
   ];
 }
@@ -211,12 +211,12 @@ function renderStaging(staging: Set<StageTask>): Child[] {
     const queue = m(
       "button.primary",
       { title: "Queue task", onclick: queueFunc, disabled: invalid.has(s) },
-      "Queue"
+      "Queue",
     );
     const cancel = m(
       "button",
       { title: "Cancel edit", onclick: cancelFunc },
-      "Cancel"
+      "Cancel",
     );
 
     elements.push(m(".staging", elms, m("div.actions", queue, cancel)));
@@ -247,8 +247,8 @@ function renderQueue(queue: Set<QueueTask>): Child[] {
                 queueTask(t);
               },
             },
-            getIcon("retry")
-          )
+            getIcon("retry"),
+          ),
         );
       }
 
@@ -261,8 +261,8 @@ function renderQueue(queue: Set<QueueTask>): Child[] {
               deleteTask(t);
             },
           },
-          getIcon("remove")
-        )
+          getIcon("remove"),
+        ),
       );
 
       if (t.name === "setParameterValues") {
@@ -275,56 +275,56 @@ function renderQueue(queue: Set<QueueTask>): Child[] {
               mparam(t.parameterValues[0][0]),
               " to '",
               mval(t.parameterValues[0][1]),
-              "'"
+              "'",
             ),
-            m(".actions", actions)
-          )
+            m(".actions", actions),
+          ),
         );
       } else if (t.name === "refreshObject") {
         details.push(
           m(
             `div.${t.status}`,
             m("span", "Refresh ", mparam(t.parameterName)),
-            m(".actions", actions)
-          )
+            m(".actions", actions),
+          ),
         );
       } else if (t.name === "reboot") {
         details.push(m(`div.${t.status}`, "Reboot", m(".actions", actions)));
       } else if (t.name === "factoryReset") {
         details.push(
-          m(`div.${t.status}`, "Factory reset", m(".actions", actions))
+          m(`div.${t.status}`, "Factory reset", m(".actions", actions)),
         );
       } else if (t.name === "addObject") {
         details.push(
           m(
             `div.${t.status}`,
             m("span", "Add ", mparam(t.objectName)),
-            m(".actions", actions)
-          )
+            m(".actions", actions),
+          ),
         );
       } else if (t.name === "deleteObject") {
         details.push(
           m(
             `div.${t.status}`,
             m("span", "Delete ", mparam(t.objectName)),
-            m(".actions", actions)
-          )
+            m(".actions", actions),
+          ),
         );
       } else if (t.name === "getParameterValues") {
         details.push(
           m(
             `div.${t.status}`,
             `Refresh ${t.parameterNames.length} parameters`,
-            m(".actions", actions)
-          )
+            m(".actions", actions),
+          ),
         );
       } else if (t.name === "download") {
         details.push(
           m(
             `div.${t.status}`,
             `Push file: ${t.fileName} (${t.fileType})`,
-            m(".actions", actions)
-          )
+            m(".actions", actions),
+          ),
         );
       } else {
         details.push(m(`div.${t.status}`, t.name, m(".actions", actions)));
@@ -342,7 +342,7 @@ function renderNotifications(notifs): Child[] {
     let buttons;
     if (n.actions) {
       const btns = Object.entries(n.actions).map(([label, onclick]) =>
-        m("button.primary", { onclick: onclick }, label)
+        m("button.primary", { onclick: onclick }, label),
       );
       if (btns.length) buttons = m("div", { style: "float: right" }, btns);
     }
@@ -366,8 +366,8 @@ function renderNotifications(notifs): Child[] {
           },
           key: n.timestamp,
         },
-        m("div", buttons, n.message)
-      )
+        m("div", buttons, n.message),
+      ),
     );
   }
   return notificationElements;
@@ -401,7 +401,7 @@ const component: ClosureComponent = (): Component => {
             height = Math.max(
               height,
               (s.dom as HTMLDivElement).offsetTop +
-                (s.dom as HTMLDivElement).offsetHeight
+                (s.dom as HTMLDivElement).offsetHeight,
             );
           }
         } else if (vnode.state["mouseIn"]) {
@@ -424,7 +424,7 @@ const component: ClosureComponent = (): Component => {
               disabled: !statusCount.queued,
               onclick: () => {
                 const tasks = Array.from(getQueue()).filter(
-                  (t) => t["status"] === "queued"
+                  (t) => t["status"] === "queued",
                 );
                 commit(
                   tasks,
@@ -432,7 +432,7 @@ const component: ClosureComponent = (): Component => {
                     if (err) {
                       notifications.push(
                         "error",
-                        `${deviceId}: ${err.message}`
+                        `${deviceId}: ${err.message}`,
                       );
                       return;
                     }
@@ -440,7 +440,7 @@ const component: ClosureComponent = (): Component => {
                     if (connectionRequestStatus !== "OK") {
                       notifications.push(
                         "error",
-                        `${deviceId}: ${connectionRequestStatus}`
+                        `${deviceId}: ${connectionRequestStatus}`,
                       );
                       return;
                     }
@@ -449,13 +449,13 @@ const component: ClosureComponent = (): Component => {
                       if (t.status === "stale") {
                         notifications.push(
                           "error",
-                          `${deviceId}: No contact from device`
+                          `${deviceId}: No contact from device`,
                         );
                         return;
                       } else if (t.status === "fault") {
                         notifications.push(
                           "error",
-                          `${deviceId}: Task(s) faulted`
+                          `${deviceId}: Task(s) faulted`,
                         );
                         return;
                       }
@@ -463,9 +463,9 @@ const component: ClosureComponent = (): Component => {
 
                     notifications.push(
                       "success",
-                      `${deviceId}: Task(s) committed`
+                      `${deviceId}: Task(s) committed`,
                     );
-                  }
+                  },
                 )
                   .then(() => {
                     store.setTimestamp(Date.now());
@@ -475,7 +475,7 @@ const component: ClosureComponent = (): Component => {
                   });
               },
             },
-            "Commit"
+            "Commit",
           ),
           m(
             "button",
@@ -484,8 +484,8 @@ const component: ClosureComponent = (): Component => {
               onclick: clear,
               disabled: !queueElements.length,
             },
-            "Clear"
-          )
+            "Clear",
+          ),
         );
 
         statusElement = m(
@@ -493,24 +493,24 @@ const component: ClosureComponent = (): Component => {
           m(
             "span.queued",
             { class: statusCount.queued ? "active" : "" },
-            `Queued: ${statusCount.queued}`
+            `Queued: ${statusCount.queued}`,
           ),
           m(
             "span.pending",
             { class: statusCount.pending ? "active" : "" },
-            `Pending: ${statusCount.pending}`
+            `Pending: ${statusCount.pending}`,
           ),
           m(
             "span.fault",
             { class: statusCount.fault ? "active" : "" },
-            `Fault: ${statusCount.fault}`
+            `Fault: ${statusCount.fault}`,
           ),
           m(
             "span.stale",
             { class: statusCount.stale ? "active" : "" },
-            `Stale: ${statusCount.stale}`
+            `Stale: ${statusCount.stale}`,
           ),
-          actions
+          actions,
         );
 
         drawerElement = m(
@@ -545,7 +545,7 @@ const component: ClosureComponent = (): Component => {
             },
           },
           statusElement,
-          stagingElements.length ? stagingElements : m(".queue", queueElements)
+          stagingElements.length ? stagingElements : m(".queue", queueElements),
         );
       }
 
@@ -560,8 +560,8 @@ const component: ClosureComponent = (): Component => {
             onupdate: repositionNotifications,
             oncreate: repositionNotifications,
           },
-          notificationElements
-        )
+          notificationElements,
+        ),
       );
     },
   };

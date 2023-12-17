@@ -63,7 +63,7 @@ for (const v of Object.values(
   config.ui.filters as Record<
     string,
     { label: string; parameter: string; type: string }
-  >
+  >,
 )) {
   resources.devices[v.label] = {
     parameter: v.parameter,
@@ -114,7 +114,7 @@ function queryString(param: Expression, value: string): Expression {
 
 function queryStringCaseSensitive(
   param: Expression,
-  value: string
+  value: string,
 ): Expression {
   return ["LIKE", param, value];
 }
@@ -205,7 +205,7 @@ export function getTip(resource: string, label: string): string {
           break;
         case "timestamp":
           tips.push(
-            "Unix timestamp or string in the form YYYY-MM-DDTHH:mm:ss.sssZ"
+            "Unix timestamp or string in the form YYYY-MM-DDTHH:mm:ss.sssZ",
           );
           break;
         case "mac":
@@ -228,7 +228,7 @@ export function getTip(resource: string, label: string): string {
 export function unpack(
   resource: string,
   label: string,
-  value: string
+  value: string,
 ): Expression {
   if (!resources[resource]) return null;
   const type = resources[resource][label].type;
@@ -253,7 +253,7 @@ export function unpack(
   if (type.includes("string-casesensitive")) {
     const q = queryStringCaseSensitive(
       resources[resource][label].parameter,
-      value
+      value,
     );
     if (q) res.push(q);
   }

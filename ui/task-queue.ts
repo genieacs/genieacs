@@ -95,8 +95,8 @@ export function commit(
     deviceId: string,
     err: Error,
     conReqStatus: string,
-    _tasks: QueueTask[]
-  ) => void
+    _tasks: QueueTask[],
+  ) => void,
 ): Promise<void> {
   const devices: { [deviceId: string]: QueueTask[] } = {};
 

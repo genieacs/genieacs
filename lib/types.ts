@@ -97,7 +97,7 @@ export type VirtualParameterDeclaration = [
     value?: [string | number | boolean, string?];
     notification?: number;
     accessList?: string[];
-  }?
+  }?,
 ];
 
 export interface SyncState {
@@ -139,7 +139,7 @@ export interface SessionContext {
     AttributeTimestamps,
     AttributeValues,
     AttributeTimestamps,
-    AttributeValues
+    AttributeValues,
   ][][];
   revisions: number[];
   rpcCount: number;
@@ -455,7 +455,7 @@ export type Clear = [
     notification?: number;
     accessList?: number;
   }?,
-  number?
+  number?,
 ];
 
 export interface Preset {

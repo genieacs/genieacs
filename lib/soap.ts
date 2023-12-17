@@ -158,7 +158,7 @@ const getValueType = memoize((str: string) => {
 });
 
 function parameterValueList(
-  xml: Element
+  xml: Element,
 ): [Path, string | number | boolean, string][] {
   return xml.children
     .map<[Path, string | number | boolean, string]>((e) => {
@@ -291,7 +291,7 @@ function GetParameterNamesResponse(xml): GetParameterNamesResponse {
   return {
     name: "GetParameterNamesResponse",
     parameterList: parameterInfoList(
-      xml.children.find((n) => n.localName === "ParameterList")
+      xml.children.find((n) => n.localName === "ParameterList"),
     ),
   };
 }
@@ -308,7 +308,7 @@ function GetParameterValuesResponse(xml: Element): GetParameterValuesResponse {
   return {
     name: "GetParameterValuesResponse",
     parameterList: parameterValueList(
-      xml.children.find((n) => n.localName === "ParameterList")
+      xml.children.find((n) => n.localName === "ParameterList"),
     ),
   };
 }
@@ -322,12 +322,12 @@ function GetParameterAttributes(methodRequest): string {
 }
 
 function GetParameterAttributesResponse(
-  xml: Element
+  xml: Element,
 ): GetParameterAttributesResponse {
   return {
     name: "GetParameterAttributesResponse",
     parameterList: parameterAttributeList(
-      xml.children.find((n) => n.localName === "ParameterList")
+      xml.children.find((n) => n.localName === "ParameterList"),
     ),
   };
 }
@@ -509,19 +509,19 @@ function Download(methodRequest): string {
   }</CommandKey><FileType>${methodRequest.fileType}</FileType><URL>${
     methodRequest.url
   }</URL><Username>${encodeEntities(
-    methodRequest.username || ""
+    methodRequest.username || "",
   )}</Username><Password>${encodeEntities(
-    methodRequest.password || ""
+    methodRequest.password || "",
   )}</Password><FileSize>${
     methodRequest.fileSize || "0"
   }</FileSize><TargetFileName>${encodeEntities(
-    methodRequest.targetFileName || ""
+    methodRequest.targetFileName || "",
   )}</TargetFileName><DelaySeconds>${
     methodRequest.delaySeconds || "0"
   }</DelaySeconds><SuccessURL>${encodeEntities(
-    methodRequest.successUrl || ""
+    methodRequest.successUrl || "",
   )}</SuccessURL><FailureURL>${encodeEntities(
-    methodRequest.failureUrl || ""
+    methodRequest.failureUrl || "",
   )}</FailureURL></cwmp:Download>`;
 }
 
@@ -732,13 +732,13 @@ function RequestDownloadResponse(): string {
 
 function AcsFault(f: CpeFault): string {
   return `<soap-env:Body:Fault><faultcode>${encodeEntities(
-    f.faultCode
+    f.faultCode,
   )}</faultcode><faultstring>${encodeEntities(
-    f.faultString
+    f.faultString,
   )}</faultstring><detail><cwmp:Fault><FaultCode>${encodeEntities(
-    f.detail.faultCode
+    f.detail.faultCode,
   )}</FaultCode><FaultString>${encodeEntities(
-    f.detail.faultString
+    f.detail.faultString,
   )}</FaultString></cwmp:Fault></detail></soap-env:Body:Fault>`;
 }
 
@@ -839,7 +839,7 @@ function fault(xml: Element): CpeFault {
 
 export function request(
   body: string,
-  warn: Record<string, unknown>[]
+  warn: Record<string, unknown>[],
 ): SoapMessage {
   warnings = warn;
 
@@ -897,7 +897,7 @@ export function request(
         const attrs = memoizedParseAttrs(e.attrs);
         const attr = namespace
           ? attrs.find(
-              (s) => s.namespace === "xmlns" && s.localName === namespace
+              (s) => s.namespace === "xmlns" && s.localName === namespace,
             )
           : attrs.find((s) => s.name === "xmlns");
 
@@ -1030,7 +1030,7 @@ export function response(rpc: {
         throw new Error(
           `Unknown method response type ${
             (rpc.acsResponse as AcsResponse).name
-          }`
+          }`,
         );
     }
   } else if (rpc.acsRequest) {
@@ -1067,7 +1067,7 @@ export function response(rpc: {
         break;
       default:
         throw new Error(
-          `Unknown method request ${(rpc.acsRequest as AcsRequest).name}`
+          `Unknown method request ${(rpc.acsRequest as AcsRequest).name}`,
         );
     }
   } else if (rpc.acsFault) {

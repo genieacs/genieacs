@@ -61,11 +61,11 @@ function createField(current, attr, focus): Children {
           e.redraw = false;
         },
       },
-      options
+      options,
     );
   } else if (attr.type === "multi") {
     const optionsValues = Array.from(
-      new Set(attr.options.concat(current.object[attr.id] || []))
+      new Set(attr.options.concat(current.object[attr.id] || [])),
     );
     const currentSelected = new Set(current.object[attr.id]);
     const options = optionsValues.map((op) => {
@@ -216,15 +216,15 @@ const component: ClosureComponent<Attrs> = () => {
             "p",
             m("label", { for: attr.id }, attr.label || attr.id),
             m("br"),
-            createField(current, attr, focus)
-          )
+            createField(current, attr, focus),
+          ),
         );
       }
 
       const submit = m(
         "button.primary",
         { type: "submit" },
-        "Save"
+        "Save",
       ) as VnodeDOM;
       const buttons = [submit];
 
@@ -238,13 +238,13 @@ const component: ClosureComponent<Attrs> = () => {
               onclick: (e) => {
                 e.redraw = false;
                 e.target.disabled = true;
-                actionHandler("delete", current.object).finally(() => {
+                void actionHandler("delete", current.object).finally(() => {
                   e.target.disabled = false;
                 });
               },
             },
-            "Delete"
-          ) as VnodeDOM
+            "Delete",
+          ) as VnodeDOM,
         );
       }
 
@@ -255,7 +255,7 @@ const component: ClosureComponent<Attrs> = () => {
           "h1",
           `${current.isNew ? "New" : "Editing"} ${
             singular[resource] || resource
-          }`
+          }`,
         ),
         m(
           "form",
@@ -267,14 +267,14 @@ const component: ClosureComponent<Attrs> = () => {
               // e.target.onsubmit = null;
               (submit.dom as HTMLFormElement).disabled = true;
               // submit.dom.textContent = "Loading ...";
-              actionHandler("save", current.object).finally(() => {
+              void actionHandler("save", current.object).finally(() => {
                 // submit.dom.textContent = "Save";
                 // e.target.onsubmit = onsubmit;
                 (submit.dom as HTMLFormElement).disabled = false;
               });
             },
           },
-          form
+          form,
         ),
       ];
 

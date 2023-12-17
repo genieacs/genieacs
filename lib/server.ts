@@ -80,7 +80,7 @@ type Promisify<T extends (...args: any) => any> = (
 
 export function start(
   options: ServerOptions,
-  _listener: Promisify<http.RequestListener>
+  _listener: Promisify<http.RequestListener>,
 ): void {
   listener = (req, res) => {
     if (stopping) res.setHeader("Connection", "close");

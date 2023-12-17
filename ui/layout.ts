@@ -57,7 +57,7 @@ const component: ClosureComponent = (): Component => {
           m(
             "div.logo",
             m("img", { src: LOGO_SVG }),
-            m("span.version", "v" + VERSION)
+            m("span.version", "v" + VERSION),
           ),
           m(userMenu),
           m(menu, attrs),
@@ -68,7 +68,7 @@ const component: ClosureComponent = (): Component => {
           sideMenu,
           m("#content", { class: `page-${vnode.attrs["page"]}` }, [
             vnode.children,
-          ])
+          ]),
         ),
         overlay.render(),
         m(datalist),

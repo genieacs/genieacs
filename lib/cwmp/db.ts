@@ -22,7 +22,7 @@ function compareAccessLists(list1: string[], list2: string[]): boolean {
 
 export async function fetchDevice(
   id: string,
-  timestamp: number
+  timestamp: number,
 ): Promise<[Path, number, Attributes?][]> {
   const res: [Path, number, Attributes?][] = [
     [
@@ -44,7 +44,7 @@ export async function fetchDevice(
     obj,
     path: string,
     pathLength: number,
-    ts: number
+    ts: number,
   ): void {
     if (obj["_timestamp"]) obj["_timestamp"] = +obj["_timestamp"];
     if (obj["_attributesTimestamp"])
@@ -243,7 +243,7 @@ export async function saveDevice(
   deviceId: string,
   deviceData: DeviceData,
   isNew: boolean,
-  sessionTimestamp: number
+  sessionTimestamp: number,
 ): Promise<void> {
   const update = { $set: {}, $unset: {}, $addToSet: {}, $pull: {} };
 
@@ -357,7 +357,7 @@ export async function saveDevice(
             if (!update["$addToSet"]["_tags"])
               update["$addToSet"]["_tags"] = { $each: [] };
             update["$addToSet"]["_tags"]["$each"].push(
-              decodeTag(path.segments[1] as string)
+              decodeTag(path.segments[1] as string),
             );
           } else {
             if (!update["$pull"]["_tags"]) {
@@ -366,7 +366,7 @@ export async function saveDevice(
               };
             }
             update["$pull"]["_tags"]["$in"].push(
-              decodeTag(path.segments[1] as string)
+              decodeTag(path.segments[1] as string),
             );
           }
         }
@@ -379,7 +379,10 @@ export async function saveDevice(
           if (pathStr.endsWith(INVALID_PATH_SUFFIX)) {
             const splits = pathStr.split(".");
             splits[splits.length - 1] = decodeTag(
-              splits[splits.length - 1].slice(0, 0 - INVALID_PATH_SUFFIX.length)
+              splits[splits.length - 1].slice(
+                0,
+                0 - INVALID_PATH_SUFFIX.length,
+              ),
             );
             pathStr = splits.join(".");
           }
@@ -401,7 +404,7 @@ export async function saveDevice(
                     Number.isInteger(value2 as number)
                   ) {
                     update["$set"][path.toString() + "._value"] = new Date(
-                      value2 as number
+                      value2 as number,
                     );
                   } else {
                     update["$set"][path.toString() + "._value"] = value2;
@@ -413,7 +416,7 @@ export async function saveDevice(
 
                 if (valueTimestamp2 !== valueTimestamp1) {
                   update["$set"][path.toString() + "._timestamp"] = new Date(
-                    valueTimestamp2
+                    valueTimestamp2,
                   );
                 }
 
@@ -533,7 +536,7 @@ export async function saveDevice(
     update,
     {
       upsert: isNew,
-    }
+    },
   );
 
   if (!result.matchedCount && !result.upsertedCount)
@@ -546,7 +549,7 @@ export async function saveDevice(
 }
 
 export async function getFaults(
-  deviceId: string
+  deviceId: string,
 ): Promise<{ [channel: string]: SessionFault }> {
   const res = await collections.faults
     .find({ _id: { $regex: `^${escapeRegExp(deviceId)}\\:` } })
@@ -573,7 +576,7 @@ export async function getFaults(
 export async function saveFault(
   deviceId: string,
   channel: string,
-  fault: SessionFault
+  fault: SessionFault,
 ): Promise<void> {
   const id = `${deviceId}:${channel}`;
   const f: MongoTypes.Fault = {
@@ -593,14 +596,14 @@ export async function saveFault(
 
 export async function deleteFault(
   deviceId: string,
-  channel: string
+  channel: string,
 ): Promise<void> {
   await collections.faults.deleteOne({ _id: `${deviceId}:${channel}` });
 }
 
 export async function getDueTasks(
   deviceId: string,
-  timestamp: number
+  timestamp: number,
 ): Promise<[Task[], number]> {
   const cur = collections.tasks
     .find({ device: deviceId })
@@ -664,7 +667,7 @@ export async function getDueTasks(
 
 export async function clearTasks(
   deviceId: string,
-  taskIds: string[]
+  taskIds: string[],
 ): Promise<void> {
   await collections.tasks.deleteMany({
     _id: { $in: taskIds.map((id) => new ObjectId(id)) },
@@ -672,7 +675,7 @@ export async function clearTasks(
 }
 
 export async function getOperations(
-  deviceId: string
+  deviceId: string,
 ): Promise<{ [commandKey: string]: Operation }> {
   const res = await collections.operations
     .find({ _id: { $regex: `^${escapeRegExp(deviceId)}\\:` } })
@@ -704,7 +707,7 @@ export async function getOperations(
 export async function saveOperation(
   deviceId: string,
   commandKey: string,
-  operation: Operation
+  operation: Operation,
 ): Promise<void> {
   const id = `${deviceId}:${commandKey}`;
   const o: MongoTypes.Operation = {
@@ -723,7 +726,7 @@ export async function saveOperation(
 
 export async function deleteOperation(
   deviceId: string,
-  commandKey: string
+  commandKey: string,
 ): Promise<void> {
   await collections.operations.deleteOne({ _id: `${deviceId}:${commandKey}` });
 }

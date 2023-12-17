@@ -57,7 +57,7 @@ export function map<T>(exp: Expression, callback: (e: Expression) => T): T {
 
 export async function mapAsync(
   exp: Expression,
-  callback: (e: Expression) => Promise<Expression>
+  callback: (e: Expression) => Promise<Expression>,
 ): Promise<Expression> {
   if (!Array.isArray(exp)) return callback(exp);
 
@@ -75,7 +75,7 @@ export async function mapAsync(
 
 function binaryLeft(
   operatorsParser: parsimmon.Parser<string>,
-  nextParser: parsimmon.Parser<Expression>
+  nextParser: parsimmon.Parser<Expression>,
 ): parsimmon.Parser<Expression> {
   return parsimmon.seqMap(
     nextParser,
@@ -85,7 +85,7 @@ function binaryLeft(
         const [op, another] = ch;
         if (Array.isArray(acc) && op === acc[0]) return acc.concat([another]);
         return [op, acc, another];
-      }, first)
+      }, first),
   );
 }
 
@@ -98,7 +98,7 @@ const lang = parsimmon.createLanguage({
         parsimmon.string("<="),
         parsimmon.string("="),
         parsimmon.string(">"),
-        parsimmon.string("<")
+        parsimmon.string("<"),
       )
       .skip(parsimmon.optWhitespace);
   },
@@ -109,7 +109,7 @@ const lang = parsimmon.createLanguage({
         parsimmon
           .regexp(/not\s+like/i)
           .result("NOT LIKE")
-          .desc("NOT LIKE")
+          .desc("NOT LIKE"),
       )
       .notFollowedBy(parsimmon.regexp(/[a-zA-Z0-9_]/))
       .skip(parsimmon.optWhitespace);
@@ -124,7 +124,7 @@ const lang = parsimmon.createLanguage({
         parsimmon
           .regexp(/is\s+not\s+null/i)
           .result("IS NOT NULL")
-          .desc("IS NOT NULL")
+          .desc("IS NOT NULL"),
       )
       .notFollowedBy(parsimmon.regexp(/[a-zA-Z0-9_]/))
       .skip(parsimmon.optWhitespace);
@@ -159,8 +159,8 @@ const lang = parsimmon.createLanguage({
         parsimmon.regexp(/[a-zA-Z0-9_.*-]+/),
         r.Expression.wrap(
           parsimmon.string("{").skip(parsimmon.optWhitespace),
-          parsimmon.string("}")
-        )
+          parsimmon.string("}"),
+        ),
       )
       .atLeast(1)
       .map((x) => ["PARAM", x.length > 1 ? ["||"].concat(x) : x[0]])
@@ -194,7 +194,7 @@ const lang = parsimmon.createLanguage({
     return parsimmon
       .alt(
         parsimmon.regexp(/true/i).result(true).desc("TRUE"),
-        parsimmon.regexp(/false/i).result(false).desc("FALSE")
+        parsimmon.regexp(/false/i).result(false).desc("FALSE"),
       )
       .notFollowedBy(parsimmon.regexp(/[a-zA-Z0-9_]/))
       .skip(parsimmon.optWhitespace);
@@ -215,9 +215,9 @@ const lang = parsimmon.createLanguage({
         .desc("function"),
       r.ExpressionList.wrap(
         parsimmon.string("(").skip(parsimmon.optWhitespace),
-        parsimmon.string(")").skip(parsimmon.optWhitespace)
+        parsimmon.string(")").skip(parsimmon.optWhitespace),
       ),
-      (f, args) => ["FUNC", f.toUpperCase()].concat(args)
+      (f, args) => ["FUNC", f.toUpperCase()].concat(args),
     );
   },
   WhenPair: function (r) {
@@ -233,7 +233,7 @@ const lang = parsimmon.createLanguage({
         .notFollowedBy(parsimmon.regexp(/[a-zA-Z0-9_]/))
         .skip(parsimmon.optWhitespace)
         .desc("THEN")
-        .then(r.Expression)
+        .then(r.Expression),
     );
   },
   CaseStatement: function (r) {
@@ -256,10 +256,10 @@ const lang = parsimmon.createLanguage({
         .skip(
           parsimmon
             .regex(/end/i)
-            .notFollowedBy(parsimmon.regexp(/[a-zA-Z0-9_]/))
+            .notFollowedBy(parsimmon.regexp(/[a-zA-Z0-9_]/)),
         )
         .skip(parsimmon.optWhitespace),
-      (...arr) => arr.flat(2)
+      (...arr) => arr.flat(2),
     );
   },
   Value: function (r) {
@@ -270,7 +270,7 @@ const lang = parsimmon.createLanguage({
       r.StringValueSql,
       r.StringValueJs,
       r.FuncValue,
-      r.CaseStatement
+      r.CaseStatement,
     );
   },
   ValueExpression: function (r) {
@@ -285,7 +285,7 @@ const lang = parsimmon.createLanguage({
             .alt(
               parsimmon.string("*"),
               parsimmon.string("/"),
-              parsimmon.string("%")
+              parsimmon.string("%"),
             )
             .skip(parsimmon.optWhitespace),
           parsimmon.alt(
@@ -293,11 +293,11 @@ const lang = parsimmon.createLanguage({
             r.Parameter,
             r.Expression.wrap(
               parsimmon.string("(").skip(parsimmon.optWhitespace),
-              parsimmon.string(")").skip(parsimmon.optWhitespace)
-            )
-          )
-        )
-      )
+              parsimmon.string(")").skip(parsimmon.optWhitespace),
+            ),
+          ),
+        ),
+      ),
     );
   },
   Comparison: function (r) {
@@ -307,7 +307,7 @@ const lang = parsimmon.createLanguage({
         r.ValueExpression,
         r.ComparisonOperator,
         r.ValueExpression,
-        (p, o, v) => [o, p, v]
+        (p, o, v) => [o, p, v],
       ),
       parsimmon.seqMap(
         r.ValueExpression,
@@ -317,28 +317,28 @@ const lang = parsimmon.createLanguage({
             .regexp(/escape/i)
             .result("ESCAPE")
             .skip(parsimmon.whitespace)
-            .desc("ESCAPE")
+            .desc("ESCAPE"),
         ),
         r.ValueExpression,
-        (a, b, c, d) => [b, a, c, d]
+        (a, b, c, d) => [b, a, c, d],
       ),
       parsimmon.seqMap(
         r.ValueExpression,
         r.LikeOperator,
         r.ValueExpression,
-        (a, b, c) => [b, a, c]
-      )
+        (a, b, c) => [b, a, c],
+      ),
     );
   },
   ExpressionList: function (r) {
     return r.Expression.sepBy(
-      parsimmon.string(",").skip(parsimmon.optWhitespace)
+      parsimmon.string(",").skip(parsimmon.optWhitespace),
     );
   },
   Expression: function (r) {
     function unary(
       operatorsParser: parsimmon.Parser<string>,
-      nextParser: parsimmon.Parser<Expression>
+      nextParser: parsimmon.Parser<Expression>,
     ): parsimmon.Parser<Expression> {
       return parsimmon.seq(operatorsParser, nextParser).or(nextParser);
     }
@@ -347,8 +347,8 @@ const lang = parsimmon.createLanguage({
       r.OrOperator,
       binaryLeft(
         r.AndOperator,
-        unary(r.NotOperator, r.Comparison.or(r.ValueExpression))
-      )
+        unary(r.NotOperator, r.Comparison.or(r.ValueExpression)),
+      ),
     ).trim(parsimmon.optWhitespace);
   },
 });
@@ -400,7 +400,7 @@ export function stringify(exp: Expression, level = 0): string {
       `${exp[1]}(${exp
         .slice(2)
         .map((e) => stringify(e))
-        .join(", ")})`
+        .join(", ")})`,
     );
   } else if (op === "PARAM") {
     if (typeof exp[1] === "string") {
@@ -413,7 +413,7 @@ export function stringify(exp: Expression, level = 0): string {
             if (typeof p === "string") return p;
             else return `{${stringify(p)}}`;
           })
-          .join("")
+          .join(""),
       );
     } else {
       return wrap(`{${stringify(exp[1])}}`);
@@ -425,15 +425,15 @@ export function stringify(exp: Expression, level = 0): string {
       return wrap(
         `${stringify(exp[1], opLevels[op])} ${op} ${stringify(
           exp[2],
-          opLevels[op]
-        )} ESCAPE ${stringify(exp[3], opLevels[op])}`
+          opLevels[op],
+        )} ESCAPE ${stringify(exp[3], opLevels[op])}`,
       );
     } else {
       return wrap(
         `${stringify(exp[1], opLevels[op])} ${op} ${stringify(
           exp[2],
-          opLevels[op]
-        )}`
+          opLevels[op],
+        )}`,
       );
     }
   } else if (op === "CASE") {

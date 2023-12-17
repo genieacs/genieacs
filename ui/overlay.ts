@@ -27,7 +27,7 @@ let closeCallback: CloseCallback = null;
 
 export function open(
   callback: OverlayCallback,
-  closeCb: CloseCallback = null
+  closeCb: CloseCallback = null,
 ): void {
   overlayCallback = callback;
   closeCallback = closeCb;
@@ -74,8 +74,8 @@ export function render(): Children {
             e.stopPropagation();
           },
         },
-        overlayCallback()
-      )
+        overlayCallback(),
+      ),
     );
   }
 

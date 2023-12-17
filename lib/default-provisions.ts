@@ -28,7 +28,7 @@ const MAX_DEPTH = +config.get("MAX_DEPTH");
 export function refresh(
   sessionContext: SessionContext,
   provision: (string | number | boolean)[],
-  declarations: Declaration[]
+  declarations: Declaration[],
 ): boolean {
   if (
     (provision.length !== 2 || typeof provision[1] !== "string") &&
@@ -84,7 +84,7 @@ export function refresh(
 export function value(
   sessionContext: SessionContext,
   provision: (string | number | boolean)[],
-  declarations: Declaration[]
+  declarations: Declaration[],
 ): boolean {
   if (
     provision.length < 3 ||
@@ -127,7 +127,7 @@ export function value(
 export function tag(
   sessionContext: SessionContext,
   provision: (string | number | boolean)[],
-  declarations: Declaration[]
+  declarations: Declaration[],
 ): boolean {
   if (
     provision.length !== 3 ||
@@ -151,7 +151,7 @@ export function tag(
 export function reboot(
   sessionContext: SessionContext,
   provision: (string | number | boolean)[],
-  declarations: Declaration[]
+  declarations: Declaration[],
 ): boolean {
   if (provision.length !== 1) throw new Error("Invalid arguments");
 
@@ -170,7 +170,7 @@ export function reboot(
 export function reset(
   sessionContext: SessionContext,
   provision: (string | number | boolean)[],
-  declarations: Declaration[]
+  declarations: Declaration[],
 ): boolean {
   if (provision.length !== 1) throw new Error("Invalid arguments");
 
@@ -189,7 +189,7 @@ export function reset(
 export function download(
   sessionContext: SessionContext,
   provision: (string | number | boolean)[],
-  declarations: Declaration[]
+  declarations: Declaration[],
 ): boolean {
   if (
     (provision.length !== 3 ||
@@ -234,7 +234,7 @@ export function instances(
   provision: (string | number | boolean)[],
   declarations: Declaration[],
   startRevision: number,
-  endRevision: number
+  endRevision: number,
 ): boolean {
   if (provision.length !== 3 || typeof provision[1] !== "string")
     throw new Error("Invalid arguments");
@@ -260,7 +260,7 @@ export function instances(
     const unpacked = device.unpack(
       sessionContext.deviceData,
       path,
-      startRevision + 1
+      startRevision + 1,
     );
     count = Math.max(0, unpacked.length + count);
   }

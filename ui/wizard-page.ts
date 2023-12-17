@@ -58,13 +58,13 @@ export const component: ClosureComponent = (vnode): Component => {
         m("h1", "Initialization wizard"),
         m(
           "p",
-          "This wizard will seed the database with a minimal initial configuration to serve as a starting point. Select what you want to initialize and click 'ABRACADABRA!'."
+          "This wizard will seed the database with a minimal initial configuration to serve as a starting point. Select what you want to initialize and click 'ABRACADABRA!'.",
         ),
         m("div", m("label", checkboxes[0], "Users, roles and permissions")),
         m("div", m("label", checkboxes[1], "Presets and provisions")),
         m(
           "div",
-          m("label", checkboxes[2], "Devices predefined search filters")
+          m("label", checkboxes[2], "Devices predefined search filters"),
         ),
         m("div", m("label", checkboxes[3], "Device details page")),
         m("div", m("label", checkboxes[4], "Devices listing page")),
@@ -99,7 +99,7 @@ export const component: ClosureComponent = (vnode): Component => {
                               m.route.set("/login");
                               window.location.reload();
                             },
-                          }
+                          },
                         );
                       })
                       .catch((err) => {
@@ -108,7 +108,7 @@ export const component: ClosureComponent = (vnode): Component => {
                   }, 3000);
                   if (opts["users"]) {
                     alert(
-                      "An administrator user has been created for you. Use admin/admin to log in. Don't forget to change the default password."
+                      "An administrator user has been created for you. Use admin/admin to log in. Don't forget to change the default password.",
                     );
                   }
                 })
@@ -117,7 +117,7 @@ export const component: ClosureComponent = (vnode): Component => {
                 });
             },
           },
-          "ABRACADABRA!"
+          "ABRACADABRA!",
         ),
       ]);
     },

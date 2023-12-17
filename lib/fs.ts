@@ -30,7 +30,7 @@ const getFile = memoize(
   async (
     etag: string,
     size: number,
-    filename: string
+    filename: string,
   ): Promise<Iterable<Buffer>> => {
     const chunks: Buffer[] = [];
     // Using for-await over the download stream can throw ERR_STREAM_PREMATURE_CLOSE
@@ -41,7 +41,7 @@ const getFile = memoize(
       new PassThrough(),
       (err) => {
         if (err) throw err;
-      }
+      },
     );
     for await (const chunk of downloadStream) chunks.push(chunk);
     // Node 12-14 don't throw error when stream is closed prematurely.
@@ -49,13 +49,13 @@ const getFile = memoize(
     if (size !== chunks.reduce((a, b) => a + b.length, 0))
       throw new Error("File size mismatch");
     return chunks;
-  }
+  },
 );
 
 async function* partialContent(
   chunks: Iterable<Buffer>,
   start: number,
-  end: number
+  end: number,
 ): AsyncIterable<Buffer> {
   let bytesToSkip = start;
   let bytesToRead = end - start;
@@ -100,7 +100,7 @@ function matchEtag(etag: string, header: string): boolean {
 
 export async function listener(
   request: IncomingMessage,
-  response: ServerResponse
+  response: ServerResponse,
 ): Promise<void> {
   if (request.method !== "GET" && request.method !== "HEAD") {
     response.writeHead(405, { Allow: "GET, HEAD" });

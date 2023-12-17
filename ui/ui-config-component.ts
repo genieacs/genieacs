@@ -65,8 +65,8 @@ function putActionHandler(prefix: string[], dataYaml: string): Promise<any> {
               store.putResource(
                 "config",
                 obj._id,
-                obj as unknown as Record<string, unknown>
-              )
+                obj as unknown as Record<string, unknown>,
+              ),
             );
           }
 
@@ -147,7 +147,7 @@ const component: ClosureComponent<Attrs> = () => {
                 .catch(vnode.attrs.onError);
             },
           },
-          [code, m(".actions-bar", [submit])]
+          [code, m(".actions-bar", [submit])],
         ),
       ]);
     },

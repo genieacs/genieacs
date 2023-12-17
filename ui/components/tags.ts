@@ -17,20 +17,27 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ClosureComponent, Component } from "mithril";
+import { ClosureComponent } from "mithril";
 import { m } from "../components";
 import * as notifications from "../notifications";
 import * as store from "../store";
 import { getIcon } from "../icons";
 import { decodeTag } from "../../lib/util";
+import { Expression } from "../../lib/types";
+import { FlatDevice } from "../../lib/ui/db";
 
-const component: ClosureComponent = (): Component => {
+interface Attrs {
+  device: FlatDevice;
+  writable?: Expression;
+}
+
+const component: ClosureComponent<Attrs> = () => {
   return {
     view: (vnode) => {
-      const device = vnode.attrs["device"];
+      const device = vnode.attrs.device;
       let writable = true;
       if ("writable" in vnode.attrs)
-        writable = !!store.evaluateExpression(vnode.attrs["writable"], device);
+        writable = !!store.evaluateExpression(vnode.attrs.writable, device);
 
       const tags = [];
       for (const p of Object.keys(device))
@@ -41,7 +48,7 @@ const component: ClosureComponent = (): Component => {
       if (!writable) {
         return m(
           ".tags",
-          tags.map((t) => m("span.tag", t))
+          tags.map((t) => m("span.tag", t)),
         );
       }
 
@@ -56,14 +63,14 @@ const component: ClosureComponent = (): Component => {
               {
                 onclick: (e) => {
                   e.target.disabled = true;
-                  const deviceId = device["DeviceID.ID"].value[0];
+                  const deviceId = device["DeviceID.ID"].value[0] as string;
                   store
                     .updateTags(deviceId, { [tag]: false })
                     .then(() => {
                       e.target.disabled = false;
                       notifications.push(
                         "success",
-                        `${deviceId}: Tags updated`
+                        `${deviceId}: Tags updated`,
                       );
                       store.setTimestamp(Date.now());
                     })
@@ -71,14 +78,14 @@ const component: ClosureComponent = (): Component => {
                       e.target.disabled = false;
                       notifications.push(
                         "error",
-                        `${deviceId}: ${err.message}`
+                        `${deviceId}: ${err.message}`,
                       );
                     });
                 },
               },
-              getIcon("remove")
-            )
-          )
+              getIcon("remove"),
+            ),
+          ),
         ),
         m(
           "span.tag.writable",
@@ -88,7 +95,7 @@ const component: ClosureComponent = (): Component => {
             {
               onclick: (e) => {
                 e.target.disabled = true;
-                const deviceId = device["DeviceID.ID"].value[0];
+                const deviceId = device["DeviceID.ID"].value[0] as string;
                 const tag = prompt(`Enter tag to assign to device:`);
                 if (!tag) {
                   e.target.disabled = false;
@@ -108,9 +115,9 @@ const component: ClosureComponent = (): Component => {
                   });
               },
             },
-            getIcon("add")
-          )
-        )
+            getIcon("add"),
+          ),
+        ),
       );
     },
   };

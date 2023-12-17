@@ -57,7 +57,7 @@ import { ResourceLockedError } from "./common/errors";
 
 export async function connectionRequest(
   deviceId: string,
-  device?: Record<string, { value?: [boolean | number | string, string] }>
+  device?: Record<string, { value?: [boolean | number | string, string] }>,
 ): Promise<string> {
   if (!device) {
     const res = await collections.devices.findOne({ _id: deviceId });
@@ -132,25 +132,25 @@ export async function connectionRequest(
     "cwmp.udpConnectionRequestPort",
     {},
     now,
-    evalCallback
+    evalCallback,
   );
   const CONNECTION_REQUEST_TIMEOUT = +getConfig(
     snapshot,
     "cwmp.connectionRequestTimeout",
     {},
     now,
-    evalCallback
+    evalCallback,
   );
   const CONNECTION_REQUEST_ALLOW_BASIC_AUTH = !!getConfig(
     snapshot,
     "cwmp.connectionRequestAllowBasicAuth",
     {},
     now,
-    evalCallback
+    evalCallback,
   );
   let authExp: Expression = getConfigExpression(
     snapshot,
-    "cwmp.connectionRequestAuth"
+    "cwmp.connectionRequestAuth",
   );
 
   if (authExp === undefined) {
@@ -176,10 +176,10 @@ export async function connectionRequest(
         authExp,
         UDP_CONNECTION_REQUEST_PORT,
         debug,
-        deviceId
+        deviceId,
       ).then(
         () => true,
-        () => false
+        () => false,
       );
     } catch (err) {
       // Ignore invalid address
@@ -192,7 +192,7 @@ export async function connectionRequest(
     CONNECTION_REQUEST_ALLOW_BASIC_AUTH,
     CONNECTION_REQUEST_TIMEOUT,
     debug,
-    deviceId
+    deviceId,
   );
 
   if (await udpProm) return "";
@@ -203,12 +203,12 @@ export async function connectionRequest(
 export async function awaitSessionStart(
   deviceId: string,
   lastInform: number,
-  timeout: number
+  timeout: number,
 ): Promise<boolean> {
   const now = Date.now();
   const device = await collections.devices.findOne(
     { _id: deviceId },
-    { projection: { _lastInform: 1 } }
+    { projection: { _lastInform: 1 } },
   );
   const li = (device["_lastInform"] as Date).getTime();
   if (li > lastInform) return true;
@@ -222,7 +222,7 @@ export async function awaitSessionStart(
 
 export async function awaitSessionEnd(
   deviceId: string,
-  timeout: number
+  timeout: number,
 ): Promise<boolean> {
   const now = Date.now();
   const token = await getToken(`cwmp_session_${deviceId}`);
@@ -317,8 +317,8 @@ function sanitizeTask(task): void {
         !task.provisions.every((arr) =>
           arr.every(
             (s) =>
-              s == null || ["boolean", "number", "string"].includes(typeof s)
-          )
+              s == null || ["boolean", "number", "string"].includes(typeof s),
+          ),
         )
       )
         throw new Error("Invalid 'provisions' property");
@@ -395,7 +395,7 @@ export async function deleteFault(id: string): Promise<void> {
 
 export async function deleteResource(
   resource: string,
-  id: string
+  id: string,
 ): Promise<void> {
   if (resource === "devices") {
     await deleteDevice(id);
@@ -434,7 +434,7 @@ export async function deleteResource(
 export async function putResource(
   resource: string,
   id: string,
-  data: any
+  data: any,
 ): Promise<void> {
   if (resource === "presets") {
     await putPreset(id, data);
@@ -467,7 +467,7 @@ export async function putResource(
 export function authLocal(
   snapshot: string,
   username: string,
-  password: string
+  password: string,
 ): Promise<boolean> {
   return new Promise((resolve, reject) => {
     const users = getUsers(snapshot);

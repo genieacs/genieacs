@@ -35,7 +35,7 @@ const getAutocomplete = memoize((resource) => {
         .map((s) => ({
           value: `${s}: `,
           tip: smartQuery.getTip(resource, s),
-        }))
+        })),
     );
   });
   return autocomplete;

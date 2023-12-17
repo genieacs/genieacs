@@ -7,7 +7,7 @@ import {
 
 ava("parseXmlDeclaration", (t) => {
   const buf = Buffer.from(
-    '<?xml version="1.0" encoding="UTF-8"?>\n<soap-env:Envelope />'
+    '<?xml version="1.0" encoding="UTF-8"?>\n<soap-env:Envelope />',
   );
   const attrs = parseXmlDeclaration(buf);
   t.deepEqual(attrs, [
@@ -29,7 +29,7 @@ ava("parseXmlDeclaration", (t) => {
 ava("decodeEntities", (t) => {
   t.is(
     decodeEntities("&&amp;&lt;&gt;&quot;&apos;&gt;&#167;&#xd842;&#xDFB7;;"),
-    "&&<>\"'>§𠮷;"
+    "&&<>\"'>§𠮷;",
   );
 });
 

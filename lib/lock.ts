@@ -6,7 +6,7 @@ export async function acquireLock(
   lockName: string,
   ttl: number,
   timeout = 0,
-  token = Math.random().toString(36).slice(2)
+  token = Math.random().toString(36).slice(2),
 ): Promise<string> {
   try {
     const now = Date.now();
@@ -18,7 +18,7 @@ export async function acquireLock(
         },
         $currentDate: { timestamp: true },
       },
-      { upsert: true, returnDocument: "after" }
+      { upsert: true, returnDocument: "after" },
     );
     if (Math.abs(r.value.timestamp.getTime() - now) > CLOCK_SKEW_TOLERANCE)
       throw new Error("Database clock skew too great");
@@ -35,7 +35,7 @@ export async function acquireLock(
 
 export async function releaseLock(
   lockName: string,
-  token: string
+  token: string,
 ): Promise<void> {
   const res = await collections.locks.deleteOne({
     _id: lockName,

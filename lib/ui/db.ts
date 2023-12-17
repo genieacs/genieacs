@@ -30,7 +30,7 @@ import { Script } from "vm";
 import { Readable } from "stream";
 
 function processDeviceProjection(
-  projection: Record<string, 1>
+  projection: Record<string, 1>,
 ): Record<string, 1> {
   if (!projection) return projection;
   const p = {};
@@ -58,7 +58,7 @@ function processDeviceProjection(
 }
 
 function processDeviceSort(
-  sort: Record<string, number>
+  sort: Record<string, number>,
 ): Record<string, number> {
   if (!sort) return sort;
   const s = {};
@@ -93,7 +93,7 @@ interface FlatAttributes {
   accessListTimestamp?: number;
 }
 
-interface FlatDevice {
+export interface FlatDevice {
   [param: string]: FlatAttributes;
 }
 
@@ -102,7 +102,7 @@ export function flattenDevice(device: Record<string, unknown>): FlatDevice {
     input,
     root: string,
     output: FlatDevice,
-    timestamp: number
+    timestamp: number,
   ): void {
     for (const [name, tree] of Object.entries(input)) {
       if (!root) {
@@ -272,7 +272,7 @@ function flattenTask(task: unknown): Task {
 }
 
 function flattenPreset(
-  preset: Record<string, unknown>
+  preset: Record<string, unknown>,
 ): Record<string, unknown> {
   const p = Object.assign({}, preset);
   if (p.precondition) {
@@ -281,7 +281,7 @@ function flattenPreset(
       parse(p.precondition as string);
     } catch (error) {
       p.precondition = convertOldPrecondition(
-        JSON.parse(p.precondition as string)
+        JSON.parse(p.precondition as string),
       );
       p.precondition = (p.precondition as string).length
         ? stringify(p.precondition as Expression)
@@ -377,7 +377,7 @@ interface QueryOptions {
 export async function* query(
   resource: string,
   filter: Expression,
-  options?: QueryOptions
+  options?: QueryOptions,
 ): AsyncGenerator<any, void, undefined> {
   options = options || {};
   filter = evaluate(filter, null, Date.now());
@@ -407,7 +407,7 @@ export async function* query(
       .reduce(
         (obj, [k, v]) =>
           Object.assign(obj, { [k]: Math.min(Math.max(v, -1), 1) }),
-        {}
+        {},
       );
 
     if (resource === "devices") s = processDeviceSort(s);
@@ -435,7 +435,7 @@ export function count(resource: string, filter: Expression): Promise<number> {
 
 export async function updateDeviceTags(
   deviceId: string,
-  tags: Record<string, boolean>
+  tags: Record<string, boolean>,
 ): Promise<void> {
   const add = [];
   const pull = [];
@@ -455,7 +455,7 @@ export async function updateDeviceTags(
 
 export async function putPreset(
   id: string,
-  object: Record<string, unknown>
+  object: Record<string, unknown>,
 ): Promise<void> {
   const p = preProcessPreset(object);
   await collections.presets.replaceOne({ _id: id }, p, { upsert: true });
@@ -467,7 +467,7 @@ export async function deletePreset(id: string): Promise<void> {
 
 export async function putProvision(
   id: string,
-  object: { script: string }
+  object: { script: string },
 ): Promise<void> {
   if (!object.script) object.script = "";
   try {
@@ -478,7 +478,7 @@ export async function putProvision(
   } catch (err) {
     if (err.stack?.startsWith(`${id}:`)) {
       return Promise.reject(
-        new Error(`${err.name} at ${err.stack.split("\n", 1)[0]}`)
+        new Error(`${err.name} at ${err.stack.split("\n", 1)[0]}`),
       );
     }
     return Promise.reject(err);
@@ -494,7 +494,7 @@ export async function deleteProvision(id: string): Promise<void> {
 
 export async function putVirtualParameter(
   id: string,
-  object: { script: string }
+  object: { script: string },
 ): Promise<void> {
   if (!object.script) object.script = "";
   try {
@@ -505,7 +505,7 @@ export async function putVirtualParameter(
   } catch (err) {
     if (err.stack?.startsWith(`${id}:`)) {
       return Promise.reject(
-        new Error(`${err.name} at ${err.stack.split("\n", 1)[0]}`)
+        new Error(`${err.name} at ${err.stack.split("\n", 1)[0]}`),
       );
     }
     return Promise.reject(err);
@@ -521,7 +521,7 @@ export async function deleteVirtualParameter(id: string): Promise<void> {
 
 export async function putConfig(
   id: string,
-  object: WithoutId<MongoTypes.Config>
+  object: WithoutId<MongoTypes.Config>,
 ): Promise<void> {
   await collections.config.replaceOne({ _id: id }, object, { upsert: true });
 }
@@ -532,7 +532,7 @@ export async function deleteConfig(id: string): Promise<void> {
 
 export async function putPermission(
   id: string,
-  object: WithoutId<MongoTypes.Permission>
+  object: WithoutId<MongoTypes.Permission>,
 ): Promise<void> {
   await collections.permissions.replaceOne({ _id: id }, object, {
     upsert: true,
@@ -545,13 +545,13 @@ export async function deletePermission(id: string): Promise<void> {
 
 export async function putUser(
   id: string,
-  object: Partial<WithoutId<MongoTypes.User>>
+  object: Partial<WithoutId<MongoTypes.User>>,
 ): Promise<void> {
   // update instead of replace to keep the password if not set by user
   await collections.users.updateOne(
     { _id: id },
     { $set: object },
-    { upsert: true }
+    { upsert: true },
   );
 }
 
@@ -566,7 +566,7 @@ export function downloadFile(filename: string): Readable {
 export function putFile(
   filename: string,
   metadata: Record<string, string>,
-  contentStream: Readable
+  contentStream: Readable,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const uploadStream = filesBucket.openUploadStreamWithId(
@@ -574,7 +574,7 @@ export function putFile(
       filename,
       {
         metadata: metadata,
-      }
+      },
     );
 
     let readableEnded = false;

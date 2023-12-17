@@ -129,7 +129,7 @@ export function structureConfig(config: Config[]): any {
 
 export function diffConfig(
   current: Record<string, unknown>,
-  target: Record<string, unknown>
+  target: Record<string, unknown>,
 ): Diff {
   const diff = {
     add: [],

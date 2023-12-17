@@ -42,8 +42,8 @@ const component: ClosureComponent = (): Component => {
               });
             },
           },
-          "Reboot"
-        )
+          "Reboot",
+        ),
       );
 
       buttons.push(
@@ -58,8 +58,8 @@ const component: ClosureComponent = (): Component => {
               });
             },
           },
-          "Reset"
-        )
+          "Reset",
+        ),
       );
 
       buttons.push(
@@ -74,8 +74,8 @@ const component: ClosureComponent = (): Component => {
               });
             },
           },
-          "Push file"
-        )
+          "Push file",
+        ),
       );
 
       buttons.push(
@@ -98,8 +98,8 @@ const component: ClosureComponent = (): Component => {
                 });
             },
           },
-          "Delete"
-        )
+          "Delete",
+        ),
       );
 
       return m(".actions-bar", buttons);

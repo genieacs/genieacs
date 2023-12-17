@@ -28,7 +28,7 @@ function drawChart(chartData): Children {
   const slices = chartData.slices;
   const total: number = Array.from(Object.values(chartData.slices)).reduce(
     (a: number, s) => a + (s["count"]["value"] || 0),
-    0
+    0,
   );
   const legend = [];
   const paths = [];
@@ -53,10 +53,10 @@ function drawChart(chartData): Children {
               filter: memoizedStringify(slice["filter"]),
             })}`,
           },
-          slice["count"]["value"] || 0
+          slice["count"]["value"] || 0,
         ),
         ` (${(percent * 100).toFixed(2)}%)`,
-      ])
+      ]),
     );
 
     if (percent > 0) {
@@ -77,7 +77,7 @@ function drawChart(chartData): Children {
         m("path", {
           d: sketch,
           fill: slice["color"],
-        })
+        }),
       );
 
       const percentageX =
@@ -106,10 +106,10 @@ function drawChart(chartData): Children {
                 "dominant-baseline": "middle",
                 "text-anchor": "middle",
               },
-              `${(percent * 100).toFixed(2)}%`
+              `${(percent * 100).toFixed(2)}%`,
             ),
-          ]
-        )
+          ],
+        ),
       );
     }
   }
@@ -132,10 +132,10 @@ function drawChart(chartData): Children {
           xmlns: "http://www.w3.org/2000/svg",
           "xmlns:xlink": "http://www.w3.org/1999/xlink",
         },
-        paths.concat(links)
+        paths.concat(links),
       ),
       m(".legend", legend),
-    ])
+    ]),
   );
 }
 

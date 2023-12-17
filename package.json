@@ -35,28 +35,28 @@
     "seedrandom": "^3.0.5"
   },
   "devDependencies": {
-    "@types/codemirror": "^5.60.5",
+    "@types/codemirror": "^5.60.15",
     "@types/jsonwebtoken": "^8.5.8",
     "@types/koa": "^2.13.5",
     "@types/koa-compress": "^4.0.3",
     "@types/koa-router": "^7.4.4",
     "@types/koa-static": "^4.0.2",
-    "@types/mithril": "^2.0.11",
-    "@types/node": "^18.7.9",
-    "@types/parsimmon": "^1.10.6",
-    "@types/seedrandom": "^3.0.2",
-    "@typescript-eslint/eslint-plugin": "^5.33.1",
-    "@typescript-eslint/parser": "^5.33.1",
+    "@types/mithril": "^2.2.6",
+    "@types/node": "^20.10.4",
+    "@types/parsimmon": "^1.10.9",
+    "@types/seedrandom": "^3.0.8",
+    "@typescript-eslint/eslint-plugin": "^6.14.0",
+    "@typescript-eslint/parser": "^6.14.0",
     "ava": "^3.15.0",
-    "codemirror": "^5.65.8",
+    "codemirror": "^5.65.16",
     "esbuild": "^0.19.9",
-    "eslint": "^8.22.0",
-    "eslint-config-prettier": "^8.5.0",
+    "eslint": "^8.56.0",
+    "eslint-config-prettier": "^9.1.0",
     "mithril": "^2.2.2",
-    "prettier": "^2.7.1",
+    "prettier": "^3.1.1",
     "sql.js": "^1.7.0",
     "svgo": "^2.8.0",
-    "typescript": "^4.7.4",
+    "typescript": "^5.3.3",
     "yaml": "^1.10.2"
   },
   "engines": {
@@ -64,10 +64,7 @@
   },
   "scripts": {
     "test": "esbuild --log-level=warning --bundle --platform=node --target=node12 --packages=external --outdir=test test/*.ts && ava --verbose --color && rm test/*.js",
-    "lint-eslint": "eslint --fix \"bin/*.ts\" \"lib/**/*.ts\" \"ui/**/*.ts\" \"test/**/*.ts\" \"build/**/*.ts\"",
-    "lint-prettier": "prettier --prose-wrap always --write .",
-    "lint-tsc": "tsc --noEmit",
-    "lint": "npm run lint-eslint && npm run lint-prettier && npm run lint-tsc",
+    "lint": "esbuild build/lint.ts --bundle --platform=node --target=node16 --packages=external | node",
     "build": "esbuild build/build.ts --bundle --platform=node --target=node12 --packages=external | node"
   }
 }

@@ -62,19 +62,19 @@ const component: ClosureComponent = (): Component => {
                   if (connectionRequestStatus !== "OK") {
                     notifications.push(
                       "error",
-                      `${deviceId}: ${connectionRequestStatus}`
+                      `${deviceId}: ${connectionRequestStatus}`,
                     );
                   } else if (tasks2[0].status === "stale") {
                     notifications.push(
                       "error",
-                      `${deviceId}: No contact from device`
+                      `${deviceId}: No contact from device`,
                     );
                   } else if (tasks2[0].status === "fault") {
                     notifications.push("error", `${deviceId}: Refresh faulted`);
                   } else {
                     notifications.push("success", `${deviceId}: Summoned`);
                   }
-                }
+                },
               )
               .then(() => {
                 e.target.disabled = false;
@@ -86,7 +86,7 @@ const component: ClosureComponent = (): Component => {
               });
           },
         },
-        "Summon"
+        "Summon",
       );
     },
   };

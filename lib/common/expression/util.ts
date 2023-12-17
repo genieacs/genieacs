@@ -74,7 +74,7 @@ export function likePatternToRegExp(pat: string, esc = "", flags = ""): RegExp {
 
 function compare(
   a: boolean | number | string,
-  b: boolean | number | string
+  b: boolean | number | string,
 ): number {
   if (typeof a === "boolean") a = +a;
   if (typeof b === "boolean") b = +b;
@@ -287,19 +287,19 @@ export function evaluate(
   exp: Expression,
   obj: Record<string, unknown> | ((e: string) => Expression),
   now: number,
-  cb?: (e: Expression) => Expression
+  cb?: (e: Expression) => Expression,
 ): string | number | boolean | null;
 export function evaluate(
   exp: Expression,
   obj?: Record<string, unknown> | ((e: string) => Expression),
   now?: number,
-  cb?: (e: Expression) => Expression
+  cb?: (e: Expression) => Expression,
 ): Expression;
 export function evaluate(
   exp: Expression,
   obj?: Record<string, unknown> | ((e: string) => Expression),
   now?: number,
-  cb?: (e: Expression) => Expression
+  cb?: (e: Expression) => Expression,
 ): Expression {
   return map(exp, (e) => {
     if (cb) e = cb(e);
@@ -327,19 +327,19 @@ export async function evaluateAsync(
   exp: Expression,
   obj: Record<string, unknown>,
   now: number,
-  cb?: (e: Expression) => Promise<Expression>
+  cb?: (e: Expression) => Promise<Expression>,
 ): Promise<string | number | boolean | null>;
 export async function evaluateAsync(
   exp: Expression,
   obj?: Record<string, unknown>,
   now?: number,
-  cb?: (e: Expression) => Promise<Expression>
+  cb?: (e: Expression) => Promise<Expression>,
 ): Promise<Expression>;
 export async function evaluateAsync(
   exp: Expression,
   obj?: Record<string, unknown>,
   now?: number,
-  cb?: (e: Expression) => Promise<Expression>
+  cb?: (e: Expression) => Promise<Expression>,
 ): Promise<Expression> {
   return mapAsync(exp, async (e) => {
     if (cb) e = await cb(e);

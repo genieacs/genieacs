@@ -41,7 +41,9 @@ function renderTable(
   downloadUrl?: string,
   valueCallback?: (attr: Attribute, record: Record<string, any>) => Children,
   actionsCallback?: Children | ((sel: Set<string>) => Children),
-  recordActionsCallback?: Children | ((record: Record<string, any>) => Children)
+  recordActionsCallback?:
+    | Children
+    | ((record: Record<string, any>) => Children),
 ): Children {
   const records = data || [];
 
@@ -92,7 +94,7 @@ function renderTable(
           onSort(i);
         },
       },
-      symbol
+      symbol,
     );
 
     labels.push(m("th", [label, sortable]));
@@ -162,8 +164,8 @@ function renderTable(
             if (!selected.delete(id)) selected.add(id);
           },
         },
-        tds
-      )
+        tds,
+      ),
     );
   }
 
@@ -184,19 +186,19 @@ function renderTable(
         disabled:
           !data.length || records.length >= Math.min(MAX_PAGE_SIZE, total),
       },
-      "More"
-    )
+      "More",
+    ),
   );
 
   if (downloadUrl) {
     footerElements.push(
-      m("a.download-csv", { href: downloadUrl, download: "" }, "Download")
+      m("a.download-csv", { href: downloadUrl, download: "" }, "Download"),
     );
   }
 
   const tfoot = m(
     "tfoot",
-    m("tr", m("td", { colspan: labels.length }, footerElements))
+    m("tr", m("td", { colspan: labels.length }, footerElements)),
   );
 
   const children = [
@@ -204,7 +206,7 @@ function renderTable(
       "table.table.highlight",
       m("thead", m("tr", labels)),
       m("tbody", rows),
-      tfoot
+      tfoot,
     ),
   ];
 
@@ -241,7 +243,7 @@ const component: ClosureComponent = (): Component => {
         const sortArray = new Set(
           Object.keys(sortAttributes)
             .map((x) => (parseInt(x) + 1) * sortAttributes[x])
-            .filter((x) => x)
+            .filter((x) => x),
         );
         for (const num of events) {
           if (sortArray.delete(num + 1)) sortArray.add(-(num + 1));
@@ -263,7 +265,7 @@ const component: ClosureComponent = (): Component => {
         downloadUrl,
         valueCallback,
         actionsCallback,
-        recordActionsCallback
+        recordActionsCallback,
       );
     },
   };

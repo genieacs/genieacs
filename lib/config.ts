@@ -245,7 +245,7 @@ if (fsHostname) {
   const FS_SSL = !!allConfig["FS_SSL_CERT"];
   setConfig(
     "FS_URL_PREFIX",
-    (FS_SSL ? "https" : "http") + `://${fsHostname}:${FS_PORT}/`
+    (FS_SSL ? "https" : "http") + `://${fsHostname}:${FS_PORT}/`,
   );
 }
 
@@ -255,7 +255,7 @@ for (const [k, v] of Object.entries(options))
 
 export function get(
   optionName: string,
-  deviceId?: string
+  deviceId?: string,
 ): string | number | boolean {
   if (!deviceId) return allConfig[optionName];
 

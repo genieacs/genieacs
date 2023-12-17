@@ -15,7 +15,7 @@ const STRING_RESERVED = new Set([
 
 function isPrintable(str: string): boolean {
   return !/[^\t\n\x20-\x7e\x85\u{a0}-\u{d7ff}\u{e000}-\u{fffd}\u{10000}-\u{10ffff}]/u.test(
-    str
+    str,
   );
 }
 
@@ -99,7 +99,7 @@ function stringifyString(str: string, res: string[], prefix1, prefix2): void {
     if (!isFolded) {
       res.push(
         `${prefix1}|${idt}${chmp}`,
-        ...lines.map((l) => (l ? prefix2 + l : l))
+        ...lines.map((l) => (l ? prefix2 + l : l)),
       );
       return;
     }
@@ -129,7 +129,7 @@ function stringifyAny(
   obj: unknown,
   res: string[],
   prefix1 = "",
-  prefix2 = ""
+  prefix2 = "",
 ): void {
   if (obj == null) {
     res.push(`${prefix1}null`);
@@ -183,7 +183,7 @@ function stringifyAny(
       entries[0][1],
       res,
       prefix1 + `${stringifyKey(entries[0][0])}: `,
-      prefix2 + INDENTATION
+      prefix2 + INDENTATION,
     );
     prefix1 = prefix2;
     prefix2 = prefix2 + INDENTATION;
@@ -192,7 +192,7 @@ function stringifyAny(
         entries[i][1],
         res,
         prefix1 + `${stringifyKey(entries[i][0])}: `,
-        prefix2
+        prefix2,
       );
     }
   } else {
@@ -204,7 +204,7 @@ function stringifyAny(
         entries[i][1],
         res,
         prefix1 + `${stringifyKey(entries[i][0])}: `,
-        prefix2
+        prefix2,
       );
     }
   }

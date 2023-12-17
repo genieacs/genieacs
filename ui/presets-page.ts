@@ -100,7 +100,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
             .then(() => {
               notifications.push(
                 "success",
-                `Preset ${exists ? "updated" : "created"}`
+                `Preset ${exists ? "updated" : "created"}`,
               );
               store.setTimestamp(Date.now());
               resolve(null);
@@ -141,11 +141,11 @@ const getDownloadUrl = memoize((filter) => {
 });
 
 export function init(
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   if (!window.authorizer.hasAccess("presets", 2)) {
     return Promise.reject(
-      new Error("You are not authorized to view this page")
+      new Error("You are not authorized to view this page"),
     );
   }
 
@@ -248,7 +248,7 @@ export const component: ClosureComponent = (): Component => {
           return m(
             "a",
             { href: devicesUrl, title: preset["precondition"] },
-            preset["precondition"]
+            preset["precondition"],
           );
         } else if (
           attr.id === "provision" &&
@@ -261,7 +261,7 @@ export const component: ClosureComponent = (): Component => {
                 filter: `Q("ID", "${preset["provision"]}")`,
               })}`,
             },
-            preset["provision"]
+            preset["provision"],
           );
         } else {
           return preset[attr.id];
@@ -311,15 +311,15 @@ export const component: ClosureComponent = (): Component => {
                         });
                       },
                     },
-                    formData
-                  )
+                    formData,
+                  ),
                 );
                 cb = (): Children => {
                   if (!preset.provision) {
                     return m(
                       "div",
                       { style: "margin:20px" },
-                      "This UI only supports presets with a single 'provision' configuration. If this preset was originally created from the old UI (genieacs-gui), you must edit it there."
+                      "This UI only supports presets with a single 'provision' configuration. If this preset was originally created from the old UI (genieacs-gui), you must edit it there.",
                     );
                   }
                   return comp;
@@ -328,11 +328,11 @@ export const component: ClosureComponent = (): Component => {
                   cb,
                   () =>
                     !comp.state?.["current"]["modified"] ||
-                    confirm("You have unsaved changes. Close anyway?")
+                    confirm("You have unsaved changes. Close anyway?"),
                 );
               },
             },
-            "Show"
+            "Show",
           ),
         ];
       };
@@ -372,19 +372,19 @@ export const component: ClosureComponent = (): Component => {
                           });
                         },
                       },
-                      formData
-                    )
+                      formData,
+                    ),
                   );
                   cb = () => comp;
                   overlay.open(
                     cb,
                     () =>
                       !comp.state["current"]["modified"] ||
-                      confirm("You have unsaved changes. Close anyway?")
+                      confirm("You have unsaved changes. Close anyway?"),
                   );
                 },
               },
-              "New"
+              "New",
             ),
             m(
               "button.primary",
@@ -401,13 +401,13 @@ export const component: ClosureComponent = (): Component => {
                   e.target.disabled = true;
                   Promise.all(
                     Array.from(selected).map((id) =>
-                      store.deleteResource("presets", id)
-                    )
+                      store.deleteResource("presets", id),
+                    ),
                   )
                     .then((res) => {
                       notifications.push(
                         "success",
-                        `${res.length} presets deleted`
+                        `${res.length} presets deleted`,
                       );
                       store.setTimestamp(Date.now());
                     })
@@ -417,7 +417,7 @@ export const component: ClosureComponent = (): Component => {
                     });
                 },
               },
-              "Delete"
+              "Delete",
             ),
           ];
         };
@@ -435,7 +435,7 @@ export const component: ClosureComponent = (): Component => {
         m(
           "loading",
           { queries: [presets, count] },
-          m(indexTableComponent, attrs)
+          m(indexTableComponent, attrs),
         ),
       ];
     },

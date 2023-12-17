@@ -7,7 +7,7 @@ type Minterm = number[];
 
 export abstract class SynthContextBase<
   T extends { toString: () => string } = unknown,
-  U = unknown
+  U = unknown,
 > {
   public variables = new Map<string, number>();
   protected clauses = new Map<number, U>();
@@ -88,7 +88,7 @@ export abstract class Clause {
   isNullable(c: Clause.IsNull): boolean {
     if (!this._isNullable) {
       this._isNullable = new Set(
-        [...this.getNullables()].map((n) => n.toString())
+        [...this.getNullables()].map((n) => n.toString()),
       );
     }
     return this._isNullable.has(c.toString());
@@ -243,14 +243,14 @@ export namespace Clause {
         const w = this.clauses[i].true(context);
         const t = this.clauses[i + 1].true(context);
         minterms.push(
-          ...complement([...cumulative, ...complement(w), ...complement(t)])
+          ...complement([...cumulative, ...complement(w), ...complement(t)]),
         );
         if (i < this.clauses.length - 2) {
           cumulative.push(
             ...complement([
               ...this.clauses[i].false(context),
               ...this.clauses[i].null(context),
-            ])
+            ]),
           );
         }
       }
@@ -263,14 +263,14 @@ export namespace Clause {
         const w = this.clauses[i].true(context);
         const t = this.clauses[i + 1].false(context);
         minterms.push(
-          ...complement([...cumulative, ...complement(w), ...complement(t)])
+          ...complement([...cumulative, ...complement(w), ...complement(t)]),
         );
         if (i < this.clauses.length - 2) {
           cumulative.push(
             ...complement([
               ...this.clauses[i].false(context),
               ...this.clauses[i].null(context),
-            ])
+            ]),
           );
         }
       }
@@ -283,13 +283,13 @@ export namespace Clause {
         const w = this.clauses[i].true(context);
         const t = this.clauses[i + 1].null(context);
         minterms.push(
-          ...complement([...cumulative, ...complement(w), ...complement(t)])
+          ...complement([...cumulative, ...complement(w), ...complement(t)]),
         );
         cumulative.push(
           ...complement([
             ...this.clauses[i].false(context),
             ...this.clauses[i].null(context),
-          ])
+          ]),
         );
       }
       minterms.push(...complement([...cumulative]));
@@ -313,7 +313,7 @@ export namespace Clause {
           minterms.push(...cases.pop().when);
         minterms = context.minimize(
           minterms,
-          cases.flatMap((c) => c.when)
+          cases.flatMap((c) => c.when),
         );
         if (!minterms.length) continue;
         cases.push({ when: minterms, then });
@@ -395,7 +395,7 @@ export namespace Clause {
     constructor(
       public lhs: Clause,
       public op: ">" | "<" | "=",
-      public rhs: boolean | number | string
+      public rhs: boolean | number | string,
     ) {
       super();
     }
@@ -425,7 +425,11 @@ export namespace Clause {
     public readonly pattern: string[];
     public readonly lhs: Clause;
 
-    constructor(lhs: Clause, public rhs: string, public esc?: string) {
+    constructor(
+      lhs: Clause,
+      public rhs: string,
+      public esc?: string,
+    ) {
       super();
       const exp = lhs.expression();
       let caseSensitive = true;
@@ -515,7 +519,7 @@ export namespace Clause {
           clause = new Clause.Compare(
             e[1],
             op,
-            rhs as boolean | number | string
+            rhs as boolean | number | string,
           );
         }
       }
@@ -535,7 +539,7 @@ export namespace Clause {
 
 function groupBy<T, K>(
   input: T[],
-  callback: (item: T) => K
+  callback: (item: T) => K,
 ): Iterable<[K, T[]]> {
   const groups = new Map<K, T[]>();
   for (const item of input) {
@@ -567,12 +571,12 @@ export class SynthContext extends SynthContextBase<Clause, Clause> {
 
     const allClauses = [...whitelist].map((v) => this.getClause(v));
     const comparisons = allClauses.filter(
-      (c) => c instanceof Clause.Compare
+      (c) => c instanceof Clause.Compare,
     ) as Clause.Compare[];
 
     // Comparisons
     for (const [, clauses] of groupBy(comparisons, (c) =>
-      JSON.stringify(c.lhs)
+      JSON.stringify(c.lhs),
     )) {
       const lhs = clauses[0].lhs;
       const values = new Set(clauses.map((c) => c.rhs));
@@ -600,13 +604,13 @@ export class SynthContext extends SynthContextBase<Clause, Clause> {
 
         for (let j = 0; j < i; j++) {
           const eq2 = this.getVar(
-            new Clause.Compare(lhs, "=", valuesSorted[j])
+            new Clause.Compare(lhs, "=", valuesSorted[j]),
           );
           const gt2 = this.getVar(
-            new Clause.Compare(lhs, ">", valuesSorted[j])
+            new Clause.Compare(lhs, ">", valuesSorted[j]),
           );
           const lt2 = this.getVar(
-            new Clause.Compare(lhs, "<", valuesSorted[j])
+            new Clause.Compare(lhs, "<", valuesSorted[j]),
           );
 
           // This is the minimum clauses required if all relavent vars
@@ -631,7 +635,7 @@ export class SynthContext extends SynthContextBase<Clause, Clause> {
 
     // LIKE
     const likes = allClauses.filter(
-      (c) => c instanceof Clause.Like
+      (c) => c instanceof Clause.Like,
     ) as Clause.Like[];
 
     for (const [, clauses] of groupBy(likes, (c) => JSON.stringify(c.lhs))) {
@@ -734,7 +738,7 @@ export class SynthContext extends SynthContextBase<Clause, Clause> {
       for (const [k, v] of merged) {
         if (v === 0b1010) continue loop;
         const isNullVars = [...this.clauses.get(k).getNullables()].map((c) =>
-          this.getVar(c)
+          this.getVar(c),
         );
         const t = k << 2;
         if (v === 0b0101) {
@@ -858,7 +862,7 @@ export function minimize(expr: Expression, boolean = false): Expression {
 
 export function unionDiff(
   expr1: Expression,
-  expr2: Expression
+  expr2: Expression,
 ): [Expression, Expression] {
   expr2 = normalize(expr2);
 
@@ -887,7 +891,7 @@ export function unionDiff(
     complement([
       ...complement([...expr1NullMinterms, ...expr1FalseMinterms]),
       ...complement(expr2Minterms),
-    ])
+    ]),
   );
 
   return [context.toExpression(union), context.toExpression(diff)];

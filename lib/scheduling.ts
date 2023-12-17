@@ -37,7 +37,7 @@ export function variance(deviceId: string, vrnc: number): number {
 export function interval(
   timestamp: number,
   intrvl: number,
-  offset = 0
+  offset = 0,
 ): number {
   return Math.trunc((timestamp + offset) / intrvl) * intrvl - offset;
 }
@@ -52,7 +52,7 @@ export function parseCron(cronExp: string): any {
 export function cron(
   timestamp: number,
   schedule: unknown,
-  offset = 0
+  offset = 0,
 ): number[] {
   // TODO later.js doesn't throw erorr if expression is invalid!
   const ret = [0, 0];

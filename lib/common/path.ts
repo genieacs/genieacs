@@ -57,7 +57,7 @@ export default class Path {
 
   protected static parseAliasValue(
     pattern: string,
-    index: number
+    index: number,
   ): { index: number; value: string } {
     let i = index;
     while (charCodeAt(pattern, i) === CHAR_SPACE) ++i;
@@ -89,7 +89,7 @@ export default class Path {
 
   protected static parseAliasPath(
     pattern: string,
-    index: number
+    index: number,
   ): { index: number; path: Path } {
     let i = index;
     while (charCodeAt(pattern, i) === CHAR_SPACE) ++i;
@@ -103,7 +103,7 @@ export default class Path {
 
   protected static parseAlias(
     pattern: string,
-    index: number
+    index: number,
   ): { index: number; alias: Alias } {
     const alias: Alias = [];
     let i = index;
@@ -136,7 +136,7 @@ export default class Path {
 
   protected static parsePath(
     pattern: string,
-    index: number
+    index: number,
   ): { index: number; segments: Segments } {
     const segments = [];
 
@@ -173,7 +173,7 @@ export default class Path {
       if (Array.isArray(s)) {
         alias |= 1 << i;
         const parts = s.map(
-          (al) => `${al[0].toString()}:${JSON.stringify(al[1])}`
+          (al) => `${al[0].toString()}:${JSON.stringify(al[1])}`,
         );
         return `[${parts.join(",")}]`;
       } else if (s === "*") {

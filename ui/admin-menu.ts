@@ -31,8 +31,8 @@ const component: ClosureComponent = (): Component => {
           m(
             "li",
             { class: active["presets"] },
-            m("a", { href: "#!/admin/presets" }, "Presets")
-          )
+            m("a", { href: "#!/admin/presets" }, "Presets"),
+          ),
         );
       }
 
@@ -41,8 +41,8 @@ const component: ClosureComponent = (): Component => {
           m(
             "li",
             { class: active["provisions"] },
-            m("a", { href: "#!/admin/provisions" }, "Provisions")
-          )
+            m("a", { href: "#!/admin/provisions" }, "Provisions"),
+          ),
         );
       }
 
@@ -51,8 +51,12 @@ const component: ClosureComponent = (): Component => {
           m(
             "li",
             { class: active["virtualParameters"] },
-            m("a", { href: "#!/admin/virtualParameters" }, "Virtual Parameters")
-          )
+            m(
+              "a",
+              { href: "#!/admin/virtualParameters" },
+              "Virtual Parameters",
+            ),
+          ),
         );
       }
 
@@ -61,8 +65,8 @@ const component: ClosureComponent = (): Component => {
           m(
             "li",
             { class: active["files"] },
-            m("a", { href: "#!/admin/files" }, "Files")
-          )
+            m("a", { href: "#!/admin/files" }, "Files"),
+          ),
         );
       }
 
@@ -71,8 +75,8 @@ const component: ClosureComponent = (): Component => {
           m(
             "li",
             { class: active["config"] },
-            m("a", { href: "#!/admin/config" }, "Config")
-          )
+            m("a", { href: "#!/admin/config" }, "Config"),
+          ),
         );
       }
 
@@ -81,8 +85,8 @@ const component: ClosureComponent = (): Component => {
           m(
             "li",
             { class: active["permissions"] },
-            m("a", { href: "#!/admin/permissions" }, "Permissions")
-          )
+            m("a", { href: "#!/admin/permissions" }, "Permissions"),
+          ),
         );
       }
 
@@ -91,8 +95,8 @@ const component: ClosureComponent = (): Component => {
           m(
             "li",
             { class: active["users"] },
-            m("a", { href: "#!/admin/users" }, "Users")
-          )
+            m("a", { href: "#!/admin/users" }, "Users"),
+          ),
         );
       }
 

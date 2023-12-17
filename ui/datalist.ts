@@ -38,7 +38,7 @@ export function getDatalistId(options: string[]): string {
     const n = m(
       "datalist",
       { id },
-      options.map((o) => m("option", { value: o }))
+      options.map((o) => m("option", { value: o })),
     );
     elements.set(id, n);
   }

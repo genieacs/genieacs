@@ -28,7 +28,7 @@ interface Snapshot {
 function flattenObject<T extends Record<keyof T, unknown>>(
   src: T,
   prefix = "",
-  dst = {} as T
+  dst = {} as T,
 ): T {
   for (const k of Object.keys(src)) {
     const v = src[k];
@@ -99,7 +99,7 @@ async function fetchPresets(): Promise<[string, Preset[]]> {
         precondition = parse(preset["precondition"]);
       } catch (error) {
         precondition = convertOldPrecondition(
-          JSON.parse(preset["precondition"])
+          JSON.parse(preset["precondition"]),
         );
       }
 
@@ -166,7 +166,7 @@ async function fetchPresets(): Promise<[string, Preset[]]> {
         default: {
           const exhaustiveCheck: never = c;
           throw new Error(
-            `Unknown configuration type ${exhaustiveCheck["type"]}`
+            `Unknown configuration type ${exhaustiveCheck["type"]}`,
           );
         }
       }
@@ -199,7 +199,7 @@ async function fetchProvisions(): Promise<[string, Provisions]> {
       .digest("hex");
     provisions[r._id].script = new vm.Script(
       `"use strict";(function(){\n${r.script}\n})();`,
-      { filename: r._id, lineOffset: -1 }
+      { filename: r._id, lineOffset: -1 },
     );
   }
 
@@ -220,7 +220,7 @@ async function fetchVirtualParameters(): Promise<[string, VirtualParameters]> {
       .digest("hex");
     virtualParameters[r._id].script = new vm.Script(
       `"use strict";(function(){\n${r.script}\n})();`,
-      { filename: r._id, lineOffset: -1 }
+      { filename: r._id, lineOffset: -1 },
     );
   }
 
@@ -307,7 +307,7 @@ export function getConfig(
   key: string,
   context: Record<string, unknown>,
   now: number,
-  cb?: (e: Expression) => Expression
+  cb?: (e: Expression) => Expression,
 ): string | number | boolean | null {
   const snapshot = localCache.get(snapshotKey);
   if (!snapshot) throw new Error("Cache snapshot does not exist");
@@ -350,7 +350,7 @@ export function getConfig(
 
 export function getConfigExpression(
   snapshotKey: string,
-  key: string
+  key: string,
 ): Expression {
   const snapshot = localCache.get(snapshotKey);
   return snapshot.config[key];

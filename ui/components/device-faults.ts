@@ -76,8 +76,8 @@ const component: ClosureComponent = (): Component => {
                     });
                 },
               },
-              getIcon("remove")
-            )
+              getIcon("remove"),
+            ),
           ),
         ]);
       }
@@ -86,19 +86,19 @@ const component: ClosureComponent = (): Component => {
       if (rows.length) {
         tbody = m(
           "tbody",
-          rows.map((r) => m("tr", r))
+          rows.map((r) => m("tr", r)),
         );
       } else {
         tbody = m(
           "tbody",
-          m("tr.empty", m("td", { colspan: headers.length }, "No faults"))
+          m("tr.empty", m("td", { colspan: headers.length }, "No faults")),
         );
       }
 
       return m(
         "loading",
         { queries: [faults] },
-        m("table.table", thead, tbody)
+        m("table.table", thead, tbody),
       );
     },
   };

@@ -125,7 +125,7 @@ export function getConfig(
   key: string,
   context: Record<string, unknown>,
   now: number,
-  cb?: (e: Expression) => Expression
+  cb?: (e: Expression) => Expression,
 ): string | number | boolean | null {
   const snapshot = localCache.get(revision);
   if (!snapshot) throw new Error("Cache snapshot does not exist");

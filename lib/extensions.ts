@@ -123,6 +123,6 @@ export async function killAll(): Promise<void> {
     Object.entries(processes).map(([k, p]) => {
       delete processes[k];
       return kill(p);
-    })
+    }),
   );
 }

@@ -33,7 +33,7 @@ function onError(): void {
         Reload: () => {
           window.location.reload();
         },
-      }
+      },
     );
   }
 }
@@ -65,7 +65,7 @@ export function loadYaml(): Promise<void> {
   return new Promise((resolve, reject) => {
     import("yaml")
       .then((module) => {
-        yaml = module;
+        yaml = module.default;
         resolve();
       })
       .catch((err) => {

@@ -144,11 +144,11 @@ const getDownloadUrl = memoize((filter) => {
 });
 
 export function init(
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   if (!window.authorizer.hasAccess("users", 2)) {
     return Promise.reject(
-      new Error("You are not authorized to view this page")
+      new Error("You are not authorized to view this page"),
     );
   }
 
@@ -267,8 +267,8 @@ export const component: ClosureComponent = (): Component => {
                     {
                       resource: "users",
                       attributes: attributes,
-                    }
-                  )
+                    },
+                  ),
                 );
 
                 cb = () => {
@@ -293,11 +293,11 @@ export const component: ClosureComponent = (): Component => {
                   cb,
                   () =>
                     !comp.state["current"]["modified"] ||
-                    confirm("You have unsaved changes. Close anyway?")
+                    confirm("You have unsaved changes. Close anyway?"),
                 );
               },
             },
-            "Show"
+            "Show",
           ),
         ];
       };
@@ -346,19 +346,19 @@ export const component: ClosureComponent = (): Component => {
                           });
                         },
                       },
-                      formData
-                    )
+                      formData,
+                    ),
                   );
                   cb = () => comp;
                   overlay.open(
                     cb,
                     () =>
                       !comp.state["current"]["modified"] ||
-                      confirm("You have unsaved changes. Close anyway?")
+                      confirm("You have unsaved changes. Close anyway?"),
                   );
                 },
               },
-              "New"
+              "New",
             ),
             m(
               "button.primary",
@@ -375,13 +375,13 @@ export const component: ClosureComponent = (): Component => {
                   e.target.disabled = true;
                   Promise.all(
                     Array.from(selected).map((id) =>
-                      store.deleteResource("users", id)
-                    )
+                      store.deleteResource("users", id),
+                    ),
                   )
                     .then((res) => {
                       notifications.push(
                         "success",
-                        `${res.length} users deleted`
+                        `${res.length} users deleted`,
                       );
                       store.setTimestamp(Date.now());
                     })
@@ -391,7 +391,7 @@ export const component: ClosureComponent = (): Component => {
                     });
                 },
               },
-              "Delete"
+              "Delete",
             ),
           ];
         };
@@ -409,7 +409,7 @@ export const component: ClosureComponent = (): Component => {
         m(
           "loading",
           { queries: [users, count] },
-          m(indexTableComponent, attrs)
+          m(indexTableComponent, attrs),
         ),
       ];
     },

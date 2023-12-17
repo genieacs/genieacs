@@ -32,7 +32,7 @@ class Indeterminates {
 
   public static multiply(
     indeterminates1: Indeterminates,
-    indeterminates2: Indeterminates
+    indeterminates2: Indeterminates,
   ): Indeterminates {
     const res = new Indeterminates();
     res.sortedKeys = indeterminates1.sortedKeys.slice();
@@ -108,7 +108,7 @@ class Polynomial {
     const ts = terms
       .slice()
       .sort((a: Term, b: Term) =>
-        Indeterminates.compare(a.indeterminates, b.indeterminates)
+        Indeterminates.compare(a.indeterminates, b.indeterminates),
       );
 
     for (let i = 1; i < ts.length; ++i) {
@@ -117,12 +117,12 @@ class Polynomial {
       if (Indeterminates.compare(t1.indeterminates, t2.indeterminates) === 0) {
         const numerator = BI.add(
           BI.mul(t1.coefficientNumerator, t2.coefficientDenominator),
-          BI.mul(t2.coefficientNumerator, t1.coefficientDenominator)
+          BI.mul(t2.coefficientNumerator, t1.coefficientDenominator),
         );
 
         const denominator = BI.mul(
           t1.coefficientDenominator,
-          t2.coefficientDenominator
+          t2.coefficientDenominator,
         );
 
         const gcd = findGcd(numerator, denominator);
@@ -163,7 +163,7 @@ class Polynomial {
       denominator = BI.exp(TWO, BI.BigInt(frac.length));
       numerator = BI.add(
         BI.mul(numerator, denominator),
-        BI.BigInt("0b" + frac)
+        BI.BigInt("0b" + frac),
       );
     }
 
@@ -204,7 +204,7 @@ class Polynomial {
 
   public add(rhs: Polynomial): Polynomial {
     return new Polynomial(
-      Polynomial.simplifyTerms(this.terms.concat(rhs.terms))
+      Polynomial.simplifyTerms(this.terms.concat(rhs.terms)),
     );
   }
 
@@ -219,18 +219,18 @@ class Polynomial {
       for (const t2 of rhs.terms) {
         const numerator = BI.mul(
           t1.coefficientNumerator,
-          t2.coefficientNumerator
+          t2.coefficientNumerator,
         );
         const denominator = BI.mul(
           t1.coefficientDenominator,
-          t2.coefficientDenominator
+          t2.coefficientDenominator,
         );
         const gcd = findGcd(numerator, denominator);
 
         terms.push({
           indeterminates: Indeterminates.multiply(
             t1.indeterminates,
-            t2.indeterminates
+            t2.indeterminates,
           ),
           coefficientNumerator: BI.div(numerator, gcd),
           coefficientDenominator: BI.div(denominator, gcd),
@@ -339,7 +339,7 @@ function normalizeCallback(exp: Expression): Expression {
             const e = (r[1] as Expression[]).slice();
             e[i] = t;
             return [and(w, r[0]), e] as [Expression, Expression];
-          })
+          }),
         );
         if (!Array.isArray(w) && w) break;
       }
@@ -373,7 +373,7 @@ function normalizeCallback(exp: Expression): Expression {
     }
     return args.reduce(
       (previousValue, currentValue) => previousValue.add(currentValue),
-      ADDITIVE_IDENTITY
+      ADDITIVE_IDENTITY,
     ) as unknown as Expression;
   } else if (op === "*") {
     const args: Polynomial[] = [];
@@ -384,7 +384,7 @@ function normalizeCallback(exp: Expression): Expression {
     }
     return args.reduce(
       (previousValue, currentValue) => previousValue.multiply(currentValue),
-      MULTIPLICATIVE_IDENTITY
+      MULTIPLICATIVE_IDENTITY,
     ) as unknown as Expression;
   } else if (op === "-") {
     const args: Polynomial[] = [];
@@ -394,7 +394,7 @@ function normalizeCallback(exp: Expression): Expression {
       args.push(p);
     }
     return args.reduce((previousValue, currentValue) =>
-      previousValue.subtract(currentValue)
+      previousValue.subtract(currentValue),
     ) as unknown as Expression;
   } else if (op === "/") {
     const args: Polynomial[] = [];
@@ -404,7 +404,7 @@ function normalizeCallback(exp: Expression): Expression {
       args.push(p);
     }
     return args.reduce((previousValue, currentValue) =>
-      previousValue.divide(currentValue)
+      previousValue.divide(currentValue),
     ) as unknown as Expression;
   } else if (["=", "<>", ">", ">=", "<", "<="].includes(op)) {
     if (exp[1] == null || exp[2] == null) return null;
@@ -471,7 +471,7 @@ function normalizeCallback(exp: Expression): Expression {
 
   // Restore polynomial expressions
   exp = exp.map((e) =>
-    e instanceof Polynomial ? JSON.parse(e.toString()) : e
+    e instanceof Polynomial ? JSON.parse(e.toString()) : e,
   );
 
   exp = evaluateCallback(exp);
@@ -485,7 +485,7 @@ export default function normalize(expr: Expression): Expression {
     expr = JSON.parse(expr.toString());
   } else if (Array.isArray(expr) && expr[0] === "CASE") {
     expr = expr.map((e) =>
-      e instanceof Polynomial ? JSON.parse(e.toString()) : e
+      e instanceof Polynomial ? JSON.parse(e.toString()) : e,
     );
   }
   return expr;

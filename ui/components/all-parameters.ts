@@ -17,14 +17,16 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ClosureComponent, Component } from "mithril";
+import { ClosureComponent } from "mithril";
 import { m } from "../components";
 import * as taskQueue from "../task-queue";
 import { parse } from "../../lib/common/expression/parser";
 import memoize from "../../lib/common/memoize";
 import { getIcon } from "../icons";
-import { evaluateExpression } from "../store";
+import { QueryResponse, evaluateExpression } from "../store";
 import debounce from "../../lib/common/debounce";
+import { Expression } from "../../lib/types";
+import { FlatDevice } from "../../lib/ui/db";
 
 const memoizedParse = memoize(parse);
 
@@ -52,7 +54,13 @@ function orderKeysByDepth(device: Record<string, unknown>): string[][] {
   return res;
 }
 
-const component: ClosureComponent = (): Component => {
+interface Attrs {
+  device: FlatDevice;
+  limit: Expression;
+  deviceQuery: QueryResponse;
+}
+
+const component: ClosureComponent<Attrs> = () => {
   let queryString: string;
   const formQueryString = debounce((args: string[]) => {
     queryString = args[args.length - 1];
@@ -61,9 +69,10 @@ const component: ClosureComponent = (): Component => {
 
   return {
     view: (vnode) => {
-      const device = vnode.attrs["device"];
+      const device = vnode.attrs.device;
 
-      const limit = evaluateExpression(vnode.attrs["limit"], device) || 100;
+      const limit =
+        (evaluateExpression(vnode.attrs.limit, device) as number) || 100;
 
       const search = m("input", {
         type: "text",
@@ -108,8 +117,8 @@ const component: ClosureComponent = (): Component => {
           val.push(
             m(
               "parameter",
-              Object.assign({ device: device, parameter: memoizedParse(k) })
-            )
+              Object.assign({ device: device, parameter: memoizedParse(k) }),
+            ),
           );
         } else if (p.object && p.writable) {
           if (instanceRegex.test(k)) {
@@ -121,13 +130,13 @@ const component: ClosureComponent = (): Component => {
                   onclick: () => {
                     taskQueue.queueTask({
                       name: "deleteObject",
-                      device: device["DeviceID.ID"].value[0],
+                      device: device["DeviceID.ID"].value[0] as string,
                       objectName: k,
                     });
                   },
                 },
-                getIcon("delete-instance")
-              )
+                getIcon("delete-instance"),
+              ),
             );
           } else {
             val.push(
@@ -138,13 +147,13 @@ const component: ClosureComponent = (): Component => {
                   onclick: () => {
                     taskQueue.queueTask({
                       name: "addObject",
-                      device: device["DeviceID.ID"].value[0],
+                      device: device["DeviceID.ID"].value[0] as string,
                       objectName: k,
                     });
                   },
                 },
-                getIcon("add-instance")
-              )
+                getIcon("add-instance"),
+              ),
             );
           }
         }
@@ -157,38 +166,38 @@ const component: ClosureComponent = (): Component => {
               onclick: () => {
                 taskQueue.queueTask({
                   name: "getParameterValues",
-                  device: device["DeviceID.ID"].value[0],
+                  device: device["DeviceID.ID"].value[0] as string,
                   parameterNames: [k],
                 });
               },
             },
-            getIcon("refresh")
-          )
+            getIcon("refresh"),
+          ),
         );
 
         return m(
           "tr",
           attrs,
           m("td.left", m("long-text", { text: k })),
-          m("td.right", val)
+          m("td.right", val),
         );
       });
 
       return m(
         "loading",
-        { queries: [vnode.attrs["deviceQuery"]] },
+        { queries: [vnode.attrs.deviceQuery] },
         m(
           ".all-parameters",
           m(
             "a.download-csv",
             {
               href: `api/devices/${encodeURIComponent(
-                device["DeviceID.ID"].value[0]
+                device["DeviceID.ID"].value[0],
               )}.csv`,
               download: "",
               style: "float: right;",
             },
-            "Download"
+            "Download",
           ),
           search,
           m(
@@ -196,10 +205,10 @@ const component: ClosureComponent = (): Component => {
             m("table", m("tbody", rows)),
             m(
               "m",
-              `Displaying ${filteredKeys.length} out of ${count} parameters.`
-            )
-          )
-        )
+              `Displaying ${filteredKeys.length} out of ${count} parameters.`,
+            ),
+          ),
+        ),
       );
     },
   };

@@ -41,7 +41,7 @@ function getConnectionTimestamp(connection: Socket): Date {
 export function incomingHttpRequest(
   httpRequest: IncomingMessage,
   deviceId: string,
-  body: string
+  body: string,
 ): void {
   if (!DEBUG_FILE) return;
   const now = new Date();
@@ -70,7 +70,7 @@ export function incomingHttpRequest(
 export function outgoingHttpResponse(
   httpResponse: ServerResponse,
   deviceId: string,
-  body: string
+  body: string,
 ): void {
   if (!DEBUG_FILE) return;
   const now = new Date();
@@ -99,7 +99,7 @@ export function outgoingHttpRequest(
   deviceId: string,
   method: "GET" | "PUT" | "POST" | "DELETE",
   url: URL,
-  body: string
+  body: string,
 ): void {
   if (!DEBUG_FILE) return;
   const now = new Date();
@@ -129,7 +129,7 @@ export function outgoingHttpRequestError(
   deviceId: string,
   method: "GET" | "PUT" | "POST" | "DELETE",
   url: URL,
-  err: Error
+  err: Error,
 ): void {
   if (!DEBUG_FILE) return;
   const now = new Date();
@@ -156,7 +156,7 @@ export function outgoingHttpRequestError(
 export function incomingHttpResponse(
   httpResponse: IncomingMessage,
   deviceId: string,
-  body: string
+  body: string,
 ): void {
   if (!DEBUG_FILE) return;
   const now = new Date();
@@ -183,7 +183,7 @@ export function outgoingUdpMessage(
   remoteAddress: string,
   deviceId: string,
   remotePort: number,
-  body: string
+  body: string,
 ): void {
   if (!DEBUG_FILE) return;
   const now = new Date();

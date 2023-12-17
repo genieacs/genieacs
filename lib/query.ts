@@ -118,7 +118,7 @@ function permute(param, val): any[] {
 }
 
 export function expand(
-  query: Record<string, unknown>
+  query: Record<string, unknown>,
 ): Record<string, unknown> {
   const newQuery = {};
   for (const [k, v] of Object.entries(query)) {
@@ -147,7 +147,7 @@ export function expand(
 
 export function sanitizeQueryTypes(
   query: Record<string, unknown>,
-  types: Record<string, (v: unknown) => unknown>
+  types: Record<string, (v: unknown) => unknown>,
 ): Record<string, unknown> {
   for (const [k, v] of Object.entries(query)) {
     if (k[0] === "$") {

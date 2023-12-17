@@ -104,12 +104,12 @@ router.get(`/devices/:id.csv`, async (ctx) => {
   ctx.attachment(
     `device-${ctx.params.id}-${new Date()
       .toISOString()
-      .replace(/[:.]/g, "")}.csv`
+      .replace(/[:.]/g, "")}.csv`,
   );
 
   ctx.body = new PassThrough();
   ctx.body.write(
-    "Parameter,Object,Object timestamp,Writable,Writable timestamp,Value,Value type,Value timestamp,Notification,Notification timestamp,Access list,Access list timestamp\n"
+    "Parameter,Object,Object timestamp,Writable,Writable timestamp,Value,Value type,Value timestamp,Notification,Notification timestamp,Access list,Access list timestamp\n",
   );
 
   for (const k of Object.keys(device).sort()) {
@@ -259,7 +259,7 @@ for (const [resource, flags] of Object.entries(resources)) {
     }
 
     const columns: Record<string, Expression> = JSON.parse(
-      singleParam(ctx.request.query.columns)
+      singleParam(ctx.request.query.columns),
     );
     const now = Date.now();
 
@@ -282,11 +282,11 @@ for (const [resource, flags] of Object.entries(resources)) {
     ctx.body = new PassThrough();
     ctx.type = "text/csv";
     ctx.attachment(
-      `${resource}-${new Date(now).toISOString().replace(/[:.]/g, "")}.csv`
+      `${resource}-${new Date(now).toISOString().replace(/[:.]/g, "")}.csv`,
     );
 
     ctx.body.write(
-      Object.keys(columns).map((k) => `"${k.replace(/"/, '""')}"`) + "\n"
+      Object.keys(columns).map((k) => `"${k.replace(/"/, '""')}"`) + "\n",
     );
     for await (const obj of db.query(resource, filter, options)) {
       const arr = Object.values(columns).map((exp) => {
@@ -633,7 +633,7 @@ router.post("/devices/:id/tasks", async (ctx) => {
         }
       }
       return exp;
-    }
+    },
   ) as number;
 
   const lastInform = device["Events.Inform"].value[0] as number;
@@ -643,7 +643,7 @@ router.post("/devices/:id/tasks", async (ctx) => {
     const sessionStarted = await apiFunctions.awaitSessionStart(
       deviceId,
       lastInform,
-      onlineThreshold
+      onlineThreshold,
     );
     if (!sessionStarted) {
       status = "No contact from CPE";
@@ -655,7 +655,7 @@ router.post("/devices/:id/tasks", async (ctx) => {
 
   if (!status) {
     const promises = statuses.map((t) =>
-      collections.faults.count({ _id: `${deviceId}:task_${t._id}` })
+      collections.faults.count({ _id: `${deviceId}:task_${t._id}` }),
     );
 
     const res = await Promise.all(promises);
@@ -746,7 +746,7 @@ router.put("/users/:id/password", async (ctx) => {
       !(await apiFunctions.authLocal(
         ctx.state.configSnapshot,
         username,
-        ctx.request.body.authPassword
+        ctx.request.body.authPassword,
       ))
     ) {
       logUnauthorizedWarning(log);

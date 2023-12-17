@@ -19,7 +19,6 @@
 
 import * as crypto from "crypto";
 import * as dgram from "dgram";
-import { URL } from "url";
 import * as http from "http";
 import { evaluateAsync } from "./common/expression/util";
 import { Expression } from "./types";
@@ -29,7 +28,7 @@ import * as debug from "./debug";
 
 async function extractAuth(
   exp: Expression,
-  dflt: any
+  dflt: any,
 ): Promise<[string, string, Expression]> {
   let username, password;
   const _exp = await evaluateAsync(
@@ -55,7 +54,7 @@ async function extractAuth(
         }
       }
       return e;
-    }
+    },
   );
   return [username, password, _exp];
 }
@@ -64,7 +63,7 @@ function httpGet(
   url: URL,
   options: http.RequestOptions,
   _debug: boolean,
-  deviceId: string
+  deviceId: string,
 ): Promise<{ statusCode: number; headers: http.IncomingHttpHeaders }> {
   return new Promise((resolve, reject) => {
     const req = http
@@ -94,7 +93,7 @@ export async function httpConnectionRequest(
   allowBasicAuth: boolean,
   timeout: number,
   _debug: boolean,
-  deviceId: string
+  deviceId: string,
 ): Promise<string> {
   const url = new URL(address);
   if (url.protocol !== "http:")
@@ -120,7 +119,7 @@ export async function httpConnectionRequest(
               Authorization: auth.basic(username || "", password || ""),
             },
           },
-          options
+          options,
         );
       } else if (authHeader["method"] === "Digest") {
         opts = Object.assign(
@@ -132,11 +131,11 @@ export async function httpConnectionRequest(
                 url.pathname + url.search,
                 "GET",
                 null,
-                authHeader
+                authHeader,
               ),
             },
           },
-          options
+          options,
         );
       } else {
         return "Unrecognized auth method";
@@ -171,7 +170,7 @@ export async function httpConnectionRequest(
     if (res.statusCode === 401 && res.headers["www-authenticate"]) {
       try {
         authHeader = auth.parseWwwAuthenticateHeader(
-          res.headers["www-authenticate"]
+          res.headers["www-authenticate"],
         );
       } catch (err) {
         return "Connection request error: Error parsing www-authenticate header";
@@ -191,7 +190,7 @@ export async function udpConnectionRequest(
   authExp: Expression,
   sourcePort = 0,
   _debug: boolean,
-  deviceId: string
+  deviceId: string,
 ): Promise<void> {
   const now = Date.now();
 

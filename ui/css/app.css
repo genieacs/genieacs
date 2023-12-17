@@ -54,7 +54,9 @@ textarea {
 a {
   color: var(--color4);
   cursor: pointer;
-  transition: background-color var(--fade), color var(--fade);
+  transition:
+    background-color var(--fade),
+    color var(--fade);
   &:visited {
     color: var(--color4);
   }
@@ -122,7 +124,9 @@ body {
       margin-top: -1px;
       box-shadow: 0 0 10px #ccc;
       overflow: hidden;
-      transition: height var(--fade), opacity var(--fade);
+      transition:
+        height var(--fade),
+        opacity var(--fade);
 
       & > div {
         padding: 0.3em;
@@ -228,7 +232,9 @@ body {
         border: 1px solid var(--color1);
         border-radius: 6px;
         box-shadow: 0 0 10px #ccc;
-        transition: opacity var(--fade), top var(--fade);
+        transition:
+          opacity var(--fade),
+          top var(--fade);
 
         &.error {
           background-color: hsl(var(--status-red) / 0.9);
@@ -437,7 +443,9 @@ button {
   border: 0;
   color: var(--color4);
   border-radius: 4px;
-  transition: background-color var(--fade), color var(--fade);
+  transition:
+    background-color var(--fade),
+    color var(--fade);
   display: inline-block;
   vertical-align: middle;
 
@@ -468,7 +476,9 @@ input {
   border: 1px solid var(--color1);
   background-color: var(--color3);
   border-radius: 4px;
-  transition: border-color var(--fade), background-color var(--fade);
+  transition:
+    border-color var(--fade),
+    background-color var(--fade);
   &.error {
     background-color: #efcbcf;
     border-color: #e6b2b7;
@@ -670,7 +680,9 @@ span.tag {
   bottom: 0;
   background-color: rgba(0, 0, 0, 0.2);
   z-index: 100;
-  transition: opacity var(--fade), top var(--fade);
+  transition:
+    opacity var(--fade),
+    top var(--fade);
   display: flex;
   align-items: center;
   justify-content: center;

@@ -17,18 +17,19 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Attributes, ClosureComponent, Component } from "mithril";
+import { Attributes, ClosureComponent } from "mithril";
 import { map } from "../../lib/common/expression/parser";
 import memoize from "../../lib/common/memoize";
 import { Expression } from "../../lib/types";
 import { m } from "../components";
 import { evaluateExpression, getTimestamp } from "../store";
+import { FlatDevice } from "../../lib/ui/db";
 
 const evaluateAttributes = memoize(
   (
     attrs: Record<string, Expression>,
     obj: Record<string, unknown>,
-    now: number // eslint-disable-line @typescript-eslint/no-unused-vars
+    now: number, // eslint-disable-line @typescript-eslint/no-unused-vars
   ): Attributes => {
     const res: Attributes = {};
     for (const [k, v] of Object.entries(attrs)) {
@@ -47,19 +48,24 @@ const evaluateAttributes = memoize(
       res[k] = evaluateExpression(vv, obj);
     }
     return res;
-  }
+  },
 );
 
-const component: ClosureComponent = (): Component => {
+interface Attrs {
+  device: FlatDevice;
+  filter: Expression;
+  components: unknown;
+}
+
+const component: ClosureComponent<Attrs> = () => {
   return {
     view: (vnode) => {
-      const device = vnode.attrs["device"];
+      const device = vnode.attrs.device;
       if ("filter" in vnode.attrs) {
-        if (!evaluateExpression(vnode.attrs["filter"], device || {}))
-          return null;
+        if (!evaluateExpression(vnode.attrs.filter, device || {})) return null;
       }
 
-      const children = Object.values(vnode.attrs["components"]).map((c) => {
+      const children = Object.values(vnode.attrs.components).map((c) => {
         if (Array.isArray(c)) c = evaluateExpression(c, device || {});
         if (typeof c !== "object") return `${c}`;
         const type = evaluateExpression(c["type"], device || {});
@@ -79,7 +85,7 @@ const component: ClosureComponent = (): Component => {
           attrs = evaluateAttributes(
             el["attributes"],
             device || {},
-            getTimestamp()
+            getTimestamp(),
           );
         }
 

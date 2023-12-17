@@ -129,7 +129,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
             .then(() => {
               notifications.push(
                 "success",
-                `Permission ${exists ? "updated" : "created"}`
+                `Permission ${exists ? "updated" : "created"}`,
               );
               store.setTimestamp(Date.now());
               resolve(null);
@@ -170,11 +170,11 @@ const getDownloadUrl = memoize((filter) => {
 });
 
 export function init(
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   if (!window.authorizer.hasAccess("permissions", 2)) {
     return Promise.reject(
-      new Error("You are not authorized to view this page")
+      new Error("You are not authorized to view this page"),
     );
   }
   const sort = args.hasOwnProperty("sort") ? "" + args["sort"] : "";
@@ -274,13 +274,13 @@ export const component: ClosureComponent = (): Component => {
                         base: permission,
                         oncreate: (_vnode) => {
                           _vnode.dom.querySelector(
-                            "input[name='role']"
+                            "input[name='role']",
                           ).disabled = true;
                           _vnode.dom.querySelector(
-                            "select[name='access']"
+                            "select[name='access']",
                           ).disabled = true;
                           _vnode.dom.querySelector(
-                            "select[name='resource']"
+                            "select[name='resource']",
                           ).disabled = true;
                         },
                         actionHandler: (action, object) => {
@@ -305,19 +305,19 @@ export const component: ClosureComponent = (): Component => {
                           });
                         },
                       },
-                      formData
-                    )
+                      formData,
+                    ),
                   );
                   cb = () => comp;
                   overlay.open(
                     cb,
                     () =>
                       !comp.state["current"]["modified"] ||
-                      confirm("You have unsaved changes. Close anyway?")
+                      confirm("You have unsaved changes. Close anyway?"),
                   );
                 },
               },
-              "Show"
+              "Show",
             ),
           ];
         };
@@ -356,19 +356,19 @@ export const component: ClosureComponent = (): Component => {
                           });
                         },
                       },
-                      formData
-                    )
+                      formData,
+                    ),
                   );
                   cb = () => comp;
                   overlay.open(
                     cb,
                     () =>
                       !comp.state["current"]["modified"] ||
-                      confirm("You have unsaved changes. Close anyway?")
+                      confirm("You have unsaved changes. Close anyway?"),
                   );
                 },
               },
-              "New"
+              "New",
             ),
             m(
               "button.primary",
@@ -378,7 +378,7 @@ export const component: ClosureComponent = (): Component => {
                 onclick: (e) => {
                   if (
                     !confirm(
-                      `Deleting ${selected.size} permissions. Are you sure?`
+                      `Deleting ${selected.size} permissions. Are you sure?`,
                     )
                   )
                     return;
@@ -387,13 +387,13 @@ export const component: ClosureComponent = (): Component => {
                   e.target.disabled = true;
                   Promise.all(
                     Array.from(selected).map((id) =>
-                      store.deleteResource("permissions", id)
-                    )
+                      store.deleteResource("permissions", id),
+                    ),
                   )
                     .then((res) => {
                       notifications.push(
                         "success",
-                        `${res.length} permissions deleted`
+                        `${res.length} permissions deleted`,
                       );
                       store.setTimestamp(Date.now());
                     })
@@ -403,7 +403,7 @@ export const component: ClosureComponent = (): Component => {
                     });
                 },
               },
-              "Delete"
+              "Delete",
             ),
           ];
         };
@@ -421,7 +421,7 @@ export const component: ClosureComponent = (): Component => {
         m(
           "loading",
           { queries: [permissions, count] },
-          m(indexTableComponent, attrs)
+          m(indexTableComponent, attrs),
         ),
       ];
     },

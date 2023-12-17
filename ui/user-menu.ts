@@ -46,8 +46,8 @@ const component: ClosureComponent = (): Component => {
                 return false;
               },
             },
-            "Log out"
-          )
+            "Log out",
+          ),
         );
       } else {
         return m(
@@ -58,8 +58,8 @@ const component: ClosureComponent = (): Component => {
               href:
                 "#!/login?" + m.buildQueryString({ continue: m.route.get() }),
             },
-            "Log in"
-          )
+            "Log in",
+          ),
         );
       }
     },

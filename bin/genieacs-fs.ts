@@ -106,13 +106,13 @@ if (!cluster.worker) {
     });
 
   process.on("SIGINT", () => {
-    initPromise.finally(() => {
+    void initPromise.finally(() => {
       server.stop().then(exitWorkerGracefully).catch(exitWorkerUngracefully);
     });
   });
 
   process.on("SIGTERM", () => {
-    initPromise.finally(() => {
+    void initPromise.finally(() => {
       server.stop().then(exitWorkerGracefully).catch(exitWorkerUngracefully);
     });
   });

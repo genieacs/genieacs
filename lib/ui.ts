@@ -54,10 +54,10 @@ const getAuthorizer = memoize(
     const roles: string[] = JSON.parse(rolesStr);
     const allPermissions = localCache.getPermissions(snapshot);
     const permissionSets: PermissionSet[] = roles.map((r) =>
-      Object.values(allPermissions[r] || {})
+      Object.values(allPermissions[r] || {}),
     );
     return new Authorizer(permissionSets);
-  }
+  },
 );
 
 koa.on("error", (err, ctx) => {
@@ -90,7 +90,7 @@ koa.use(
 
       return true;
     },
-  })
+  }),
 );
 
 koa.use(async (ctx, next) => {
@@ -110,7 +110,7 @@ koa.use(async (ctx, next) => {
 
   ctx.state.authorizer = getAuthorizer(
     ctx.state.configSnapshot,
-    JSON.stringify(roles)
+    JSON.stringify(roles),
   );
 
   return next();
@@ -245,7 +245,7 @@ router.get("/", async (ctx) => {
         window.configSnapshot = ${JSON.stringify(ctx.state.configSnapshot)};
         window.genieacsVersion = ${JSON.stringify(VERSION)};
         window.username = ${JSON.stringify(
-          ctx.state.user ? ctx.state.user.username : ""
+          ctx.state.user ? ctx.state.user.username : "",
         )};
         window.permissionSets = ${JSON.stringify(permissionSets)};
       </script>
@@ -269,7 +269,7 @@ koa.use(
         [constants.BROTLI_PARAM_QUALITY]: 5,
       },
     },
-  })
+  }),
 );
 
 koa.use(router.routes());

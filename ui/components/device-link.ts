@@ -40,7 +40,7 @@ const component: ClosureComponent = (): Component => {
         return m(
           "a",
           { href: `#!/devices/${encodeURIComponent(deviceId)}` },
-          children
+          children,
         );
       } else {
         return children;

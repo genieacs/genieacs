@@ -88,7 +88,7 @@ export function parsePing(osPlatform: string, stdout: string): PingResult {
 
 export function ping(
   host: string,
-  callback: (err: Error, res?: PingResult, stdout?: string) => void
+  callback: (err: Error, res?: PingResult, stdout?: string) => void,
 ): void {
   // Validate input to prevent possible remote code execution
   // Credit to Alex Hordijk for reporting this vulnerability

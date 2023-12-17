@@ -35,16 +35,16 @@ export async function del(key: string): Promise<void> {
 export async function set(
   key: string,
   value: string,
-  ttl: number = MAX_CACHE_TTL
+  ttl: number = MAX_CACHE_TTL,
 ): Promise<void> {
   const timestamp = new Date();
   const expire = new Date(
-    timestamp.getTime() + CLOCK_SKEW_TOLERANCE + ttl * 1000
+    timestamp.getTime() + CLOCK_SKEW_TOLERANCE + ttl * 1000,
   );
   await collections.cache.replaceOne(
     { _id: key },
     { value, expire, timestamp },
-    { upsert: true }
+    { upsert: true },
   );
 }
 

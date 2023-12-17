@@ -78,7 +78,7 @@ export default class Authorizer {
 
   public getValidator(
     resourceType: string,
-    resource: unknown
+    resource: unknown,
   ): (mutationType: string, mutation?: any, args?: any) => boolean {
     if (this.validatorCache.has(resource))
       return this.validatorCache.get(resource);
@@ -99,7 +99,7 @@ export default class Authorizer {
     const validator = (
       mutationType: string,
       mutation: any,
-      any: any
+      any: any,
     ): boolean => {
       if (!validators.length) return false;
 
@@ -134,7 +134,7 @@ export default class Authorizer {
       const res = evaluate(
         validators.length > 1 ? ["OR", validators] : validators[0],
         valueFunction,
-        Date.now()
+        Date.now(),
       );
       return !Array.isArray(res) && !!res;
     };

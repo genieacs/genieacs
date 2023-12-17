@@ -106,7 +106,7 @@ const assetsPlugin = {
   setup(build) {
     build.onLoad({ filter: /\/build\/assets.ts$/ }, () => {
       const lines = Object.entries(ASSETS).map(
-        ([k, v]) => `export const ${k} = ${JSON.stringify(v)};`
+        ([k, v]) => `export const ${k} = ${JSON.stringify(v)};`,
       );
       return { contents: lines.join("\n") };
     });
@@ -194,11 +194,11 @@ async function init(): Promise<void> {
     fsAsync.mkdir(path.join(OUTPUT_DIR, "public")),
     fsAsync.writeFile(
       path.join(OUTPUT_DIR, "package.json"),
-      JSON.stringify(packageJson, null, 2)
+      JSON.stringify(packageJson, null, 2),
     ),
     fsAsync.writeFile(
       path.join(OUTPUT_DIR, "npm-shrinkwrap.json"),
-      JSON.stringify(npmShrinkwrap, null, 2)
+      JSON.stringify(npmShrinkwrap, null, 2),
     ),
   ]);
 }
@@ -228,9 +228,9 @@ async function copyStatic(): Promise<void> {
     files.map((f) =>
       fsAsync.copyFile(
         path.join(INPUT_DIR, f),
-        path.join(OUTPUT_DIR, filenames[f] || f)
-      )
-    )
+        path.join(OUTPUT_DIR, filenames[f] || f),
+      ),
+    ),
   );
 }
 
@@ -252,7 +252,7 @@ async function generateCss(): Promise<void> {
     if (v.entryPoint === "ui/css/app.css") {
       ASSETS.APP_CSS = path.relative(
         path.join(OUTPUT_DIR, "public"),
-        path.join(INPUT_DIR, k)
+        path.join(INPUT_DIR, k),
       );
       break;
     }
@@ -315,7 +315,7 @@ async function generateFrontendJs(): Promise<void> {
     if (v.entryPoint === "ui/app.ts") {
       ASSETS.APP_JS = path.relative(
         path.join(OUTPUT_DIR, "public"),
-        path.join(INPUT_DIR, k)
+        path.join(INPUT_DIR, k),
       );
       break;
     }
@@ -344,12 +344,12 @@ async function generateIconsSprite(): Promise<void> {
     symbols.push(generateSymbol(id, data));
   }
   const data = `<svg xmlns="http://www.w3.org/2000/svg">${symbols.join(
-    ""
+    "",
   )}</svg>`;
   ASSETS.ICONS_SVG = `icons-${assetHash(data)}.svg`;
   await fsAsync.writeFile(
     path.join(OUTPUT_DIR, "public", ASSETS.ICONS_SVG),
-    data
+    data,
   );
 }
 
@@ -357,10 +357,10 @@ init()
   .then(() =>
     Promise.all([
       Promise.all([generateIconsSprite(), copyStatic()]).then(
-        generateFrontendJs
+        generateFrontendJs,
       ),
       generateCss(),
-    ]).then(generateBackendJs)
+    ]).then(generateBackendJs),
   )
   .catch((err) => {
     process.stderr.write(err.stack + "\n");
