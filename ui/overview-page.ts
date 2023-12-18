@@ -60,13 +60,19 @@ export const component: ClosureComponent = (): Component => {
       document.title = "Overview - GenieACS";
       const children = [];
       for (const group of Object.values(GROUPS)) {
-        if (group["label"]) children.push(m("h1", group["label"]));
+        if (group["label"])
+          children.push(
+            m("h1", store.evaluateExpression(group["label"], null)),
+          );
 
         const groupChildren = [];
         for (const chartName of Object.values(group["charts"]) as string[]) {
           const chart = vnode.attrs["charts"][chartName];
           const chartChildren = [];
-          if (chart.label) chartChildren.push(m("h2", chart.label));
+          if (chart.label)
+            chartChildren.push(
+              m("h2", store.evaluateExpression(chart.label, null)),
+            );
 
           const attrs = {};
           attrs["chart"] = chart;

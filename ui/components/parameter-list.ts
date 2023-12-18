@@ -27,7 +27,7 @@ interface Attrs {
   device: FlatDevice;
   parameters: Record<
     string,
-    { type?: Expression; label: string; parameter: Expression }
+    { type?: Expression; label: Expression; parameter: Expression }
   >;
   deviceQuery: QueryResponse;
 }
@@ -62,7 +62,7 @@ const component: ClosureComponent<Attrs> = () => {
                 : "none";
             },
           },
-          m("th", parameter["label"]),
+          m("th", evaluateExpression(parameter.label, device)),
           m("td", p),
         );
       });

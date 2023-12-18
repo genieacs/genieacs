@@ -61,7 +61,9 @@ const component: ClosureComponent<Attrs> = () => {
         }
       }
 
-      const headers = Object.values(parameters).map((p) => m("th", p["label"]));
+      const headers = Object.values(parameters).map((p) =>
+        m("th", evaluateExpression(p["label"], device)),
+      );
 
       const thead = m("thead", m("tr", headers));
 
