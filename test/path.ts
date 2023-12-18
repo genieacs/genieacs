@@ -1,44 +1,45 @@
-import ava from "ava";
+import test from "node:test";
+import assert from "node:assert";
 import Path from "../lib/common/path";
 
-ava("parse", (t) => {
-  t.throws(() => Path.parse("."));
-  t.throws(() => Path.parse("a "));
-  t.throws(() => Path.parse(".a"));
-  t.throws(() => Path.parse("a."));
-  t.throws(() => Path.parse("a..b"));
-  t.throws(() => Path.parse("b*"));
-  t.throws(() => Path.parse("*b"));
-  t.throws(() => Path.parse("a.b c.d"));
-  t.throws(() => Path.parse("a["));
-  t.throws(() => Path.parse("a[b"));
-  t.throws(() => Path.parse("a[b:"));
-  t.throws(() => Path.parse('a[b:"waef]'));
-  t.notThrows(() => Path.parse("[]"));
-  t.notThrows(() => Path.parse("[a:]"));
-  t.notThrows(() => Path.parse("*"));
-  t.notThrows(() => Path.parse(""));
+void test("parse", () => {
+  assert.throws(() => Path.parse("."));
+  assert.throws(() => Path.parse("a "));
+  assert.throws(() => Path.parse(".a"));
+  assert.throws(() => Path.parse("a."));
+  assert.throws(() => Path.parse("a..b"));
+  assert.throws(() => Path.parse("b*"));
+  assert.throws(() => Path.parse("*b"));
+  assert.throws(() => Path.parse("a.b c.d"));
+  assert.throws(() => Path.parse("a["));
+  assert.throws(() => Path.parse("a[b"));
+  assert.throws(() => Path.parse("a[b:"));
+  assert.throws(() => Path.parse('a[b:"waef]'));
+  assert.doesNotThrow(() => Path.parse("[]"));
+  assert.doesNotThrow(() => Path.parse("[a:]"));
+  assert.doesNotThrow(() => Path.parse("*"));
+  assert.doesNotThrow(() => Path.parse(""));
 });
 
-ava("toString", (t) => {
+void test("toString", () => {
   const path1 = Path.parse('abc.[ abc : 123 , 123 : abc , 123: " abc "].123');
   const path2 = Path.parse('abc.[123:  " abc ",abc:123,123:abc].123');
-  t.is(path1.toString(), path2.toString());
+  assert.strictEqual(path1.toString(), path2.toString());
 });
 
-ava("slice", (t) => {
+void test("slice", () => {
   const path = Path.parse("a.*.b.[x:y].c");
   const sliced = path.slice(1, -1);
-  t.is(sliced.toString(), '*.b.[x:"y"]');
-  t.is(sliced.alias, 0b100);
-  t.is(sliced.wildcard, 0b1);
+  assert.strictEqual(sliced.toString(), '*.b.[x:"y"]');
+  assert.strictEqual(sliced.alias, 0b100);
+  assert.strictEqual(sliced.wildcard, 0b1);
 });
 
-ava("concat", (t) => {
+void test("concat", () => {
   const path1 = Path.parse("a");
   const path2 = Path.parse("*.[a:b]");
   const concat = path1.concat(path2);
-  t.is(concat.toString(), 'a.*.[a:"b"]');
-  t.is(concat.alias, 0b100);
-  t.is(concat.wildcard, 0b10);
+  assert.strictEqual(concat.toString(), 'a.*.[a:"b"]');
+  assert.strictEqual(concat.alias, 0b100);
+  assert.strictEqual(concat.wildcard, 0b10);
 });

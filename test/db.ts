@@ -1,11 +1,12 @@
-import ava from "ava";
+import test from "node:test";
+import assert from "node:assert";
 import { EJSON } from "bson";
 import { Filter } from "mongodb";
 import { stringify, parse } from "../lib/common/expression/parser";
 import { convertOldPrecondition } from "../lib/db/util";
 import { toMongoQuery } from "../lib/db/synth";
 
-ava("convertOldPrecondition", (t) => {
+void test("convertOldPrecondition", () => {
   const tests = [
     [{}, "true"],
     [{ test: "test" }, 'test = "test"'],
@@ -49,26 +50,24 @@ ava("convertOldPrecondition", (t) => {
     [{ _tags: [] }, "Invalid type"],
     [{ _tags: { $gt: "test" } }, "Invalid tag query"],
     [{ $nor: [] }, "Operator $nor not supported"],
-  ];
+  ] as [Filter<unknown>, string][];
 
-  t.plan(tests.length + 2 * shouldFailTests.length);
-  for (const test of tests) {
-    t.is(
-      stringify(convertOldPrecondition(test[0] as Record<string, unknown>)),
-      test[1],
+  for (const t of tests) {
+    assert.strictEqual(
+      stringify(convertOldPrecondition(t[0] as Record<string, unknown>)),
+      t[1],
     );
   }
 
-  for (const test of shouldFailTests) {
+  for (const t of shouldFailTests) {
     const func = (): void => {
-      convertOldPrecondition(test[0] as Record<string, unknown>);
+      convertOldPrecondition(t[0]);
     };
-    const error = t.throws(func, { instanceOf: Error });
-    t.is(error.message, test[1]);
+    assert.throws(func, new Error(t[1]));
   }
 });
 
-ava("toMongoQuery", async (t) => {
+void test("toMongoQuery", async () => {
   const queries: [string, Filter<unknown> | false][] = [
     ["true", {}],
     ["Tags.tag1 = true", { _tags: { $eq: "tag1" } }],
@@ -150,7 +149,7 @@ ava("toMongoQuery", async (t) => {
     const exp = parse(expStr);
     let query = toMongoQuery(exp, "devices");
     if (query) query = EJSON.serialize(query);
-    t.deepEqual(query, expect);
+    assert.deepStrictEqual(query, expect);
   }
 
   const failQueries: [any, string][] = [
@@ -162,7 +161,7 @@ ava("toMongoQuery", async (t) => {
 
   for (const [expStr, err] of failQueries) {
     const exp = parse(expStr);
-    t.throws(() => toMongoQuery(exp, "devices"), {
+    assert.throws(() => toMongoQuery(exp, "devices"), {
       message: err,
     });
   }

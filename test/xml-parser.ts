@@ -1,16 +1,17 @@
-import ava from "ava";
+import test from "node:test";
+import assert from "node:assert";
 import {
   parseXmlDeclaration,
   decodeEntities,
   parseXml,
 } from "../lib/xml-parser";
 
-ava("parseXmlDeclaration", (t) => {
+void test("parseXmlDeclaration", () => {
   const buf = Buffer.from(
     '<?xml version="1.0" encoding="UTF-8"?>\n<soap-env:Envelope />',
   );
   const attrs = parseXmlDeclaration(buf);
-  t.deepEqual(attrs, [
+  assert.deepStrictEqual(attrs, [
     {
       name: "version",
       namespace: "",
@@ -26,18 +27,18 @@ ava("parseXmlDeclaration", (t) => {
   ]);
 });
 
-ava("decodeEntities", (t) => {
-  t.is(
+void test("decodeEntities", () => {
+  assert.strictEqual(
     decodeEntities("&&amp;&lt;&gt;&quot;&apos;&gt;&#167;&#xd842;&#xDFB7;;"),
     "&&<>\"'>§𠮷;",
   );
 });
 
-ava("parse", (t) => {
+void test("parse", () => {
   const xml =
     '<?xml version="1.0"?>\n<a-b:c><d f="1<g>"/><!-- comment --><h >i</h></a-b:c>';
   const parsed = parseXml(xml);
-  t.deepEqual(parsed, {
+  assert.deepStrictEqual(parsed, {
     name: "root",
     namespace: "",
     localName: "root",

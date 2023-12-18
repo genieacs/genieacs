@@ -1,7 +1,8 @@
-import ava from "ava";
+import test from "node:test";
+import assert from "node:assert";
 import * as common from "../lib/util";
 
-ava("generateDeviceId", (t) => {
+void test("generateDeviceId", () => {
   const space = [" ", "%20"];
   const special = [";", "%3B"];
   const cases = [
@@ -28,13 +29,16 @@ ava("generateDeviceId", (t) => {
       `TestOUIWith${space[1]}_${special[1]}2912-TestSerialNumberWith${space[1]}_${special[1]}2912`,
     ],
   ];
-  t.plan(cases.length);
+
   for (const c of cases)
-    t.is(common.generateDeviceId(c[0] as Record<string, string>), c[1]);
+    assert.strictEqual(
+      common.generateDeviceId(c[0] as Record<string, string>),
+      c[1],
+    );
 });
 
-ava("escapeRegExp", (t) => {
-  t.is(
+void test("escapeRegExp", () => {
+  assert.strictEqual(
     common.escapeRegExp("\\ ^ $ * + ? . ( ) | { } [ ]"),
     "\\\\ \\^ \\$ \\* \\+ \\? \\. \\( \\) \\| \\{ \\} \\[ \\]",
   );
