@@ -13,7 +13,7 @@ const fsAsync = {
   copyFile: promisify(fs.copyFile),
   rename: promisify(fs.rename),
   chmod: promisify(fs.chmod),
-  stat: promisify(fs.stat),
+  lstat: promisify(fs.lstat),
   exists: promisify(fs.exists),
   rmdir: promisify(fs.rmdir),
   unlink: promisify(fs.unlink),
@@ -36,8 +36,8 @@ async function rmDir(dirPath: string): Promise<void> {
 
   for (const file of files) {
     const filePath = path.join(dirPath, file);
-    if ((await fsAsync.stat(filePath)).isFile()) await fsAsync.unlink(filePath);
-    else await rmDir(filePath);
+    if ((await fsAsync.lstat(filePath)).isDirectory()) await rmDir(filePath);
+    else await fsAsync.unlink(filePath);
   }
   await fsAsync.rmdir(dirPath);
 }
@@ -116,18 +116,9 @@ const inlineDepsPlugin = {
       "mithril",
       "yaml",
     ];
-    const sym = Symbol();
     build.onResolve({ filter: /^[^.]/ }, async (args) => {
-      if (args.pluginData === sym) return undefined;
       if (deps.some((d) => args.path.startsWith(d))) return undefined;
-      const res = await build.resolve(args.path, {
-        pluginData: sym,
-        importer: args.importer,
-        namespace: args.namespace,
-        resolveDir: args.resolveDir,
-        kind: args.kind,
-      });
-      return { path: res.path, sideEffects: false, external: true };
+      return { sideEffects: false, external: true };
     });
   },
 } as esbuild.Plugin;
@@ -268,7 +259,7 @@ async function generateBackendJs(): Promise<void> {
     const p = path.join(OUTPUT_DIR, "bin", bin);
     await fsAsync.rename(`${p}.js`, p);
     // Mark as executable
-    const mode = (await fsAsync.stat(p)).mode;
+    const mode = (await fsAsync.lstat(p)).mode;
     await fsAsync.chmod(p, mode | 73);
   }
 }
@@ -287,18 +278,19 @@ async function generateFrontendJs(): Promise<void> {
     entryPoints: ["ui/app.ts"],
     entryNames: "[dir]/[name]-[hash]",
     outdir: path.join(OUTPUT_DIR, "public"),
-
     plugins: [packageDotJsonPlugin, inlineDepsPlugin, assetsPlugin],
     metafile: true,
   });
 
   for (const [k, v] of Object.entries(res.metafile.outputs)) {
+    for (const imp of v.imports)
+      if (imp.external) throw new Error(`External import found: ${imp.path}`);
+
     if (v.entryPoint === "ui/app.ts") {
       ASSETS.APP_JS = path.relative(
         path.join(OUTPUT_DIR, "public"),
         path.join(INPUT_DIR, k),
       );
-      break;
     }
   }
 }
