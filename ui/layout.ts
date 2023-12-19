@@ -1,31 +1,12 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 import m, { ClosureComponent, Component } from "mithril";
-import menu from "./menu";
-import drawerComponent from "./drawer-component";
-import userMenu from "./user-menu";
-import adminMenu from "./admin-menu";
-import * as overlay from "./overlay";
+import menu from "./menu.ts";
+import drawerComponent from "./drawer-component.ts";
+import userMenu from "./user-menu.ts";
+import adminMenu from "./admin-menu.ts";
+import * as overlay from "./overlay.ts";
 import { version as VERSION } from "../package.json";
-import datalist from "./datalist";
-import { LOGO_SVG } from "../build/assets";
+import datalist from "./datalist.ts";
+import { LOGO_SVG } from "../build/assets.ts";
 
 const adminPages = [
   "presets",

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert";
-import Path from "../lib/common/path";
+import Path from "../lib/common/path.ts";
 
 void test("parse", () => {
   assert.throws(() => Path.parse("."));

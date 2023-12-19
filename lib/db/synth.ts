@@ -1,16 +1,16 @@
 import { Filter } from "mongodb";
 import { EJSON } from "bson";
-import { parseLikePattern } from "../common/expression/parser";
-import { Expression } from "../types";
-import { decodeTag } from "../util";
+import { parseLikePattern } from "../common/expression/parser.ts";
+import { Expression } from "../types.ts";
+import { decodeTag } from "../util.ts";
 import {
   SynthContextBase,
   likeDisjoint,
   likeImplies,
   Clause,
-} from "../common/expression/synth";
-import normalize from "../common/expression/normalize";
-import * as BI from "../common/expression/bigint";
+} from "../common/expression/synth.ts";
+import normalize from "../common/expression/normalize.ts";
+import * as BI from "../common/expression/bigint.ts";
 
 type Minterm = number[];
 

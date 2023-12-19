@@ -4,7 +4,7 @@ import {
   parseXmlDeclaration,
   decodeEntities,
   parseXml,
-} from "../lib/xml-parser";
+} from "../lib/xml-parser.ts";
 
 void test("parseXmlDeclaration", () => {
   const buf = Buffer.from(

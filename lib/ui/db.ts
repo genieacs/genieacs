@@ -1,33 +1,14 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import { encodeTag } from "../util";
-import { evaluate } from "../common/expression/util";
-import { Expression, Fault, Task } from "../types";
-import { collections, filesBucket } from "../db/db";
-import { convertOldPrecondition, optimizeProjection } from "../db/util";
-import * as MongoTypes from "../db/types";
-import { parse, parseList, stringify } from "../common/expression/parser";
-import { toMongoQuery } from "../db/synth";
+import { Script } from "node:vm";
+import { Readable } from "node:stream";
 import { Collection, ObjectId, WithoutId } from "mongodb";
-import { Script } from "vm";
-import { Readable } from "stream";
+import { encodeTag } from "../util.ts";
+import { evaluate } from "../common/expression/util.ts";
+import { Expression, Fault, Task } from "../types.ts";
+import { collections, filesBucket } from "../db/db.ts";
+import { convertOldPrecondition, optimizeProjection } from "../db/util.ts";
+import * as MongoTypes from "../db/types.ts";
+import { parse, parseList, stringify } from "../common/expression/parser.ts";
+import { toMongoQuery } from "../db/synth.ts";
 
 function processDeviceProjection(
   projection: Record<string, 1>,

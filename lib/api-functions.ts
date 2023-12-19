@@ -1,24 +1,5 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 import { ObjectId } from "mongodb";
-import { collections } from "./db/db";
+import { collections } from "./db/db.ts";
 import {
   deleteConfig,
   deleteFault as dbDeleteFault,
@@ -35,25 +16,25 @@ import {
   putProvision,
   putUser,
   putVirtualParameter,
-} from "./ui/db";
-import * as common from "./util";
-import * as cache from "./cache";
-import { acquireLock, getToken, releaseLock } from "./lock";
+} from "./ui/db.ts";
+import * as common from "./util.ts";
+import * as cache from "./cache.ts";
+import { acquireLock, getToken, releaseLock } from "./lock.ts";
 import {
   getRevision,
   getConfig,
   getConfigExpression,
   getUsers,
-} from "./ui/local-cache";
+} from "./ui/local-cache.ts";
 import {
   httpConnectionRequest,
   udpConnectionRequest,
-} from "./connection-request";
-import { Expression, Task } from "./types";
-import { evaluate } from "./common/expression/util";
-import { hashPassword } from "./auth";
-import { flattenDevice } from "./ui/db";
-import { ResourceLockedError } from "./common/errors";
+} from "./connection-request.ts";
+import { Expression, Task } from "./types.ts";
+import { evaluate } from "./common/expression/util.ts";
+import { hashPassword } from "./auth.ts";
+import { flattenDevice } from "./ui/db.ts";
+import { ResourceLockedError } from "./common/errors.ts";
 
 export async function connectionRequest(
   deviceId: string,

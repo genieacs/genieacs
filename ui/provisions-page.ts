@@ -1,35 +1,16 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 import { ClosureComponent, Component, Children } from "mithril";
-import { m } from "./components";
-import config from "./config";
-import filterComponent from "./filter-component";
-import * as store from "./store";
-import * as notifications from "./notifications";
-import memoize from "../lib/common/memoize";
-import putFormComponent from "./put-form-component";
-import indexTableComponent from "./index-table-component";
-import * as overlay from "./overlay";
-import * as smartQuery from "./smart-query";
-import { map, parse, stringify } from "../lib/common/expression/parser";
-import { loadCodeMirror } from "./dynamic-loader";
+import { m } from "./components.ts";
+import config from "./config.ts";
+import filterComponent from "./filter-component.ts";
+import * as store from "./store.ts";
+import * as notifications from "./notifications.ts";
+import memoize from "../lib/common/memoize.ts";
+import putFormComponent from "./put-form-component.ts";
+import indexTableComponent from "./index-table-component.ts";
+import * as overlay from "./overlay.ts";
+import * as smartQuery from "./smart-query.ts";
+import { map, parse, stringify } from "../lib/common/expression/parser.ts";
+import { loadCodeMirror } from "./dynamic-loader.ts";
 
 const PAGE_SIZE = config.ui.pageSize || 10;
 

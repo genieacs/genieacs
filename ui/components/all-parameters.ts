@@ -1,32 +1,13 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 import { ClosureComponent } from "mithril";
-import { m } from "../components";
-import * as taskQueue from "../task-queue";
-import { parse } from "../../lib/common/expression/parser";
-import memoize from "../../lib/common/memoize";
-import { getIcon } from "../icons";
-import { QueryResponse, evaluateExpression } from "../store";
-import debounce from "../../lib/common/debounce";
-import { Expression } from "../../lib/types";
-import { FlatDevice } from "../../lib/ui/db";
+import { m } from "../components.ts";
+import * as taskQueue from "../task-queue.ts";
+import { parse } from "../../lib/common/expression/parser.ts";
+import memoize from "../../lib/common/memoize.ts";
+import { getIcon } from "../icons.ts";
+import { QueryResponse, evaluateExpression } from "../store.ts";
+import debounce from "../../lib/common/debounce.ts";
+import { Expression } from "../../lib/types.ts";
+import { FlatDevice } from "../../lib/ui/db.ts";
 
 const memoizedParse = memoize(parse);
 

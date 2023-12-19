@@ -9,7 +9,9 @@
     "alwaysStrict": true,
     "noImplicitReturns": true,
     "strictFunctionTypes": true,
-    "isolatedModules": true
+    "isolatedModules": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true
   },
   "include": [
     "./bin/*.ts",

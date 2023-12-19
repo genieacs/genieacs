@@ -1,29 +1,10 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import path from "path";
-import fs from "fs";
-import { createHash } from "crypto";
-import { promisify } from "util";
+import path from "node:path";
+import fs from "node:fs";
+import { createHash } from "node:crypto";
+import { promisify } from "node:util";
 import * as esbuild from "esbuild";
 import { optimize } from "svgo";
-import * as xmlParser from "../lib/xml-parser";
+import * as xmlParser from "../lib/xml-parser.ts";
 
 const fsAsync = {
   readdir: promisify(fs.readdir),

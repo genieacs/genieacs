@@ -1,22 +1,3 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 import m, {
   Static,
   Attributes,
@@ -26,20 +7,20 @@ import m, {
   ClosureComponent,
   Vnode,
 } from "mithril";
-import parameter from "./components/parameter";
-import parameterList from "./components/parameter-list";
-import parameterTable from "./components/parameter-table";
-import overviewDot from "./components/overview-dot";
-import container from "./components/container";
-import summonButton from "./components/summon-button";
-import deviceFaults from "./components/device-faults";
-import allParameters from "./components/all-parameters";
-import deviceActions from "./components/device-actions";
-import tags from "./components/tags";
-import ping from "./components/ping";
-import deviceLink from "./components/device-link";
-import longTextComponent from "./long-text-component";
-import loading from "./components/loading";
+import parameter from "./components/parameter.ts";
+import parameterList from "./components/parameter-list.ts";
+import parameterTable from "./components/parameter-table.ts";
+import overviewDot from "./components/overview-dot.ts";
+import container from "./components/container.ts";
+import summonButton from "./components/summon-button.ts";
+import deviceFaults from "./components/device-faults.ts";
+import allParameters from "./components/all-parameters.ts";
+import deviceActions from "./components/device-actions.ts";
+import tags from "./components/tags.ts";
+import ping from "./components/ping.ts";
+import deviceLink from "./components/device-link.ts";
+import longTextComponent from "./long-text-component.ts";
+import loading from "./components/loading.ts";
 
 const comps = {
   parameter,

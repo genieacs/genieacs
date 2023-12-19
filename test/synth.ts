@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert";
-import { minimize, unionDiff } from "../lib/common/expression/synth";
-import { parse, stringify } from "../lib/common/expression/parser";
 import initSqlJs from "sql.js/dist/sql-asm.js";
+import { minimize, unionDiff } from "../lib/common/expression/synth.ts";
+import { parse, stringify } from "../lib/common/expression/parser.ts";
 
 const STRING_VALUES = [null, "", "a", "ab", "ab10", "ab-10"];
 const DECIMAL_VALUES = [null, 0, -10, 10];

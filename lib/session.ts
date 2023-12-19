@@ -1,31 +1,12 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import * as device from "./device";
-import * as sandbox from "./sandbox";
-import * as localCache from "./cwmp/local-cache";
-import * as defaultProvisions from "./default-provisions";
-import { estimateGpnCount } from "./gpn-heuristic";
-import Path from "./common/path";
-import PathSet from "./common/path-set";
-import VersionedMap from "./versioned-map";
-import InstanceSet from "./instance-set";
+import * as device from "./device.ts";
+import * as sandbox from "./sandbox.ts";
+import * as localCache from "./cwmp/local-cache.ts";
+import * as defaultProvisions from "./default-provisions.ts";
+import { estimateGpnCount } from "./gpn-heuristic.ts";
+import Path from "./common/path.ts";
+import PathSet from "./common/path-set.ts";
+import VersionedMap from "./versioned-map.ts";
+import InstanceSet from "./instance-set.ts";
 import {
   Attributes,
   SessionContext,
@@ -57,10 +38,10 @@ import {
   FactoryReset,
   AddObjectResponse,
   GetParameterValuesResponse,
-} from "./types";
-import { getRequestOrigin } from "./forwarded";
-import * as logger from "./logger";
-import { encodeTag } from "./util";
+} from "./types.ts";
+import { getRequestOrigin } from "./forwarded.ts";
+import * as logger from "./logger.ts";
+import { encodeTag } from "./util.ts";
 
 const VALID_PARAM_TYPES = new Set([
   "xsd:int",

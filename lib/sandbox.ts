@@ -1,30 +1,11 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import * as vm from "vm";
+import * as vm from "node:vm";
 import seedrandom from "seedrandom";
-import * as device from "./device";
-import * as extensions from "./extensions";
-import * as logger from "./logger";
-import * as scheduling from "./scheduling";
-import Path from "./common/path";
-import { Fault, SessionContext, ScriptResult } from "./types";
+import * as device from "./device.ts";
+import * as extensions from "./extensions.ts";
+import * as logger from "./logger.ts";
+import * as scheduling from "./scheduling.ts";
+import Path from "./common/path.ts";
+import { Fault, SessionContext, ScriptResult } from "./types.ts";
 
 // Used for throwing to exit user script and commit
 const COMMIT = Symbol();

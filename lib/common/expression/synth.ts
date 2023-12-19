@@ -1,7 +1,7 @@
 import { espresso, complement, tautology } from "espresso-iisojs";
-import { Expression } from "../../types";
-import normalize from "./normalize";
-import { map, parseLikePattern } from "./parser";
+import { Expression } from "../../types.ts";
+import normalize from "./normalize.ts";
+import { map, parseLikePattern } from "./parser.ts";
 
 type Minterm = number[];
 

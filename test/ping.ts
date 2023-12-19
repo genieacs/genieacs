@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert";
-import { parsePing } from "../lib/ping";
+import { parsePing } from "../lib/ping.ts";
 
 void test("linux Case-1", () => {
   const platform = "linux";

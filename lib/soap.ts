@@ -1,30 +1,11 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 import {
   parseXml,
   Element,
   parseAttrs,
   encodeEntities,
   decodeEntities,
-} from "./xml-parser";
-import memoize from "./common/memoize";
+} from "./xml-parser.ts";
+import memoize from "./common/memoize.ts";
 import { version as VERSION } from "../package.json";
 import {
   InformRequest,
@@ -48,8 +29,8 @@ import {
   GetRPCMethodsRequest,
   RequestDownloadRequest,
   AcsResponse,
-} from "./types";
-import Path from "./common/path";
+} from "./types.ts";
+import Path from "./common/path.ts";
 
 const SERVER_NAME = `GenieACS/${VERSION}`;
 

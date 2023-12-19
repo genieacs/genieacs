@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert";
-import * as common from "../lib/util";
+import * as common from "../lib/util.ts";
 
 void test("generateDeviceId", () => {
   const space = [" ", "%20"];

@@ -1,38 +1,23 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import * as zlib from "zlib";
-import * as crypto from "crypto";
-import { Socket } from "net";
-import * as auth from "./auth";
-import * as config from "./config";
-import { generateDeviceId, once, setTimeoutPromise } from "./util";
-import * as soap from "./soap";
-import * as session from "./session";
+import * as zlib from "node:zlib";
+import * as crypto from "node:crypto";
+import { Socket } from "node:net";
+import { IncomingMessage, ServerResponse } from "node:http";
+import { pipeline, Readable } from "node:stream";
+import { promisify } from "node:util";
+import { decode, encodingExists } from "iconv-lite";
+import * as auth from "./auth.ts";
+import * as config from "./config.ts";
+import { generateDeviceId, once, setTimeoutPromise } from "./util.ts";
+import * as soap from "./soap.ts";
+import * as session from "./session.ts";
 import {
   evaluateAsync,
   evaluate,
   extractParams,
-} from "./common/expression/util";
-import * as cache from "./cache";
-import * as lock from "./lock";
-import * as localCache from "./cwmp/local-cache";
+} from "./common/expression/util.ts";
+import * as cache from "./cache.ts";
+import * as lock from "./lock.ts";
+import * as localCache from "./cwmp/local-cache.ts";
 import {
   clearTasks,
   deleteFault,
@@ -44,11 +29,11 @@ import {
   saveDevice,
   saveFault,
   saveOperation,
-} from "./cwmp/db";
-import * as logger from "./logger";
-import * as scheduling from "./scheduling";
-import Path from "./common/path";
-import * as extensions from "./extensions";
+} from "./cwmp/db.ts";
+import * as logger from "./logger.ts";
+import * as scheduling from "./scheduling.ts";
+import Path from "./common/path.ts";
+import * as extensions from "./extensions.ts";
 import {
   SessionContext,
   AcsRequest,
@@ -60,15 +45,11 @@ import {
   Preset,
   GetRPCMethodsResponse,
   CpeFault,
-} from "./types";
-import { IncomingMessage, ServerResponse } from "http";
-import { pipeline, Readable } from "stream";
-import { promisify } from "util";
-import { decode, encodingExists } from "iconv-lite";
-import { parseXmlDeclaration } from "./xml-parser";
-import * as debug from "./debug";
-import { getRequestOrigin } from "./forwarded";
-import { getSocketEndpoints } from "./server";
+} from "./types.ts";
+import { parseXmlDeclaration } from "./xml-parser.ts";
+import * as debug from "./debug.ts";
+import { getRequestOrigin } from "./forwarded.ts";
+import { getSocketEndpoints } from "./server.ts";
 
 const gzipPromisified = promisify(zlib.gzip);
 const deflatePromisified = promisify(zlib.deflate);

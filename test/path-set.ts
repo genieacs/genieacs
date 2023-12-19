@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert";
-import Path from "../lib/common/path";
-import PathSet from "../lib/common/path-set";
+import Path from "../lib/common/path.ts";
+import PathSet from "../lib/common/path-set.ts";
 
 void test("depth", () => {
   const pathSet = new PathSet();

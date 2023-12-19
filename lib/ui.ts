@@ -1,23 +1,4 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import { constants } from "zlib";
+import { constants } from "node:zlib";
 import Koa from "koa";
 import Router from "koa-router";
 import * as jwt from "jsonwebtoken";
@@ -25,17 +6,17 @@ import koaStatic from "koa-static";
 import koaCompress from "koa-compress";
 import koaBodyParser from "koa-bodyparser";
 import koaJwt from "koa-jwt";
-import * as config from "./config";
-import api from "./ui/api";
-import Authorizer from "./common/authorizer";
-import * as logger from "./logger";
-import * as localCache from "./ui/local-cache";
-import { PermissionSet } from "./types";
-import { authLocal } from "./api-functions";
-import * as init from "./init";
+import * as config from "./config.ts";
+import api from "./ui/api.ts";
+import Authorizer from "./common/authorizer.ts";
+import * as logger from "./logger.ts";
+import * as localCache from "./ui/local-cache.ts";
+import { PermissionSet } from "./types.ts";
+import { authLocal } from "./api-functions.ts";
+import * as init from "./init.ts";
 import { version as VERSION } from "../package.json";
-import memoize from "./common/memoize";
-import { APP_JS, APP_CSS, FAVICON_PNG } from "../build/assets";
+import memoize from "./common/memoize.ts";
+import { APP_JS, APP_CSS, FAVICON_PNG } from "../build/assets.ts";
 
 declare module "koa" {
   interface Request {

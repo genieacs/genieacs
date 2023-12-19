@@ -2,9 +2,9 @@ import test from "node:test";
 import assert from "node:assert";
 import { EJSON } from "bson";
 import { Filter } from "mongodb";
-import { stringify, parse } from "../lib/common/expression/parser";
-import { convertOldPrecondition } from "../lib/db/util";
-import { toMongoQuery } from "../lib/db/synth";
+import { stringify, parse } from "../lib/common/expression/parser.ts";
+import { convertOldPrecondition } from "../lib/db/util.ts";
+import { toMongoQuery } from "../lib/db/synth.ts";
 
 void test("convertOldPrecondition", () => {
   const tests = [

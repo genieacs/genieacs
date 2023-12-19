@@ -1,12 +1,12 @@
-import * as vm from "vm";
-import * as crypto from "crypto";
-import * as config from "../config";
-import { collections } from "../db/db";
-import { convertOldPrecondition } from "../db/util";
-import * as logger from "../logger";
-import * as scheduling from "../scheduling";
-import * as expression from "../common/expression/util";
-import { parse } from "../common/expression/parser";
+import * as vm from "node:vm";
+import * as crypto from "node:crypto";
+import * as config from "../config.ts";
+import { collections } from "../db/db.ts";
+import { convertOldPrecondition } from "../db/util.ts";
+import * as logger from "../logger.ts";
+import * as scheduling from "../scheduling.ts";
+import * as expression from "../common/expression/util.ts";
+import { parse } from "../common/expression/parser.ts";
 import {
   Preset,
   Expression,
@@ -14,8 +14,8 @@ import {
   VirtualParameters,
   Files,
   Config,
-} from "../types";
-import { LocalCache } from "../local-cache";
+} from "../types.ts";
+import { LocalCache } from "../local-cache.ts";
 
 interface Snapshot {
   presets: Preset[];

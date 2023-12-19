@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert";
 import * as yaml from "yaml";
-import { stringify } from "../lib/common/yaml";
+import { stringify } from "../lib/common/yaml.ts";
 
 import testCases from "./yaml-tests.json";
 

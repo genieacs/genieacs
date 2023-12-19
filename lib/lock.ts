@@ -1,4 +1,4 @@
-import { collections } from "./db/db";
+import { collections } from "./db/db.ts";
 
 const CLOCK_SKEW_TOLERANCE = 30000;
 

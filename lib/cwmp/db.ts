@@ -1,16 +1,16 @@
-import { decodeTag, encodeTag, escapeRegExp } from "../util";
+import { ObjectId } from "mongodb";
+import { decodeTag, encodeTag, escapeRegExp } from "../util.ts";
 import {
   DeviceData,
   Attributes,
   SessionFault,
   Task,
   Operation,
-} from "../types";
-import Path from "../common/path";
-import { collections } from "../db/db";
-import { optimizeProjection } from "../db/util";
-import * as MongoTypes from "../db/types";
-import { ObjectId } from "mongodb";
+} from "../types.ts";
+import Path from "../common/path.ts";
+import { collections } from "../db/db.ts";
+import { optimizeProjection } from "../db/util.ts";
+import * as MongoTypes from "../db/types.ts";
 
 const INVALID_PATH_SUFFIX = "__invalid";
 

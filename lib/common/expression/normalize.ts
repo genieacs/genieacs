@@ -1,7 +1,7 @@
-import * as BI from "./bigint";
-import { Expression } from "../../types";
-import { map } from "./parser";
-import { and, evaluateCallback } from "./util";
+import * as BI from "./bigint.ts";
+import { Expression } from "../../types.ts";
+import { map } from "./parser.ts";
+import { and, evaluateCallback } from "./util.ts";
 
 const ZERO = BI.BigInt(0);
 const ONE = BI.BigInt(1);

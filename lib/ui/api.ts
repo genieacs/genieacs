@@ -1,41 +1,22 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import { PassThrough } from "stream";
+import { PassThrough } from "node:stream";
 import Router from "koa-router";
 import { ObjectId } from "mongodb";
-import * as db from "./db";
-import * as apiFunctions from "../api-functions";
-import { evaluate, and, extractParams } from "../common/expression/util";
-import { parse } from "../common/expression/parser";
-import * as logger from "../logger";
-import { getConfig } from "../ui/local-cache";
-import { Expression, Task } from "../types";
-import { generateSalt, hashPassword } from "../auth";
-import { del } from "../cache";
-import Authorizer from "../common/authorizer";
-import { ping } from "../ping";
-import { decodeTag } from "../util";
-import { stringify as yamlStringify } from "../common/yaml";
-import { ResourceLockedError } from "../common/errors";
-import { acquireLock, releaseLock } from "../lock";
-import { collections } from "../db/db";
+import * as db from "./db.ts";
+import * as apiFunctions from "../api-functions.ts";
+import { evaluate, and, extractParams } from "../common/expression/util.ts";
+import { parse } from "../common/expression/parser.ts";
+import * as logger from "../logger.ts";
+import { getConfig } from "../ui/local-cache.ts";
+import { Expression, Task } from "../types.ts";
+import { generateSalt, hashPassword } from "../auth.ts";
+import { del } from "../cache.ts";
+import Authorizer from "../common/authorizer.ts";
+import { ping } from "../ping.ts";
+import { decodeTag } from "../util.ts";
+import { stringify as yamlStringify } from "../common/yaml.ts";
+import { ResourceLockedError } from "../common/errors.ts";
+import { acquireLock, releaseLock } from "../lock.ts";
+import { collections } from "../db/db.ts";
 
 const router = new Router();
 export default router;

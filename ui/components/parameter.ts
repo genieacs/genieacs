@@ -1,30 +1,11 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 import { ClosureComponent, Component, VnodeDOM } from "mithril";
-import { m } from "../components";
-import * as taskQueue from "../task-queue";
-import * as store from "../store";
-import { evaluate } from "../../lib/common/expression/util";
-import memoize from "../../lib/common/memoize";
-import timeAgo from "../timeago";
-import { getIcon } from "../icons";
+import { m } from "../components.ts";
+import * as taskQueue from "../task-queue.ts";
+import * as store from "../store.ts";
+import { evaluate } from "../../lib/common/expression/util.ts";
+import memoize from "../../lib/common/memoize.ts";
+import timeAgo from "../timeago.ts";
+import { getIcon } from "../icons.ts";
 
 const evaluateParam = memoize((exp, obj, now: number) => {
   let timestamp = now;

@@ -1,30 +1,11 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import * as crypto from "crypto";
-import * as dgram from "dgram";
-import * as http from "http";
-import { evaluateAsync } from "./common/expression/util";
-import { Expression } from "./types";
-import * as auth from "./auth";
-import * as extensions from "./extensions";
-import * as debug from "./debug";
+import * as crypto from "node:crypto";
+import * as dgram from "node:dgram";
+import * as http from "node:http";
+import { evaluateAsync } from "./common/expression/util.ts";
+import { Expression } from "./types.ts";
+import * as auth from "./auth.ts";
+import * as extensions from "./extensions.ts";
+import * as debug from "./debug.ts";
 
 async function extractAuth(
   exp: Expression,

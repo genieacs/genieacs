@@ -1,10 +1,10 @@
-import * as crypto from "crypto";
-import * as config from "../config";
-import { collections } from "../db/db";
-import * as expression from "../common/expression/util";
-import { parse } from "../common/expression/parser";
-import { Expression, Users, Permissions, Config, UiConfig } from "../types";
-import { LocalCache } from "../local-cache";
+import * as crypto from "node:crypto";
+import * as config from "../config.ts";
+import { collections } from "../db/db.ts";
+import * as expression from "../common/expression/util.ts";
+import { parse } from "../common/expression/parser.ts";
+import { Expression, Users, Permissions, Config, UiConfig } from "../types.ts";
+import { LocalCache } from "../local-cache.ts";
 
 interface Snapshot {
   permissions: Permissions;

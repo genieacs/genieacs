@@ -1,32 +1,13 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 import m from "mithril";
-import { stringify } from "../lib/common/expression/parser";
-import { or, and, evaluate } from "../lib/common/expression/util";
-import memoize from "../lib/common/memoize";
-import { Expression, Task } from "../lib/types";
-import * as notifications from "./notifications";
-import { configSnapshot, genieacsVersion } from "./config";
-import { QueueTask } from "./task-queue";
-import { PingResult } from "../lib/ping";
-import { unionDiff, covers } from "../lib/common/expression/synth";
+import { stringify } from "../lib/common/expression/parser.ts";
+import { or, and, evaluate } from "../lib/common/expression/util.ts";
+import memoize from "../lib/common/memoize.ts";
+import { Expression, Task } from "../lib/types.ts";
+import * as notifications from "./notifications.ts";
+import { configSnapshot, genieacsVersion } from "./config.ts";
+import { QueueTask } from "./task-queue.ts";
+import { PingResult } from "../lib/ping.ts";
+import { unionDiff, covers } from "../lib/common/expression/synth.ts";
 
 const memoizedStringify = memoize(stringify);
 const memoizedEvaluate = memoize(evaluate);

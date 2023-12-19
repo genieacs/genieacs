@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert";
-import Path from "../lib/common/path";
-import * as device from "../lib/device";
-import PathSet from "../lib/common/path-set";
-import VersionedMap from "../lib/versioned-map";
-import { Attributes } from "../lib/types";
+import Path from "../lib/common/path.ts";
+import * as device from "../lib/device.ts";
+import PathSet from "../lib/common/path-set.ts";
+import VersionedMap from "../lib/versioned-map.ts";
+import { Attributes } from "../lib/types.ts";
 
 void test("getAliasDeclarations", () => {
   const path = Path.parse("a.[aa:10,bb.[aaa:100].cc:1].b");

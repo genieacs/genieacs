@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert";
-import { randomBytes } from "crypto";
-import * as auth from "../lib/auth";
+import { randomBytes } from "node:crypto";
+import * as auth from "../lib/auth.ts";
 
 void test("digest", () => {
   const username = "test";

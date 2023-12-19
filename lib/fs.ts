@@ -1,30 +1,11 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import * as url from "url";
-import { IncomingMessage, ServerResponse } from "http";
-import { PassThrough, pipeline, Readable } from "stream";
-import { createHash } from "crypto";
-import { filesBucket, collections } from "./db/db";
-import * as logger from "./logger";
-import { getRequestOrigin } from "./forwarded";
-import memoize from "./common/memoize";
+import * as url from "node:url";
+import { IncomingMessage, ServerResponse } from "node:http";
+import { PassThrough, pipeline, Readable } from "node:stream";
+import { createHash } from "node:crypto";
+import { filesBucket, collections } from "./db/db.ts";
+import * as logger from "./logger.ts";
+import { getRequestOrigin } from "./forwarded.ts";
+import memoize from "./common/memoize.ts";
 
 const getFile = memoize(
   async (

@@ -1,5 +1,5 @@
 import { ObjectId } from "mongodb";
-import { Expression, FaultStruct } from "../types";
+import { Expression, FaultStruct } from "../types.ts";
 
 export interface Fault {
   _id: string;

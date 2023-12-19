@@ -1,5 +1,5 @@
-import { Expression } from "../types";
-import { encodeTag } from "../util";
+import { Expression } from "../types.ts";
+import { encodeTag } from "../util.ts";
 
 // Optimize projection by removing overlaps
 // This can modify the object
