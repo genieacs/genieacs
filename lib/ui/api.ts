@@ -740,16 +740,16 @@ router.put("/users/:id/password", async (ctx) => {
     return void (ctx.status = 403);
   }
 
-  const filter = and(authorizer.getFilter("users", 3), [
-    "=",
-    ["PARAM", RESOURCE_IDS.users],
-    username,
-  ]);
-  const { value: res } = await db.query("users", filter).next();
-  if (!res) return void (ctx.status = 404);
-
   const newPassword = ctx.request.body.newPassword;
+
   if (ctx.state.user) {
+    const filter = and(authorizer.getFilter("users", 3), [
+      "=",
+      ["PARAM", RESOURCE_IDS.users],
+      username,
+    ]);
+    const { value: res } = await db.query("users", filter).next();
+    if (!res) return void (ctx.status = 404);
     const validate = authorizer.getValidator("users", res);
     if (!validate("password", { password: newPassword })) {
       logUnauthorizedWarning(log);
