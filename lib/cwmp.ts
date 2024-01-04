@@ -876,6 +876,8 @@ async function sendAcsRequest(
   if (!acsRequest)
     return writeResponse(sessionContext, soap.response(null), true);
 
+  metricsExporter.acsRequestType.labels({ type: acsRequest.name || '<empty>' }).inc()
+  
   if (acsRequest.name === "Download") {
     acsRequest.fileSize = 0;
     if (!acsRequest.url) {
@@ -1616,6 +1618,8 @@ async function listenerAsync(
     );
   }
 
+  metricsExporter.cpeRequestType.labels({ type: rpc.cpeRequest?.name || '<empty>' }).inc()
+    
   if (isNewSession && rpc.cpeRequest?.name !== "Inform") {
     await new Promise((resolve) => setTimeout(resolve, 100));
     const sessionContextString = await cache.pop(`session_${sessionId}`);
