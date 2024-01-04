@@ -18,6 +18,7 @@
  */
 
 
+import * as logger from "./logger";
 import * as config from "./config";
 import * as redisClient from './redis'
 
@@ -84,7 +85,16 @@ export async function releaseLock(
 ): Promise<void> {
   const currentToken = await redisClient.get(lockName);
   let deletedCount = 0;
-  if (currentToken === token)
+  if (currentToken === token) {
     deletedCount = await redisClient.del(lockName);
-  if (deletedCount !== 1) throw new Error(`Lock ${lockName} expired`);
+    if (
+      (typeof deletedCount !== "number") || (deletedCount < 1)
+    ) throw new Error(`Lock ${lockName} expired`);
+    else return;
+  } else {
+    logger.warn({
+      message:`Lock ${lockName} unexistent or not owned`
+    });
+    return;
+  }
 }

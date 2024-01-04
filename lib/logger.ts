@@ -22,6 +22,7 @@ import * as os from "os";
 
 import * as config from "./config";
 import { getRequestOrigin } from "./forwarded";
+import * as redisClient from './redis'
 import {
   SessionContext,
   AcsRequest,
@@ -79,6 +80,7 @@ let logStream = fs.createWriteStream(null, { fd: process.stderr.fd });
 let logStat = fs.fstatSync(logStream.fd);
 let accessLogStream = fs.createWriteStream(null, { fd: process.stdout.fd });
 let accessLogStat = fs.fstatSync(accessLogStream.fd);
+let deviceIdsToLog = new Set<string>();
 
 // Reopen if original files have been moved (e.g. logrotate)
 function reopen(): void {
@@ -165,6 +167,8 @@ export function init(service: string, version: string): void {
   if (LOG_FILE || ACCESS_LOG_FILE)
     // Can't use setInterval as we need all workers to cehck at the same time
     setTimeout(reopen, REOPEN_EVERY - (Date.now() % REOPEN_EVERY)).unref();
+  
+  setInterval(reevaluteDeviceIdsToLog, 30000).unref();
 }
 
 export function close(): void {
@@ -248,6 +252,15 @@ export function flatten(
     if (v == null) delete details[k];
 
   return details;
+}
+
+function reevaluteDeviceIdsToLog(): void {
+  if (!redisClient.online()) return;
+  redisClient.getList("cwmp_device_ids_to_log").then((list) => {
+    deviceIdsToLog = new Set<string>(list);
+  }).catch(() => {
+    deviceIdsToLog = new Set<string>();
+  })
 }
 
 function formatJson(
@@ -341,6 +354,11 @@ export function error(details: Record<string, unknown>): void {
 
 export function accessLog(details: Record<string, unknown>): void {
   details.timestamp = new Date().toISOString();
+  if ((deviceIdsToLog.size > 0) && details && details.sessionContext) {
+    const sessionContext = details.sessionContext as SessionContext;
+    if (deviceIdsToLog.has(sessionContext.deviceId))
+      info(details);
+  }
   if (ACCESS_LOG_FORMAT === "json") {
     Object.assign(details, defaultMeta);
     accessLogStream.write(formatJson(details, ACCESS_LOG_SYSTEMD));
