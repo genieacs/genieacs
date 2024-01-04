@@ -174,6 +174,9 @@ async function writeResponse(
   res,
   close = false
 ): Promise<void> {
+
+  metricsExporter.acsRequestType.labels({ type: sessionContext?.rpcRequest?.name || '<empty>' }).inc()
+
   // Close connection after last request in session
   if (close) res.headers["Connection"] = "close";
 
@@ -875,8 +878,6 @@ async function sendAcsRequest(
 ): Promise<void> {
   if (!acsRequest)
     return writeResponse(sessionContext, soap.response(null), true);
-
-  metricsExporter.acsRequestType.labels({ type: acsRequest.name || '<empty>' }).inc()
   
   if (acsRequest.name === "Download") {
     acsRequest.fileSize = 0;
