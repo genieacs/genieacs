@@ -38,6 +38,10 @@ export async function del(key: string): Promise<number> {
   return Client.del(key);
 }
 
+export async function getList(key: string): Promise<string[]> {
+  return Client.lRange(key, 0, -1);
+}
+
 export async function setWithExpire(
   key: string,
   value: string,
