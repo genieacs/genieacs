@@ -74,7 +74,7 @@
     "yaml": "^1.10.2"
   },
   "engines": {
-    "node": ">=12.13.0"
+    "node": ">=20.10.0"
   },
   "scripts": {
     "test": "ava --verbose --color",
