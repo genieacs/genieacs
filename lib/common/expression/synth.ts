@@ -12,7 +12,7 @@ export abstract class SynthContextBase<
   public variables = new Map<string, number>();
   protected clauses = new Map<number, U>();
 
-  protected getVar(c: U): number {
+  public getVar(c: U): number {
     const str = c.toString();
     let idx = this.variables.get(str);
     if (idx == null) {
@@ -23,7 +23,7 @@ export abstract class SynthContextBase<
     return idx;
   }
 
-  protected getClause(v: number): U {
+  public getClause(v: number): U {
     return this.clauses.get(v);
   }
 
@@ -34,6 +34,16 @@ export abstract class SynthContextBase<
     return true;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  canLower(idx: number, set: Set<number>): boolean {
+    return true;
+  }
+
+  bias(a: number, b: number): number {
+    // Bias towards 1 then lower index
+    return (b ^ 1) - (a ^ 1);
+  }
+
   sanitizeMinterms(minterms: Minterm[]): Minterm[] {
     return minterms;
   }
@@ -41,9 +51,18 @@ export abstract class SynthContextBase<
   minimize(minterms: Minterm[], dcSet: Minterm[] = []): Minterm[] {
     minterms = this.sanitizeMinterms(minterms);
     const canRaise = this.canRaise.bind(this);
-    return espresso(minterms, [...this.getDcSet(minterms), ...dcSet], {
-      canRaise,
-    });
+    const canLower = this.canLower.bind(this);
+    const bias = this.bias.bind(this);
+
+    return espresso(
+      minterms,
+      [...this.getDcSet([...minterms, ...dcSet]), ...dcSet],
+      {
+        canRaise,
+        canLower,
+        bias,
+      },
+    );
   }
 }
 
@@ -726,6 +745,18 @@ export class SynthContext extends SynthContextBase<Clause, Clause> {
     return !(idx & 1) || !set.has(idx ^ 3);
   }
 
+  canLower(idx: number, set: Set<number>): boolean {
+    if (idx & 1) return true;
+    const clause = this.getClause(idx >> 2);
+    if (clause instanceof Clause.IsNull) return true;
+    return set.has(idx ^ 3) || set.has(idx ^ 1);
+  }
+
+  bias(a: number, b: number): number {
+    // Bias towards 1 then true
+    return ((b & 3) ^ 3) - ((a & 3) ^ 3);
+  }
+
   sanitizeMinterms(minterms: Minterm[]): Minterm[] {
     const res = [] as number[][];
 
@@ -736,8 +767,18 @@ export class SynthContext extends SynthContextBase<Clause, Clause> {
       const minterm: number[] = [];
       const perms: number[][] = [];
       for (const [k, v] of merged) {
-        if (v === 0b1010) continue loop;
-        const isNullVars = [...this.clauses.get(k).getNullables()].map((c) =>
+        if ((v & 0b0011) === 0b0011) continue loop;
+        if ((v & 0b1100) === 0b1100) continue loop;
+        const clause = this.clauses.get(k);
+        if (!clause) throw new Error("Invalid literal");
+        if (clause instanceof Clause.IsNull) {
+          if (v === 0b0100) minterm.push((k << 2) ^ 2);
+          else if (v === 0b1000) minterm.push((k << 2) ^ 3);
+          else throw new Error("Invalid literal");
+          continue;
+        }
+        if ((v & 0b1010) === 0b1010) continue loop;
+        const isNullVars = [...clause.getNullables()].map((c) =>
           this.getVar(c),
         );
         const t = k << 2;
@@ -773,7 +814,25 @@ export class SynthContext extends SynthContextBase<Clause, Clause> {
       if (!s.length) return true;
       const conjs: Expression[] = [];
       for (const i of s) {
-        let expr = this.getClause(i >>> 2).expression() as Expression;
+        const clause = this.getClause(i >>> 2);
+        if (!clause) throw new Error("Invalid literal");
+        if (clause instanceof Clause.IsNull) {
+          if (!(i & 2)) throw new Error("Invalid literal");
+        } else if (!(i & 1)) {
+          // Should never be reached if minimized correctly
+          const isNullVars = [...clause.getNullables()].map((c) =>
+            this.getVar(c),
+          );
+          conjs.push(
+            this.toExpression([
+              [i ^ 3],
+              ...isNullVars.map((n) => [(n << 2) ^ 3]),
+            ]),
+          );
+          continue;
+        }
+
+        let expr = clause.expression() as Expression;
         if (!(i & 1) !== !(i & 2)) expr = ["NOT", expr];
         if (
           Array.isArray(expr) &&
@@ -882,16 +941,11 @@ export function unionDiff(
 
   const expr2Minterms = synth2.true(context);
   const expr1Minterms = synth1.true(context);
-  const expr1NullMinterms = synth1.null(context);
-  const expr1FalseMinterms = synth1.false(context);
 
   const union = context.minimize([...expr1Minterms, ...expr2Minterms]);
 
   const diff = context.minimize(
-    complement([
-      ...complement([...expr1NullMinterms, ...expr1FalseMinterms]),
-      ...complement(expr2Minterms),
-    ]),
+    complement([...expr1Minterms, ...complement(expr2Minterms)]),
   );
 
   return [context.toExpression(union), context.toExpression(diff)];
@@ -911,8 +965,8 @@ export function covers(expr1: Expression, expr2: Expression): boolean {
   const expr2Minterms = synt2.true(context);
 
   return tautology([
-    ...complement(expr2Minterms),
+    ...context.sanitizeMinterms(complement(expr2Minterms)),
     ...context.getDcSet([...expr2Minterms, ...expr1Minterms]),
-    ...expr1Minterms,
+    ...context.sanitizeMinterms(expr1Minterms),
   ]);
 }
