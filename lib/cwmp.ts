@@ -174,6 +174,9 @@ async function writeResponse(
   res,
   close = false
 ): Promise<void> {
+
+  metricsExporter.acsRequestType.labels({ type: sessionContext?.rpcRequest?.name || '<empty>' }).inc()
+
   // Close connection after last request in session
   if (close) res.headers["Connection"] = "close";
 
@@ -875,7 +878,7 @@ async function sendAcsRequest(
 ): Promise<void> {
   if (!acsRequest)
     return writeResponse(sessionContext, soap.response(null), true);
-
+  
   if (acsRequest.name === "Download") {
     acsRequest.fileSize = 0;
     if (!acsRequest.url) {
@@ -1616,6 +1619,8 @@ async function listenerAsync(
     );
   }
 
+  metricsExporter.cpeRequestType.labels({ type: rpc.cpeRequest?.name || '<empty>' }).inc()
+    
   if (isNewSession && rpc.cpeRequest?.name !== "Inform") {
     await new Promise((resolve) => setTimeout(resolve, 100));
     const sessionContextString = await cache.pop(`session_${sessionId}`);

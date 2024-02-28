@@ -88,6 +88,18 @@ export const metricsExporter = {
     help: 'New CPEs that were blocked before registering',
   }),
 
+  cpeRequestType: new promClient.Gauge({
+    name: 'genieacs_cpe_request_type',
+    help: 'Name of the request type from CPE, as defined in TR-069 protocol',
+    labelNames: ['type'],
+  }),
+
+  acsRequestType: new promClient.Gauge({
+    name: 'genieacs_acs_request_type',
+    help: 'Name of the request type to CPE, as defined in TR-069 protocol',
+    labelNames: ['type'],
+  }),
+
   // Below gauge metrics are collected by callbacks.
   // We don't export the metrics, only the callback.
   concurrentRequestsCB: callbackEntryCreator('concurrentRequests')
