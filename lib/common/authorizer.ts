@@ -99,10 +99,9 @@ export default class Authorizer {
         if (["mutation", "options"].includes(entry)) {
           value = object[entry];
           for (const seg of paramName.split(".")) {
-            // typeof null is "object"
-            if (value !== null && typeof value !== "object") value = null;
-            else value = value[seg];
             if (value == null) break;
+            if (typeof value !== "object") value = null;
+            else value = value[seg];
           }
         } else if (object[entry]) {
           if (paramName) value = object[entry][paramName];
