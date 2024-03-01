@@ -306,7 +306,7 @@ export function fetch(
   );
   const matches = findMatches(resourceType, satisfied, sort, limit);
   queries.value.set(queryResponse, matches);
-  if (!diff || matches.length >= limit)
+  if (!diff || (limit && matches.length >= limit))
     queries.fulfilled.set(queryResponse, fulfillTimestamp);
   else queries.unsatisfied.set(queryResponse, diff);
   return queryResponse;
