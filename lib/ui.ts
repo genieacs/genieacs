@@ -45,6 +45,10 @@ koa.on("error", (err, ctx) => {
   setTimeout(() => {
     // Ignored errors resulting from aborted requests
     if (ctx?.req.aborted) return;
+
+    // Ignore client errors (e.g. malicious path)
+    if (err.status === 400) return;
+
     throw err;
   });
 });
@@ -203,6 +207,10 @@ router.post("/init", async (ctx) => {
 });
 
 router.get("/", async (ctx) => {
+  // koa-router seems to tolerate double slashes in the URL but that can
+  // be problematic when using relatives asset paths in HTML
+  if (ctx.path.endsWith("//")) return;
+
   const permissionSets: PermissionSet[] =
     ctx.state.authorizer.getPermissionSets();
 
