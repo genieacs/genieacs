@@ -100,8 +100,12 @@ export async function connectionRequest(
       device["Device.ManagementServer.ConnectionRequestPassword"] || {}
     ).value || [""])[0];
   }
-
-  const remoteAddress = new URL(connectionRequestUrl).hostname;
+  let remoteAddress;
+  try {
+    remoteAddress = new URL(connectionRequestUrl).hostname;
+  } catch (err) {
+    return "Invalid connection request URL";
+  }
 
   const evalCallback = (exp): Expression => {
     if (!Array.isArray(exp)) return exp;
