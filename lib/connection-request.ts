@@ -80,6 +80,7 @@ export async function httpConnectionRequest(
   _debug: boolean,
   deviceId: string,
 ): Promise<string> {
+  if (address === "") return "URL is empty";
   const url = new URL(address);
   if (url.protocol !== "http:")
     return "Invalid connection request URL or protocol";

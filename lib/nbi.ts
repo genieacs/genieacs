@@ -296,7 +296,12 @@ async function handler(
           const status = await apiFunctions.connectionRequest(
             deviceId,
             flattenDevice(dev),
-          );
+          ).catch((err)=>{
+            response.writeHead(503, "An error occured", {
+              "Content-Type": "application/json",
+            });
+            response.end(JSON.stringify(err.message));
+          });
           if (status) {
             response.writeHead(504, status);
             response.end(status);
@@ -379,7 +384,14 @@ async function handler(
         ) as number;
       }
 
-      let status = await apiFunctions.connectionRequest(deviceId, device);
+      let status = undefined
+      try{
+        status = await apiFunctions.connectionRequest(deviceId, device);
+      } catch{
+        response.writeHead(503);
+        response.end("Connection to device was not successfull");
+        return
+      }
       if (!status) {
         const sessionStarted = await apiFunctions.awaitSessionStart(
           deviceId,

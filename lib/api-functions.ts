@@ -101,6 +101,7 @@ export async function connectionRequest(
     ).value || [""])[0];
   }
 
+  if (connectionRequestUrl === "") throw new Error("empty connectionRequestURL");
   const remoteAddress = new URL(connectionRequestUrl).hostname;
 
   const evalCallback = (exp): Expression => {

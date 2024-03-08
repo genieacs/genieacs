@@ -619,7 +619,15 @@ router.post("/devices/:id/tasks", async (ctx) => {
 
   const lastInform = device["Events.Inform"].value[0] as number;
 
-  let status = await apiFunctions.connectionRequest(deviceId, device);
+  let status = undefined;
+
+  try {
+    status = await apiFunctions.connectionRequest(deviceId, device);
+  } catch {
+    status = "Could not connect to device";
+  }
+
+
   if (!status) {
     const sessionStarted = await apiFunctions.awaitSessionStart(
       deviceId,
