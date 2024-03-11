@@ -41,6 +41,7 @@ interface ServerOptions {
   ssl?: { key: string; cert: string };
   timeout?: number;
   keepAliveTimeout?: number;
+  requestTimeout?: number;
   onConnection?: (socket: Socket) => void;
   onClientError?: (err: Error, socket: Socket) => void;
 }
@@ -152,6 +153,9 @@ export function start(
   server.timeout = options.timeout || 0;
   if (options.keepAliveTimeout != null)
     server.keepAliveTimeout = options.keepAliveTimeout;
+  if (options.requestTimeout != null)
+    server.requestTimeout = options.requestTimeout;
+
   server.listen({ port: options.port, host: options.host });
 }
 

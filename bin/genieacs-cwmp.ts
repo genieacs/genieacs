@@ -69,6 +69,7 @@ if (!cluster.worker) {
     onClientError: cwmp.onClientError,
     timeout: 30000,
     keepAliveTimeout: 0,
+    requestTimeout: cwmp.REQUEST_TIMEOUT,
   };
 
   // Need this for Node < 15

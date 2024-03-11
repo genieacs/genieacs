@@ -58,6 +58,10 @@ const REALM = "GenieACS";
 const MAX_CYCLES = 4;
 const MAX_CONCURRENT_REQUESTS = +config.get("MAX_CONCURRENT_REQUESTS");
 
+const MAX_SESSION_DURATION = 300000;
+const LOCK_REFRESH_INTERVAL = 10000;
+export const REQUEST_TIMEOUT = 10000;
+
 const currentSessions = new WeakMap<Socket, SessionContext>();
 const sessionsNonces = new WeakMap<Socket, string>();
 
@@ -207,10 +211,10 @@ async function writeResponse(
     sessionContext.lastActivity = now;
     currentSessions.set(connection, sessionContext);
     if (now >= sessionContext.extendLock) {
-      sessionContext.extendLock = now + 10000;
+      sessionContext.extendLock = now + LOCK_REFRESH_INTERVAL;
       const lockToken = await lock.acquireLock(
         `cwmp_session_${sessionContext.deviceId}`,
-        sessionContext.timeout * 1000 + 15000,
+        sessionContext.timeout * 1000 + LOCK_REFRESH_INTERVAL + REQUEST_TIMEOUT,
         0,
         `cwmp_session_${sessionContext.sessionId}`,
       );
@@ -865,7 +869,12 @@ async function sendAcsRequest(
 
 // When socket closes, store active sessions in cache
 export async function onConnection(socket: Socket): Promise<void> {
-  await once(socket, "close", 300000);
+  try {
+    await once(socket, "close", MAX_SESSION_DURATION);
+  } catch {
+    socket.destroy();
+  }
+
   const sessionContext = currentSessions.get(socket);
   if (!sessionContext) return;
   currentSessions.delete(socket);
@@ -1056,10 +1065,11 @@ async function processRequest(
       }
     }
 
-    sessionContext.extendLock = sessionContext.timestamp + 10000;
+    sessionContext.extendLock =
+      sessionContext.timestamp + LOCK_REFRESH_INTERVAL;
     const lockToken = await lock.acquireLock(
       `cwmp_session_${sessionContext.deviceId}`,
-      sessionContext.timeout * 1000 + 15000,
+      sessionContext.timeout * 1000 + LOCK_REFRESH_INTERVAL + REQUEST_TIMEOUT,
       0,
       `cwmp_session_${sessionContext.sessionId}`,
     );
