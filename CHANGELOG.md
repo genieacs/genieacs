@@ -1,5 +1,38 @@
 # Change Log
 
+## 1.2.10 (2024-03-18)
+
+- Add support for XMPP connection requests. Use the environment variables
+  `XMPP_JID` and `XMPP_PASSWORD` to configure the XMPP connection for the ACS.
+
+- The environment variables `CWMP_SSL_CERT` and `CWMP_SSL_KEY`, as well as their
+  counterparts for UI, NBI, and FS, now accept PEM-encoded certificates and keys
+  in addition to file paths.
+
+- The UI no longer requires users to refresh the page after modifying presets,
+  provisions, or virtual parameters. Refreshing is now only necessary for
+  changes to users, permissions, or UI configurations.
+
+- Improved conversion of GenieACS expressions into MongoDB queries for more
+  optimized queries and better index utilization.
+
+- Refactor UI pagination and sorting to fix issues from the previous approach,
+  especially with sorting by rapidly changing parameters such as 'last inform'
+  time.
+
+- The file server now supports HEAD requests, the Range header, and conditional
+  requests.
+
+- Addressed an issue causing file server disconnections for slow clients over
+  HTTPS.
+
+- Fix bug preventing users from changing their own passwords.
+
+- Introduced a new 'locks' collection for database locking, replacing the
+  previous use of the 'cache' collection for this purpose.
+
+- Various other minor fixes and enhancements.
+
 ## 1.2.9 (2022-08-22)
 
 - New config option `cwmp.skipRootGpn` to enable a workaround for some
