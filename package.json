@@ -12,7 +12,10 @@
     "CWMP",
     "ACS"
   ],
-  "author": "Zaid Abdulla <zaid@genieacs.com>",
+  "author": {
+    "name": "GenieACS Inc.",
+    "url": "https://genieacs.com"
+  },
   "license": "AGPL-3.0",
   "private": true,
   "directories": {
