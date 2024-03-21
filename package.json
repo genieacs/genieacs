@@ -31,7 +31,7 @@
     "iconv-lite": "^0.6.3",
     "ipaddr.js": "^2.0.1",
     "jsonwebtoken": "^9.0.2",
-    "koa": "^2.15.1",
+    "koa": "^2.15.2",
     "koa-bodyparser": "^4.3.0",
     "koa-compress": "^5.1.0",
     "koa-jwt": "^4.0.3",
@@ -49,7 +49,7 @@
     "@types/koa-router": "^7.4.8",
     "@types/koa-static": "^4.0.4",
     "@types/mithril": "^2.2.6",
-    "@types/node": "^20.11.29",
+    "@types/node": "^20.11.30",
     "@types/parsimmon": "^1.10.9",
     "@types/seedrandom": "^3.0.8",
     "@typescript-eslint/eslint-plugin": "^7.3.1",
@@ -62,7 +62,7 @@
     "prettier": "^3.2.5",
     "sql.js": "^1.10.2",
     "svgo": "^3.2.0",
-    "typescript": "^5.4.2",
+    "typescript": "^5.4.3",
     "yaml": "^1.10.2"
   },
   "engines": {
