@@ -1,5 +1,10 @@
 # Change Log
 
+## 1.2.11 (2024-03-21)
+
+- Resolved an issue from the previous release that caused incompatibility with
+  Node.js versions 12 through 15.
+
 ## 1.2.10 (2024-03-18)
 
 - Add support for XMPP connection requests. Use the environment variables
