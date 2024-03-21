@@ -3,7 +3,6 @@ import * as http from "node:http";
 import * as https from "node:https";
 import { Socket } from "node:net";
 import * as path from "node:path";
-import { X509Certificate, createPrivateKey } from "node:crypto";
 import { ROOT_DIR } from "./config.ts";
 
 let server: http.Server | https.Server;
@@ -67,13 +66,6 @@ function getValidPrivKeys(value: string): Buffer[] {
     const buf = str.startsWith("-----BEGIN ")
       ? Buffer.from(str)
       : readFileSync(path.resolve(ROOT_DIR, str));
-
-    try {
-      createPrivateKey(buf);
-    } catch (err) {
-      throw new Error(`Invalid private key: ${err.message}`);
-    }
-
     return buf;
   });
 }
@@ -84,13 +76,6 @@ function getValidCerts(value: string): Buffer[] {
     const buf = str.startsWith("-----BEGIN ")
       ? Buffer.from(str)
       : readFileSync(path.resolve(ROOT_DIR, str));
-
-    try {
-      new X509Certificate(buf);
-    } catch (err) {
-      throw new Error(`Invalid certificate: ${err.message}`);
-    }
-
     return buf;
   });
 }
