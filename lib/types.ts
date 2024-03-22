@@ -48,7 +48,7 @@ export interface AttributeTimestamps {
 export interface AttributeValues {
   object?: boolean;
   writable?: boolean;
-  value?: [string | number | boolean, string?];
+  value?: [string | number | boolean, string?, boolean?];
   notification?: number;
   accessList?: string[];
 }
@@ -91,6 +91,7 @@ export interface SyncState {
     accessList: Set<Path>;
   };
   spv: Map<Path, [string | number | boolean, string]>;
+  spvMandatory: Map<Path, boolean>;
   spa: Map<Path, { notification: number; accessList: string[] }>;
   gpn: Set<Path>;
   gpnPatterns: Map<Path, number>;
@@ -154,7 +155,7 @@ export interface Task {
   _id?: string;
   name: string;
   parameterNames?: string[];
-  parameterValues?: [string, string | number | boolean, string?][];
+  parameterValues?: [string, string | number | boolean, string?, boolean?][];
   objectName?: string;
   fileType?: string;
   fileName?: string;
@@ -422,6 +423,7 @@ export interface Declaration {
     value?: [string | number | boolean, string?];
     notification?: number;
     accessList?: string[];
+    mandatory?: boolean;
   };
   defer: boolean;
 }
