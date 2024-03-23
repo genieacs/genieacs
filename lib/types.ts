@@ -491,6 +491,7 @@ export interface Config {
 export interface UiConfig {
   filters: Record<string, unknown>;
   device: Record<string, unknown>;
+  deviceTabs?: Record<string, unknown>;
   index: Record<string, unknown>;
   overview: {
     charts?: Record<string, unknown>;
