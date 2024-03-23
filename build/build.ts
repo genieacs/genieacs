@@ -22,7 +22,7 @@ const fsAsync = {
   mkdir: promisify(fs.mkdir),
 };
 
-const execAsync = promisify(exec);
+
 const MODE = process.env["NODE_ENV"] || "production";
 
 const INPUT_DIR = process.cwd();
