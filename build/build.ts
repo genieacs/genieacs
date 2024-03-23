@@ -24,7 +24,7 @@ const fsAsync = {
 
 const MODE = process.env["NODE_ENV"] || "production";
 
-const BUILD_METADATA = new Date()
+const buildMetadata = new Date()
   .toISOString()
   .split(".")[0]
   .replace(/[^0-9]/g, "");
