@@ -88,7 +88,7 @@ async function copyStatic(): Promise<void> {
 }
 
 async function generateCss(): Promise<void> {
-  const res = await esbuild.build({
+  await esbuild.build({
     bundle: true,
     absWorkingDir: INPUT_DIR,
     minify: MODE === "production",
@@ -100,13 +100,7 @@ async function generateCss(): Promise<void> {
     target: ["chrome109", "safari15.6", "firefox115", "opera102", "edge118"],
     metafile: true,
   });
-
-  for (const [k, v] of Object.entries(res.metafile.outputs)) {
-    if (v.entryPoint === "ui/css/app.css") {
-      ASSETS.APP_CSS = "app.css"; // Mengubah nama menjadi app.css
-      break;
-    }
-  }
+  ASSETS.push("app.css");
 }
 
 async function generateBackendJs(): Promise<void> {
@@ -118,16 +112,16 @@ async function generateBackendJs(): Promise<void> {
     sourcesContent: false,
     platform: "node",
     target: "node12.13.0",
-    // Menghapus konfigurasi packages: "external"
+    packages: "external",
     banner: { js: "#!/usr/bin/env node" },
-    entryPoints: ["ui/app.ts"],
+    entryPoints: ["bin/app.ts"],
     outdir: path.join(OUTPUT_DIR, "bin"),
   });
   ASSETS.push("app.js");
 }
 
 async function generateFrontendJs(): Promise<void> {
-  const res = await esbuild.build({
+  await esbuild.build({
     bundle: true,
     absWorkingDir: INPUT_DIR,
     splitting: true,
@@ -138,16 +132,11 @@ async function generateFrontendJs(): Promise<void> {
     format: "esm",
     target: ["chrome109", "safari15.6", "firefox115", "opera102", "edge118"],
     entryPoints: ["ui/app.ts"],
-    entryNames: "[dir]/[name]-[hash]", // Atur nama output JS sesuai dengan yang diinginkan
+    entryNames: "[dir]/[name]-[hash]",
     outdir: path.join(OUTPUT_DIR, "public"),
     metafile: true,
   });
-
-  // Mengambil nama file output JS
-  const outputJsName = Object.keys(res.metafile.outputs).find(k => k.endsWith('.js'));
-
-  // Menambahkan nama file output JS ke dalam ASSETS
-  ASSETS.push(outputJsName);
+  ASSETS.push("chunk.js");
 }
 
 async function generateIconsSprite(): Promise<void> {
@@ -211,7 +200,8 @@ function xmlTostring(xml): string {
 init()
   .then(() =>
     Promise.all([
-      Promise.all([generateIconsSprite(), copyStatic()]).then(
+      Promise.all([generateIcons
+Sprite(), copyStatic()]).then(
         generateFrontendJs
       ),
       generateCss(),
