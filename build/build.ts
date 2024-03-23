@@ -2,11 +2,9 @@ import path from "node:path";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
 import { promisify } from "node:util";
-import { exec } from "node:child_process";
 import * as esbuild from "esbuild";
 import { optimize } from "svgo";
 import * as xmlParser from "../lib/xml-parser.ts";
-
 
 const fsAsync = {
   readdir: promisify(fs.readdir),
@@ -44,137 +42,15 @@ async function rmDir(dirPath: string): Promise<void> {
   await fsAsync.rmdir(dirPath);
 }
 
-// For lockfileVersion = 1
-function stripDevDeps(deps): void {
-  if (!deps["dependencies"]) return;
-  for (const [k, v] of Object.entries(deps["dependencies"])) {
-    if (v["dev"]) delete deps["dependencies"][k];
-    else stripDevDeps(v);
-  }
-  if (!Object.keys(deps["dependencies"]).length) delete deps["dependencies"];
-}
-
-// For lockfileVersion = 2
-function stripDevDeps2(deps): void {
-  if (!deps["packages"]) return;
-  for (const [k, v] of Object.entries(deps["packages"])) {
-    delete v["devDependencies"];
-    if (v["dev"]) delete deps["packages"][k];
-  }
-}
-
-function xmlTostring(xml): string {
-  const children = [];
-  for (const c of xml.children || []) children.push(xmlTostring(c));
-
-  return xml.name === "root" && xml.bodyIndex === 0
-    ? children.join("")
-    : `<${xml.name} ${xml.attrs}>${children.join("")}</${xml.name}>`;
-}
-
 function assetHash(buffer: Buffer | string): string {
   return createHash("md5").update(buffer).digest("hex").slice(0, 8);
 }
 
-const ASSETS = {} as {
-  APP_JS?: string;
-  APP_CSS?: string;
-  ICONS_SVG?: string;
-  LOGO_SVG?: string;
-  FAVICON_PNG?: string;
-};
-
-const assetsPlugin = {
-  name: "assets",
-  setup(build) {
-    build.onLoad({ filter: /\/build\/assets.ts$/ }, () => {
-      const lines = Object.entries(ASSETS).map(
-        ([k, v]) => `export const ${k} = ${JSON.stringify(v)};`,
-      );
-      return { contents: lines.join("\n") };
-    });
-  },
-} as esbuild.Plugin;
-
-const packageDotJsonPlugin = {
-  name: "packageDotJson",
-  setup(build) {
-    const sourcePath = path.join(INPUT_DIR, "package.json");
-    build.onResolve({ filter: /\/package.json$/ }, (args) => {
-      const p = path.join(args.resolveDir, args.path);
-      if (p !== sourcePath) return undefined;
-      return { path: path.join(OUTPUT_DIR, "package.json") };
-    });
-  },
-} as esbuild.Plugin;
-
-const inlineDepsPlugin = {
-  name: "inlineDeps",
-  setup(build) {
-    const deps = [
-      "parsimmon",
-      "espresso-iisojs",
-      "codemirror",
-      "mithril",
-      "yaml",
-    ];
-    build.onResolve({ filter: /^[^.]/ }, async (args) => {
-      if (deps.some((d) => args.path.startsWith(d))) return undefined;
-      return { sideEffects: false, external: true };
-    });
-  },
-} as esbuild.Plugin;
-
-function generateSymbol(id: string, svgStr: string): string {
-  const xml = xmlParser.parseXml(svgStr);
-  const svg = xml.children[0];
-  const svgAttrs = xmlParser.parseAttrs(svg.attrs);
-  let viewBox = "";
-  for (const a of svgAttrs) {
-    if (a.name === "viewBox") {
-      viewBox = `viewBox="${a.value}"`;
-      break;
-    }
-  }
-  const symbolBody = xml.children[0].children
-    .map((c) => xmlTostring(c))
-    .join("");
-  return `<symbol id="icon-${id}" ${viewBox}>${symbolBody}</symbol>`;
-}
+const ASSETS = [] as string[];
 
 async function init(): Promise<void> {
-  const [packageJsonFile, npmShrinkwrapFile] = await Promise.all([
-    fsAsync.readFile(path.join(INPUT_DIR, "package.json")),
-    fsAsync.readFile(path.join(INPUT_DIR, "npm-shrinkwrap.json")),
-  ]);
-
-  const packageJson = JSON.parse(packageJsonFile.toString());
-  delete packageJson["devDependencies"];
-  delete packageJson["private"];
-  delete packageJson["scripts"];
-  packageJson["version"] = `${packageJson["version"]}+${buildMetadata}`;
-
-  const npmShrinkwrap = JSON.parse(npmShrinkwrapFile.toString());
-  npmShrinkwrap["version"] = packageJson["version"];
-  stripDevDeps(npmShrinkwrap);
-  stripDevDeps2(npmShrinkwrap);
-
   await rmDir(OUTPUT_DIR);
-
   await fsAsync.mkdir(OUTPUT_DIR);
-
-  await Promise.all([
-    fsAsync.mkdir(path.join(OUTPUT_DIR, "bin")),
-    fsAsync.mkdir(path.join(OUTPUT_DIR, "public")),
-    fsAsync.writeFile(
-      path.join(OUTPUT_DIR, "package.json"),
-      JSON.stringify(packageJson, null, 2),
-    ),
-    fsAsync.writeFile(
-      path.join(OUTPUT_DIR, "npm-shrinkwrap.json"),
-      JSON.stringify(npmShrinkwrap, null, 2),
-    ),
-  ]);
 }
 
 async function copyStatic(): Promise<void> {
@@ -191,12 +67,12 @@ async function copyStatic(): Promise<void> {
     fsAsync.readFile(path.join(INPUT_DIR, "public/favicon.png")),
   ]);
 
-  ASSETS.LOGO_SVG = `logo-${assetHash(logo)}.svg`;
-  ASSETS.FAVICON_PNG = `favicon-${assetHash(favicon)}.png`;
+  ASSETS.push(`logo-${assetHash(logo)}.svg`);
+  ASSETS.push(`favicon-${assetHash(favicon)}.png`);
 
   const filenames = {} as Record<string, string>;
-  filenames["public/logo.svg"] = path.join("public", ASSETS.LOGO_SVG);
-  filenames["public/favicon.png"] = path.join("public", ASSETS.FAVICON_PNG);
+  filenames["public/logo.svg"] = "public/" + ASSETS[ASSETS.length - 2];
+  filenames["public/favicon.png"] = "public/" + ASSETS[ASSETS.length - 1];
 
   await Promise.all(
     files.map((f) =>
@@ -209,7 +85,7 @@ async function copyStatic(): Promise<void> {
 }
 
 async function generateCss(): Promise<void> {
-  const res = await esbuild.build({
+  await esbuild.build({
     bundle: true,
     absWorkingDir: INPUT_DIR,
     minify: MODE === "production",
@@ -221,27 +97,10 @@ async function generateCss(): Promise<void> {
     target: ["chrome109", "safari15.6", "firefox115", "opera102", "edge118"],
     metafile: true,
   });
-
-  for (const [k, v] of Object.entries(res.metafile.outputs)) {
-    if (v.entryPoint === "ui/css/app.css") {
-      ASSETS.APP_CSS = path.relative(
-        path.join(OUTPUT_DIR, "public"),
-        path.join(INPUT_DIR, k),
-      );
-      break;
-    }
-  }
+  ASSETS.push("app.css");
 }
 
 async function generateBackendJs(): Promise<void> {
-  const services = [
-    "genieacs-cwmp",
-    "genieacs-ext",
-    "genieacs-nbi",
-    "genieacs-fs",
-    "genieacs-ui",
-  ];
-
   await esbuild.build({
     bundle: true,
     absWorkingDir: INPUT_DIR,
@@ -252,22 +111,14 @@ async function generateBackendJs(): Promise<void> {
     target: "node12.13.0",
     packages: "external",
     banner: { js: "#!/usr/bin/env node" },
-    entryPoints: services.map((s) => `bin/${s}.ts`),
+    entryPoints: ["bin/app.ts"],
     outdir: path.join(OUTPUT_DIR, "bin"),
-    plugins: [packageDotJsonPlugin, assetsPlugin],
   });
-
-  for (const bin of services) {
-    const p = path.join(OUTPUT_DIR, "bin", bin);
-    await fsAsync.rename(`${p}.js`, p);
-    // Mark as executable
-    const mode = (await fsAsync.lstat(p)).mode;
-    await fsAsync.chmod(p, mode | 73);
-  }
+  ASSETS.push("app.js");
 }
 
 async function generateFrontendJs(): Promise<void> {
-  const res = await esbuild.build({
+  await esbuild.build({
     bundle: true,
     absWorkingDir: INPUT_DIR,
     splitting: true,
@@ -280,21 +131,9 @@ async function generateFrontendJs(): Promise<void> {
     entryPoints: ["ui/app.ts"],
     entryNames: "[dir]/[name]-[hash]",
     outdir: path.join(OUTPUT_DIR, "public"),
-    plugins: [packageDotJsonPlugin, inlineDepsPlugin, assetsPlugin],
     metafile: true,
   });
-
-  for (const [k, v] of Object.entries(res.metafile.outputs)) {
-    for (const imp of v.imports)
-      if (imp.external) throw new Error(`External import found: ${imp.path}`);
-
-    if (v.entryPoint === "ui/app.ts") {
-      ASSETS.APP_JS = path.relative(
-        path.join(OUTPUT_DIR, "public"),
-        path.join(INPUT_DIR, k),
-      );
-    }
-  }
+  ASSETS.push("chunk.js");
 }
 
 async function generateIconsSprite(): Promise<void> {
@@ -321,9 +160,9 @@ async function generateIconsSprite(): Promise<void> {
   const data = `<svg xmlns="http://www.w3.org/2000/svg">${symbols.join(
     "",
   )}</svg>`;
-  ASSETS.ICONS_SVG = `icons-${assetHash(data)}.svg`;
+  ASSETS.push("icons.svg");
   await fsAsync.writeFile(
-    path.join(OUTPUT_DIR, "public", ASSETS.ICONS_SVG),
+    path.join(OUTPUT_DIR, "public/icons.svg"),
     data,
   );
 }
