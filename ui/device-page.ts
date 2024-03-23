@@ -35,12 +35,43 @@ export const component: ClosureComponent = (): Component => {
       }
 
       const conf = config.ui.device;
+      const multiTabs = config.ui.multiTabs;
       const cmps = [];
 
-      for (const c of Object.values(conf)) {
+     if (Object.keys(multiTabs).length > 0) {
+        const tabActive = { [vnode.attrs["tab"]||multiTabs[0]["route"]]: "active" };
+        const tabs = [];
+        const tabContent = [];
+        for (const [k,c] of Object.entries(multiTabs)) {
+          tabs.push(
+            m("li",{
+              "class": tabActive[c["route"]],
+            },[
+              m("a", {
+                href: `#!/devices/${vnode.attrs["deviceId"]}/${c["route"]}`,
+              },c["label"])
+            ])
+          )
+          if (tabActive[c["route"]]){
+            for (const comp of Object.values(c["components"])) {
+              tabContent.push(
+                m.context({ device: dev.value[0], deviceQuery: dev }, comp["type"], comp)
+              );  
+            }  
+          }
+        }
         cmps.push(
-          m.context({ device: dev.value[0], deviceQuery: dev }, c["type"], c),
+          m("div.tab",[
+            m("ul",tabs),
+            m("div.tab_content", tabContent)
+          ])
         );
+      }else{
+        for (const c of Object.values(conf)) {
+          cmps.push(
+            m.context({ device: dev.value[0], deviceQuery: dev }, c["type"], c)
+          );
+        }  
       }
 
       return [m("h1", vnode.attrs["deviceId"]), cmps];
