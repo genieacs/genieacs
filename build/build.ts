@@ -112,7 +112,7 @@ async function generateBackendJs(): Promise<void> {
     sourcesContent: false,
     platform: "node",
     target: "node12.13.0",
-    packages: "external",
+    // Menghapus konfigurasi packages: "external"
     banner: { js: "#!/usr/bin/env node" },
     entryPoints: ["bin/app.ts"],
     outdir: path.join(OUTPUT_DIR, "bin"),
