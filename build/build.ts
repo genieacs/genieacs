@@ -1,6 +1,3 @@
-Sepertinya saya telah mengabaikan definisi dari fungsi `generateSymbol`. Ini harusnya merupakan fungsi yang telah Anda buat sebelumnya. Saya akan menambahkannya ke dalam kode. Berikut adalah kode lengkapnya dengan fungsi `generateSymbol` yang diperbaiki:
-
-```typescript
 import path from "node:path";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
