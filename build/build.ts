@@ -76,13 +76,19 @@ async function copyStatic(): Promise<void> {
   filenames["public/favicon.png"] = "public/" + ASSETS[ASSETS.length - 1];
 
   await Promise.all(
-    files.map((f) =>
-      fsAsync.copyFile(
-        path.join(INPUT_DIR, f),
-        path.join(OUTPUT_DIR, filenames[f] || f),
+      files.map((f) =>
+        fsAsync.copyFile(
+          path.join(INPUT_DIR, f),
+          path.join(OUTPUT_DIR, filenames[f] || f),
+        ),
       ),
-    ),
-  );
+    );
+  } catch (err) {
+    console.error(`Error copying static files: ${err.message}`);
+    console.error(`File not found: ${err.path}`);
+    // Handle error accordingly, e.g., throw the error or exit the program
+    throw err;
+  }
 }
 
 async function generateCss(): Promise<void> {
