@@ -179,3 +179,30 @@ init()
   .catch((err) => {
     process.stderr.write(err.stack + "\n");
 });
+
+// Fungsi lain yang diperlukan
+function generateSymbol(id: string, svgStr: string): string {
+  const xml = xmlParser.parseXml(svgStr);
+  const svg = xml.children[0];
+  const svgAttrs = xmlParser.parseAttrs(svg.attrs);
+  let viewBox = "";
+  for (const a of svgAttrs) {
+    if (a.name === "viewBox") {
+      viewBox = `viewBox="${a.value}"`;
+      break;
+    }
+  }
+  const symbolBody = xml.children[0].children
+    .map((c) => xmlTostring(c))
+    .join("");
+  return `<symbol id="icon-${id}" ${viewBox}>${symbolBody}</symbol>`;
+}
+
+function xmlTostring(xml): string {
+  const children = [];
+  for (const c of xml.children || []) children.push(xmlTostring(c));
+
+  return xml.name === "root" && xml.bodyIndex === 0
+    ? children.join("")
+    : `<${xml.name} ${xml.attrs}>${children.join("")}</${xml.name}>`;
+}
