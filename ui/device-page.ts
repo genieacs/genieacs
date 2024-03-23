@@ -39,34 +39,41 @@ export const component: ClosureComponent = (): Component => {
       const cmps = [];
 
      if (Object.keys(multiTabs).length > 0) {
-        const tabActive = { [vnode.attrs["tab"]||multiTabs[0]["route"]]: "active" };
+        const tabActive = { [vnode.attrs["tab"] || multiTabs[0]["route"]]: "active" };
         const tabs = [];
         const tabContent = [];
-        for (const [k,c] of Object.entries(multiTabs)) {
-          tabs.push(
-            m("li",{
-              "class": tabActive[c["route"]],
-            },[
-              m("a", {
-                href: `#!/devices/${vnode.attrs["deviceId"]}/${c["route"]}`,
-              },c["label"])
-            ])
-          )
-          if (tabActive[c["route"]]){
-            for (const comp of Object.values(c["components"])) {
-              tabContent.push(
-                m.context({ device: dev.value[0], deviceQuery: dev }, comp["type"], comp)
-              );  
-            }  
-          }
+        const deviceIdEncoded = encodeURIComponent(vnode.attrs["deviceId"]).replace(/-/g, '%2D');
+
+        for (const [k, c] of Object.entries(multiTabs)) {
+            tabs.push(
+                m("li", {
+                    "class": tabActive[c["route"]],
+                }, [
+                    m("a", {
+                        href: `#!/devices/${deviceIdEncoded}/${c["route"]}`,
+                    }, c["label"])
+                ])
+            );
+
+            if (tabActive[c["route"]]) {
+                for (const comp of Object.values(c["components"])) {
+                    tabContent.push(
+                        m.context({ device: dev.value[0], deviceQuery: dev }, comp["type"], comp)
+                    );
+                }
+            }
         }
         cmps.push(
           m("div.tab",[
             m("ul",tabs),
             m("div.tab_content", tabContent)
           ])
+            m("div.tab", [
+                m("ul", tabs),
+                m("div.tab_content", tabContent)
+            ])
         );
-      }else{
+      } else {
         for (const c of Object.values(conf)) {
           cmps.push(
             m.context({ device: dev.value[0], deviceQuery: dev }, c["type"], c)
