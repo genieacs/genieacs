@@ -88,7 +88,7 @@ async function copyStatic(): Promise<void> {
 }
 
 async function generateCss(): Promise<void> {
-  await esbuild.build({
+  const res = await esbuild.build({
     bundle: true,
     absWorkingDir: INPUT_DIR,
     minify: MODE === "production",
@@ -100,11 +100,13 @@ async function generateCss(): Promise<void> {
     target: ["chrome109", "safari15.6", "firefox115", "opera102", "edge118"],
     metafile: true,
   });
-  // Mengambil nama file output CSS
-  const outputCssName = res.metafile.outputs[res.metafile.entryPoints[0]].css;
 
-  // Menambahkan nama file output CSS ke dalam ASSETS
-  ASSETS.push(outputCssName);
+  for (const [k, v] of Object.entries(res.metafile.outputs)) {
+    if (v.entryPoint === "ui/css/app.css") {
+      ASSETS.APP_CSS = "app.css"; // Mengubah nama menjadi app.css
+      break;
+    }
+  }
 }
 
 async function generateBackendJs(): Promise<void> {
