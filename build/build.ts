@@ -2,6 +2,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
 import { promisify } from "node:util";
+import { exec } from "node:child_process";
 import * as esbuild from "esbuild";
 import { optimize } from "svgo";
 import * as xmlParser from "../lib/xml-parser.ts";
@@ -21,6 +22,7 @@ const fsAsync = {
   mkdir: promisify(fs.mkdir),
 };
 
+const execAsync = promisify(exec);
 
 const MODE = process.env["NODE_ENV"] || "production";
 
