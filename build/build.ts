@@ -100,7 +100,11 @@ async function generateCss(): Promise<void> {
     target: ["chrome109", "safari15.6", "firefox115", "opera102", "edge118"],
     metafile: true,
   });
-  ASSETS.push("app.css");
+  // Mengambil nama file output CSS
+  const outputCssName = res.metafile.outputs[res.metafile.entryPoints[0]].css;
+
+  // Menambahkan nama file output CSS ke dalam ASSETS
+  ASSETS.push(outputCssName);
 }
 
 async function generateBackendJs(): Promise<void> {
@@ -121,7 +125,7 @@ async function generateBackendJs(): Promise<void> {
 }
 
 async function generateFrontendJs(): Promise<void> {
-  await esbuild.build({
+  const res = await esbuild.build({
     bundle: true,
     absWorkingDir: INPUT_DIR,
     splitting: true,
@@ -132,11 +136,16 @@ async function generateFrontendJs(): Promise<void> {
     format: "esm",
     target: ["chrome109", "safari15.6", "firefox115", "opera102", "edge118"],
     entryPoints: ["ui/app.ts"],
-    entryNames: "[dir]/[name]-[hash]",
+    entryNames: "[dir]/[name]-[hash]", // Atur nama output JS sesuai dengan yang diinginkan
     outdir: path.join(OUTPUT_DIR, "public"),
     metafile: true,
   });
-  ASSETS.push("chunk.js");
+
+  // Mengambil nama file output JS
+  const outputJsName = Object.keys(res.metafile.outputs).find(k => k.endsWith('.js'));
+
+  // Menambahkan nama file output JS ke dalam ASSETS
+  ASSETS.push(outputJsName);
 }
 
 async function generateIconsSprite(): Promise<void> {
