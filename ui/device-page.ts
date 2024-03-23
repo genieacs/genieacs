@@ -38,12 +38,13 @@ export const component: ClosureComponent = (): Component => {
       const multiTabs = config.ui.multiTabs;
       const cmps = [];
 
-     if (Object.keys(multiTabs).length > 0) {
+      if (Object.keys(multiTabs).length > 0) {
         const tabActive = { [vnode.attrs["tab"] || multiTabs[0]["route"]]: "active" };
         const tabs = [];
         const tabContent = [];
+        
         const deviceIdEncoded = encodeURIComponent(vnode.attrs["deviceId"]).replace(/-/g, '%2D');
-
+        
         for (const [k, c] of Object.entries(multiTabs)) {
             tabs.push(
                 m("li", {
@@ -63,18 +64,19 @@ export const component: ClosureComponent = (): Component => {
                 }
             }
         }
+
         cmps.push(
-          m("div.tab",[
-            m("ul",tabs),
-            m("div.tab_content", tabContent)
-          ])
+            m("div.tab", [
+                m("ul", tabs),
+                m("div.tab_content", tabContent)
+            ])
         );
-      }else{
+      } else {
         for (const c of Object.values(conf)) {
           cmps.push(
             m.context({ device: dev.value[0], deviceQuery: dev }, c["type"], c)
           );
-        }  
+        }
       }
 
       return [m("h1", vnode.attrs["deviceId"]), cmps];
