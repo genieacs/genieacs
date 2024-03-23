@@ -65,6 +65,7 @@ async function fetchConfig(): Promise<[string, Config, UiConfig]> {
   const ui = {
     filters: {},
     device: {},
+    deviceTabs: {},
     index: {},
     overview: {},
     pageSize: null,
