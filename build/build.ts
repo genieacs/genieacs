@@ -158,13 +158,10 @@ async function getBuildMetadata(): Promise<string> {
 }
 
 async function init(): Promise<void> {
-  const [buildMetadata, packageJsonFile, npmShrinkwrapFile] = await Promise.all(
-    [
-      getBuildMetadata(),
-      fsAsync.readFile(path.join(INPUT_DIR, "package.json")),
-      fsAsync.readFile(path.join(INPUT_DIR, "npm-shrinkwrap.json")),
-    ],
-  );
+  const [packageJsonFile, npmShrinkwrapFile] = await Promise.all([
+    fsAsync.readFile(path.join(INPUT_DIR, "package.json")),
+    fsAsync.readFile(path.join(INPUT_DIR, "npm-shrinkwrap.json")),
+  ]);
 
   const packageJson = JSON.parse(packageJsonFile.toString());
   delete packageJson["devDependencies"];
