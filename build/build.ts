@@ -1,3 +1,6 @@
+Maaf atas kebingungannya. Mari saya lanjutkan dengan menyelesaikan kode:
+
+```typescript
 import path from "node:path";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
@@ -65,21 +68,31 @@ async function copyStatic(): Promise<void> {
   try {
     await fsAsync.mkdir(path.join(OUTPUT_DIR, "public"), { recursive: true });
 
-    for (const file of files) {
-      let destFileName = file;
-      if (file === "public/logo.svg") {
-        destFileName = "logo.svg";
-      } else if (file === "public/favicon.png") {
-        destFileName = `favicon-${assetHash(await fsAsync.readFile(path.join(INPUT_DIR, file)))}.png`;
-      }
-      ASSETS.push(destFileName);
-      await fsAsync.copyFile(
-        path.join(INPUT_DIR, file),
-        path.join(OUTPUT_DIR, "public", destFileName)
-      );
-    }
+    const [logo, favicon] = await Promise.all([
+      fsAsync.readFile(path.join(INPUT_DIR, "public/logo.svg")),
+      fsAsync.readFile(path.join(INPUT_DIR, "public/favicon.png")),
+    ]);
 
-    console.log("Files copied successfully.");
+    ASSETS.push("logo.svg", `favicon-${assetHash(favicon)}.png`);
+
+    const filenames = {} as Record<string, string>;
+    filenames["public/favicon.png"] = "public/" + ASSETS[ASSETS.length - 1];
+
+    await Promise.all(
+      files.map((f) => {
+        if (f === "public/logo.svg") {
+          return fsAsync.copyFile(
+            path.join(INPUT_DIR, f),
+            path.join(OUTPUT_DIR, "public/logo.svg"),
+          );
+        } else {
+          return fsAsync.copyFile(
+            path.join(INPUT_DIR, f),
+            path.join(OUTPUT_DIR, filenames[f] || f),
+          );
+        }
+      }),
+    );
   } catch (err) {
     console.error(`Error copying static files: ${err.message}`);
     console.error(`File not found: ${err.path}`);
@@ -163,21 +176,4 @@ async function generateIconsSprite(): Promise<void> {
   const data = `<svg xmlns="http://www.w3.org/2000/svg">${symbols.join(
     "",
   )}</svg>`;
-  ASSETS.push("icons.svg");
-  await fsAsync.writeFile(
-    path.join(OUTPUT_DIR, "public/icons.svg"),
-    data,
-  );
-}
-
-init()
-  .then(() =>
-    Promise.all([
-      Promise.all([generateIconsSprite(), copyStatic()]).then(
-        generateFrontendJs,
-      ),
-      generateCss(),
-    ]).then(generateBackendJs),
-  )
-  .catch((err) => {
-    process.stderr.write
+  ASSETS.push("icons
