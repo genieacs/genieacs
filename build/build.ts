@@ -6,6 +6,9 @@ import * as esbuild from "esbuild";
 import { optimize } from "svgo";
 import * as xmlParser from "../lib/xml-parser.ts";
 
+mkdir: promisify(fs.mkdir),
+};
+
 const fsAsync = {
   readdir: promisify(fs.readdir),
   readFile: promisify(fs.readFile),
