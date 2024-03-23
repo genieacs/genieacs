@@ -58,30 +58,36 @@ async function copyStatic(): Promise<void> {
     "LICENSE",
     "README.md",
     "CHANGELOG.md",
-    "public/logo.svg",
+    "public/logo.svg", // Ubah path logo.svg ke sini
     "public/favicon.png",
   ];
 
   try {
-    const [logo, favicon] = await Promise.all([
-      fsAsync.readFile(path.join(INPUT_DIR, "public/logo.svg")),
+    const [favicon] = await Promise.all([
       fsAsync.readFile(path.join(INPUT_DIR, "public/favicon.png")),
     ]);
 
-  ASSETS.push(`logo-${assetHash(logo)}.svg`);
-  ASSETS.push(`favicon-${assetHash(favicon)}.png`);
+    ASSETS.push(`favicon-${assetHash(favicon)}.png`);
 
-  const filenames = {} as Record<string, string>;
-  filenames["public/logo.svg"] = "public/" + ASSETS[ASSETS.length - 2];
-  filenames["public/favicon.png"] = "public/" + ASSETS[ASSETS.length - 1];
+    const filenames = {} as Record<string, string>;
+    filenames["public/favicon.png"] = "public/" + ASSETS[ASSETS.length - 1];
 
-  await Promise.all(
-      files.map((f) =>
-        fsAsync.copyFile(
-          path.join(INPUT_DIR, f),
-          path.join(OUTPUT_DIR, filenames[f] || f),
-        ),
-      ),
+    await Promise.all(
+      files.map((f) => {
+        if (f === "public/logo.svg") {
+          // Jika file adalah logo.svg, salin tanpa tambahan string pada nama
+          return fsAsync.copyFile(
+            path.join(INPUT_DIR, f),
+            path.join(OUTPUT_DIR, "public/logo.svg"),
+          );
+        } else {
+          // Jika bukan logo.svg, salin seperti biasa
+          return fsAsync.copyFile(
+            path.join(INPUT_DIR, f),
+            path.join(OUTPUT_DIR, filenames[f] || f),
+          );
+        }
+      }),
     );
   } catch (err) {
     console.error(`Error copying static files: ${err.message}`);
