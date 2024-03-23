@@ -21,9 +21,12 @@ const fsAsync = {
   mkdir: promisify(fs.mkdir),
 };
 
-const execAsync = promisify(exec);
-
 const MODE = process.env["NODE_ENV"] || "production";
+
+const BUILD_METADATA = new Date()
+  .toISOString()
+  .split(".")[0]
+  .replace(/[^0-9]/g, "");
 
 const INPUT_DIR = process.cwd();
 const OUTPUT_DIR = path.join(INPUT_DIR, "dist");
@@ -138,38 +141,17 @@ function generateSymbol(id: string, svgStr: string): string {
   return `<symbol id="icon-${id}" ${viewBox}>${symbolBody}</symbol>`;
 }
 
-async function getBuildMetadata(): Promise<string> {
-  const date = new Date().toISOString().slice(2, 10).replaceAll("-", "");
-
-  const [commit, diff, newFiles] = await Promise.all([
-    execAsync("git rev-parse HEAD"),
-    execAsync("git diff HEAD"),
-    execAsync("git ls-files --others --exclude-standard"),
-  ]).then((res) => res.map((r) => r.stdout.trim()));
-
-  if (!diff && !newFiles) return date + commit.slice(0, 4);
-
-  const hash = createHash("md5");
-  hash.update(commit).update(diff).update(newFiles);
-  for (const file of newFiles.split("\n").filter((f) => f))
-    hash.update(await fsAsync.readFile(file));
-  return date + hash.digest("hex").slice(0, 4);
-}
-
 async function init(): Promise<void> {
-  const [buildMetadata, packageJsonFile, npmShrinkwrapFile] = await Promise.all(
-    [
-      getBuildMetadata(),
-      fsAsync.readFile(path.join(INPUT_DIR, "package.json")),
-      fsAsync.readFile(path.join(INPUT_DIR, "npm-shrinkwrap.json")),
-    ],
-  );
+  const [packageJsonFile, npmShrinkwrapFile] = await Promise.all([
+    fsAsync.readFile(path.join(INPUT_DIR, "package.json")),
+    fsAsync.readFile(path.join(INPUT_DIR, "npm-shrinkwrap.json")),
+  ]);
 
   const packageJson = JSON.parse(packageJsonFile.toString());
   delete packageJson["devDependencies"];
   delete packageJson["private"];
   delete packageJson["scripts"];
-  packageJson["version"] = `${packageJson["version"]}+${buildMetadata}`;
+  packageJson["version"] = `${packageJson["version"]}+${BUILD_METADATA}`;
 
   const npmShrinkwrap = JSON.parse(npmShrinkwrapFile.toString());
   npmShrinkwrap["version"] = packageJson["version"];
@@ -357,3 +339,4 @@ init()
   .catch((err) => {
     process.stderr.write(err.stack + "\n");
   });
+});
