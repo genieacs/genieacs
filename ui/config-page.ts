@@ -277,6 +277,7 @@ export const component: ClosureComponent = (): Component => {
           { name: "charts", prefix: "ui.overview.charts.", data: [] },
           { name: "filters", prefix: "ui.filters.", data: [] },
           { name: "index page", prefix: "ui.index.", data: [] },
+          { name: "device page", prefix: "ui.device.", data: [] },
           { name: "multi tab page", prefix: "ui.multiTabs.", data: [] },
         ];
 
