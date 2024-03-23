@@ -58,14 +58,40 @@ async function copyStatic(): Promise<void> {
     "LICENSE",
     "README.md",
     "CHANGELOG.md",
-    "public/logo.svg", // Ubah path logo.svg ke sini
+    "public/logo.svg",
     "public/favicon.png",
   ];
 
   try {
-    const [favicon] = await Promise.all([
+    await fsAsync.mkdir(path.join(OUTPUT_DIR, "public"), { recursive: true }); // Pastikan direktori tujuan ada
+
+    const [logo, favicon] = await Promise.all([
+      fsAsync.readFile(path.join(INPUT_DIR, "public/logo.svg")),
       fsAsync.readFile(path.join(INPUT_DIR, "public/favicon.png")),
     ]);
+
+    ASSETS.LOGO_SVG = "logo.svg"; // Atur nama file logo.svg tanpa tambahan string
+    ASSETS.FAVICON_PNG = `favicon-${assetHash(favicon)}.png`;
+
+    await Promise.all([
+      fsAsync.writeFile(
+        path.join(OUTPUT_DIR, "public", ASSETS.LOGO_SVG), // Gunakan path yang sudah diatur
+        logo
+      ),
+      fsAsync.writeFile(
+        path.join(OUTPUT_DIR, "public", ASSETS.FAVICON_PNG),
+        favicon
+      )
+    ]);
+
+    console.log("Files copied successfully.");
+  } catch (err) {
+    console.error(`Error copying static files: ${err.message}`);
+    console.error(`File not found: ${err.path}`);
+    // Handle error accordingly, e.g., throw the error or exit the program
+    throw err;
+  }
+}
 
     ASSETS.push(`favicon-${assetHash(favicon)}.png`);
 
