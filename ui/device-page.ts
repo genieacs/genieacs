@@ -68,12 +68,8 @@ export const component: ClosureComponent = (): Component => {
             m("ul",tabs),
             m("div.tab_content", tabContent)
           ])
-            m("div.tab", [
-                m("ul", tabs),
-                m("div.tab_content", tabContent)
-            ])
         );
-      } else {
+      }else{
         for (const c of Object.values(conf)) {
           cmps.push(
             m.context({ device: dev.value[0], deviceQuery: dev }, c["type"], c)
