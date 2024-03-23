@@ -63,62 +63,26 @@ async function copyStatic(): Promise<void> {
   ];
 
   try {
-    await fsAsync.mkdir(path.join(OUTPUT_DIR, "public"), { recursive: true }); // Pastikan direktori tujuan ada
+    await fsAsync.mkdir(path.join(OUTPUT_DIR, "public"), { recursive: true });
 
-    const [logo, favicon] = await Promise.all([
-      fsAsync.readFile(path.join(INPUT_DIR, "public/logo.svg")),
-      fsAsync.readFile(path.join(INPUT_DIR, "public/favicon.png")),
-    ]);
-
-    ASSETS.LOGO_SVG = "logo.svg"; // Atur nama file logo.svg tanpa tambahan string
-    ASSETS.FAVICON_PNG = `favicon-${assetHash(favicon)}.png`;
-
-    await Promise.all([
-      fsAsync.writeFile(
-        path.join(OUTPUT_DIR, "public", ASSETS.LOGO_SVG), // Gunakan path yang sudah diatur
-        logo
-      ),
-      fsAsync.writeFile(
-        path.join(OUTPUT_DIR, "public", ASSETS.FAVICON_PNG),
-        favicon
-      )
-    ]);
+    for (const file of files) {
+      let destFileName = file;
+      if (file === "public/logo.svg") {
+        destFileName = "logo.svg";
+      } else if (file === "public/favicon.png") {
+        destFileName = `favicon-${assetHash(await fsAsync.readFile(path.join(INPUT_DIR, file)))}.png`;
+      }
+      ASSETS.push(destFileName);
+      await fsAsync.copyFile(
+        path.join(INPUT_DIR, file),
+        path.join(OUTPUT_DIR, "public", destFileName)
+      );
+    }
 
     console.log("Files copied successfully.");
   } catch (err) {
     console.error(`Error copying static files: ${err.message}`);
     console.error(`File not found: ${err.path}`);
-    // Handle error accordingly, e.g., throw the error or exit the program
-    throw err;
-  }
-}
-
-    ASSETS.push(`favicon-${assetHash(favicon)}.png`);
-
-    const filenames = {} as Record<string, string>;
-    filenames["public/favicon.png"] = "public/" + ASSETS[ASSETS.length - 1];
-
-    await Promise.all(
-      files.map((f) => {
-        if (f === "public/logo.svg") {
-          // Jika file adalah logo.svg, salin tanpa tambahan string pada nama
-          return fsAsync.copyFile(
-            path.join(INPUT_DIR, f),
-            path.join(OUTPUT_DIR, "public/logo.svg"),
-          );
-        } else {
-          // Jika bukan logo.svg, salin seperti biasa
-          return fsAsync.copyFile(
-            path.join(INPUT_DIR, f),
-            path.join(OUTPUT_DIR, filenames[f] || f),
-          );
-        }
-      }),
-    );
-  } catch (err) {
-    console.error(`Error copying static files: ${err.message}`);
-    console.error(`File not found: ${err.path}`);
-    // Handle error accordingly, e.g., throw the error or exit the program
     throw err;
   }
 }
@@ -216,32 +180,4 @@ init()
     ]).then(generateBackendJs),
   )
   .catch((err) => {
-    process.stderr.write(err.stack + "\n");
-});
-
-// Fungsi lain yang diperlukan
-function generateSymbol(id: string, svgStr: string): string {
-  const xml = xmlParser.parseXml(svgStr);
-  const svg = xml.children[0];
-  const svgAttrs = xmlParser.parseAttrs(svg.attrs);
-  let viewBox = "";
-  for (const a of svgAttrs) {
-    if (a.name === "viewBox") {
-      viewBox = `viewBox="${a.value}"`;
-      break;
-    }
-  }
-  const symbolBody = xml.children[0].children
-    .map((c) => xmlTostring(c))
-    .join("");
-  return `<symbol id="icon-${id}" ${viewBox}>${symbolBody}</symbol>`;
-}
-
-function xmlTostring(xml): string {
-  const children = [];
-  for (const c of xml.children || []) children.push(xmlTostring(c));
-
-  return xml.name === "root" && xml.bodyIndex === 0
-    ? children.join("")
-    : `<${xml.name} ${xml.attrs}>${children.join("")}</${xml.name}>`;
-}
+    process.stderr.write
