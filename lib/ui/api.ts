@@ -1,4 +1,4 @@
-import { PassThrough } from "node:stream";
+import { Readable } from "node:stream";
 import Router from "koa-router";
 import { ObjectId } from "mongodb";
 import * as db from "./db.ts";
@@ -88,10 +88,9 @@ router.get(`/devices/:id.csv`, async (ctx) => {
       .replace(/[:.]/g, "")}.csv`,
   );
 
-  ctx.body = new PassThrough();
-  ctx.body.write(
-    "Parameter,Object,Object timestamp,Writable,Writable timestamp,Value,Value type,Value timestamp,Notification,Notification timestamp,Access list,Access list timestamp\n",
-  );
+  const lines: string[] = [
+    "Parameter,Object,Object timestamp,Writable,Writable timestamp,Value,Value type,Value timestamp,Notification,Notification timestamp,Access list,Access list timestamp",
+  ];
 
   for (const k of Object.keys(device).sort()) {
     const p = device[k];
@@ -118,9 +117,9 @@ router.get(`/devices/:id.csv`, async (ctx) => {
       p.accessList ? p.accessList.join(", ") : "",
       new Date(p.accessListTimestamp).toJSON(),
     ];
-    ctx.body.write(row.map((r) => (r != null ? r : "")).join(",") + "\n");
+    lines.push(row.map((r) => (r != null ? r : "")).join(","));
   }
-  ctx.body.end();
+  ctx.body = lines.join("\n");
   logger.accessInfo(log);
 });
 
@@ -201,16 +200,17 @@ for (const [resource, flags] of Object.entries(resources)) {
       ]);
     }
 
-    ctx.body = new PassThrough();
-    ctx.type = "application/json";
-
-    let c = 0;
-    ctx.body.write("[\n");
-    for await (const obj of db.query(resource, filter, options))
-      ctx.body.write((c++ ? "," : "") + JSON.stringify(obj) + "\n");
-
-    ctx.body.end("]");
     logger.accessInfo(log);
+    ctx.type = "application/json";
+    ctx.body = Readable.from(
+      (async function* () {
+        let c = 0;
+        yield "[\n";
+        for await (const obj of db.query(resource, filter, options))
+          yield (c++ ? "," : "") + JSON.stringify(obj) + "\n";
+        yield "]";
+      })(),
+    );
   });
 
   // CSV download
@@ -260,60 +260,62 @@ for (const [resource, flags] of Object.entries(resources)) {
       ]);
     }
 
-    ctx.body = new PassThrough();
+    logger.accessInfo(log);
     ctx.type = "text/csv";
     ctx.attachment(
       `${resource}-${new Date(now).toISOString().replace(/[:.]/g, "")}.csv`,
     );
 
-    ctx.body.write(
-      Object.keys(columns).map((k) => `"${k.replace(/"/, '""')}"`) + "\n",
+    ctx.body = Readable.from(
+      (async function* () {
+        yield Object.keys(columns).map((k) => `"${k.replace(/"/, '""')}"`) +
+          "\n";
+        for await (const obj of db.query(resource, filter, options)) {
+          const arr = Object.values(columns).map((exp) => {
+            const v = evaluate(exp, obj, null, (e) => {
+              if (Array.isArray(e)) {
+                if (e[0] === "PARAM") {
+                  if (resource === "devices") {
+                    if (e[1] === "Tags") {
+                      const tags = [];
+                      for (const p in obj)
+                        if (p.startsWith("Tags."))
+                          tags.push(decodeTag(p.slice(5)));
+
+                      return tags.join(", ");
+                    }
+                    if (e === exp) {
+                      const p = obj[e[1]];
+                      if (
+                        p &&
+                        p.value &&
+                        p.value[1] === "xsd:dateTime" &&
+                        typeof p.value[0] === "number"
+                      )
+                        return new Date(p.value[0]).toJSON();
+                    }
+                  } else if (resource === "faults") {
+                    if (e[1] === "detail") return yamlStringify(obj["detail"]);
+                  }
+                } else if (e[0] === "FUNC") {
+                  if (e[1] === "DATE_STRING") {
+                    if (e[2] && !Array.isArray(e[2]))
+                      return new Date(e[2]).toJSON();
+                  }
+                }
+              }
+
+              return e;
+            });
+
+            if (Array.isArray(v) || v == null) return "";
+            if (typeof v === "string") return `"${v.replace(/"/g, '""')}"`;
+            return v;
+          });
+          yield arr.join(",") + "\n";
+        }
+      })(),
     );
-    for await (const obj of db.query(resource, filter, options)) {
-      const arr = Object.values(columns).map((exp) => {
-        const v = evaluate(exp, obj, null, (e) => {
-          if (Array.isArray(e)) {
-            if (e[0] === "PARAM") {
-              if (resource === "devices") {
-                if (e[1] === "Tags") {
-                  const tags = [];
-                  for (const p in obj)
-                    if (p.startsWith("Tags.")) tags.push(decodeTag(p.slice(5)));
-
-                  return tags.join(", ");
-                }
-                if (e === exp) {
-                  const p = obj[e[1]];
-                  if (
-                    p &&
-                    p.value &&
-                    p.value[1] === "xsd:dateTime" &&
-                    typeof p.value[0] === "number"
-                  )
-                    return new Date(p.value[0]).toJSON();
-                }
-              } else if (resource === "faults") {
-                if (e[1] === "detail") return yamlStringify(obj["detail"]);
-              }
-            } else if (e[0] === "FUNC") {
-              if (e[1] === "DATE_STRING") {
-                if (e[2] && !Array.isArray(e[2]))
-                  return new Date(e[2]).toJSON();
-              }
-            }
-          }
-
-          return e;
-        });
-
-        if (Array.isArray(v) || v == null) return "";
-        if (typeof v === "string") return `"${v.replace(/"/g, '""')}"`;
-        return v;
-      });
-      ctx.body.write(arr.join(",") + "\n");
-    }
-    ctx.body.end();
-    logger.accessInfo(log);
   });
 
   router.head(`/${resource}/:id`, async (ctx) => {
