@@ -321,50 +321,44 @@ export default class XmppClient extends EventEmitter {
     this._iqStanzaCallbacks = new Map();
   }
 
-  static connect(opts: XmppClientOptions): Promise<XmppClient> {
-    return new Promise((resolve, reject) => {
-      let socket = new net.Socket();
-      socket.on("error", reject);
-
-      socket.connect(
-        opts.port || 5222,
-        opts.host,
-        void async function () {
+  static async connect(opts: XmppClientOptions): Promise<XmppClient> {
+    function connectSocket(host: string, port: number): Promise<net.Socket> {
+      return new Promise((resolve, reject) => {
+        const socket = new net.Socket();
+        socket.on("error", reject);
+        socket.connect(port, host, () => {
           socket.removeListener("error", reject);
-          try {
-            let status = 1;
-            while (status) {
-              if (status === STATUS_STARTTLS)
-                socket = await upgradeTls(socket, opts.host);
-              status = await xmppStream(
-                socket,
-                init(
-                  socket,
-                  opts.host,
-                  opts.username,
-                  opts.password,
-                  opts.resource,
-                ),
-              );
-            }
+          resolve(socket);
+        });
+      });
+    }
 
-            const client = new XmppClient();
-            client._socket = socket;
-            client._host = opts.host;
-            client._username = opts.username;
-            client._resource = opts.resource;
-            socket.on("data", client._onData.bind(client));
-            socket.on("error", client._onError.bind(client));
-            if (opts.timeout)
-              socket.setTimeout(opts.timeout, client.close.bind(client));
-            resolve(client);
-          } catch (err) {
-            socket.destroy();
-            reject(err);
-          }
-        },
-      );
-    });
+    let socket = await connectSocket(opts.host, opts.port || 5222);
+    try {
+      let status = 1;
+      while (status) {
+        if (status === STATUS_STARTTLS)
+          socket = await upgradeTls(socket, opts.host);
+        status = await xmppStream(
+          socket,
+          init(socket, opts.host, opts.username, opts.password, opts.resource),
+        );
+      }
+    } catch (err) {
+      socket.destroy();
+      throw err;
+    }
+
+    const client = new XmppClient();
+    client._socket = socket;
+    client._host = opts.host;
+    client._username = opts.username;
+    client._resource = opts.resource;
+    socket.on("data", client._onData.bind(client));
+    socket.on("error", client._onError.bind(client));
+    if (opts.timeout)
+      socket.setTimeout(opts.timeout, client.close.bind(client));
+    return client;
   }
 
   close(): void {
