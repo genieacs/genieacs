@@ -1,5 +1,12 @@
 # Change Log
 
+## 1.2.12 (2024-03-28)
+
+- Fix broken XMPP support in the previous release.
+
+- Fix regression causing CSV downloads to be buffered in memory before being
+  streamed to the client.
+
 ## 1.2.11 (2024-03-21)
 
 - Resolved an issue from the previous release that caused incompatibility with
