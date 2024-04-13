@@ -266,7 +266,13 @@ async function handler(
       if (body.length) {
         try {
           task = JSON.parse(body.toString());
-          task.device = deviceId;
+          if ( Array.isArray(task) ) {
+            for (const element of task) {
+              element.device = deviceId;
+            }
+          } else {
+            task.device = deviceId;
+          }
         } catch (err) {
           response.writeHead(400);
           response.end(`${err.name}: ${err.message}`);
