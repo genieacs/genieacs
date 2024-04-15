@@ -70,6 +70,7 @@ const MAX_CONCURRENT_REQUESTS = +config.get("MAX_CONCURRENT_REQUESTS");
 const PROMETHEUS_METRICS = config.get("CWMP_PROMETHEUS_METRICS");
 const SKIP_FLASHMAN_INFORM = config.get("SKIP_FLASHMAN_INFORM");
 const BLOCK_NEW_CPE = config.get("BLOCK_NEW_CPE");
+const MODELS_BLACKLIST = config.get("MODELS_BLACKLIST");
 
 const currentSessions = new WeakMap<Socket, SessionContext>();
 const sessionsNonces = new WeakMap<Socket, string>();
@@ -1768,6 +1769,15 @@ async function listenerAsync(
       metricsExporter.blockedNewCpe.inc();
       return;
     }
+  }
+
+  const modelsBlacklist: string[] = String(MODELS_BLACKLIST).split(',');
+  if (modelsBlacklist.length > 0 && modelsBlacklist[0] !== '' &&
+    modelsBlacklist.includes(rpc.cpeRequest.deviceId["ProductClass"])) {
+    httpResponse.writeHead(403, { Connection: "close" });
+    httpResponse.end("403 Forbidden");
+    metricsExporter.blockedNewCpe.inc();
+    return;
   }
 
   
