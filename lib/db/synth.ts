@@ -578,6 +578,8 @@ class MongoSynthContext extends SynthContextBase<Clause, MongoClause> {
   toQuery(minterms: Minterm[]): Filter<unknown> {
     const or = [];
 
+    const ejsonOps = ["$oid", "$date", "$regularExpression"];
+
     for (const minterm of minterms) {
       const query = {};
       loop: for (const clause of minterm) {
@@ -588,8 +590,6 @@ class MongoSynthContext extends SynthContextBase<Clause, MongoClause> {
         if (Object.keys(q).length !== 1)
           throw new Error("Invalid query expression");
         const [param, value] = Object.entries(q)[0];
-        if (Object.getPrototypeOf(value).constructor !== Object)
-          throw new Error("Invalid query expression");
         const dests = [query, ...(query["$and"] ?? [])];
         for (const dest of dests) {
           if (!(param in dest)) {
@@ -599,16 +599,28 @@ class MongoSynthContext extends SynthContextBase<Clause, MongoClause> {
 
           let src = value;
           let dst = dest[param];
+          if (Object.getPrototypeOf(src).constructor !== Object) continue;
+          if (Object.getPrototypeOf(dst).constructor !== Object) continue;
+          let srcKeys = Object.keys(src);
+          let dstKeys = Object.keys(dst);
 
-          if (src["$not"] && dst["$not"]) {
+          if ([...srcKeys, ...dstKeys].every((k) => k === "$not")) {
             src = src["$not"];
             dst = dst["$not"];
+            if (Object.getPrototypeOf(src).constructor !== Object) continue;
+            if (Object.getPrototypeOf(dst).constructor !== Object) continue;
+            srcKeys = Object.keys(src);
+            dstKeys = Object.keys(dst);
           }
 
-          if (!Object.keys(src).some((k) => k in dst)) {
-            Object.assign(dst, src);
-            continue loop;
-          }
+          if (srcKeys.some((k) => dstKeys.includes(k))) continue;
+
+          // Don't mix regular operators with EJSON special operators
+          if (srcKeys.some((k) => ejsonOps.includes(k))) continue;
+          if (dstKeys.some((k) => ejsonOps.includes(k))) continue;
+
+          Object.assign(dst, src);
+          continue loop;
         }
 
         query["$and"] ??= [];
