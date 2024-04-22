@@ -39,7 +39,11 @@ export const component: ClosureComponent = (): Component => {
 
       for (const c of Object.values(conf)) {
         cmps.push(
-          m.context({ device: dev.value[0], deviceQuery: dev }, c["type"], c),
+          m.context(
+            { device: dev.value[0], deviceQuery: dev },
+            store.evaluateExpression(c["type"], null) as string,
+            c,
+          ),
         );
       }
 

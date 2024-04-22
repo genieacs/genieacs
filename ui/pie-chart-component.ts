@@ -2,6 +2,7 @@ import { ClosureComponent, Component, Children } from "mithril";
 import { m } from "./components.ts";
 import { stringify } from "../lib/common/expression/parser.ts";
 import memoize from "../lib/common/memoize.ts";
+import * as store from "./store.ts";
 
 const memoizedStringify = memoize(stringify);
 
@@ -24,9 +25,9 @@ function drawChart(chartData): Children {
     legend.push(
       m(".legend-line", [
         m("span.color", {
-          style: `background-color: ${slice["color"]} !important;`,
+          style: `background-color: ${store.evaluateExpression(slice["color"], null)} !important;`,
         }),
-        `${slice["label"]}: `,
+        `${store.evaluateExpression(slice["label"], null)}: `,
         m(
           "a",
           {
@@ -57,7 +58,7 @@ function drawChart(chartData): Children {
       paths.push(
         m("path", {
           d: sketch,
-          fill: slice["color"],
+          fill: store.evaluateExpression(slice["color"], null),
         }),
       );
 

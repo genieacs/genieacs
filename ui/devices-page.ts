@@ -26,7 +26,10 @@ const memoizedGetSortable = memoize((p) => {
 
 const getDownloadUrl = memoize((filter, indexParameters) => {
   const columns = {};
-  for (const p of indexParameters) columns[p.label] = stringify(p.parameter);
+  for (const p of indexParameters)
+    columns[store.evaluateExpression(p.label, null) as string] = stringify(
+      p.parameter,
+    );
   return `api/devices.csv?${m.buildQueryString({
     filter: stringify(filter),
     columns: JSON.stringify(columns),
@@ -282,7 +285,11 @@ export const component: ClosureComponent = (): Component => {
       };
 
       const attrs = {};
-      attrs["attributes"] = attributes;
+      attrs["attributes"] = attributes.map((a) => ({
+        ...a,
+        label: store.evaluateExpression(a.label, null),
+        type: store.evaluateExpression(a.type, null),
+      }));
       attrs["data"] = devs.value;
       attrs["total"] = count.value;
       attrs["showMoreCallback"] = showMore;

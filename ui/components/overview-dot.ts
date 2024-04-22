@@ -27,10 +27,14 @@ const component: ClosureComponent = (): Component => {
               cx: "0.5em",
               cy: "0.5em",
               r: "0.4em",
-              fill: slice["color"],
+              fill: evaluateExpression(slice["color"], null),
             }),
           );
-          return m("span.overview-dot", dot, `${slice["label"]}`);
+          return m(
+            "span.overview-dot",
+            dot,
+            evaluateExpression(slice["label"], null),
+          );
         }
       }
       return null;
