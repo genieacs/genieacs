@@ -17,6 +17,8 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import * as logger from "../logger";
+
 type Segments = (string | Alias)[];
 type Alias = [Path, string][];
 
@@ -159,6 +161,11 @@ export default class Path {
         index = i;
         if (c !== CHAR_DOT) break;
         segStart = i + 1;
+      }
+      if (segments.length > 112000000) {
+        logger.error({
+          message: "!@# Opa 16",
+        });
       }
     }
 

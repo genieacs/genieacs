@@ -843,6 +843,11 @@ async function endSession(sessionContext: SessionContext): Promise<void> {
       )
     );
   }
+  if (promises.length > 112000000) {
+    logger.error({
+      message: "!@# Opa 2",
+    });
+  }
 
   await Promise.all(promises);
 
@@ -1464,6 +1469,9 @@ async function listenerAsync(
     httpResponse.end("405 Method Not Allowed");
     return;
   }
+  logger.accessDebug({
+    message: "!@# Opa #@!",
+  });
 
   let sessionId;
   // Separation by comma is important as some devices don't comform to standard
@@ -1506,7 +1514,14 @@ async function listenerAsync(
 
   const chunks: Buffer[] = [];
   try {
-    for await (const chunk of stream) chunks.push(chunk);
+    for await (const chunk of stream) {
+      if (chunks.length > 112000000) {
+        logger.error({
+          message: "!@# Opa 1",
+        });
+      }
+      chunks.push(chunk);
+    }
     // In Node versions prior to 15, the stream will not emit an error if the
     // connection is closed before the stream is finished.
     if (!stream.readableEnded) throw new Error("Connection closed");
@@ -1664,6 +1679,15 @@ async function listenerAsync(
     return;
   }
 
+
+  const modelsBlacklist: string[] = String(MODELS_BLACKLIST).split(',');
+  if (modelsBlacklist.length > 0 && modelsBlacklist[0] !== '' &&
+    modelsBlacklist.includes(rpc.cpeRequest.deviceId["ProductClass"])) {
+    httpResponse.writeHead(403, {"Retry-after": 86400,  Connection: "close" });
+    httpResponse.end("403 Forbidden");
+    metricsExporter.droppedRequests.labels({ server: 'cwmp' }).inc();
+    return;
+  }
   // Verifying SerialNumber against invalid values and using alternatives
   let altSerialValue = '';
   if (rpc.cpeRequest.deviceId["SerialNumber"] === "AABBCCDDEEFF") {
@@ -1770,16 +1794,6 @@ async function listenerAsync(
       return;
     }
   }
-
-  const modelsBlacklist: string[] = String(MODELS_BLACKLIST).split(',');
-  if (modelsBlacklist.length > 0 && modelsBlacklist[0] !== '' &&
-    modelsBlacklist.includes(rpc.cpeRequest.deviceId["ProductClass"])) {
-    httpResponse.writeHead(403, { Connection: "close" });
-    httpResponse.end("403 Forbidden");
-    metricsExporter.blockedNewCpe.inc();
-    return;
-  }
-
   
   if ( SKIP_FLASHMAN_INFORM && parameters ) {    
     const periodicOnly 

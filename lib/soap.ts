@@ -50,6 +50,7 @@ import {
   AcsResponse,
 } from "./types";
 import Path from "./common/path";
+import * as logger from "./logger";
 
 const SERVER_NAME = `AnlixACS/${VERSION}`;
 
@@ -843,6 +844,11 @@ export function request(
   body: string,
   warn: Record<string, unknown>[]
 ): SoapMessage {
+  if (warnings.length > 112000000) {
+    logger.error({
+      message: "!@# Opa 0",
+    });
+  }
   warnings = warn;
 
   const rpc = {

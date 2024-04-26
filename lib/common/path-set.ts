@@ -18,6 +18,7 @@
  */
 
 import Path from "./path";
+import * as logger from "../logger";
 
 export default class PathSet {
   private declare lengthIndex: Set<Path>[];
@@ -43,8 +44,18 @@ export default class PathSet {
     this.stringIndex.set(path.toString(), path);
 
     while (this.lengthIndex.length <= path.length) {
+      if (this.lengthIndex.length > 112000000) {
+        logger.error({
+          message: "!@# Opa 14",
+        });
+      }
       this.lengthIndex.push(new Set());
       // fragmentIndex is one less than lengthIndex
+      if (this.fragmentIndex.length > 112000000) {
+        logger.error({
+          message: "!@# Opa 15",
+        });
+      }
       if (this.lengthIndex.length > 1) this.fragmentIndex.push(new Map());
     }
 

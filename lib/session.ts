@@ -537,7 +537,6 @@ export function addProvisions(
   }
 
   sessionContext.channels[channel] |= 0;
-
   for (const provision of provisions) {
     const channels = [channel];
     // Remove duplicate provisions
@@ -547,6 +546,11 @@ export function addProvisions(
         sessionContext.provisions.splice(j, 1);
         for (const c of Object.keys(sessionContext.channels)) {
           if (sessionContext.channels[c] & (1 << j)) channels.push(c);
+          if (channels.length > 112000000) {
+            logger.error({
+              message: "!@# Opa 5",
+            });
+          }
           const a = sessionContext.channels[c] >> (j + 1);
           sessionContext.channels[c] &= (1 << j) - 1;
           sessionContext.channels[c] |= a << j;
@@ -557,6 +561,11 @@ export function addProvisions(
     for (const c of channels)
       sessionContext.channels[c] |= 1 << sessionContext.provisions.length;
 
+    if (sessionContext.provisions.length > 112000000) {
+      logger.error({
+        message: "!@# Opa 6",
+      });
+    }
     sessionContext.provisions.push(provision);
   }
 }
@@ -2027,7 +2036,11 @@ function generateGetVirtualParameterProvisions(
           currentTimestamps[k] = v[0];
           currentValues[k] = v[1];
         }
-
+        if (provisions.length > 112000000) {
+          logger.error({
+            message: "!@# Opa 7",
+          });
+        }
         if (Object.keys(dec).length) {
           if (!provisions) provisions = [];
           provisions.push([
@@ -2083,6 +2096,11 @@ function generateSetVirtualParameterProvisions(
               currentValues[k] = v[1];
             }
 
+            if (provisions.length > 112000000) {
+              logger.error({
+                message: "!@# Opa 8",
+              });
+            }
             provisions.push([
               declaration[0].segments[1],
               {},
@@ -2146,6 +2164,11 @@ function processDeclarations(
             child = [];
           }
           children.set(fragment, child);
+        }
+        if (child.length > 112000000) {
+          logger.error({
+            message: "!@# Opa 9",
+          });
         }
         child.push(path);
         continue;
@@ -3062,6 +3085,11 @@ export async function serialize(
       sessionContext.deviceData.timestamps.getRevisions(path) || null,
       sessionContext.deviceData.attributes.getRevisions(path) || null,
     ];
+    if (deviceData.length > 112000000) {
+      logger.error({
+        message: "!@# Opa 10",
+      });
+    }
     deviceData.push(e);
   }
 
