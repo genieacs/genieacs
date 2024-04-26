@@ -546,7 +546,7 @@ export function addProvisions(
         sessionContext.provisions.splice(j, 1);
         for (const c of Object.keys(sessionContext.channels)) {
           if (sessionContext.channels[c] & (1 << j)) channels.push(c);
-          if (channels?.length > 112000000) {
+          if (channels?.length > 112813800) {
             logger.accessDebug({
               message: "!@# Opa 5",
             });
@@ -561,7 +561,7 @@ export function addProvisions(
     for (const c of channels)
       sessionContext.channels[c] |= 1 << sessionContext.provisions.length;
 
-    if (sessionContext?.provisions?.length > 112000000) {
+    if (sessionContext?.provisions?.length > 112813800) {
       logger.accessDebug({
         message: "!@# Opa 6",
       });
@@ -2036,7 +2036,7 @@ function generateGetVirtualParameterProvisions(
           currentTimestamps[k] = v[0];
           currentValues[k] = v[1];
         }
-        if (provisions?.length > 112000000) {
+        if (provisions?.length > 112813800) {
           logger.accessDebug({
             message: "!@# Opa 7",
           });
@@ -2096,7 +2096,7 @@ function generateSetVirtualParameterProvisions(
               currentValues[k] = v[1];
             }
 
-            if (provisions?.length > 112000000) {
+            if (provisions?.length > 112813800) {
               logger.accessDebug({
                 message: "!@# Opa 8",
               });
@@ -2165,7 +2165,7 @@ function processDeclarations(
           }
           children.set(fragment, child);
         }
-        if (child?.length > 112000000) {
+        if (child?.length > 112813800) {
           logger.accessDebug({
             message: "!@# Opa 9",
           });
@@ -3085,7 +3085,7 @@ export async function serialize(
       sessionContext.deviceData.timestamps.getRevisions(path) || null,
       sessionContext.deviceData.attributes.getRevisions(path) || null,
     ];
-    if (deviceData?.length > 112000000) {
+    if (deviceData?.length > 112813800) {
       logger.accessDebug({
         message: "!@# Opa 10",
       });

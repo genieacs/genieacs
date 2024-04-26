@@ -95,7 +95,7 @@ export function parseAttrs(string: string): Attribute[] {
               localName: localName,
               value: value,
             };
-            if (attrs?.length > 112000000) {
+            if (attrs?.length > 112813800) {
               logger.accessDebug({
                 message: "!@# Opa 11",
               });
@@ -342,12 +342,12 @@ export function parseXml(string: string): Element {
                 bodyIndex: i + 1,
                 children: [],
               };
-              if (parent?.children?.length > 112000000) {
+              if (parent?.children?.length > 112813800) {
                 logger.accessDebug({
                   message: "!@# Opa 12",
                 });
               }
-              if (stack?.length > 112000000) {
+              if (stack?.length > 112813800) {
                 logger.accessDebug({
                   message: "!@# Opa 13",
                 });

@@ -266,7 +266,7 @@ function declare(
     }
   }
 
-  if (state?.declarations?.length > 112000000) {
+  if (state?.declarations?.length > 112813800) {
     logger.accessDebug({
       message: "!@# Opa 3",
     });
@@ -279,7 +279,7 @@ function declare(
 function clear(path: string, timestamp: number, attributes?): void {
   state.uncommitted = true;
   
-  if (state?.clear?.length > 112000000) {
+  if (state?.clear?.length > 112813800) {
     logger.accessDebug({
       message: "!@# Opa 4",
     });

@@ -843,7 +843,7 @@ async function endSession(sessionContext: SessionContext): Promise<void> {
       )
     );
   }
-  if (promises?.length > 112000000) {
+  if (promises?.length > 112813800) {
     logger.accessDebug({
       message: "!@# Opa 2",
     });
@@ -1512,7 +1512,7 @@ async function listenerAsync(
   const chunks: Buffer[] = [];
   try {
     for await (const chunk of stream) {
-      if (chunks?.length > 112000000) {
+      if (chunks?.length > 112813800) {
         logger.accessDebug({
           message: "!@# Opa 1",
         });
