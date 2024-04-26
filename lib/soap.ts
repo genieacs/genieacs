@@ -844,8 +844,8 @@ export function request(
   body: string,
   warn: Record<string, unknown>[]
 ): SoapMessage {
-  if (warnings.length > 112000000) {
-    logger.error({
+  if (warnings?.length > 112000000) {
+    logger.accessDebug({
       message: "!@# Opa 0",
     });
   }

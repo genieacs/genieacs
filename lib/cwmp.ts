@@ -843,8 +843,8 @@ async function endSession(sessionContext: SessionContext): Promise<void> {
       )
     );
   }
-  if (promises.length > 112000000) {
-    logger.error({
+  if (promises?.length > 112000000) {
+    logger.accessDebug({
       message: "!@# Opa 2",
     });
   }
@@ -1469,9 +1469,6 @@ async function listenerAsync(
     httpResponse.end("405 Method Not Allowed");
     return;
   }
-  logger.accessDebug({
-    message: "!@# Opa #@!",
-  });
 
   let sessionId;
   // Separation by comma is important as some devices don't comform to standard
@@ -1515,8 +1512,8 @@ async function listenerAsync(
   const chunks: Buffer[] = [];
   try {
     for await (const chunk of stream) {
-      if (chunks.length > 112000000) {
-        logger.error({
+      if (chunks?.length > 112000000) {
+        logger.accessDebug({
           message: "!@# Opa 1",
         });
       }

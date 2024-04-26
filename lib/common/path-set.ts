@@ -44,15 +44,15 @@ export default class PathSet {
     this.stringIndex.set(path.toString(), path);
 
     while (this.lengthIndex.length <= path.length) {
-      if (this.lengthIndex.length > 112000000) {
-        logger.error({
+      if (this?.lengthIndex?.length > 112000000) {
+        logger.accessDebug({
           message: "!@# Opa 14",
         });
       }
       this.lengthIndex.push(new Set());
       // fragmentIndex is one less than lengthIndex
-      if (this.fragmentIndex.length > 112000000) {
-        logger.error({
+      if (this?.fragmentIndex?.length > 112000000) {
+        logger.accessDebug({
           message: "!@# Opa 15",
         });
       }

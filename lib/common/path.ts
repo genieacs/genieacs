@@ -162,8 +162,8 @@ export default class Path {
         if (c !== CHAR_DOT) break;
         segStart = i + 1;
       }
-      if (segments.length > 112000000) {
-        logger.error({
+      if (segments?.length > 112000000) {
+        logger.accessDebug({
           message: "!@# Opa 16",
         });
       }
