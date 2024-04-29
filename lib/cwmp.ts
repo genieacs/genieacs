@@ -843,11 +843,6 @@ async function endSession(sessionContext: SessionContext): Promise<void> {
       )
     );
   }
-  if (promises?.length > 112813800) {
-    logger.accessDebug({
-      message: "!@# Opa 2",
-    });
-  }
 
   await Promise.all(promises);
 
@@ -1511,14 +1506,7 @@ async function listenerAsync(
 
   const chunks: Buffer[] = [];
   try {
-    for await (const chunk of stream) {
-      if (chunks?.length > 112813800) {
-        logger.accessDebug({
-          message: "!@# Opa 1",
-        });
-      }
-      chunks.push(chunk);
-    }
+    for await (const chunk of stream) chunks.push(chunk);
     // In Node versions prior to 15, the stream will not emit an error if the
     // connection is closed before the stream is finished.
     if (!stream.readableEnded) throw new Error("Connection closed");

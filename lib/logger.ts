@@ -367,17 +367,6 @@ export function accessLog(details: Record<string, unknown>): void {
   }
 }
 
-export function accessDebug(details: Record<string, unknown>): void {
-  details.timestamp = new Date().toISOString();
-  details.severity = "error";
-  if (ACCESS_LOG_FORMAT === "json") {
-    Object.assign(details, defaultMeta);
-    accessLogStream.write(formatJson(details, ACCESS_LOG_SYSTEMD));
-  } else {
-    accessLogStream.write(formatSimple(details, ACCESS_LOG_SYSTEMD));
-  }
-}
-
 export function accessInfo(details: Record<string, unknown>): void {
   if(!LOG_INFO_DATA) return;
   details.severity = "info";

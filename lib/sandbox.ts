@@ -266,11 +266,6 @@ function declare(
     }
   }
 
-  if (state?.declarations?.length > 112813800) {
-    logger.accessDebug({
-      message: "!@# Opa 3",
-    });
-  }
   state.declarations.push(declaration);
 
   return new ParameterWrapper(parsedPath, attrs);
@@ -278,12 +273,7 @@ function declare(
 
 function clear(path: string, timestamp: number, attributes?): void {
   state.uncommitted = true;
-  
-  if (state?.clear?.length > 112813800) {
-    logger.accessDebug({
-      message: "!@# Opa 4",
-    });
-  }
+
   if (state.revision === state.maxRevision)
     state.clear.push([Path.parse(path), timestamp, attributes]);
 }

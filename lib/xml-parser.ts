@@ -17,8 +17,6 @@
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import * as logger from "./logger";
-
 const CHAR_SINGLE_QUOTE = 39;
 const CHAR_DOUBLE_QUOTE = 34;
 const CHAR_LESS_THAN = 60;
@@ -95,11 +93,6 @@ export function parseAttrs(string: string): Attribute[] {
               localName: localName,
               value: value,
             };
-            if (attrs?.length > 112813800) {
-              logger.accessDebug({
-                message: "!@# Opa 11",
-              });
-            }
             attrs.push(e);
             name = "";
             idx = i + 1;
@@ -342,16 +335,6 @@ export function parseXml(string: string): Element {
                 bodyIndex: i + 1,
                 children: [],
               };
-              if (parent?.children?.length > 112813800) {
-                logger.accessDebug({
-                  message: "!@# Opa 12",
-                });
-              }
-              if (stack?.length > 112813800) {
-                logger.accessDebug({
-                  message: "!@# Opa 13",
-                });
-              }
               parent.children.push(e);
               if (!selfClosing) stack.push(e);
 
