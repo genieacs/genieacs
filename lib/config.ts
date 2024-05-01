@@ -112,6 +112,7 @@ const options = {
   LOG_STATS: { type: "bool", default: false },
   SKIP_FLASHMAN_INFORM: { type: "bool", default: false },
   BLOCK_NEW_CPE: { type: "bool", default: false },
+  MODELS_BLACKLIST: {type: "string", default: ""},
 
   // Should probably never be changed
   DEVICE_ONLINE_THRESHOLD: { type: "int", default: 4000 },
