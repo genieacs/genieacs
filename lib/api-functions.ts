@@ -70,7 +70,7 @@ export async function connectionRequest(
       device["InternetGatewayDevice.ManagementServer.STUNEnable"] || {}
     ).value || [""])[0];
     connReqJabberId = ((
-      device["InternetGatewayDevice.ManagementServer.ConnReqJabberID"] || {}
+      device["/.ConnReqJabberID"] || {}
     ).value || [""])[0];
     username = ((
       device[
