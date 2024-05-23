@@ -46,6 +46,18 @@ const unpackSmartQuery = memoize((query) => {
   });
 });
 
+async function deleteFaults(faults: Iterable<string>): Promise<void> {
+  const proms: Map<string, Promise<void>> = new Map();
+  for (const f of faults) {
+    const deviceId = f.split(":", 1)[0];
+    let p = proms.get(deviceId);
+    if (p == null) p = store.deleteResource("faults", f);
+    else p = p.then(() => store.deleteResource("faults", f));
+    proms.set(deviceId, p);
+  }
+  await Promise.all(proms.values());
+}
+
 export function init(
   args: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
@@ -154,16 +166,10 @@ export const component: ClosureComponent = (): Component => {
                 if (!confirm(`Deleting ${selected.size} faults. Are you sure?`))
                   return;
 
-                Promise.all(
-                  Array.from(selected).map((id) =>
-                    store.deleteResource("faults", id),
-                  ),
-                )
-                  .then((res) => {
-                    notifications.push(
-                      "success",
-                      `${res.length} faults deleted`,
-                    );
+                const c = selected.size;
+                deleteFaults(selected)
+                  .then(() => {
+                    notifications.push("success", `${c} faults deleted`);
                     store.setTimestamp(Date.now());
                   })
                   .catch((err) => {
