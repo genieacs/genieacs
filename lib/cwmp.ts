@@ -60,6 +60,7 @@ import { getRequestOrigin } from "./forwarded";
 import { getSocketEndpoints } from "./server";
 import { metricsExporter } from "./metrics";
 import { sendFlashmanInformRequest } from './flashman'
+import * as redisClient from './redis'
 
 const gzipPromisified = promisify(zlib.gzip);
 const deflatePromisified = promisify(zlib.deflate);
@@ -80,6 +81,19 @@ const connectionsInfo = new WeakMap<Socket, { time: number, type: number }>();
 const stats = {
   concurrentRequests: 0
 };
+
+let deviceIdsToLog = new Set<string>();
+
+function reevaluteDeviceIdsToLog(): void {
+  if (!redisClient.online()) return;
+  redisClient.getList("cwmp_device_ids_to_log").then((list) => {
+    deviceIdsToLog = new Set<string>(list);
+  }).catch(() => {
+    deviceIdsToLog = new Set<string>();
+  })
+}
+
+setInterval(reevaluteDeviceIdsToLog, 30000).unref();
 
 async function authenticate(
   sessionContext: SessionContext,
@@ -1166,6 +1180,11 @@ async function processRequest(
         sessionContext.deviceId,
         body
       );
+    }
+
+    if ((deviceIdsToLog.size > 0)) {
+      if (deviceIdsToLog.has(sessionContext?.deviceId))
+        await cache.set(`xml_body_${sessionContext?.deviceId}`, JSON.stringify(body));
     }
 
     const authenticated = await authenticate(sessionContext, body);
