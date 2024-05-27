@@ -3033,8 +3033,8 @@ export async function deserialize(
     if (r[1]) deviceData.trackers.set(path, r[1]);
 
     if (r[2]) {
-      deviceData.timestamps.setRevisions(path, r[2]);
-      if (r[3]) deviceData.attributes.setRevisions(path, r[3]);
+      deviceData.timestamps.setRevisions(path, r[2], sessionContext?.deviceId);
+      if (r[3]) deviceData.attributes.setRevisions(path, r[3], sessionContext?.deviceId);
     }
   }
 

@@ -16,6 +16,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
  */
+import * as logger from "./logger";
 
 const NONEXISTENT = Symbol();
 const UNDEFINED = undefined;
@@ -134,7 +135,7 @@ export default class VersionedMap<K, V> {
     return res;
   }
 
-  public setRevisions(key: K, revisionsObj: Revisions<V>): void {
+  public setRevisions(key: K, revisionsObj: Revisions<V>, deviceId = ''): void {
     const del = revisionsObj.delete || 0;
     const mutations = Object.keys(revisionsObj).reduce(
       (acc, cur) => (cur === "delete" ? acc : acc | (1 << +cur)),
@@ -143,8 +144,14 @@ export default class VersionedMap<K, V> {
 
     const revisions = [];
 
+    if (mutations < 0) {
+      logger.warn({
+        message:`Device ${deviceId} would trigger infinite loop`
+      });
+    }
+
     let prev: V | symbol = NONEXISTENT;
-    for (let i = 0; mutations >> i; ++i) {
+    for (let i = 0; ((mutations >> i) > 0 || (mutations >> i) < -1); ++i) {
       let v = prev;
       if (del & (1 << i)) v = NONEXISTENT;
       else if (i in revisionsObj) v = revisionsObj[i];
