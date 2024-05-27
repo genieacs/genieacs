@@ -198,7 +198,7 @@ export default class Path {
       path = cache2.get(str);
       if (!path) {
         const { index, segments } = Path.parsePath(str, 0);
-        if (index < str.length) throw new Error("Invalid parameter path");
+        if (index < str.length) throw new Error("Invalid parameter path:"+str);
         path = new Path(segments);
         if (path.toString() !== str) cache1.set(path.toString(), path);
       }
