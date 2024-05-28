@@ -146,7 +146,7 @@ export default class VersionedMap<K, V> {
 
     const revisions = [];
 
-    if (mutations < 0) {
+    if (Object.keys(revisionsObj)?.length > 31) {
       logger.warn({
         message:`Device ${deviceId} would trigger infinite loop`
       });
