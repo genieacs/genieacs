@@ -82,18 +82,19 @@ const stats = {
   concurrentRequests: 0
 };
 
-let deviceIdsToLog = new Set<string>();
+let deviceIdsToCaptureXml = new Set<string>();
+let capturedXmlBodies = new Map();
 
-function reevaluteDeviceIdsToLog(): void {
+function reevalutedeviceIdsToCaptureXml(): void {
   if (!redisClient.online()) return;
-  redisClient.getList("cwmp_device_ids_to_log").then((list) => {
-    deviceIdsToLog = new Set<string>(list);
+  redisClient.getList("cwmp_device_ids_to_capture_xml").then((list) => {
+    deviceIdsToCaptureXml = new Set<string>(list);
   }).catch(() => {
-    deviceIdsToLog = new Set<string>();
+    deviceIdsToCaptureXml = new Set<string>();
   })
 }
 
-setInterval(reevaluteDeviceIdsToLog, 30000).unref();
+setInterval(reevalutedeviceIdsToCaptureXml, 30000).unref();
 
 async function authenticate(
   sessionContext: SessionContext,
@@ -785,6 +786,13 @@ async function nextRpc(sessionContext: SessionContext): Promise<void> {
 
 async function endSession(sessionContext: SessionContext): Promise<void> {
   let saveCache = sessionContext.cacheUntil != null;
+  if ((deviceIdsToCaptureXml.size > 0)) {
+    if (deviceIdsToCaptureXml.has(sessionContext?.deviceId)) {
+      const xmlId = `xml_body_${sessionContext?.deviceId}`;
+      await cache.set(`xml_body_${sessionContext?.deviceId}`, capturedXmlBodies.get(xmlId));
+      capturedXmlBodies.delete(xmlId);
+    }
+  }
 
   if (sessionContext.provisions.length) {
     const fault = {
@@ -1182,9 +1190,13 @@ async function processRequest(
       );
     }
 
-    if ((deviceIdsToLog.size > 0)) {
-      if (deviceIdsToLog.has(sessionContext?.deviceId))
-        await cache.set(`xml_body_${sessionContext?.deviceId}`, JSON.stringify(body));
+    if ((deviceIdsToCaptureXml.size > 0)) {
+      if (deviceIdsToCaptureXml.has(sessionContext?.deviceId)) {
+        const xmlId = `xml_body_${sessionContext?.deviceId}`;
+        capturedXmlBodies.set(xmlId,
+          (capturedXmlBodies.get(xmlId) || '')+JSON.stringify(body)+'\n\n\n',
+        );
+      }
     }
 
     const authenticated = await authenticate(sessionContext, body);
