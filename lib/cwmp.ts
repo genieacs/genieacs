@@ -60,6 +60,7 @@ import { getRequestOrigin } from "./forwarded";
 import { getSocketEndpoints } from "./server";
 import { metricsExporter } from "./metrics";
 import { sendFlashmanInformRequest } from './flashman'
+import * as redisClient from './redis'
 
 const gzipPromisified = promisify(zlib.gzip);
 const deflatePromisified = promisify(zlib.deflate);
@@ -80,6 +81,20 @@ const connectionsInfo = new WeakMap<Socket, { time: number, type: number }>();
 const stats = {
   concurrentRequests: 0
 };
+
+let deviceIdsToCaptureXml = new Set<string>();
+let capturedXmlBodies = new Map();
+
+function reevalutedeviceIdsToCaptureXml(): void {
+  if (!redisClient.online()) return;
+  redisClient.getList("cwmp_device_ids_to_capture_xml").then((list) => {
+    deviceIdsToCaptureXml = new Set<string>(list);
+  }).catch(() => {
+    deviceIdsToCaptureXml = new Set<string>();
+  })
+}
+
+setInterval(reevalutedeviceIdsToCaptureXml, 30000).unref();
 
 async function authenticate(
   sessionContext: SessionContext,
@@ -771,6 +786,13 @@ async function nextRpc(sessionContext: SessionContext): Promise<void> {
 
 async function endSession(sessionContext: SessionContext): Promise<void> {
   let saveCache = sessionContext.cacheUntil != null;
+  if ((deviceIdsToCaptureXml.size > 0)) {
+    if (deviceIdsToCaptureXml.has(sessionContext?.deviceId)) {
+      const xmlId = `xml_body_${sessionContext?.deviceId}`;
+      await cache.set(`xml_body_${sessionContext?.deviceId}`, capturedXmlBodies.get(xmlId));
+      capturedXmlBodies.delete(xmlId);
+    }
+  }
 
   if (sessionContext.provisions.length) {
     const fault = {
@@ -1166,6 +1188,15 @@ async function processRequest(
         sessionContext.deviceId,
         body
       );
+    }
+
+    if ((deviceIdsToCaptureXml.size > 0)) {
+      if (deviceIdsToCaptureXml.has(sessionContext?.deviceId)) {
+        const xmlId = `xml_body_${sessionContext?.deviceId}`;
+        capturedXmlBodies.set(xmlId,
+          (capturedXmlBodies.get(xmlId) || '')+JSON.stringify(body)+'\n\n\n',
+        );
+      }
     }
 
     const authenticated = await authenticate(sessionContext, body);
