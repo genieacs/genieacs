@@ -1,5 +1,18 @@
 # Change Log
 
+## 1.2.13 (2024-06-06)
+
+- Increase connection timeout for UI and NBI from 30 to 120 seconds to avoid
+  timeouts when running unindexed queries in large deployments.
+
+- Fix race condition causing 503 error when deleting multiple faults at once.
+
+- Fix some UI config options not being evaluated as dynamic expressions.
+
+- Fix an issue where certain edge-case query expressions were not being
+  correctly converted to MongoDB queries, resulting in inaccurate search
+  results.
+
 ## 1.2.12 (2024-03-28)
 
 - Fix broken XMPP support in the previous release.
