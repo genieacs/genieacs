@@ -406,6 +406,20 @@ parameterValues key. For example:
     parameterValues: [["InternetGatewayDevice.ManagementServer.UpgradesManaged", false], ["InternetGatewayDevice.Time.Enable", true], ["InternetGatewayDevice.Time.NTPServer1", "pool.ntp.org"]]
   }
 
+By default, only the parameters that have been changed will be sent to the CPE.
+It is implemented this way in order to avoid unnecessary connection requests. if
+a parameter must be setted even if it has not been changed, a ``true`` value can
+be passed in the forth position to indicate that the parameter must be setted.
+It might be usefull for diagnostic commands where restarting the CPE causes a
+desynchronization between the CPE and the ACS. For example:
+
+.. code:: javascript
+
+  {
+    name: "setParameterValues",
+    parameterValues: [["InternetGatewayDevice.TraceRouteDiagnostics.Host", 'www.google.com', 'xsd:string', true]]
+  }
+
 ``addObject``
 ~~~~~~~~~~~~~
 
