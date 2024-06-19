@@ -49,7 +49,6 @@ export default class VersionedMap<K, V> {
 
   public set revision(rev: number) {
     // Avoiding values that makes mutations a negative number
-    if (((rev+1) % 32) === 0) rev++;
     for (let i = this._sizeDiff.length; i <= rev; ++i)
       this._sizeDiff[i] = this._sizeDiff[i - 1];
 
