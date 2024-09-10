@@ -24,6 +24,10 @@ const fsAsync = {
 const execAsync = promisify(exec);
 
 const MODE = process.env["NODE_ENV"] || "production";
+const buildMetadata = new Date()
+  .toISOString()
+  .split(".")[0]
+  .replace(/[^0-9]/g, "");
 
 const INPUT_DIR = process.cwd();
 const OUTPUT_DIR = path.join(INPUT_DIR, "dist");
@@ -138,31 +142,13 @@ function generateSymbol(id: string, svgStr: string): string {
   return `<symbol id="icon-${id}" ${viewBox}>${symbolBody}</symbol>`;
 }
 
-async function getBuildMetadata(): Promise<string> {
-  const date = new Date().toISOString().slice(2, 10).replaceAll("-", "");
-
-  const [commit, diff, newFiles] = await Promise.all([
-    execAsync("git rev-parse HEAD"),
-    execAsync("git diff HEAD"),
-    execAsync("git ls-files --others --exclude-standard"),
-  ]).then((res) => res.map((r) => r.stdout.trim()));
-
-  if (!diff && !newFiles) return date + commit.slice(0, 4);
-
-  const hash = createHash("md5");
-  hash.update(commit).update(diff).update(newFiles);
-  for (const file of newFiles.split("\n").filter((f) => f))
-    hash.update(await fsAsync.readFile(file));
-  return date + hash.digest("hex").slice(0, 4);
-}
 
 async function init(): Promise<void> {
-  const [buildMetadata, packageJsonFile, npmShrinkwrapFile] = await Promise.all(
-    [
-      getBuildMetadata(),
+  const [packageJsonFile, npmShrinkwrapFile] = await Promise.all([
+
       fsAsync.readFile(path.join(INPUT_DIR, "package.json")),
       fsAsync.readFile(path.join(INPUT_DIR, "npm-shrinkwrap.json")),
-    ],
+ ]
   );
 
   const packageJson = JSON.parse(packageJsonFile.toString());
@@ -208,8 +194,8 @@ async function copyStatic(): Promise<void> {
     fsAsync.readFile(path.join(INPUT_DIR, "public/favicon.png")),
   ]);
 
-  ASSETS.LOGO_SVG = `logo-${assetHash(logo)}.svg`;
-  ASSETS.FAVICON_PNG = `favicon-${assetHash(favicon)}.png`;
+  ASSETS.LOGO_SVG = `logo.svg`;
+  ASSETS.FAVICON_PNG = `favicon.png`;
 
   const filenames = {} as Record<string, string>;
   filenames["public/logo.svg"] = path.join("public", ASSETS.LOGO_SVG);
@@ -233,7 +219,7 @@ async function generateCss(): Promise<void> {
     sourcemap: "linked",
     sourcesContent: false,
     entryPoints: ["ui/css/app.css"],
-    entryNames: "[dir]/[name]-[hash]",
+    entryNames: "[dir]/[name]",
     outfile: path.join(OUTPUT_DIR, "public/app.css"),
     target: ["chrome109", "safari15.6", "firefox115", "opera102", "edge118"],
     metafile: true,
@@ -295,7 +281,7 @@ async function generateFrontendJs(): Promise<void> {
     format: "esm",
     target: ["chrome109", "safari15.6", "firefox115", "opera102", "edge118"],
     entryPoints: ["ui/app.ts"],
-    entryNames: "[dir]/[name]-[hash]",
+    entryNames: "[dir]/[name]",
     outdir: path.join(OUTPUT_DIR, "public"),
     plugins: [packageDotJsonPlugin, inlineDepsPlugin, assetsPlugin],
     metafile: true,
@@ -338,7 +324,7 @@ async function generateIconsSprite(): Promise<void> {
   const data = `<svg xmlns="http://www.w3.org/2000/svg">${symbols.join(
     "",
   )}</svg>`;
-  ASSETS.ICONS_SVG = `icons-${assetHash(data)}.svg`;
+  ASSETS.ICONS_SVG = `icons.svg`;
   await fsAsync.writeFile(
     path.join(OUTPUT_DIR, "public", ASSETS.ICONS_SVG),
     data,

@@ -9,7 +9,7 @@ interface Attribute {
   type?: string;
 }
 
-const MAX_PAGE_SIZE = 200;
+const MAX_PAGE_SIZE = 3000;
 
 function renderTable(
   attributes: Attribute[],

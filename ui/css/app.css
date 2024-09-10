@@ -803,3 +803,48 @@ td,
 th {
   line-height: normal;
 }
+/* tabsystem on device page */
+div.tab {
+  display: inline-block;
+  overflow: visible;
+  position: absolute;
+  width: 100%;
+
+  & > div.tab_content {
+    padding: 10px 10px;
+    border-top: 1px solid var(--color1);
+  }
+
+  & > ul {
+    font-weight: bold;
+    display: inline-block;
+    padding: 0;
+    margin: 0;
+
+    & > li {
+      background-color: var(--color1);
+      display: inline-block;
+      border-top-left-radius: 6px;
+      border-top-right-radius: 6px;
+      border-top: 1px solid var(--color1);
+      border-left: 1px solid var(--color1);
+      border-right: 1px solid var(--color1);
+      transition: background-color var(--fade);
+      &.active,
+      &:hover {
+        background-color: white;
+      }
+
+      & > a,
+      & > a:visited,
+      & > a:hover {
+        display: inline-block;
+        min-width: 140px;
+        color: var(--color4);
+        text-decoration: none;
+        background: none;
+        padding: 8px;
+      }
+    }
+  }
+}

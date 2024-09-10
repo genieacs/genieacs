@@ -112,6 +112,7 @@ m.route(document.body, "/overview", {
   "/overview": pagify("overview", overviewPage),
   "/devices": pagify("devices", devicesPage),
   "/devices/:id": pagify("devices", devicePage),
+  "/devices/:id/:tab": pagify("devices", devicePage),
   "/faults": pagify("faults", faultsPage),
   "/admin": redirectAdminPage(),
   "/admin/presets": pagify("presets", presetsPage),
