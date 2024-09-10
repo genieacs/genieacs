@@ -324,12 +324,48 @@ function log(msg: string, meta: Record<string, unknown>): void {
   }
 }
 
+interface alertSchema {
+  genieID: string;
+  oui: string;
+  modelClass: string;
+  modelName: string;
+  isIGDModel: string;
+  acsURL: string;
+  connectionRequestURL: string;
+  metric: {
+    message: string,
+    reason: string,
+  };
+}
+
+function alert(schema: alertSchema):void {
+  if (logger.LOG_WARN_DATA) {
+    if (state.revision === state.maxRevision && state.extCounter >= 0) {
+      const prefixArray: string[] = [];
+      for (const [key, value] of Object.entries(schema)) {
+        if (typeof value === 'string')
+          prefixArray.push(`${key}: ${value}`);
+      }
+      const prefix = prefixArray.join(', ');
+      const details = Object.assign({}, {
+        sessionContext: state.sessionContext,
+        message: `[Alert] ${prefix} -> ${schema.metric.message}`,
+      });
+      logger.warn(details);
+      metricsExporter.provisionsFailed.labels({
+        reason: schema.metric.reason ?? 'unknown',
+      }).inc();
+    }
+  }
+}
+
 Object.defineProperty(context, "Date", { value: SandboxDate });
 Object.defineProperty(context, "declare", { value: declare });
 Object.defineProperty(context, "clear", { value: clear });
 Object.defineProperty(context, "commit", { value: commit });
 Object.defineProperty(context, "ext", { value: ext });
 Object.defineProperty(context, "log", { value: log });
+Object.defineProperty(context, "alert", { value: alert });
 
 // Monkey-patch Math.random() to make it deterministic
 context.random = random;
