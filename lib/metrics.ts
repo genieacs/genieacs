@@ -69,6 +69,12 @@ export const metricsExporter = {
     labelNames: ['server']
   }),
 
+  provisionsFailed: new promClient.Gauge({
+    name: 'genieacs_provisions_failed',
+    help: 'Failed provisions with error message as label',
+    labelNames: ['reason'],
+  }),
+
   provisionDuration: new promClient.Histogram({
     name: 'genieacs_provision_duration',
     help: 'Provision durations in seconds',
