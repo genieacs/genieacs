@@ -109,6 +109,7 @@ function renderStagingDownload(task: StageTask): Children {
       "3 Vendor Configuration File",
       "4 Tone File",
       "5 Ringer File",
+      "X MIKROTIK Factory Configuration File",
       ...files.value.map((f) => f["metadata.fileType"]).filter((f) => f),
     ]),
   ].map((t) =>

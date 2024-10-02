@@ -32,6 +32,7 @@ const attributes: {
       "3 Vendor Configuration File",
       "4 Tone File",
       "5 Ringer File",
+      "X MIKROTIK Factory Configuration File",
     ],
   },
   { id: "metadata.oui", label: "OUI" },
