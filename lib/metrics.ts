@@ -72,7 +72,7 @@ export const metricsExporter = {
   provisionsFailed: new promClient.Gauge({
     name: 'genieacs_provisions_failed',
     help: 'Failed provisions with error message as label',
-    labelNames: ['reason', 'model'],
+    labelNames: ['acs_id', 'reason', 'model'],
   }),
 
   provisionDuration: new promClient.Histogram({
