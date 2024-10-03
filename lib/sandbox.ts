@@ -325,6 +325,7 @@ function log(msg: string, meta: Record<string, unknown>): void {
 }
 
 interface alertSchema {
+  mac: string;
   genieID: string;
   oui: string;
   modelClass: string;
@@ -349,11 +350,15 @@ function alert(schema: alertSchema):void {
       const prefix = prefixArray.join(', ');
       const details = Object.assign({}, {
         sessionContext: state.sessionContext,
-        message: `[Alert] ${prefix} -> ${schema.metric.message}`,
+        message: `[${
+          schema.metric.reason}] ${
+          prefix} -> ${
+          schema.metric.message}`,
       });
       logger.warn(details);
       metricsExporter.provisionsFailed.labels({
         reason: schema.metric.reason ?? 'unknown',
+        model: schema.modelName ?? 'unknown',
       }).inc();
     }
   }
