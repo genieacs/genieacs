@@ -20,7 +20,7 @@
         "koa-compress": "^5.1.0",
         "koa-jwt": "^4.0.3",
         "koa-router": "^12.0.0",
-        "koa-static": "^5.0.0",
+        "koa-send": "^5.0.1",
         "mongodb": "^4.16.0",
         "parsimmon": "^1.18.1",
         "seedrandom": "^3.0.5"
@@ -37,7 +37,6 @@
         "@types/koa": "^2.15.0",
         "@types/koa-compress": "^4.0.6",
         "@types/koa-router": "^7.4.8",
-        "@types/koa-static": "^4.0.4",
         "@types/mithril": "^2.2.6",
         "@types/node": "^20.14.2",
         "@types/parsimmon": "^1.10.9",
@@ -2026,25 +2025,6 @@
         "@types/koa": "*"
       }
     },
-    "node_modules/@types/koa-send": {
-      "version": "4.1.6",
-      "resolved": "https://registry.npmjs.org/@types/koa-send/-/koa-send-4.1.6.tgz",
-      "integrity": "sha512-vgnNGoOJkx7FrF0Jl6rbK1f8bBecqAchKpXtKuXzqIEdXTDO6dsSTjr+eZ5m7ltSjH4K/E7auNJEQCAd0McUPA==",
-      "dev": true,
-      "dependencies": {
-        "@types/koa": "*"
-      }
-    },
-    "node_modules/@types/koa-static": {
-      "version": "4.0.4",
-      "resolved": "https://registry.npmjs.org/@types/koa-static/-/koa-static-4.0.4.tgz",
-      "integrity": "sha512-j1AUzzl7eJYEk9g01hNTlhmipFh8RFbOQmaMNLvLcNNAkPw0bdTs3XTa3V045XFlrWN0QYnblbDJv2RzawTn6A==",
-      "dev": true,
-      "dependencies": {
-        "@types/koa": "*",
-        "@types/koa-send": "*"
-      }
-    },
     "node_modules/@types/mime": {
       "version": "1.3.5",
       "resolved": "https://registry.npmjs.org/@types/mime/-/mime-1.3.5.tgz",
@@ -4016,26 +3996,6 @@
       },
       "engines": {
         "node": ">= 8"
-      }
-    },
-    "node_modules/koa-static": {
-      "version": "5.0.0",
-      "resolved": "https://registry.npmjs.org/koa-static/-/koa-static-5.0.0.tgz",
-      "integrity": "sha512-UqyYyH5YEXaJrf9S8E23GoJFQZXkBVJ9zYYMPGz919MSX1KuvAcycIuS0ci150HCoPf4XQVhQ84Qf8xRPWxFaQ==",
-      "dependencies": {
-        "debug": "^3.1.0",
-        "koa-send": "^5.0.0"
-      },
-      "engines": {
-        "node": ">= 7.6.0"
-      }
-    },
-    "node_modules/koa-static/node_modules/debug": {
-      "version": "3.2.7",
-      "resolved": "https://registry.npmjs.org/debug/-/debug-3.2.7.tgz",
-      "integrity": "sha512-CFjzYYAi4ThfiQvizrFQevTTXHtnCqWfe7x1AhgEscTz6ZbLbfoLRLPugTQyBth6f8ZERVUSyWHFD/7Wu4t1XQ==",
-      "dependencies": {
-        "ms": "^2.1.1"
       }
     },
     "node_modules/koa-unless": {
@@ -6705,25 +6665,6 @@
         "@types/koa": "*"
       }
     },
-    "@types/koa-send": {
-      "version": "4.1.6",
-      "resolved": "https://registry.npmjs.org/@types/koa-send/-/koa-send-4.1.6.tgz",
-      "integrity": "sha512-vgnNGoOJkx7FrF0Jl6rbK1f8bBecqAchKpXtKuXzqIEdXTDO6dsSTjr+eZ5m7ltSjH4K/E7auNJEQCAd0McUPA==",
-      "dev": true,
-      "requires": {
-        "@types/koa": "*"
-      }
-    },
-    "@types/koa-static": {
-      "version": "4.0.4",
-      "resolved": "https://registry.npmjs.org/@types/koa-static/-/koa-static-4.0.4.tgz",
-      "integrity": "sha512-j1AUzzl7eJYEk9g01hNTlhmipFh8RFbOQmaMNLvLcNNAkPw0bdTs3XTa3V045XFlrWN0QYnblbDJv2RzawTn6A==",
-      "dev": true,
-      "requires": {
-        "@types/koa": "*",
-        "@types/koa-send": "*"
-      }
-    },
     "@types/mime": {
       "version": "1.3.5",
       "resolved": "https://registry.npmjs.org/@types/mime/-/mime-1.3.5.tgz",
@@ -8160,25 +8101,6 @@
         "debug": "^4.1.1",
         "http-errors": "^1.7.3",
         "resolve-path": "^1.4.0"
-      }
-    },
-    "koa-static": {
-      "version": "5.0.0",
-      "resolved": "https://registry.npmjs.org/koa-static/-/koa-static-5.0.0.tgz",
-      "integrity": "sha512-UqyYyH5YEXaJrf9S8E23GoJFQZXkBVJ9zYYMPGz919MSX1KuvAcycIuS0ci150HCoPf4XQVhQ84Qf8xRPWxFaQ==",
-      "requires": {
-        "debug": "^3.1.0",
-        "koa-send": "^5.0.0"
-      },
-      "dependencies": {
-        "debug": {
-          "version": "3.2.7",
-          "resolved": "https://registry.npmjs.org/debug/-/debug-3.2.7.tgz",
-          "integrity": "sha512-CFjzYYAi4ThfiQvizrFQevTTXHtnCqWfe7x1AhgEscTz6ZbLbfoLRLPugTQyBth6f8ZERVUSyWHFD/7Wu4t1XQ==",
-          "requires": {
-            "ms": "^2.1.1"
-          }
-        }
       }
     },
     "koa-unless": {

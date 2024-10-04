@@ -2,7 +2,7 @@ import { constants } from "node:zlib";
 import Koa from "koa";
 import Router from "koa-router";
 import * as jwt from "jsonwebtoken";
-import koaStatic from "koa-static";
+import koaSend from "koa-send";
 import koaCompress from "koa-compress";
 import koaBodyParser from "koa-bodyparser";
 import koaJwt from "koa-jwt";
@@ -262,6 +262,17 @@ koa.use(
 );
 
 koa.use(router.routes());
-koa.use(koaStatic(config.ROOT_DIR + "/public"));
+koa.use(async (ctx, next) => {
+  await next();
+  if (ctx.method !== "HEAD" && ctx.method !== "GET") return;
+  if (ctx.body != null || ctx.status !== 404) return;
+  if (/(?:^|[\\/])\.\.(?:[\\/]|$)/.test(ctx.path)) return;
+
+  try {
+    await koaSend(ctx, ctx.path, { root: config.ROOT_DIR + "/public" });
+  } catch (err) {
+    if (err.status !== 404) throw err;
+  }
+});
 
 export const listener = koa.callback();
