@@ -1,5 +1,5 @@
 import { Readable } from "node:stream";
-import Router from "koa-router";
+import Router from "@koa/router";
 import { ObjectId } from "mongodb";
 import * as db from "./db.ts";
 import * as apiFunctions from "../api-functions.ts";

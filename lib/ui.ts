@@ -1,10 +1,10 @@
 import { constants } from "node:zlib";
 import Koa from "koa";
-import Router from "koa-router";
+import Router from "@koa/router";
 import * as jwt from "jsonwebtoken";
 import koaSend from "koa-send";
 import koaCompress from "koa-compress";
-import koaBodyParser from "koa-bodyparser";
+import koaBodyParser from "@koa/bodyparser";
 import koaJwt from "koa-jwt";
 import * as config from "./config.ts";
 import api from "./ui/api.ts";
@@ -17,12 +17,6 @@ import * as init from "./init.ts";
 import { version as VERSION } from "../package.json";
 import memoize from "./common/memoize.ts";
 import { APP_JS, APP_CSS, FAVICON_PNG } from "../build/assets.ts";
-
-declare module "koa" {
-  interface Request {
-    body: any;
-  }
-}
 
 const koa = new Koa();
 const router = new Router();
