@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import * as config from "./config.ts";
 
 export function generateDeviceId(
   deviceIdStruct: Record<string, string>,
@@ -14,7 +15,7 @@ export function generateDeviceId(
   }
 
   // Guaranteeing globally unique id as defined in TR-069
-  if (deviceIdStruct["ProductClass"]) {
+  if (deviceIdStruct["ProductClass"] && !config.get("CWMP_COMPACT_DEVICE_ID")) {
     return (
       esc(deviceIdStruct["OUI"]) +
       "-" +
