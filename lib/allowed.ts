@@ -1,7 +1,7 @@
 import * as config from "./config";
 import { SessionContext } from "./types";
 import * as debug from "./debug";
-import { BlockList } from "net";
+import { BlockList, isIPv6 } from "net";
 import { getRequestOrigin } from "./forwarded";
 import { IncomingMessage, ServerResponse } from "http";
 import * as logger from "./logger";
@@ -33,9 +33,16 @@ if (typeof ALLOWED === "string") {
       const parsed = stringValue.trim().split("/", 2);
       const parsed1: number = +parsed[1];
       try {
-        if (parsed1 > 0 && parsed1 < 33)
-          allowedList.addSubnet(parsed[0], parsed1, "ipv4");
-        else allowedList.addAddress(parsed[0]);
+        if (parsed1 > 0 && parsed1 < 33) {
+          if(isIPv6(parsed[0]))
+            allowedList.addSubnet(parsed[0], parsed1, "ipv6");
+          else
+            allowedList.addSubnet(parsed[0], parsed1, "ipv4");
+        } else if (parsed1 > 0 && parsed1 < 128 && isIPv6(parsed[0])) {
+          allowedList.addSubnet(parsed[0], parsed1, "ipv6");
+        } else {
+          allowedList.addAddress(parsed[0]);
+        }
       } catch (error) {
         console.log("Error adding " + parsed[0]);
       }
@@ -47,7 +54,7 @@ export async function allowed(
   sessionContext: SessionContext
 ): Promise<boolean> {
   if (allowedArray.length === 0) return true;
-  if (allowedList.check(sessionContext.httpRequest.socket.remoteAddress))
+  if ((isIPv6(sessionContext.httpRequest.socket.remoteAddress) && allowedList.check(sessionContext.httpRequest.socket.remoteAddress, "ipv6")) || allowedList.check(sessionContext.httpRequest.socket.remoteAddress))
     return true;
   const httpResponse = sessionContext.httpResponse;
   const body = "Forbidden";
@@ -75,7 +82,7 @@ export async function allowedFS(
 ): Promise<boolean> {
   if (allowedArray.length === 0) return true;
 
-  if (allowedList.check(request.socket.remoteAddress)) return true;
+  if ((isIPv6(request.socket.remoteAddress) && allowedList.check(request.socket.remoteAddress, "ipv6")) || allowedList.check(request.socket.remoteAddress)) return true;
   const httpResponse = response;
   const body = "Forbidden";
   const resHeaders = {};
