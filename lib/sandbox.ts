@@ -1,30 +1,11 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import * as vm from "vm";
+import * as vm from "node:vm";
 import seedrandom from "seedrandom";
-import * as device from "./device";
-import * as extensions from "./extensions";
-import * as logger from "./logger";
-import * as scheduling from "./scheduling";
-import Path from "./common/path";
-import { Fault, SessionContext, ScriptResult } from "./types";
+import * as device from "./device.ts";
+import * as extensions from "./extensions.ts";
+import * as logger from "./logger.ts";
+import * as scheduling from "./scheduling.ts";
+import Path from "./common/path.ts";
+import { Fault, SessionContext, ScriptResult } from "./types.ts";
 
 // Used for throwing to exit user script and commit
 const COMMIT = Symbol();
@@ -34,7 +15,7 @@ const EXT = Symbol();
 
 const UNDEFINED = undefined;
 
-const context = vm.createContext();
+const context = vm.createContext(undefined, { microtaskMode: "afterEvaluate" });
 
 let state;
 
@@ -50,7 +31,7 @@ function runExtension(sessionContext, key, extCall): Promise<Fault> {
   }
 
   let prom = re.get(key);
-  if (!prom) {
+  if (prom == null) {
     re.set(
       key,
       (prom = new Promise((resolve, reject) => {
@@ -62,7 +43,7 @@ function runExtension(sessionContext, key, extCall): Promise<Fault> {
             resolve(fault);
           })
           .catch(reject);
-      }))
+      })),
     );
   }
 
@@ -78,7 +59,7 @@ class SandboxDate {
       number?,
       number?,
       number?,
-      number?
+      number?,
     ]
   ) {
     if (argumentList.length) return new Date(...argumentList);
@@ -143,7 +124,7 @@ class ParameterWrapper {
             unpacked = device.unpack(
               state.sessionContext.deviceData,
               path,
-              state.revision
+              state.revision,
             );
           }
 
@@ -151,7 +132,7 @@ class ParameterWrapper {
 
           const attr = state.sessionContext.deviceData.attributes.get(
             unpacked[0],
-            state.revision
+            state.revision,
           )[attrName];
 
           if (!attr) return UNDEFINED;
@@ -170,7 +151,7 @@ class ParameterWrapper {
           unpacked = device.unpack(
             state.sessionContext.deviceData,
             path,
-            state.revision
+            state.revision,
           );
         }
 
@@ -189,7 +170,7 @@ class ParameterWrapper {
           unpacked = device.unpack(
             state.sessionContext.deviceData,
             path,
-            state.revision
+            state.revision,
           );
         }
 
@@ -207,7 +188,7 @@ class ParameterWrapper {
         unpacked = device.unpack(
           state.sessionContext.deviceData,
           path,
-          state.revision
+          state.revision,
         );
       }
 
@@ -220,7 +201,7 @@ class ParameterWrapper {
 function declare(
   path: string,
   timestamps: { [attr: string]: number },
-  values: { [attr: string]: any }
+  values: { [attr: string]: any },
 ): ParameterWrapper {
   state.uncommitted = true;
   if (!timestamps) timestamps = {};
@@ -286,7 +267,7 @@ function commit(): void {
     throw COMMIT;
   } else if (state.revision > state.maxRevision + 1) {
     throw new Error(
-      "Declare function should not be called from within a try/catch block"
+      "Declare function should not be called from within a try/catch block",
     );
   }
 }
@@ -351,12 +332,12 @@ function errorToFault(err: Error): Fault {
     fault.detail["stack"] = err.stack;
     // Trim the stack trace at the self-executing anonymous wrapper function
     const stackTrimIndex = fault.detail["stack"].match(
-      /\s+at\s[^\s]+\s+at\s[^\s]+\s\(vm\.js.+\)/
+      /\s+at\s[^\s]+\s+at\s[^\s]+\s\(vm\.js.+\)/,
     );
     if (stackTrimIndex) {
       fault.detail["stack"] = fault.detail["stack"].slice(
         0,
-        stackTrimIndex.index
+        stackTrimIndex.index,
       );
     }
   }
@@ -370,7 +351,7 @@ export async function run(
   sessionContext: SessionContext,
   startRevision: number,
   maxRevision: number,
-  extCounter = 0
+  extCounter = 0,
 ): Promise<ScriptResult> {
   state = {
     sessionContext: sessionContext,
@@ -391,7 +372,7 @@ export async function run(
   let ret, status;
 
   try {
-    ret = script.runInContext(context, { displayErrors: false });
+    ret = script.runInContext(context, { displayErrors: false, timeout: 50 });
     status = 0;
   } catch (err) {
     if (err === COMMIT) {
@@ -415,7 +396,7 @@ export async function run(
   await Promise.all(
     Object.entries(_state.extensions).map(async ([k, v]) => {
       fault = (await runExtension(_state.sessionContext, k, v)) || fault;
-    })
+    }),
   );
 
   if (fault) {
@@ -435,7 +416,7 @@ export async function run(
       sessionContext,
       startRevision,
       maxRevision,
-      extCounter - _state.extCounter
+      extCounter - _state.extCounter,
     );
   }
 

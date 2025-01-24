@@ -1,61 +1,55 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import * as zlib from "zlib";
-import * as crypto from "crypto";
-import { Socket } from "net";
-import * as auth from "./auth";
-import * as config from "./config";
-import * as common from "./common";
-import * as soap from "./soap";
-import * as session from "./session";
-import { evaluateAsync, evaluate, extractParams } from "./common/expression";
-import * as cache from "./cache";
-import * as localCache from "./local-cache";
-import * as db from "./db";
-import * as logger from "./logger";
-import * as scheduling from "./scheduling";
-import Path from "./common/path";
-import * as extensions from "./extensions";
+import * as zlib from "node:zlib";
+import * as crypto from "node:crypto";
+import { Socket } from "node:net";
+import { IncomingMessage, ServerResponse } from "node:http";
+import { pipeline, Readable } from "node:stream";
+import { promisify } from "node:util";
+import { decode, encodingExists } from "iconv-lite";
+import * as auth from "./auth.ts";
+import * as config from "./config.ts";
+import { generateDeviceId, once, setTimeoutPromise } from "./util.ts";
+import * as soap from "./soap.ts";
+import * as session from "./session.ts";
+import {
+  evaluateAsync,
+  evaluate,
+  extractParams,
+} from "./common/expression/util.ts";
+import * as cache from "./cache.ts";
+import * as lock from "./lock.ts";
+import * as localCache from "./cwmp/local-cache.ts";
+import {
+  clearTasks,
+  deleteFault,
+  deleteOperation,
+  fetchDevice,
+  getDueTasks,
+  getFaults,
+  getOperations,
+  saveDevice,
+  saveFault,
+  saveOperation,
+} from "./cwmp/db.ts";
+import * as logger from "./logger.ts";
+import * as scheduling from "./scheduling.ts";
+import Path from "./common/path.ts";
+import * as extensions from "./extensions.ts";
 import {
   SessionContext,
   AcsRequest,
   SessionFault,
-  Operation,
   Fault,
   Expression,
-  Task,
   SoapMessage,
   InformRequest,
   Preset,
   GetRPCMethodsResponse,
   CpeFault,
-} from "./types";
-import { IncomingMessage, ServerResponse } from "http";
-import { pipeline, Readable } from "stream";
-import { promisify } from "util";
-import { decode, encodingExists } from "iconv-lite";
-import { parseXmlDeclaration } from "./xml-parser";
-import * as debug from "./debug";
-import { getRequestOrigin } from "./forwarded";
-import { getSocketEndpoints } from "./server";
-import { allowed } from "./allowed";
+} from "./types.ts";
+import { parseXmlDeclaration } from "./xml-parser.ts";
+import * as debug from "./debug.ts";
+import { getRequestOrigin } from "./forwarded.ts";
+import { getSocketEndpoints } from "./server.ts";
 
 const gzipPromisified = promisify(zlib.gzip);
 const deflatePromisified = promisify(zlib.deflate);
@@ -63,6 +57,10 @@ const deflatePromisified = promisify(zlib.deflate);
 const REALM = "GenieACS";
 const MAX_CYCLES = 4;
 const MAX_CONCURRENT_REQUESTS = +config.get("MAX_CONCURRENT_REQUESTS");
+
+const MAX_SESSION_DURATION = 300000;
+const LOCK_REFRESH_INTERVAL = 10000;
+export const REQUEST_TIMEOUT = 10000;
 
 const currentSessions = new WeakMap<Socket, SessionContext>();
 const sessionsNonces = new WeakMap<Socket, string>();
@@ -76,11 +74,11 @@ const stats = {
 
 async function authenticate(
   sessionContext: SessionContext,
-  body: string
+  body: string,
 ): Promise<boolean> {
   const authExpression: Expression = localCache.getConfigExpression(
     sessionContext.cacheSnapshot,
-    "cwmp.auth"
+    "cwmp.auth",
   );
   if (authExpression == null) return true;
 
@@ -89,7 +87,7 @@ async function authenticate(
   if (sessionContext.httpRequest.headers["authorization"]) {
     try {
       authentication = auth.parseAuthorizationHeader(
-        sessionContext.httpRequest.headers["authorization"]
+        sessionContext.httpRequest.headers["authorization"],
       );
     } catch (err) {
       return false;
@@ -146,7 +144,7 @@ async function authenticate(
                 authentication["qop"],
                 authentication["body"],
                 authentication["cnonce"],
-                authentication["nc"]
+                authentication["nc"],
               );
               return expected === authentication["response"];
             }
@@ -155,7 +153,7 @@ async function authenticate(
         }
       }
       return e;
-    }
+    },
   );
 
   if (res && !Array.isArray(res)) return true;
@@ -166,7 +164,7 @@ async function authenticate(
 async function writeResponse(
   sessionContext: SessionContext,
   res,
-  close = false
+  close = false,
 ): Promise<void> {
   // Close connection after last request in session
   if (close) res.headers["Connection"] = "close";
@@ -213,12 +211,12 @@ async function writeResponse(
     sessionContext.lastActivity = now;
     currentSessions.set(connection, sessionContext);
     if (now >= sessionContext.extendLock) {
-      sessionContext.extendLock = now + 10000;
-      const lockToken = await cache.acquireLock(
+      sessionContext.extendLock = now + LOCK_REFRESH_INTERVAL;
+      const lockToken = await lock.acquireLock(
         `cwmp_session_${sessionContext.deviceId}`,
-        sessionContext.timeout * 1000 + 15000,
+        sessionContext.timeout * 1000 + LOCK_REFRESH_INTERVAL + REQUEST_TIMEOUT,
         0,
-        sessionContext.sessionId
+        `cwmp_session_${sessionContext.sessionId}`,
       );
       if (!lockToken) throw new Error("Failed to extend lock");
     }
@@ -229,14 +227,14 @@ function recordFault(
   sessionContext: SessionContext,
   fault: Fault,
   provisions,
-  channels
+  channels,
 ): void;
 function recordFault(sessionContext: SessionContext, fault: Fault): void;
 function recordFault(
   sessionContext: SessionContext,
   fault: Fault,
   provisions?,
-  channels?
+  channels?,
 ): void {
   if (!provisions) {
     provisions = sessionContext.provisions;
@@ -254,7 +252,7 @@ function recordFault(
       : [];
     faults[channel] = Object.assign(
       { provisions: provs, timestamp: sessionContext.timestamp },
-      fault
+      fault,
     ) as SessionFault;
     if (channel.startsWith("task_")) {
       const taskId = channel.slice(5);
@@ -301,11 +299,11 @@ function recordFault(
 
 async function inform(
   sessionContext: SessionContext,
-  rpc: SoapMessage
+  rpc: SoapMessage,
 ): Promise<{ code: number; headers: Record<string, string>; data: string }> {
   const acsResponse = await session.inform(
     sessionContext,
-    rpc.cpeRequest as InformRequest
+    rpc.cpeRequest as InformRequest,
   );
 
   const res = soap.response({
@@ -319,13 +317,12 @@ async function inform(
     "cwmp.cookiesPath",
     {},
     sessionContext.timestamp,
-    (e) => session.configContextCallback(sessionContext, e)
+    (e) => session.configContextCallback(sessionContext, e),
   );
 
   if (cookiesPath) {
-    res.headers[
-      "Set-Cookie"
-    ] = `session=${sessionContext.sessionId}; Path=${cookiesPath}`;
+    res.headers["Set-Cookie"] =
+      `session=${sessionContext.sessionId}; Path=${cookiesPath}`;
   } else {
     res.headers["Set-Cookie"] = `session=${sessionContext.sessionId}`;
   }
@@ -336,7 +333,7 @@ async function inform(
 async function transferComplete(sessionContext, rpc): Promise<void> {
   const { acsResponse, operation, fault } = await session.transferComplete(
     sessionContext,
-    rpc.cpeRequest
+    rpc.cpeRequest,
   );
 
   if (!operation) {
@@ -353,7 +350,7 @@ async function transferComplete(sessionContext, rpc): Promise<void> {
       sessionContext,
       fault,
       operation.provisions,
-      operation.channels
+      operation.channels,
     );
   }
 
@@ -411,7 +408,7 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
     "cwmp.retryDelay",
     {},
     sessionContext.timestamp,
-    (e) => session.configContextCallback(sessionContext, e)
+    (e) => session.configContextCallback(sessionContext, e),
   );
 
   if (sessionContext.faults) {
@@ -439,7 +436,8 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
   const deviceEvents = {};
   for (const p of deviceData.paths.find(Path.parse("Events.*"), false, true)) {
     const attrs = deviceData.attributes.get(p);
-    if (attrs?.value && attrs.value[1][0] >= sessionContext.timestamp)
+    const t = attrs?.value[1][0] as number;
+    if (t >= sessionContext.timestamp)
       deviceEvents[p.segments[1] as string] = true;
   }
 
@@ -466,7 +464,7 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
     if (preset.schedule?.schedule) {
       const r = scheduling.cron(
         sessionContext.timestamp,
-        preset.schedule.schedule
+        preset.schedule.schedule,
       );
       if (!(r[0] + preset.schedule.duration > sessionContext.timestamp))
         continue;
@@ -474,7 +472,7 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
 
     filteredPresets.push(preset);
     for (const k of extractParams(
-      evaluate(preset.precondition, null, sessionContext.timestamp)
+      evaluate(preset.precondition, null, sessionContext.timestamp),
     )) {
       // Mark channel in case of fault during fetching precondition
       sessionContext.channels[preset.channel] = 0;
@@ -483,7 +481,7 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
     for (const prov of preset.provisions) {
       for (const arg of prov.slice(1)) {
         for (const k of extractParams(
-          evaluate(arg, null, sessionContext.timestamp)
+          evaluate(arg, null, sessionContext.timestamp),
         )) {
           // Mark channel in case of fault during fetching precondition
           sessionContext.channels[preset.channel] = 0;
@@ -525,7 +523,7 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
   for (const p of filteredPresets) {
     if (
       evaluate(p.precondition, {}, sessionContext.timestamp, (e) =>
-        session.configContextCallback(sessionContext, e)
+        session.configContextCallback(sessionContext, e),
       )
     ) {
       const provs = p.provisions.map((pp) => [
@@ -534,8 +532,8 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
           .slice(1)
           .map((arg) =>
             evaluate(arg, {}, sessionContext.timestamp, (e) =>
-              session.configContextCallback(sessionContext, e)
-            )
+              session.configContextCallback(sessionContext, e),
+            ),
           ),
       ]) as [string, ...Expression[]][];
       if (blackList[p.channel] === 2) {
@@ -549,7 +547,7 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
   }
 
   for (const [channel, provisions] of Object.entries(
-    appendProvisionsToFaults
+    appendProvisionsToFaults,
   )) {
     if (
       appendProvisions(sessionContext.faults[channel].provisions, provisions)
@@ -673,7 +671,7 @@ async function nextRpc(sessionContext: SessionContext): Promise<void> {
   });
 
   const task = sessionContext.tasks.find(
-    (t) => !sessionContext.faults[`task_${t._id}`]
+    (t) => !sessionContext.faults[`task_${t._id}`],
   );
 
   if (!task) return applyPresets(sessionContext);
@@ -734,7 +732,7 @@ async function nextRpc(sessionContext: SessionContext): Promise<void> {
       session.addProvisions(
         sessionContext,
         `task_${task._id}`,
-        task.provisions
+        task.provisions,
       );
       break;
     default:
@@ -753,8 +751,6 @@ async function nextRpc(sessionContext: SessionContext): Promise<void> {
 }
 
 async function endSession(sessionContext: SessionContext): Promise<void> {
-  let saveCache = sessionContext.cacheUntil != null;
-
   if (sessionContext.provisions.length) {
     const fault = {
       code: "session_terminated",
@@ -769,68 +765,53 @@ async function endSession(sessionContext: SessionContext): Promise<void> {
   const promises = [];
 
   promises.push(
-    db.saveDevice(
+    saveDevice(
       sessionContext.deviceId,
       sessionContext.deviceData,
       sessionContext.new,
-      sessionContext.timestamp
-    )
+      sessionContext.timestamp,
+    ),
   );
 
   if (sessionContext.operationsTouched) {
     for (const k of Object.keys(sessionContext.operationsTouched)) {
-      saveCache = true;
       if (sessionContext.operations[k]) {
         promises.push(
-          db.saveOperation(
+          saveOperation(
             sessionContext.deviceId,
             k,
-            sessionContext.operations[k]
-          )
+            sessionContext.operations[k],
+          ),
         );
       } else {
-        promises.push(db.deleteOperation(sessionContext.deviceId, k));
+        promises.push(deleteOperation(sessionContext.deviceId, k));
       }
     }
   }
 
   if (sessionContext.doneTasks?.length) {
-    saveCache = true;
     promises.push(
-      db.clearTasks(sessionContext.deviceId, sessionContext.doneTasks)
+      clearTasks(sessionContext.deviceId, sessionContext.doneTasks),
     );
   }
 
   if (sessionContext.faultsTouched) {
     for (const k of Object.keys(sessionContext.faultsTouched)) {
-      saveCache = true;
       if (sessionContext.faults[k]) {
         sessionContext.faults[k].retries = sessionContext.retries[k];
         promises.push(
-          db.saveFault(sessionContext.deviceId, k, sessionContext.faults[k])
+          saveFault(sessionContext.deviceId, k, sessionContext.faults[k]),
         );
       } else {
-        promises.push(db.deleteFault(sessionContext.deviceId, k));
+        promises.push(deleteFault(sessionContext.deviceId, k));
       }
     }
   }
 
-  if (saveCache) {
-    promises.push(
-      cacheDueTasksAndFaultsAndOperations(
-        sessionContext.deviceId,
-        sessionContext.tasks,
-        sessionContext.faults,
-        sessionContext.operations,
-        sessionContext.cacheUntil
-      )
-    );
-  }
-
   await Promise.all(promises);
-  await cache.releaseLock(
+  await lock.releaseLock(
     `cwmp_session_${sessionContext.deviceId}`,
-    sessionContext.sessionId
+    `cwmp_session_${sessionContext.sessionId}`,
   );
   if (sessionContext.new) {
     logger.accessInfo({
@@ -843,7 +824,7 @@ async function endSession(sessionContext: SessionContext): Promise<void> {
 async function sendAcsRequest(
   sessionContext: SessionContext,
   id?: string,
-  acsRequest?: AcsRequest
+  acsRequest?: AcsRequest,
 ): Promise<void> {
   if (!acsRequest)
     return writeResponse(sessionContext, soap.response(null), true);
@@ -887,85 +868,78 @@ async function sendAcsRequest(
 }
 
 // When socket closes, store active sessions in cache
-export function onConnection(socket: Socket): void {
-  socket.on("close", async () => {
-    const sessionContext = currentSessions.get(socket);
-    if (!sessionContext) return;
-    currentSessions.delete(socket);
-    if (sessionContext.authState !== 2) {
-      logger.accessError({
-        message: "Authentication failure",
-        sessionContext: sessionContext,
-      });
-      return;
-    }
+export async function onConnection(socket: Socket): Promise<void> {
+  try {
+    await once(socket, "close", MAX_SESSION_DURATION);
+  } catch {
+    socket.destroy();
+  }
 
-    const now = Date.now();
-
-    const lastActivity = sessionContext.lastActivity;
-    const timeoutMsg = {
+  const sessionContext = currentSessions.get(socket);
+  if (!sessionContext) return;
+  currentSessions.delete(socket);
+  if (sessionContext.authState !== 2) {
+    logger.accessError({
+      message: "Authentication failure",
       sessionContext: sessionContext,
-      message: "Session timeout",
-      sessionTimestamp: sessionContext.timestamp,
-    };
+    });
+    return;
+  }
 
-    const timeout =
-      sessionContext.lastActivity + sessionContext.timeout * 1000 - now;
+  const now = Date.now();
 
-    if (timeout <= 0) {
-      logger.accessError(timeoutMsg);
-      // TODO it's possible that lock would have already been expired
-      await endSession(sessionContext);
-      return;
-    }
+  const lastActivity = sessionContext.lastActivity;
+  const timeoutMsg = {
+    sessionContext: sessionContext,
+    message: "Session timeout",
+    sessionTimestamp: sessionContext.timestamp,
+  };
 
-    setTimeout(async () => {
-      const sessionContextString = await cache.get(
-        `session_${sessionContext.sessionId}`
-      );
-      if (!sessionContextString) return;
-      const _sessionContext = await session.deserialize(sessionContextString);
-      if (_sessionContext.lastActivity === lastActivity) {
-        logger.accessError(timeoutMsg);
-        await endSession(sessionContext);
-      }
-    }, timeout + 1000).unref();
+  const timeout =
+    sessionContext.lastActivity + sessionContext.timeout * 1000 - now;
 
-    if (sessionContext.state === 0) return;
+  if (timeout <= 0) {
+    logger.accessError(timeoutMsg);
+    // TODO it's possible that lock would have already been expired
+    await endSession(sessionContext);
+    return;
+  }
 
-    const sessionContextString = await session.serialize(sessionContext);
-    await cache.set(
-      `session_${sessionContext.sessionId}`,
-      sessionContextString,
-      Math.ceil(timeout / 1000) + 3
-    );
-  });
+  await cache.set(
+    `session_${sessionContext.sessionId}`,
+    await session.serialize(sessionContext),
+    Math.ceil(timeout / 1000) + 3,
+  );
+
+  await setTimeoutPromise(timeout + 1000, false);
+  const sessionStr = await cache.get(`session_${sessionContext.sessionId}`);
+  if (!sessionStr) return;
+
+  const _sessionContext = await session.deserialize(sessionStr);
+  if (_sessionContext.lastActivity === lastActivity) {
+    logger.accessError(timeoutMsg);
+    await endSession(sessionContext);
+  }
 }
 
-export function onClientError(err: Error, socket: Socket): void {
+export async function onClientError(err: Error, socket: Socket): Promise<void> {
   const remoteAddress = getSocketEndpoints(socket).remoteAddress;
-  localCache
-    .getCurrentSnapshot()
-    .then((cacheSnapshot) => {
-      const debugEnabled = !!localCache.getConfig(
-        cacheSnapshot,
-        "cwmp.debug",
-        {
-          remoteAddress: remoteAddress,
-        },
-        Date.now(),
-        (e) => {
-          if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "REMOTE_ADDRESS")
-            return remoteAddress;
-          return e;
-        }
-      );
+  const cacheSnapshot = await localCache.getRevision();
+  const debugEnabled = !!localCache.getConfig(
+    cacheSnapshot,
+    "cwmp.debug",
+    {
+      remoteAddress: remoteAddress,
+    },
+    Date.now(),
+    (e) => {
+      if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "REMOTE_ADDRESS")
+        return remoteAddress;
+      return e;
+    },
+  );
 
-      if (debugEnabled) debug.clientError(remoteAddress, err);
-    })
-    .catch((err) => {
-      throw err;
-    });
+  if (debugEnabled) debug.clientError(remoteAddress, err);
 }
 
 setInterval(() => {
@@ -984,66 +958,6 @@ setInterval(() => {
   stats.initiatedSessions = 0;
 }, 10000).unref();
 
-async function getDueTasksAndFaultsAndOperations(
-  deviceId,
-  timestamp
-): Promise<{
-  tasks: Task[];
-  faults: { [channel: string]: SessionFault };
-  operations: { [commandKey: string]: Operation };
-  ttl: number;
-}> {
-  const res = await cache.get(`${deviceId}_tasks_faults_operations`);
-  if (res) {
-    const resParsed = JSON.parse(res);
-    return {
-      tasks: resParsed.tasks || [],
-      faults: resParsed.faults || {},
-      operations: resParsed.operations || {},
-      ttl: 0,
-    };
-  }
-
-  const res2 = await Promise.all([
-    db.getDueTasks(deviceId, timestamp),
-    db.getFaults(deviceId),
-    db.getOperations(deviceId),
-  ]);
-  return {
-    tasks: res2[0][0],
-    faults: res2[1],
-    operations: res2[2],
-    ttl: res2[0][1] || 0,
-  };
-}
-
-async function cacheDueTasksAndFaultsAndOperations(
-  deviceId,
-  tasks,
-  faults,
-  operations,
-  cacheUntil
-): Promise<void> {
-  const v = {
-    tasks: null,
-    faults: null,
-    operations: null,
-  };
-  if (tasks.length) v.tasks = tasks;
-  if (Object.keys(faults).length) v.faults = faults;
-  if (Object.keys(operations).length) v.operations = operations;
-
-  let ttl;
-  if (cacheUntil) ttl = Math.trunc((Date.now() - cacheUntil) / 1000);
-  else ttl = config.get("MAX_CACHE_TTL", deviceId);
-
-  await cache.set(
-    `${deviceId}_tasks_faults_operations`,
-    JSON.stringify(v),
-    ttl
-  );
-}
-
 async function reportBadState(sessionContext: SessionContext): Promise<void> {
   logger.accessError({
     message: "Bad session state",
@@ -1061,7 +975,7 @@ async function reportBadState(sessionContext: SessionContext): Promise<void> {
 
 async function responseUnauthorized(
   sessionContext: SessionContext,
-  close: boolean
+  close: boolean,
 ): Promise<void> {
   const resHeaders = {};
   if (close) {
@@ -1121,7 +1035,7 @@ async function processRequest(
       "cwmp.debug",
       {},
       sessionContext.timestamp,
-      (e) => session.configContextCallback(sessionContext, e)
+      (e) => session.configContextCallback(sessionContext, e),
     );
 
     if (!sessionContext.timeout) {
@@ -1130,7 +1044,7 @@ async function processRequest(
         "cwmp.sessionTimeout",
         {},
         sessionContext.timestamp,
-        (e) => session.configContextCallback(sessionContext, e)
+        (e) => session.configContextCallback(sessionContext, e),
       );
     }
 
@@ -1140,7 +1054,7 @@ async function processRequest(
       debug.incomingHttpRequest(
         sessionContext.httpRequest,
         sessionContext.deviceId,
-        body
+        body,
       );
     }
 
@@ -1154,12 +1068,13 @@ async function processRequest(
       }
     }
 
-    sessionContext.extendLock = sessionContext.timestamp + 10000;
-    const lockToken = await cache.acquireLock(
+    sessionContext.extendLock =
+      sessionContext.timestamp + LOCK_REFRESH_INTERVAL;
+    const lockToken = await lock.acquireLock(
       `cwmp_session_${sessionContext.deviceId}`,
-      sessionContext.timeout * 1000 + 15000,
+      sessionContext.timeout * 1000 + LOCK_REFRESH_INTERVAL + REQUEST_TIMEOUT,
       0,
-      sessionContext.sessionId
+      `cwmp_session_${sessionContext.sessionId}`,
     );
 
     if (!lockToken) {
@@ -1171,14 +1086,14 @@ async function processRequest(
       const _body = "CPE already in session";
       sessionContext.httpResponse.setHeader(
         "Content-Length",
-        Buffer.byteLength(_body)
+        Buffer.byteLength(_body),
       );
       sessionContext.httpResponse.writeHead(400, { Connection: "close" });
       if (sessionContext.debug) {
         debug.outgoingHttpResponse(
           sessionContext.httpResponse,
           sessionContext.deviceId,
-          _body
+          _body,
         );
       }
       sessionContext.httpResponse.end(_body);
@@ -1201,7 +1116,7 @@ async function processRequest(
     debug.incomingHttpRequest(
       sessionContext.httpRequest,
       sessionContext.deviceId,
-      body
+      body,
     );
   }
 
@@ -1259,7 +1174,7 @@ async function processRequest(
     const fault = await session.rpcResponse(
       sessionContext,
       rpc.id,
-      rpc.cpeResponse
+      rpc.cpeResponse,
     );
     if (fault) {
       recordFault(sessionContext, fault);
@@ -1321,9 +1236,8 @@ async function processRequest(
     if (sessionContext.state !== 1) return reportBadState(sessionContext);
 
     sessionContext.state = 2;
-    const { faults, operations } = await session.timeoutOperations(
-      sessionContext
-    );
+    const { faults, operations } =
+      await session.timeoutOperations(sessionContext);
 
     for (const [i, f] of faults.entries()) {
       for (const [k, v] of Object.entries(operations[i].retries))
@@ -1333,7 +1247,7 @@ async function processRequest(
         sessionContext,
         f,
         operations[i].provisions,
-        operations[i].channels
+        operations[i].channels,
       );
     }
 
@@ -1341,29 +1255,19 @@ async function processRequest(
   }
 }
 
-export function listener(
+export async function listener(
   httpRequest: IncomingMessage,
-  httpResponse: ServerResponse
-): void {
+  httpResponse: ServerResponse,
+): Promise<void> {
   stats.concurrentRequests += 1;
-  listenerAsync(httpRequest, httpResponse)
-    .then(() => {
-      stats.concurrentRequests -= 1;
-    })
-    .catch((err) => {
-      currentSessions.delete(httpRequest.socket);
-      stats.concurrentRequests -= 1;
-      setTimeout(() => {
-        throw err;
-      });
-      try {
-        httpRequest.socket.unref();
-        httpResponse.writeHead(500, { Connection: "close" });
-        httpResponse.end(`${err.name}: ${err.message}`);
-      } catch (err) {
-        // Ignore
-      }
-    });
+  try {
+    await listenerAsync(httpRequest, httpResponse);
+  } catch (err) {
+    currentSessions.delete(httpRequest.socket);
+    throw err;
+  } finally {
+    stats.concurrentRequests -= 1;
+  }
 }
 
 async function clientError(
@@ -1371,7 +1275,7 @@ async function clientError(
   httpResponse: ServerResponse,
   sessionContext: SessionContext,
   body: string,
-  msg: string
+  msg: string,
 ): Promise<void> {
   let debugEnabled = false;
   let deviceId: string = null;
@@ -1380,7 +1284,7 @@ async function clientError(
     debugEnabled = sessionContext.debug;
     deviceId = sessionContext.deviceId;
   } else {
-    const cacheSnapshot = await localCache.getCurrentSnapshot();
+    const cacheSnapshot = await localCache.getRevision();
     debugEnabled = !!localCache.getConfig(
       cacheSnapshot,
       "cwmp.debug",
@@ -1392,7 +1296,7 @@ async function clientError(
         if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "REMOTE_ADDRESS")
           return getRequestOrigin(httpRequest).remoteAddress;
         return e;
-      }
+      },
     );
   }
 
@@ -1419,7 +1323,7 @@ function decodeString(buffer: Buffer, charset: string): string {
 
 async function listenerAsync(
   httpRequest: IncomingMessage,
-  httpResponse: ServerResponse
+  httpResponse: ServerResponse,
 ): Promise<void> {
   stats.totalRequests += 1;
 
@@ -1473,10 +1377,15 @@ async function listenerAsync(
 
   const chunks: Buffer[] = [];
   try {
+    let readableEnded = false;
+    stream.on("end", () => {
+      readableEnded = true;
+    });
     for await (const chunk of stream) chunks.push(chunk);
     // In Node versions prior to 15, the stream will not emit an error if the
     // connection is closed before the stream is finished.
-    if (!stream.readableEnded) throw new Error("Connection closed");
+    // For Node 12.9+ we can just use stream.readableEnded
+    if (!readableEnded) throw new Error("Connection closed");
   } catch (err) {
     return;
   }
@@ -1503,7 +1412,7 @@ async function listenerAsync(
         httpResponse,
         sessionContext,
         body.toString(),
-        "Invalid session"
+        "Invalid session",
       );
     }
   }
@@ -1511,7 +1420,7 @@ async function listenerAsync(
   let charset: string;
   if (httpRequest.headers["content-type"]) {
     const m = httpRequest.headers["content-type"].match(
-      /charset=['"]?([^'"\s]+)/i
+      /charset=['"]?([^'"\s]+)/i,
     );
     if (m) charset = m[1].toLowerCase();
   }
@@ -1549,7 +1458,7 @@ async function listenerAsync(
       httpResponse,
       sessionContext,
       body.toString(),
-      msg
+      msg,
     );
   }
 
@@ -1582,7 +1491,7 @@ async function listenerAsync(
       httpResponse,
       sessionContext,
       bodyStr,
-      err.message
+      err.message,
     );
   }
 
@@ -1615,7 +1524,7 @@ async function listenerAsync(
       httpResponse,
       null,
       bodyStr,
-      "Invalid session"
+      "Invalid session",
     );
   }
 
@@ -1629,14 +1538,14 @@ async function listenerAsync(
   }
 
   stats.initiatedSessions += 1;
-  const deviceId = common.generateDeviceId(rpc.cpeRequest.deviceId);
+  const deviceId = generateDeviceId(rpc.cpeRequest.deviceId);
 
-  const cacheSnapshot = await localCache.getCurrentSnapshot();
+  const cacheSnapshot = await localCache.getRevision();
 
   const _sessionContext = session.init(
     deviceId,
     rpc.cwmpVersion,
-    rpc.sessionTimeout
+    rpc.sessionTimeout,
   );
 
   _sessionContext.cacheSnapshot = cacheSnapshot;
@@ -1645,19 +1554,14 @@ async function listenerAsync(
   _sessionContext.httpResponse = httpResponse;
   _sessionContext.sessionId = crypto.randomBytes(8).toString("hex");
 
-  const {
-    tasks: dueTasks,
-    faults,
-    operations,
-    ttl: cacheUntil,
-  } = await getDueTasksAndFaultsAndOperations(
-    deviceId,
-    _sessionContext.timestamp
-  );
+  const [dueTasks, faults, operations] = await Promise.all([
+    getDueTasks(deviceId, _sessionContext.timestamp),
+    getFaults(deviceId),
+    getOperations(deviceId),
+  ]);
 
-  _sessionContext.tasks = dueTasks;
+  _sessionContext.tasks = dueTasks[0];
   _sessionContext.operations = operations;
-  _sessionContext.cacheUntil = cacheUntil;
   _sessionContext.faults = faults;
   _sessionContext.retries = {};
   for (const [k, v] of Object.entries(_sessionContext.faults)) {
@@ -1671,9 +1575,9 @@ async function listenerAsync(
     }
   }
 
-  const parameters = await db.fetchDevice(
+  const parameters = await fetchDevice(
     _sessionContext.deviceId,
-    _sessionContext.timestamp
+    _sessionContext.timestamp,
   );
 
   if (parameters) {

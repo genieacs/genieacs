@@ -1,31 +1,13 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import * as fs from "fs";
-import * as http from "http";
-import * as https from "https";
-import { Socket } from "net";
-import * as path from "path";
-import { ROOT_DIR } from "./config";
+import { readFileSync } from "node:fs";
+import * as http from "node:http";
+import * as https from "node:https";
+import { Socket } from "node:net";
+import * as path from "node:path";
+import { ROOT_DIR } from "./config.ts";
 
 let server: http.Server | https.Server;
-let listener: (...args) => void;
+let listener: http.RequestListener;
+let stopping = false;
 
 function closeServer(timeout, callback): void {
   if (!server) return void callback();
@@ -58,6 +40,7 @@ interface ServerOptions {
   ssl?: { key: string; cert: string };
   timeout?: number;
   keepAliveTimeout?: number;
+  requestTimeout?: number;
   onConnection?: (socket: Socket) => void;
   onClientError?: (err: Error, socket: Socket) => void;
 }
@@ -73,20 +56,54 @@ interface SocketEndpoint {
 // Save this info as they're not accessible after a socket has been closed
 const socketEndpoints: WeakMap<Socket, SocketEndpoint> = new WeakMap();
 
+type Promisify<T extends (...args: any) => any> = (
+  ...args: Parameters<T>
+) => Promise<ReturnType<T>>;
+
+function getValidPrivKeys(value: string): Buffer[] {
+  return value.split(":").map((str) => {
+    str = str.trim();
+    const buf = str.startsWith("-----BEGIN ")
+      ? Buffer.from(str)
+      : readFileSync(path.resolve(ROOT_DIR, str));
+    return buf;
+  });
+}
+
+function getValidCerts(value: string): Buffer[] {
+  return value.split(":").map((str) => {
+    str = str.trim();
+    const buf = str.startsWith("-----BEGIN ")
+      ? Buffer.from(str)
+      : readFileSync(path.resolve(ROOT_DIR, str));
+    return buf;
+  });
+}
+
 export function start(
   options: ServerOptions,
-  _listener: http.RequestListener
+  _listener: Promisify<http.RequestListener>,
 ): void {
-  listener = _listener;
+  listener = (req, res) => {
+    if (stopping) res.setHeader("Connection", "close");
+    _listener(req, res).catch((err) => {
+      try {
+        res.socket.unref();
+        if (res.headersSent) {
+          res.writeHead(500, { Connection: "close" });
+          res.end(`${err.name}: ${err.message}`);
+        }
+      } catch (err) {
+        // Ignore
+      }
+      throw err;
+    });
+  };
 
   if (options.ssl) {
     const opts = {
-      key: options.ssl.key
-        .split(":")
-        .map((f) => fs.readFileSync(path.resolve(ROOT_DIR, f.trim()))),
-      cert: options.ssl.cert
-        .split(":")
-        .map((f) => fs.readFileSync(path.resolve(ROOT_DIR, f.trim()))),
+      key: getValidPrivKeys(options.ssl.key),
+      cert: getValidCerts(options.ssl.cert),
     };
 
     server = https.createServer(opts, listener);
@@ -121,10 +138,14 @@ export function start(
   server.timeout = options.timeout || 0;
   if (options.keepAliveTimeout != null)
     server.keepAliveTimeout = options.keepAliveTimeout;
+  if (options.requestTimeout != null)
+    server.requestTimeout = options.requestTimeout;
+
   server.listen({ port: options.port, host: options.host });
 }
 
-export function stop(): Promise<void> {
+export function stop(terminateConnections = true): Promise<void> {
+  stopping = terminateConnections;
   return new Promise((resolve, reject) => {
     setTimeout(() => {
       reject(new Error("Could not close server in a timely manner"));

@@ -1,8 +1,9 @@
-import ava from "ava";
-import { randomBytes } from "crypto";
-import * as auth from "../lib/auth";
+import test from "node:test";
+import assert from "node:assert";
+import { randomBytes } from "node:crypto";
+import * as auth from "../lib/auth.ts";
 
-ava("digest", (t) => {
+void test("digest", () => {
   const username = "test";
   const password = "test";
   const uri = "/";
@@ -17,8 +18,6 @@ ava("digest", (t) => {
     `Digest realm="${realm}",nonce="${nonce}",qop="auth-int"`,
   ];
 
-  t.plan(challenges.length);
-
   for (const challenge of challenges) {
     const wwwAuthHeader = auth.parseWwwAuthenticateHeader(challenge);
     const solution = auth.solveDigest(
@@ -27,10 +26,10 @@ ava("digest", (t) => {
       uri,
       method,
       body,
-      wwwAuthHeader
+      wwwAuthHeader,
     );
     const authHeader = auth.parseAuthorizationHeader(solution);
-    t.is(
+    assert.strictEqual(
       authHeader["response"],
       auth.digest(
         username,
@@ -42,8 +41,8 @@ ava("digest", (t) => {
         authHeader["qop"],
         body,
         authHeader["cnonce"],
-        authHeader["nc"]
-      )
+        authHeader["nc"],
+      ),
     );
   }
 });

@@ -1,25 +1,6 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import config from "./config";
-import { Expression } from "../lib/types";
-import { encodeTag } from "../lib/common";
+import config from "./config.ts";
+import { Expression } from "../lib/types.ts";
+import { encodeTag } from "../lib/util.ts";
 
 const resources = {
   devices: {},
@@ -63,7 +44,7 @@ for (const v of Object.values(
   config.ui.filters as Record<
     string,
     { label: string; parameter: string; type: string }
-  >
+  >,
 )) {
   resources.devices[v.label] = {
     parameter: v.parameter,
@@ -76,7 +57,7 @@ export function getLabels(resource: string): string[] {
   return Object.keys(resources[resource]);
 }
 
-function queryNumber(param: string, value: string): Expression {
+function queryNumber(param: Expression, value: string): Expression {
   let op = "=";
   for (const o of ["<>", "=", "<=", "<", ">=", ">"]) {
     if (value.startsWith(o)) {
@@ -92,7 +73,7 @@ function queryNumber(param: string, value: string): Expression {
   return [op, param, v];
 }
 
-function queryTimestamp(param, value): Expression {
+function queryTimestamp(param: Expression, value: string): Expression {
   let op = "=";
   for (const o of ["<>", "=", "<=", "<", ">=", ">"]) {
     if (value.startsWith(o)) {
@@ -108,18 +89,33 @@ function queryTimestamp(param, value): Expression {
   return [op, param, v];
 }
 
-function queryString(param, value): Expression {
+function queryString(param: Expression, value: string): Expression {
   return ["LIKE", ["FUNC", "LOWER", param], value.toLowerCase()];
 }
 
-function queryMac(param, value): Expression {
+function queryStringCaseSensitive(
+  param: Expression,
+  value: string,
+): Expression {
+  return ["LIKE", param, value];
+}
+
+function queryStringMonoCase(param: Expression, value: string): Expression {
+  return [
+    "OR",
+    ["LIKE", param, value.toLowerCase()],
+    ["LIKE", param, value.toUpperCase()],
+  ];
+}
+
+function queryMac(param: Expression, value: string): Expression {
   value = value.replace(/[^a-f0-9]/gi, "").toLowerCase();
   if (!value) return null;
   if (value.length === 12) {
     return [
-      "LIKE",
-      ["FUNC", "LOWER", param],
-      value.replace(/(..)(?!$)/g, "$1:"),
+      "OR",
+      ["=", param, value.replace(/(..)(?!$)/g, "$1:").toLowerCase()],
+      ["=", param, value.replace(/(..)(?!$)/g, "$1:").toUpperCase()],
     ];
   }
 
@@ -136,6 +132,29 @@ function queryMac(param, value): Expression {
       `%${value.replace(/(.)(.)/g, "$1:$2")}%`,
     ],
   ];
+}
+
+function queryMacWildcard(param: Expression, value: string): Expression {
+  if (!/^[a-f0-9%]+$/i.test(value)) return queryStringMonoCase(param, value);
+  const parts = value.split("%");
+
+  const groups = parts.map((p) => [
+    p.replace(/..(?=.)/gi, "$&:"),
+    p.replace(/(.)(.)/gi, "$1:$2"),
+  ]);
+
+  const res = new Set();
+  for (let i = 0; i < 2 ** groups.length; ++i) {
+    const r = groups.map((g, j) => g[(i >> j) & 1]).join("%");
+    if (/^[a-f0-9]:/i.test(r) || /:[a-f0-9]$/i.test(r)) continue;
+    res.add(r.toLocaleLowerCase());
+    res.add(r.toUpperCase());
+  }
+  if (!res.size) return queryStringMonoCase(param, value);
+
+  const clauses = [...res].map((r) => ["LIKE", param, r]);
+  if (clauses.length === 1) return clauses[0];
+  return ["OR", ...clauses];
 }
 
 function queryTag(tag: string): Expression {
@@ -156,16 +175,25 @@ export function getTip(resource: string, label: string): string {
         case "string":
           tips.push("case insensitive string pattern");
           break;
+        case "string-casesensitive":
+          tips.push("case sensitive string pattern");
+          break;
+        case "string-monocase":
+          tips.push("case insensitive string pattern");
+          break;
         case "number":
           tips.push("numeric value");
           break;
         case "timestamp":
           tips.push(
-            "Unix timestamp or string in the form YYYY-MM-DDTHH:mm:ss.sssZ"
+            "Unix timestamp or string in the form YYYY-MM-DDTHH:mm:ss.sssZ",
           );
           break;
         case "mac":
           tips.push("partial case insensitive MAC address");
+          break;
+        case "mac-wildcard":
+          tips.push("case insensitive MAC address");
           break;
         case "tag":
           tips.push("case sensitive string");
@@ -181,7 +209,7 @@ export function getTip(resource: string, label: string): string {
 export function unpack(
   resource: string,
   label: string,
-  value: string
+  value: string,
 ): Expression {
   if (!resources[resource]) return null;
   const type = resources[resource][label].type;
@@ -203,8 +231,26 @@ export function unpack(
     if (q) res.push(q);
   }
 
+  if (type.includes("string-casesensitive")) {
+    const q = queryStringCaseSensitive(
+      resources[resource][label].parameter,
+      value,
+    );
+    if (q) res.push(q);
+  }
+
+  if (type.includes("string-monocase")) {
+    const q = queryStringMonoCase(resources[resource][label].parameter, value);
+    if (q) res.push(q);
+  }
+
   if (type.includes("mac")) {
     const q = queryMac(resources[resource][label].parameter, value);
+    if (q) res.push(q);
+  }
+
+  if (type.includes("mac-wildcard")) {
+    const q = queryMacWildcard(resources[resource][label].parameter, value);
     if (q) res.push(q);
   }
 

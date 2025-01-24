@@ -1,28 +1,9 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import { IncomingMessage, ServerResponse, ClientRequest } from "http";
-import { Socket } from "net";
-import { appendFileSync } from "fs";
-import { stringify } from "./common/yaml";
-import * as config from "./config";
-import { getSocketEndpoints } from "./server";
+import { IncomingMessage, ServerResponse, ClientRequest } from "node:http";
+import { Socket } from "node:net";
+import { appendFileSync } from "node:fs";
+import { stringify } from "./common/yaml.ts";
+import * as config from "./config.ts";
+import { getSocketEndpoints } from "./server.ts";
 
 const DEBUG_FILE = "" + config.get("DEBUG_FILE");
 const DEBUG_FORMAT = "" + config.get("DEBUG_FORMAT");
@@ -41,7 +22,7 @@ function getConnectionTimestamp(connection: Socket): Date {
 export function incomingHttpRequest(
   httpRequest: IncomingMessage,
   deviceId: string,
-  body: string
+  body: string,
 ): void {
   if (!DEBUG_FILE) return;
   const now = new Date();
@@ -70,7 +51,7 @@ export function incomingHttpRequest(
 export function outgoingHttpResponse(
   httpResponse: ServerResponse,
   deviceId: string,
-  body: string
+  body: string,
 ): void {
   if (!DEBUG_FILE) return;
   const now = new Date();
@@ -99,7 +80,7 @@ export function outgoingHttpRequest(
   deviceId: string,
   method: "GET" | "PUT" | "POST" | "DELETE",
   url: URL,
-  body: string
+  body: string,
 ): void {
   if (!DEBUG_FILE) return;
   const now = new Date();
@@ -129,7 +110,7 @@ export function outgoingHttpRequestError(
   deviceId: string,
   method: "GET" | "PUT" | "POST" | "DELETE",
   url: URL,
-  err: Error
+  err: Error,
 ): void {
   if (!DEBUG_FILE) return;
   const now = new Date();
@@ -156,7 +137,7 @@ export function outgoingHttpRequestError(
 export function incomingHttpResponse(
   httpResponse: IncomingMessage,
   deviceId: string,
-  body: string
+  body: string,
 ): void {
   if (!DEBUG_FILE) return;
   const now = new Date();
@@ -183,7 +164,7 @@ export function outgoingUdpMessage(
   remoteAddress: string,
   deviceId: string,
   remotePort: number,
-  body: string
+  body: string,
 ): void {
   if (!DEBUG_FILE) return;
   const now = new Date();
@@ -211,6 +192,40 @@ export function clientError(remoteAddress: string, err: Error): void {
     timestamp: now,
     remoteAddress: remoteAddress,
     error: err.message,
+  };
+
+  if (DEBUG_FORMAT === "yaml")
+    appendFileSync(DEBUG_FILE, "---\n" + stringify(msg));
+  else if (DEBUG_FORMAT === "json")
+    appendFileSync(DEBUG_FILE, JSON.stringify(msg) + "\n");
+  else throw new Error(`Unrecognized DEBUG_FORMAT option`);
+}
+
+export function outgoingXmppStanza(deviceId: string, body: string): void {
+  if (!DEBUG_FILE) return;
+  const now = new Date();
+  const msg = {
+    event: "outgoing XMPP stanza",
+    timestamp: now,
+    deviceId: deviceId,
+    body: body,
+  };
+
+  if (DEBUG_FORMAT === "yaml")
+    appendFileSync(DEBUG_FILE, "---\n" + stringify(msg));
+  else if (DEBUG_FORMAT === "json")
+    appendFileSync(DEBUG_FILE, JSON.stringify(msg) + "\n");
+  else throw new Error(`Unrecognized DEBUG_FORMAT option`);
+}
+
+export function incomingXmppStanza(deviceId: string, body: string): void {
+  if (!DEBUG_FILE) return;
+  const now = new Date();
+  const msg = {
+    event: "incoming XMPP stanza",
+    timestamp: now,
+    deviceId: deviceId,
+    body: body,
   };
 
   if (DEBUG_FORMAT === "yaml")

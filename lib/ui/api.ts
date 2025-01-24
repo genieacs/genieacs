@@ -1,37 +1,22 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import { PassThrough } from "stream";
+import { Readable } from "node:stream";
 import Router from "koa-router";
-import * as db from "./db";
-import * as apiFunctions from "./api-functions";
-import { evaluate, and, extractParams } from "../common/expression";
-import { parse } from "../common/expression-parser";
-import * as logger from "../logger";
-import { getConfig } from "../local-cache";
-import { QueryOptions, Expression } from "../types";
-import { generateSalt, hashPassword } from "../auth";
-import { del } from "../cache";
-import Authorizer from "../common/authorizer";
-import { ping } from "../ping";
-import { decodeTag } from "../common";
-import { stringify as yamlStringify } from "../common/yaml";
+import { ObjectId } from "mongodb";
+import * as db from "./db.ts";
+import * as apiFunctions from "../api-functions.ts";
+import { evaluate, and, extractParams } from "../common/expression/util.ts";
+import { parse } from "../common/expression/parser.ts";
+import * as logger from "../logger.ts";
+import { getConfig } from "../ui/local-cache.ts";
+import { Expression, Task } from "../types.ts";
+import { generateSalt, hashPassword } from "../auth.ts";
+import { del } from "../cache.ts";
+import Authorizer from "../common/authorizer.ts";
+import { ping } from "../ping.ts";
+import { decodeTag } from "../util.ts";
+import { stringify as yamlStringify } from "../common/yaml.ts";
+import { ResourceLockedError } from "../common/errors.ts";
+import { acquireLock, releaseLock } from "../lock.ts";
+import { collections } from "../db/db.ts";
 
 const router = new Router();
 export default router;
@@ -93,23 +78,22 @@ router.get(`/devices/:id.csv`, async (ctx) => {
     return void (ctx.status = 403);
   }
 
-  const res = await db.query("devices", filter);
-  if (!res[0]) return void (ctx.status = 404);
+  const { value: device } = await db.query("devices", filter).next();
+  if (!device) return void (ctx.status = 404);
 
   ctx.type = "text/csv";
   ctx.attachment(
     `device-${ctx.params.id}-${new Date()
       .toISOString()
-      .replace(/[:.]/g, "")}.csv`
+      .replace(/[:.]/g, "")}.csv`,
   );
 
-  ctx.body = new PassThrough();
-  ctx.body.write(
-    "Parameter,Object,Object timestamp,Writable,Writable timestamp,Value,Value type,Value timestamp,Notification,Notification timestamp,Access list,Access list timestamp\n"
-  );
+  const lines: string[] = [
+    "Parameter,Object,Object timestamp,Writable,Writable timestamp,Value,Value type,Value timestamp,Notification,Notification timestamp,Access list,Access list timestamp",
+  ];
 
-  for (const k of Object.keys(res[0]).sort()) {
-    const p = res[0][k];
+  for (const k of Object.keys(device).sort()) {
+    const p = device[k];
     let value = "";
     let type = "";
     if (p.value) {
@@ -133,9 +117,9 @@ router.get(`/devices/:id.csv`, async (ctx) => {
       p.accessList ? p.accessList.join(", ") : "",
       new Date(p.accessListTimestamp).toJSON(),
     ];
-    ctx.body.write(row.map((r) => (r != null ? r : "")).join(",") + "\n");
+    lines.push(row.map((r) => (r != null ? r : "")).join(","));
   }
-  ctx.body.end();
+  ctx.body = lines.join("\n");
   logger.accessInfo(log);
 });
 
@@ -178,7 +162,7 @@ for (const [resource, flags] of Object.entries(resources)) {
 
   router.get(`/${resource}`, async (ctx) => {
     const authorizer: Authorizer = ctx.state.authorizer;
-    const options: QueryOptions = {};
+    const options: Parameters<typeof db.query>[2] = {};
     let filter: Expression = authorizer.getFilter(resource, 2);
     if (ctx.request.query.filter)
       filter = and(filter, parse(singleParam(ctx.request.query.filter)));
@@ -216,27 +200,23 @@ for (const [resource, flags] of Object.entries(resources)) {
       ]);
     }
 
-    ctx.body = new PassThrough();
+    logger.accessInfo(log);
     ctx.type = "application/json";
-
-    let c = 0;
-    ctx.body.write("[\n");
-    db.query(resource, filter, options, (obj) => {
-      ctx.body.write((c++ ? "," : "") + JSON.stringify(obj) + "\n");
-    })
-      .then(() => {
-        ctx.body.end("]");
-        logger.accessInfo(log);
-      })
-      .catch((err) => {
-        ctx.body.emit("error", err);
-      });
+    ctx.body = Readable.from(
+      (async function* () {
+        let c = 0;
+        yield "[\n";
+        for await (const obj of db.query(resource, filter, options))
+          yield (c++ ? "," : "") + JSON.stringify(obj) + "\n";
+        yield "]";
+      })(),
+    );
   });
 
   // CSV download
   router.get(`/${resource}.csv`, async (ctx) => {
     const authorizer: Authorizer = ctx.state.authorizer;
-    const options: QueryOptions = { projection: {} };
+    const options: Parameters<typeof db.query>[2] = { projection: {} };
     let filter: Expression = authorizer.getFilter(resource, 2);
     if (ctx.request.query.filter)
       filter = and(filter, parse(singleParam(ctx.request.query.filter)));
@@ -260,7 +240,7 @@ for (const [resource, flags] of Object.entries(resources)) {
     }
 
     const columns: Record<string, Expression> = JSON.parse(
-      singleParam(ctx.request.query.columns)
+      singleParam(ctx.request.query.columns),
     );
     const now = Date.now();
 
@@ -280,65 +260,62 @@ for (const [resource, flags] of Object.entries(resources)) {
       ]);
     }
 
-    ctx.body = new PassThrough();
+    logger.accessInfo(log);
     ctx.type = "text/csv";
     ctx.attachment(
-      `${resource}-${new Date(now).toISOString().replace(/[:.]/g, "")}.csv`
+      `${resource}-${new Date(now).toISOString().replace(/[:.]/g, "")}.csv`,
     );
 
-    ctx.body.write(
-      Object.keys(columns).map((k) => `"${k.replace(/"/, '""')}"`) + "\n"
+    ctx.body = Readable.from(
+      (async function* () {
+        yield Object.keys(columns).map((k) => `"${k.replace(/"/, '""')}"`) +
+          "\n";
+        for await (const obj of db.query(resource, filter, options)) {
+          const arr = Object.values(columns).map((exp) => {
+            const v = evaluate(exp, obj, null, (e) => {
+              if (Array.isArray(e)) {
+                if (e[0] === "PARAM") {
+                  if (resource === "devices") {
+                    if (e[1] === "Tags") {
+                      const tags = [];
+                      for (const p in obj)
+                        if (p.startsWith("Tags."))
+                          tags.push(decodeTag(p.slice(5)));
+
+                      return tags.join(", ");
+                    }
+                    if (e === exp) {
+                      const p = obj[e[1]];
+                      if (
+                        p &&
+                        p.value &&
+                        p.value[1] === "xsd:dateTime" &&
+                        typeof p.value[0] === "number"
+                      )
+                        return new Date(p.value[0]).toJSON();
+                    }
+                  } else if (resource === "faults") {
+                    if (e[1] === "detail") return yamlStringify(obj["detail"]);
+                  }
+                } else if (e[0] === "FUNC") {
+                  if (e[1] === "DATE_STRING") {
+                    if (e[2] && !Array.isArray(e[2]))
+                      return new Date(e[2]).toJSON();
+                  }
+                }
+              }
+
+              return e;
+            });
+
+            if (Array.isArray(v) || v == null) return "";
+            if (typeof v === "string") return `"${v.replace(/"/g, '""')}"`;
+            return v;
+          });
+          yield arr.join(",") + "\n";
+        }
+      })(),
     );
-    db.query(resource, filter, options, (obj) => {
-      const arr = Object.values(columns).map((exp) => {
-        const v = evaluate(exp, obj, null, (e) => {
-          if (Array.isArray(e)) {
-            if (e[0] === "PARAM") {
-              if (resource === "devices") {
-                if (e[1] === "Tags") {
-                  const tags = [];
-                  for (const p in obj)
-                    if (p.startsWith("Tags.")) tags.push(decodeTag(p.slice(5)));
-
-                  return tags.join(", ");
-                }
-                if (e === exp) {
-                  const p = obj[e[1]];
-                  if (
-                    p &&
-                    p.value &&
-                    p.value[1] === "xsd:dateTime" &&
-                    typeof p.value[0] === "number"
-                  )
-                    return new Date(p.value[0]).toJSON();
-                }
-              } else if (resource === "faults") {
-                if (e[1] === "detail") return yamlStringify(obj["detail"]);
-              }
-            } else if (e[0] === "FUNC") {
-              if (e[1] === "DATE_STRING") {
-                if (e[2] && !Array.isArray(e[2]))
-                  return new Date(e[2]).toJSON();
-              }
-            }
-          }
-
-          return e;
-        });
-
-        if (Array.isArray(v) || v == null) return "";
-        if (typeof v === "string") return `"${v.replace(/"/g, '""')}"`;
-        return v;
-      });
-      ctx.body.write(arr.join(",") + "\n");
-    })
-      .then(() => {
-        ctx.body.end();
-        logger.accessInfo(log);
-      })
-      .catch((err) => {
-        ctx.body.emit("error", err);
-      });
   });
 
   router.head(`/${resource}/:id`, async (ctx) => {
@@ -359,9 +336,9 @@ for (const [resource, flags] of Object.entries(resources)) {
       return void (ctx.status = 403);
     }
 
-    const res = await db.query(resource, filter);
+    const count = await db.count(resource, filter);
 
-    if (!res.length) return void (ctx.status = 404);
+    if (!count) return void (ctx.status = 404);
 
     logger.accessInfo(log);
     ctx.body = "";
@@ -385,12 +362,12 @@ for (const [resource, flags] of Object.entries(resources)) {
       return void (ctx.status = 403);
     }
 
-    const res = await db.query(resource, filter);
+    const { value: res } = await db.query(resource, filter).next();
 
-    if (!res.length) return void (ctx.status = 404);
+    if (!res) return void (ctx.status = 404);
 
     logger.accessInfo(log);
-    ctx.body = res[0];
+    ctx.body = res;
   });
 
   if (flags & RESOURCE_DELETE) {
@@ -411,16 +388,27 @@ for (const [resource, flags] of Object.entries(resources)) {
         logUnauthorizedWarning(log);
         return void (ctx.status = 403);
       }
-      const res = await db.query(resource, filter);
-      if (!res.length) return void (ctx.status = 404);
+      const { value: res } = await db.query(resource, filter).next();
+      if (!res) return void (ctx.status = 404);
 
-      const validate = authorizer.getValidator(resource, res[0]);
+      const validate = authorizer.getValidator(resource, res);
       if (!validate("delete")) {
         logUnauthorizedWarning(log);
         return void (ctx.status = 403);
       }
 
-      await apiFunctions.deleteResource(resource, ctx.params.id);
+      try {
+        await apiFunctions.deleteResource(resource, ctx.params.id);
+      } catch (err) {
+        if (err instanceof ResourceLockedError) {
+          log.message += " failed";
+          logger.accessWarn(log);
+          ctx.status = 503;
+          ctx.body = err.message;
+          return;
+        }
+        throw err;
+      }
 
       logger.accessInfo(log);
 
@@ -543,33 +531,69 @@ router.put("/files/:id", async (ctx) => {
 });
 
 router.post("/devices/:id/tasks", async (ctx) => {
+  const deviceId = ctx.params.id;
   const authorizer: Authorizer = ctx.state.authorizer;
   const log = {
     message: "Commit tasks",
     context: ctx,
-    deviceId: ctx.params.id,
+    deviceId: deviceId,
     tasks: null,
   };
 
-  const filter = and(authorizer.getFilter("devices", 3), [
-    "=",
-    ["PARAM", "DeviceID.ID"],
-    ctx.params.id,
-  ]);
   if (!authorizer.hasAccess("devices", 3)) {
     logUnauthorizedWarning(log);
     return void (ctx.status = 403);
   }
-  const devices = await db.query("devices", filter);
-  if (!devices.length) return void (ctx.status = 404);
-  const device = devices[0];
 
-  const validate = authorizer.getValidator("devices", device);
-  for (const t of ctx.request.body) {
-    if (!validate("task", t)) {
-      logUnauthorizedWarning(log);
-      return void (ctx.status = 403);
+  const socketTimeout: number = ctx.socket.timeout;
+
+  // Extend socket timeout while waiting for session
+  if (socketTimeout) ctx.socket.setTimeout(300000);
+
+  const token = await acquireLock(`cwmp_session_${deviceId}`, 5000, 30000);
+  if (!token) {
+    log.message += " failed";
+    logger.accessWarn(log);
+    ctx.body = "Device is in session";
+    ctx.status = 503;
+    // Restore socket timeout
+    if (socketTimeout) ctx.socket.setTimeout(socketTimeout);
+    return;
+  }
+
+  let device;
+
+  let statuses: { _id: string; status: string }[];
+
+  try {
+    const filter = and(authorizer.getFilter("devices", 3), [
+      "=",
+      ["PARAM", "DeviceID.ID"],
+      deviceId,
+    ]);
+    device = (await db.query("devices", filter).next()).value;
+    if (!device) return void (ctx.status = 404);
+
+    const validate = authorizer.getValidator("devices", device);
+    for (const t of ctx.request.body) {
+      if (!validate("task", t)) {
+        logUnauthorizedWarning(log);
+        return void (ctx.status = 403);
+      }
     }
+
+    let tasks = ctx.request.body as Task[];
+
+    for (const task of tasks) {
+      delete task._id;
+      task["device"] = deviceId;
+    }
+
+    tasks = await apiFunctions.insertTasks(tasks);
+
+    statuses = tasks.map((t) => ({ _id: t._id, status: "pending" }));
+  } finally {
+    await releaseLock(`cwmp_session_${deviceId}`, token);
   }
 
   const onlineThreshold = getConfig(
@@ -592,30 +616,46 @@ router.post("/devices/:id/tasks", async (ctx) => {
         }
       }
       return exp;
-    }
+    },
   ) as number;
 
-  const socketTimeout: number = ctx.socket["timeout"];
+  const lastInform = device["Events.Inform"].value[0] as number;
 
-  // Disable socket timeout while waiting for postTasks()
-  if (socketTimeout) ctx.socket.setTimeout(0);
+  let status = await apiFunctions.connectionRequest(deviceId, device);
+  if (!status) {
+    const sessionStarted = await apiFunctions.awaitSessionStart(
+      deviceId,
+      lastInform,
+      onlineThreshold,
+    );
+    if (!sessionStarted) {
+      status = "No contact from CPE";
+    } else {
+      const sessionEnded = await apiFunctions.awaitSessionEnd(deviceId, 120000);
+      if (!sessionEnded) status = "Session took too long to complete";
+    }
+  }
 
-  const res = await apiFunctions.postTasks(
-    ctx.params.id,
-    ctx.request.body,
-    onlineThreshold,
-    device
-  );
+  if (!status) {
+    const promises = statuses.map((t) =>
+      collections.faults.count({ _id: `${deviceId}:task_${t._id}` }),
+    );
+
+    const res = await Promise.all(promises);
+    for (const [i, r] of statuses.entries())
+      r.status = res[i] ? "fault" : "done";
+  }
+
+  await Promise.all(statuses.map((t) => db.deleteTask(new ObjectId(t._id))));
 
   // Restore socket timeout
   if (socketTimeout) ctx.socket.setTimeout(socketTimeout);
 
-  log.tasks = res.tasks.map((t) => t._id).join(",");
-
+  log.tasks = statuses.map((t) => t._id).join(",");
   logger.accessInfo(log);
 
-  ctx.set("Connection-Request", res.connectionRequest);
-  ctx.body = res.tasks;
+  ctx.set("Connection-Request", status || "OK");
+  ctx.body = statuses;
 });
 
 router.post("/devices/:id/tags", async (ctx) => {
@@ -636,10 +676,10 @@ router.post("/devices/:id/tags", async (ctx) => {
     logUnauthorizedWarning(log);
     return void (ctx.status = 403);
   }
-  const res = await db.query("devices", filter);
-  if (!res.length) return void (ctx.status = 404);
+  const { value: res } = await db.query("devices", filter).next();
+  if (!res) return void (ctx.status = 404);
 
-  const validate = authorizer.getValidator("devices", res[0]);
+  const validate = authorizer.getValidator("devices", res);
   if (!validate("tags", ctx.request.body)) {
     logUnauthorizedWarning(log);
     return void (ctx.status = 403);
@@ -689,7 +729,7 @@ router.put("/users/:id/password", async (ctx) => {
       !(await apiFunctions.authLocal(
         ctx.state.configSnapshot,
         username,
-        ctx.request.body.authPassword
+        ctx.request.body.authPassword,
       ))
     ) {
       logUnauthorizedWarning(log);
@@ -702,17 +742,17 @@ router.put("/users/:id/password", async (ctx) => {
     return void (ctx.status = 403);
   }
 
-  const filter = and(authorizer.getFilter("users", 3), [
-    "=",
-    ["PARAM", RESOURCE_IDS.users],
-    username,
-  ]);
-  const res = await db.query("users", filter);
-  if (!res.length) return void (ctx.status = 404);
-
   const newPassword = ctx.request.body.newPassword;
+
   if (ctx.state.user) {
-    const validate = authorizer.getValidator("users", res[0]);
+    const filter = and(authorizer.getFilter("users", 3), [
+      "=",
+      ["PARAM", RESOURCE_IDS.users],
+      username,
+    ]);
+    const { value: res } = await db.query("users", filter).next();
+    if (!res) return void (ctx.status = 404);
+    const validate = authorizer.getValidator("users", res);
     if (!validate("password", { password: newPassword })) {
       logUnauthorizedWarning(log);
       return void (ctx.status = 403);
@@ -723,7 +763,7 @@ router.put("/users/:id/password", async (ctx) => {
   const password = await hashPassword(newPassword, salt);
   await db.putUser(username, { password, salt });
 
-  await del("presets_hash");
+  await del("ui-local-cache-hash");
 
   logger.accessInfo(log);
   ctx.body = "";

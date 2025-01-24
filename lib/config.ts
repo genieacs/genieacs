@@ -1,24 +1,5 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import { resolve } from "path";
-import { readFileSync, existsSync } from "fs";
+import { resolve } from "node:path";
+import { readFileSync, existsSync } from "node:fs";
 
 // Find project root directory
 export let ROOT_DIR = resolve(__dirname, "..");
@@ -105,6 +86,9 @@ const options = {
 
   // Should probably never be changed
   DEVICE_ONLINE_THRESHOLD: { type: "int", default: 4000 },
+
+  XMPP_JID: { type: "string", default: "" },
+  XMPP_PASSWORD: { type: "string", default: "" },
 };
 
 const allConfig: { [name: string]: string | number } = {};
@@ -249,7 +233,7 @@ if (fsHostname) {
   const FS_SSL = !!allConfig["FS_SSL_CERT"];
   setConfig(
     "FS_URL_PREFIX",
-    (FS_SSL ? "https" : "http") + `://${fsHostname}:${FS_PORT}/`
+    (FS_SSL ? "https" : "http") + `://${fsHostname}:${FS_PORT}/`,
   );
 }
 
@@ -259,7 +243,7 @@ for (const [k, v] of Object.entries(options))
 
 export function get(
   optionName: string,
-  deviceId?: string
+  deviceId?: string,
 ): string | number | boolean {
   if (!deviceId) return allConfig[optionName];
 

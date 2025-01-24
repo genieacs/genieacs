@@ -1,28 +1,28 @@
-import ava from "ava";
-import Path from "../lib/common/path";
-import * as device from "../lib/device";
-import PathSet from "../lib/common/path-set";
-import VersionedMap from "../lib/versioned-map";
-import { Attributes } from "../lib/types";
+import test from "node:test";
+import assert from "node:assert";
+import Path from "../lib/common/path.ts";
+import * as device from "../lib/device.ts";
+import PathSet from "../lib/common/path-set.ts";
+import VersionedMap from "../lib/versioned-map.ts";
+import { Attributes } from "../lib/types.ts";
 
-ava("getAliasDeclarations", (t) => {
+void test("getAliasDeclarations", () => {
   const path = Path.parse("a.[aa:10,bb.[aaa:100].cc:1].b");
   const decs = device.getAliasDeclarations(path, 99);
 
   const expected = ["a.*.b", "a.*.aa", "a.*.bb.*.cc", "a.*.bb.*.aaa"];
 
-  t.plan(24);
   for (const [i, d] of decs.entries()) {
-    t.is(d.path.toString(), expected[i]);
-    t.is(d.pathGet, 99);
-    t.is(d.pathSet, null);
-    t.deepEqual(d.attrGet, i ? { value: 99 } : null);
-    t.is(d.attrSet, null);
-    t.is(d.defer, true);
+    assert.strictEqual(d.path.toString(), expected[i]);
+    assert.strictEqual(d.pathGet, 99);
+    assert.strictEqual(d.pathSet, null);
+    assert.deepStrictEqual(d.attrGet, i ? { value: 99 } : null);
+    assert.strictEqual(d.attrSet, null);
+    assert.strictEqual(d.defer, true);
   }
 });
 
-ava("unpack", (t) => {
+void test("unpack", () => {
   const now = Date.now();
   const deviceData = {
     paths: new PathSet(),
@@ -85,13 +85,13 @@ ava("unpack", (t) => {
   let unpacked: Path[];
   unpacked = device.unpack(
     deviceData,
-    Path.parse("a.[b:b,c:c].a.[b:b1,c:c1].a")
+    Path.parse("a.[b:b,c:c].a.[b:b1,c:c1].a"),
   );
-  t.is(unpacked.length, 2);
-  t.is(unpacked[0].toString(), "a.1.a.1.a");
-  t.is(unpacked[1].toString(), "a.2.a.1.a");
+  assert.strictEqual(unpacked.length, 2);
+  assert.strictEqual(unpacked[0].toString(), "a.1.a.1.a");
+  assert.strictEqual(unpacked[1].toString(), "a.2.a.1.a");
 
   unpacked = device.unpack(deviceData, Path.parse("a.*.a.[b:c1,c:b1].a"));
-  t.is(unpacked.length, 1);
-  t.is(unpacked[0].toString(), "a.2.a.2.a");
+  assert.strictEqual(unpacked.length, 1);
+  assert.strictEqual(unpacked[0].toString(), "a.2.a.2.a");
 });

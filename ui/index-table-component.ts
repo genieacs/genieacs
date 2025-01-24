@@ -1,26 +1,7 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 import { ClosureComponent, Component, Children } from "mithril";
-import { m } from "./components";
-import { getIcon } from "./icons";
-import debounce from "../lib/common/debounce";
+import { m } from "./components.ts";
+import { getIcon } from "./icons.ts";
+import debounce from "../lib/common/debounce.ts";
 
 interface Attribute {
   id?: string;
@@ -41,7 +22,9 @@ function renderTable(
   downloadUrl?: string,
   valueCallback?: (attr: Attribute, record: Record<string, any>) => Children,
   actionsCallback?: Children | ((sel: Set<string>) => Children),
-  recordActionsCallback?: Children | ((record: Record<string, any>) => Children)
+  recordActionsCallback?:
+    | Children
+    | ((record: Record<string, any>) => Children),
 ): Children {
   const records = data || [];
 
@@ -92,7 +75,7 @@ function renderTable(
           onSort(i);
         },
       },
-      symbol
+      symbol,
     );
 
     labels.push(m("th", [label, sortable]));
@@ -162,8 +145,8 @@ function renderTable(
             if (!selected.delete(id)) selected.add(id);
           },
         },
-        tds
-      )
+        tds,
+      ),
     );
   }
 
@@ -184,19 +167,19 @@ function renderTable(
         disabled:
           !data.length || records.length >= Math.min(MAX_PAGE_SIZE, total),
       },
-      "More"
-    )
+      "More",
+    ),
   );
 
   if (downloadUrl) {
     footerElements.push(
-      m("a.download-csv", { href: downloadUrl, download: "" }, "Download")
+      m("a.download-csv", { href: downloadUrl, download: "" }, "Download"),
     );
   }
 
   const tfoot = m(
     "tfoot",
-    m("tr", m("td", { colspan: labels.length }, footerElements))
+    m("tr", m("td", { colspan: labels.length }, footerElements)),
   );
 
   const children = [
@@ -204,7 +187,7 @@ function renderTable(
       "table.table.highlight",
       m("thead", m("tr", labels)),
       m("tbody", rows),
-      tfoot
+      tfoot,
     ),
   ];
 
@@ -241,7 +224,7 @@ const component: ClosureComponent = (): Component => {
         const sortArray = new Set(
           Object.keys(sortAttributes)
             .map((x) => (parseInt(x) + 1) * sortAttributes[x])
-            .filter((x) => x)
+            .filter((x) => x),
         );
         for (const num of events) {
           if (sortArray.delete(num + 1)) sortArray.add(-(num + 1));
@@ -263,7 +246,7 @@ const component: ClosureComponent = (): Component => {
         downloadUrl,
         valueCallback,
         actionsCallback,
-        recordActionsCallback
+        recordActionsCallback,
       );
     },
   };

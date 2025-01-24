@@ -1,29 +1,10 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 import { ClosureComponent } from "mithril";
-import { m } from "./components";
-import * as store from "./store";
-import { yaml } from "./dynamic-loader";
-import * as configFunctions from "./config-functions";
-import codeEditorComponent from "./code-editor-component";
-import { parse } from "../lib/common/expression-parser";
+import { m } from "./components.ts";
+import * as store from "./store.ts";
+import { yaml } from "./dynamic-loader.ts";
+import * as configFunctions from "./config-functions.ts";
+import codeEditorComponent from "./code-editor-component.ts";
+import { parse } from "../lib/common/expression/parser.ts";
 
 function putActionHandler(prefix: string[], dataYaml: string): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -65,8 +46,8 @@ function putActionHandler(prefix: string[], dataYaml: string): Promise<any> {
               store.putResource(
                 "config",
                 obj._id,
-                obj as unknown as Record<string, unknown>
-              )
+                obj as unknown as Record<string, unknown>,
+              ),
             );
           }
 
@@ -147,7 +128,7 @@ const component: ClosureComponent<Attrs> = () => {
                 .catch(vnode.attrs.onError);
             },
           },
-          [code, m(".actions-bar", [submit])]
+          [code, m(".actions-bar", [submit])],
         ),
       ]);
     },

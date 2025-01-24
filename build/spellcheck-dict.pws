@@ -174,3 +174,7 @@ skipRootGpn
 GPN
 NaN
 CIDR
+XMPP
+PEM
+JID
+unindexed

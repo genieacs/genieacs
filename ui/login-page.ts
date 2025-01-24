@@ -1,31 +1,12 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 import { ClosureComponent, Component, Children } from "mithril";
-import { m } from "./components";
-import * as store from "./store";
-import * as notifications from "./notifications";
-import * as overlay from "./overlay";
-import changePasswordComponent from "./change-password-component";
+import { m } from "./components.ts";
+import * as store from "./store.ts";
+import * as notifications from "./notifications.ts";
+import * as overlay from "./overlay.ts";
+import changePasswordComponent from "./change-password-component.ts";
 
 export function init(
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   return Promise.resolve(args);
 }
@@ -53,7 +34,7 @@ export const component: ClosureComponent = (): Component => {
               oninput: (e) => {
                 vnode.state["username"] = e.target.value;
               },
-            })
+            }),
           ),
           m(
             "p",
@@ -65,7 +46,7 @@ export const component: ClosureComponent = (): Component => {
               oninput: (e) => {
                 vnode.state["password"] = e.target.value;
               },
-            })
+            }),
           ),
           m(
             "p",
@@ -87,9 +68,9 @@ export const component: ClosureComponent = (): Component => {
                   return false;
                 },
               },
-              "Login"
-            )
-          )
+              "Login",
+            ),
+          ),
         ),
         m(
           "a",
@@ -107,7 +88,7 @@ export const component: ClosureComponent = (): Component => {
               overlay.open(cb);
             },
           },
-          "Change password"
+          "Change password",
         ),
       ];
     },

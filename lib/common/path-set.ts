@@ -1,23 +1,4 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import Path from "./path";
+import Path from "./path.ts";
 
 export default class PathSet {
   private declare lengthIndex: Set<Path>[];
@@ -75,7 +56,7 @@ export default class PathSet {
     path: Path,
     superset = false,
     subset = false,
-    depth: number = path.length
+    depth: number = path.length,
   ): Path[] {
     if (path.alias) throw new Error("PathSet does not support aliased paths");
 
@@ -115,7 +96,7 @@ export default class PathSet {
           res = [...fragmentIndexSet1, ...fragmentIndexSet2];
         } else {
           res = res.filter(
-            (r) => fragmentIndexSet1.has(r) || fragmentIndexSet2.has(r)
+            (r) => fragmentIndexSet1.has(r) || fragmentIndexSet2.has(r),
           );
         }
       }

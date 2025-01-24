@@ -1,38 +1,37 @@
-import ava, { TestInterface } from "ava";
-import { minimize, unionDiff } from "../lib/common/boolean-expression";
-import { parse, stringify } from "../lib/common/expression-parser";
+import test from "node:test";
+import assert from "node:assert";
 import initSqlJs from "sql.js/dist/sql-asm.js";
-
-const test = ava as TestInterface<{
-  query: (filter: string) => Promise<Set<number>>;
-}>;
+import { minimize, unionDiff } from "../lib/common/expression/synth.ts";
+import { parse, stringify } from "../lib/common/expression/parser.ts";
 
 const STRING_VALUES = [null, "", "a", "ab", "ab10", "ab-10"];
 const DECIMAL_VALUES = [null, 0, -10, 10];
 
-test.before(async (t) => {
-  const sql = await initSqlJs();
-  const db = new sql.Database();
+let db;
 
-  t.context.query = async (filter: string): Promise<Set<number>> => {
-    const res = db.exec(`SELECT id FROM test WHERE ${filter}`);
-    if (!res.length) return new Set();
-    return new Set(res[0].values.flat());
-  };
+async function query(filter: string): Promise<Set<number>> {
+  if (!db) {
+    const sql = await initSqlJs();
+    db = new sql.Database();
 
-  db.run(
-    "CREATE TABLE test (id INTEGER PRIMARY KEY, string STRING, decimal DECIMAL(4,2))"
-  );
+    db.run(
+      "CREATE TABLE test (id INTEGER PRIMARY KEY, string STRING, decimal DECIMAL(4,2))",
+    );
 
-  const stmt = db.prepare("INSERT INTO test (string, decimal) VALUES (?, ?)");
-  const count = STRING_VALUES.length * DECIMAL_VALUES.length;
-  for (let i = 0; i < count; ++i) {
-    const str = i % STRING_VALUES.length;
-    const dec = Math.trunc(i / STRING_VALUES.length) % DECIMAL_VALUES.length;
-    stmt.run([STRING_VALUES[str], DECIMAL_VALUES[dec]]);
+    const stmt = db.prepare("INSERT INTO test (string, decimal) VALUES (?, ?)");
+    const count = STRING_VALUES.length * DECIMAL_VALUES.length;
+    for (let i = 0; i < count; ++i) {
+      const str = i % STRING_VALUES.length;
+      const dec = Math.trunc(i / STRING_VALUES.length) % DECIMAL_VALUES.length;
+      stmt.run([STRING_VALUES[str], DECIMAL_VALUES[dec]]);
+    }
+    stmt.free();
   }
-  stmt.free();
-});
+
+  const res = db.exec(`SELECT id FROM test WHERE ${filter}`);
+  if (!res.length) return new Set();
+  return new Set(res[0].values.flat());
+}
 
 function setsEqual(set1: Set<number>, set2: Set<number>): boolean {
   if (set1.size !== set2.size) return false;
@@ -56,7 +55,7 @@ function getPermutations(...arrs: any[][]): any[][] {
   return res;
 }
 
-test("minimize", async (t) => {
+void test("minimize", async () => {
   const cases: string[] = [];
 
   cases.push("null");
@@ -72,28 +71,28 @@ test("minimize", async (t) => {
     STRING_VALUES.filter((s) => s),
     STRING_VALUES.filter((s) => s),
     [">", "=", "<"],
-    ["<>", ">="]
+    ["<>", ">="],
   )) {
     cases.push(
-      `string ${op1} "${s1}" OR string ='${s2}' OR NOT string ${op2} '${s3}'`
+      `string ${op1} "${s1}" OR string ='${s2}' OR NOT string ${op2} '${s3}'`,
     );
   }
 
   for (const [s1, s2] of getPermutations(
     STRING_VALUES.filter((s) => s),
-    STRING_VALUES.filter((s) => s)
+    STRING_VALUES.filter((s) => s),
   ))
     cases.push(`string > "${s1}" AND string < '${s2}'`);
 
   for (const c of cases) {
-    const res1 = await t.context.query(c);
+    const res1 = await query(c);
     const min = stringify(minimize(parse(c), true));
-    const res2 = await t.context.query(min);
-    t.true(setsEqual(res1, res2));
+    const res2 = await query(min);
+    assert.strictEqual(setsEqual(res1, res2), true);
   }
 });
 
-test("unionDiff", async (t) => {
+void test("unionDiff", async () => {
   const cases = [
     "true",
     "decimal > 0",
@@ -103,16 +102,16 @@ test("unionDiff", async (t) => {
   ];
 
   for (const [c1, c2] of getPermutations(cases, cases)) {
-    const res1 = await t.context.query(c1);
-    const res2 = await t.context.query(c2);
+    const res1 = await query(c1);
+    const res2 = await query(c2);
     const [union, diff] = unionDiff(parse(c1), parse(c2));
-    const res3 = await t.context.query(stringify(union));
-    const res4 = await t.context.query(stringify(diff));
+    const res3 = await query(stringify(union));
+    const res4 = await query(stringify(diff));
 
     const unionSet = new Set([...res1, ...res2]);
     const diffSet = new Set(Array.from(res2).filter((r) => !res1.has(r)));
 
-    t.true(setsEqual(res3, unionSet));
-    t.true(setsEqual(res4, diffSet));
+    assert.strictEqual(setsEqual(res3, unionSet), true);
+    assert.strictEqual(setsEqual(res4, diffSet), true);
   }
 });

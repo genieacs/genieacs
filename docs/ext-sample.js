@@ -16,7 +16,7 @@ function latlong(args, callback) {
     .get("http://api.open-notify.org/iss-now.json", (res) => {
       if (res.statusCode !== 200)
         return callback(
-          new Error(`Request failed (status code: ${res.statusCode})`)
+          new Error(`Request failed (status code: ${res.statusCode})`),
         );
 
       let rawData = "";

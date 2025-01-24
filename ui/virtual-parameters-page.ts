@@ -1,35 +1,16 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 import { ClosureComponent, Component, Children } from "mithril";
-import { m } from "./components";
-import config from "./config";
-import filterComponent from "./filter-component";
-import * as store from "./store";
-import * as notifications from "./notifications";
-import memoize from "../lib/common/memoize";
-import putFormComponent from "./put-form-component";
-import indexTableComponent from "./index-table-component";
-import * as overlay from "./overlay";
-import * as smartQuery from "./smart-query";
-import { map, parse, stringify } from "../lib/common/expression-parser";
-import { loadCodeMirror } from "./dynamic-loader";
+import { m } from "./components.ts";
+import config from "./config.ts";
+import filterComponent from "./filter-component.ts";
+import * as store from "./store.ts";
+import * as notifications from "./notifications.ts";
+import memoize from "../lib/common/memoize.ts";
+import putFormComponent from "./put-form-component.ts";
+import indexTableComponent from "./index-table-component.ts";
+import * as overlay from "./overlay.ts";
+import * as smartQuery from "./smart-query.ts";
+import { map, parse, stringify } from "../lib/common/expression/parser.ts";
+import { loadCodeMirror } from "./dynamic-loader.ts";
 
 const PAGE_SIZE = config.ui.pageSize || 10;
 
@@ -80,7 +61,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
             .then(() => {
               notifications.push(
                 "success",
-                `Virtual parameter ${exists ? "updated" : "created"}`
+                `Virtual parameter ${exists ? "updated" : "created"}`,
               );
               store.setTimestamp(Date.now());
               resolve(null);
@@ -127,11 +108,11 @@ const getDownloadUrl = memoize((filter) => {
 });
 
 export function init(
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   if (!window.authorizer.hasAccess("virtualParameters", 2)) {
     return Promise.reject(
-      new Error("You are not authorized to view this page")
+      new Error("You are not authorized to view this page"),
     );
   }
 
@@ -237,19 +218,19 @@ export const component: ClosureComponent = (): Component => {
                         });
                       },
                     },
-                    formData
-                  )
+                    formData,
+                  ),
                 );
                 cb = () => comp;
                 overlay.open(
                   cb,
                   () =>
                     !comp.state["current"]["modified"] ||
-                    confirm("You have unsaved changes. Close anyway?")
+                    confirm("You have unsaved changes. Close anyway?"),
                 );
               },
             },
-            "Show"
+            "Show",
           ),
         ];
       };
@@ -289,19 +270,19 @@ export const component: ClosureComponent = (): Component => {
                           });
                         },
                       },
-                      formData
-                    )
+                      formData,
+                    ),
                   );
                   cb = () => comp;
                   overlay.open(
                     cb,
                     () =>
                       !comp.state["current"]["modified"] ||
-                      confirm("You have unsaved changes. Close anyway?")
+                      confirm("You have unsaved changes. Close anyway?"),
                   );
                 },
               },
-              "New"
+              "New",
             ),
             m(
               "button.primary",
@@ -311,7 +292,7 @@ export const component: ClosureComponent = (): Component => {
                 onclick: (e) => {
                   if (
                     !confirm(
-                      `Deleting ${selected.size} virtual parameters. Are you sure?`
+                      `Deleting ${selected.size} virtual parameters. Are you sure?`,
                     )
                   )
                     return;
@@ -320,13 +301,13 @@ export const component: ClosureComponent = (): Component => {
                   e.target.disabled = true;
                   Promise.all(
                     Array.from(selected).map((id) =>
-                      store.deleteResource("virtualParameters", id)
-                    )
+                      store.deleteResource("virtualParameters", id),
+                    ),
                   )
                     .then((res) => {
                       notifications.push(
                         "success",
-                        `${res.length} virtual parameters deleted`
+                        `${res.length} virtual parameters deleted`,
                       );
                       store.setTimestamp(Date.now());
                     })
@@ -336,7 +317,7 @@ export const component: ClosureComponent = (): Component => {
                     });
                 },
               },
-              "Delete"
+              "Delete",
             ),
           ];
         };
@@ -354,7 +335,7 @@ export const component: ClosureComponent = (): Component => {
         m(
           "loading",
           { queries: [virtualParameters, count] },
-          m(indexTableComponent, attrs)
+          m(indexTableComponent, attrs),
         ),
       ];
     },

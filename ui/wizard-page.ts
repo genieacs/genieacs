@@ -1,24 +1,5 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 import m, { ClosureComponent, Component } from "mithril";
-import * as notifications from "./notifications";
+import * as notifications from "./notifications.ts";
 
 export async function init(): Promise<Record<string, unknown>> {
   return m.request({ url: "init" });
@@ -58,13 +39,13 @@ export const component: ClosureComponent = (vnode): Component => {
         m("h1", "Initialization wizard"),
         m(
           "p",
-          "This wizard will seed the database with a minimal initial configuration to serve as a starting point. Select what you want to initialize and click 'ABRACADABRA!'."
+          "This wizard will seed the database with a minimal initial configuration to serve as a starting point. Select what you want to initialize and click 'ABRACADABRA!'.",
         ),
         m("div", m("label", checkboxes[0], "Users, roles and permissions")),
         m("div", m("label", checkboxes[1], "Presets and provisions")),
         m(
           "div",
-          m("label", checkboxes[2], "Devices predefined search filters")
+          m("label", checkboxes[2], "Devices predefined search filters"),
         ),
         m("div", m("label", checkboxes[3], "Device details page")),
         m("div", m("label", checkboxes[4], "Devices listing page")),
@@ -99,7 +80,7 @@ export const component: ClosureComponent = (vnode): Component => {
                               m.route.set("/login");
                               window.location.reload();
                             },
-                          }
+                          },
                         );
                       })
                       .catch((err) => {
@@ -108,7 +89,7 @@ export const component: ClosureComponent = (vnode): Component => {
                   }, 3000);
                   if (opts["users"]) {
                     alert(
-                      "An administrator user has been created for you. Use admin/admin to log in. Don't forget to change the default password."
+                      "An administrator user has been created for you. Use admin/admin to log in. Don't forget to change the default password.",
                     );
                   }
                 })
@@ -117,7 +98,7 @@ export const component: ClosureComponent = (vnode): Component => {
                 });
             },
           },
-          "ABRACADABRA!"
+          "ABRACADABRA!",
         ),
       ]);
     },

@@ -1,27 +1,8 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import { IncomingMessage } from "http";
-import { TLSSocket } from "tls";
+import { IncomingMessage } from "node:http";
+import { TLSSocket } from "node:tls";
 import { parseCIDR, parse, IPv6, IPv4 } from "ipaddr.js";
-import * as config from "./config";
-import { getSocketEndpoints } from "./server";
+import * as config from "./config.ts";
+import { getSocketEndpoints } from "./server.ts";
 
 interface RequestOrigin {
   localAddress: string;

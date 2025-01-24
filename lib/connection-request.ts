@@ -1,35 +1,19 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import * as crypto from "crypto";
-import * as dgram from "dgram";
-import { URL } from "url";
-import * as http from "http";
-import { evaluateAsync } from "./common/expression";
-import { Expression } from "./types";
-import * as auth from "./auth";
-import * as extensions from "./extensions";
-import * as debug from "./debug";
+import * as crypto from "node:crypto";
+import * as dgram from "node:dgram";
+import * as http from "node:http";
+import { evaluateAsync } from "./common/expression/util.ts";
+import { Expression } from "./types.ts";
+import * as auth from "./auth.ts";
+import * as extensions from "./extensions.ts";
+import * as debug from "./debug.ts";
+import XmppClient from "./xmpp-client.ts";
+import * as config from "../lib/config.ts";
+import { encodeEntities, parseAttrs, Element } from "./xml-parser.ts";
+import * as logger from "../lib/logger.ts";
 
 async function extractAuth(
   exp: Expression,
-  dflt: any
+  dflt: any,
 ): Promise<[string, string, Expression]> {
   let username, password;
   const _exp = await evaluateAsync(
@@ -55,7 +39,7 @@ async function extractAuth(
         }
       }
       return e;
-    }
+    },
   );
   return [username, password, _exp];
 }
@@ -64,7 +48,7 @@ function httpGet(
   url: URL,
   options: http.RequestOptions,
   _debug: boolean,
-  deviceId: string
+  deviceId: string,
 ): Promise<{ statusCode: number; headers: http.IncomingHttpHeaders }> {
   return new Promise((resolve, reject) => {
     const req = http
@@ -94,7 +78,7 @@ export async function httpConnectionRequest(
   allowBasicAuth: boolean,
   timeout: number,
   _debug: boolean,
-  deviceId: string
+  deviceId: string,
 ): Promise<string> {
   const url = new URL(address);
   if (url.protocol !== "http:")
@@ -120,7 +104,7 @@ export async function httpConnectionRequest(
               Authorization: auth.basic(username || "", password || ""),
             },
           },
-          options
+          options,
         );
       } else if (authHeader["method"] === "Digest") {
         opts = Object.assign(
@@ -132,11 +116,11 @@ export async function httpConnectionRequest(
                 url.pathname + url.search,
                 "GET",
                 null,
-                authHeader
+                authHeader,
               ),
             },
           },
-          options
+          options,
         );
       } else {
         return "Unrecognized auth method";
@@ -171,7 +155,7 @@ export async function httpConnectionRequest(
     if (res.statusCode === 401 && res.headers["www-authenticate"]) {
       try {
         authHeader = auth.parseWwwAuthenticateHeader(
-          res.headers["www-authenticate"]
+          res.headers["www-authenticate"],
         );
       } catch (err) {
         return "Connection request error: Error parsing www-authenticate header";
@@ -191,7 +175,7 @@ export async function udpConnectionRequest(
   authExp: Expression,
   sourcePort = 0,
   _debug: boolean,
-  deviceId: string
+  deviceId: string,
 ): Promise<void> {
   const now = Date.now();
 
@@ -236,4 +220,85 @@ export async function udpConnectionRequest(
     [username, password, authExp] = await extractAuth(authExp, null);
   }
   client.close();
+}
+
+const XMPP_JID = config.get("XMPP_JID") as string;
+const XMPP_PASSWORD = config.get("XMPP_PASSWORD") as string;
+const XMPP_RESOURCE = crypto.randomBytes(8).toString("hex");
+
+let xmppClient: XmppClient;
+
+function xmppClientOnError(err: Error): void {
+  xmppClient = null;
+  logger.error({
+    message: "XMPP exception",
+    exception: err,
+    pid: process.pid,
+  });
+}
+
+function xmppClientOnClose(): void {
+  xmppClient = null;
+}
+
+export async function xmppConnectionRequest(
+  jid: string,
+  authExp: Expression,
+  timeout: number,
+  _debug: boolean,
+  deviceId: string,
+): Promise<string> {
+  if (!xmppClient) {
+    const [host, username] = XMPP_JID.split("@").reverse();
+    xmppClient = await XmppClient.connect({
+      host,
+      username,
+      resource: XMPP_RESOURCE,
+      password: XMPP_PASSWORD,
+      timeout: 120000,
+    });
+    xmppClient.on("error", xmppClientOnError);
+    xmppClient.on("close", xmppClientOnClose);
+    xmppClient.unref();
+  }
+
+  let username: string;
+  let password: string;
+
+  [username, password, authExp] = await extractAuth(authExp, null);
+  while (username != null && password != null) {
+    const msg = `<connectionRequest xmlns="urn:broadband-forum-org:cwmp:xmppConnReq-1-0"><username>${encodeEntities(
+      username,
+    )}</username><password>${encodeEntities(
+      password,
+    )}</password></connectionRequest>`;
+    let res: Element, rawRes: string, rawReq: string;
+    try {
+      ({ res, rawRes, rawReq } = await xmppClient.sendIqStanza(
+        XMPP_JID,
+        jid,
+        "get",
+        msg,
+        timeout,
+      ));
+    } catch (err) {
+      return err.message;
+    }
+    if (_debug) {
+      debug.outgoingXmppStanza(deviceId, rawReq);
+      debug.incomingXmppStanza(deviceId, rawRes);
+    }
+    const attrs = parseAttrs(res.attrs);
+    const type = attrs.find((a) => a.name === "type");
+    if (type && type.value === "result") return "";
+    const error = res.children.find((c) => c.name === "error");
+    if (!error || !error.children[0])
+      return "Unexpected XMPP connection request response";
+    if (error.children[0].name === "service-unavailable")
+      return "Device is offline";
+    if (error.children[0].name !== "not-authorized")
+      return "Unexpected XMPP connection request response";
+    [username, password, authExp] = await extractAuth(authExp, null);
+  }
+  return "Incorrect connection request credentials";
 }

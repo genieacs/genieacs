@@ -1,23 +1,4 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import * as crypto from "crypto";
+import * as crypto from "node:crypto";
 import * as later from "@breejs/later";
 
 function md532(str): number {
@@ -37,7 +18,7 @@ export function variance(deviceId: string, vrnc: number): number {
 export function interval(
   timestamp: number,
   intrvl: number,
-  offset = 0
+  offset = 0,
 ): number {
   return Math.trunc((timestamp + offset) / intrvl) * intrvl - offset;
 }
@@ -52,7 +33,7 @@ export function parseCron(cronExp: string): any {
 export function cron(
   timestamp: number,
   schedule: unknown,
-  offset = 0
+  offset = 0,
 ): number[] {
   // TODO later.js doesn't throw erorr if expression is invalid!
   const ret = [0, 0];

@@ -1,27 +1,8 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 import { ClosureComponent, Component } from "mithril";
-import { m } from "./components";
-import config from "./config";
-import * as store from "./store";
-import pieChartComponent from "./pie-chart-component";
+import { m } from "./components.ts";
+import config from "./config.ts";
+import * as store from "./store.ts";
+import pieChartComponent from "./pie-chart-component.ts";
 
 const GROUPS = config.ui.overview.groups || {};
 const CHARTS = {};
@@ -47,7 +28,7 @@ function queryCharts(charts: Record<string, unknown>): Record<string, unknown> {
 export function init(): Promise<Record<string, unknown>> {
   if (!window.authorizer.hasAccess("devices", 1)) {
     return Promise.reject(
-      new Error("You are not authorized to view this page")
+      new Error("You are not authorized to view this page"),
     );
   }
 
@@ -60,13 +41,19 @@ export const component: ClosureComponent = (): Component => {
       document.title = "Overview - GenieACS";
       const children = [];
       for (const group of Object.values(GROUPS)) {
-        if (group["label"]) children.push(m("h1", group["label"]));
+        if (group["label"])
+          children.push(
+            m("h1", store.evaluateExpression(group["label"], null)),
+          );
 
         const groupChildren = [];
         for (const chartName of Object.values(group["charts"]) as string[]) {
           const chart = vnode.attrs["charts"][chartName];
           const chartChildren = [];
-          if (chart.label) chartChildren.push(m("h2", chart.label));
+          if (chart.label)
+            chartChildren.push(
+              m("h2", store.evaluateExpression(chart.label, null)),
+            );
 
           const attrs = {};
           attrs["chart"] = chart;

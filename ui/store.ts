@@ -1,32 +1,18 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 import m from "mithril";
-import { stringify } from "../lib/common/expression-parser";
-import { or, and, evaluate } from "../lib/common/expression";
-import memoize from "../lib/common/memoize";
-import { QueryOptions, Expression } from "../lib/types";
-import * as notifications from "./notifications";
-import { configSnapshot, genieacsVersion } from "./config";
-import { QueueTask } from "./task-queue";
-import { PingResult } from "../lib/ping";
-import { unionDiff, covers } from "../lib/common/boolean-expression";
+import { stringify } from "../lib/common/expression/parser.ts";
+import { or, and, evaluate } from "../lib/common/expression/util.ts";
+import memoize from "../lib/common/memoize.ts";
+import { Expression, Task } from "../lib/types.ts";
+import * as notifications from "./notifications.ts";
+import { configSnapshot, genieacsVersion } from "./config.ts";
+import { QueueTask } from "./task-queue.ts";
+import { PingResult } from "../lib/ping.ts";
+import { unionDiff } from "../lib/common/expression/synth.ts";
+import {
+  bookmarkToExpression,
+  paginate,
+  toBookmark,
+} from "../lib/common/expression/pagination.ts";
 
 const memoizedStringify = memoize(stringify);
 const memoizedEvaluate = memoize(evaluate);
@@ -45,6 +31,7 @@ const queries = {
   fulfilling: new WeakSet(),
   accessed: new WeakMap(),
   value: new WeakMap(),
+  unsatisfied: new WeakMap(),
 };
 
 interface Resources {
@@ -60,7 +47,6 @@ const resources: Resources = {};
 for (const r of [
   "devices",
   "faults",
-  "files",
   "presets",
   "provisions",
   "virtualParameters",
@@ -77,7 +63,7 @@ for (const r of [
   };
 }
 
-class QueryResponse {
+export class QueryResponse {
   public get fulfilled(): number {
     queries.accessed.set(this, Date.now());
     return queries.fulfilled.get(this) || 0;
@@ -107,7 +93,7 @@ function checkConnection(): void {
           connectionNotification = notifications.push(
             "warning",
             "Server is unreachable",
-            {}
+            {},
           );
         }
       } else {
@@ -122,7 +108,7 @@ function checkConnection(): void {
           if (Math.abs(skew - clockSkew) > 5000 && now2 - now1 < 1000) {
             clockSkew = skew;
             console.warn(
-              `System and server clocks are out of sync. Adding ${clockSkew}ms offset to any client-side time relative calculations.`
+              `System and server clocks are out of sync. Adding ${clockSkew}ms offset to any client-side time relative calculations.`,
             );
             setTimestamp(now2);
             m.redraw();
@@ -148,7 +134,7 @@ function checkConnection(): void {
                 Reload: () => {
                   window.location.reload();
                 },
-              }
+              },
             );
           }
         }
@@ -165,7 +151,7 @@ function checkConnection(): void {
                 Reload: () => {
                   window.location.reload();
                 },
-              }
+              },
             );
           }
         }
@@ -179,14 +165,14 @@ function checkConnection(): void {
 setInterval(checkConnection, 3000);
 
 export async function xhrRequest(
-  options: { url: string } & m.RequestOptions<unknown>
+  options: { url: string } & m.RequestOptions<unknown>,
 ): Promise<any> {
   const extract = options.extract;
   const deserialize = options.deserialize;
 
   options.extract = (
     xhr: XMLHttpRequest,
-    _options?: { url: string } & m.RequestOptions<unknown>
+    _options?: { url: string } & m.RequestOptions<unknown>,
   ): any => {
     if (typeof extract === "function") return extract(xhr, _options);
 
@@ -208,7 +194,7 @@ export async function xhrRequest(
       response = deserialize(xhr.responseText);
     } else if (
       (xhr.getResponseHeader("content-type") || "").startsWith(
-        "application/json"
+        "application/json",
       )
     ) {
       try {
@@ -244,42 +230,11 @@ export function count(resourceType: string, filter: Expression): QueryResponse {
   return queryResponse;
 }
 
-function limitFilter(filter, sort, bookmark): Expression {
-  const sortSort = (a, b): number => Math.abs(b[1]) - Math.abs(a[1]);
-  const arr = Object.entries(sort).sort(sortSort).reverse();
-  return and(
-    filter,
-    arr.reduce((cur, kv) => {
-      const [param, asc] = kv;
-      if (asc <= 0) {
-        if (bookmark[param] == null) {
-          return or(
-            ["IS NOT NULL", ["PARAM", param]],
-            and(["IS NULL", ["PARAM", param]], cur)
-          );
-        }
-        let f = null;
-        f = or(f, [">", ["PARAM", param], bookmark[param]]);
-        return or(f, and(["=", ["PARAM", param], bookmark[param]], cur));
-      } else {
-        let f: Expression = ["IS NULL", ["PARAM", param]];
-        if (bookmark[param] == null) return and(f, cur);
-        f = or(f, ["<", ["PARAM", param], bookmark[param]]);
-        return or(f, and(["=", ["PARAM", param], bookmark[param]], cur));
-      }
-    }, true as Expression)
-  );
-}
-
 function compareFunction(sort: {
   [param: string]: number;
 }): (a: any, b: any) => number {
-  const sortEntries = Object.entries(sort).sort(
-    (a, b) => Math.abs(b[1]) - Math.abs(a[1])
-  );
-
   return (a, b) => {
-    for (const [param, asc] of sortEntries) {
+    for (const [param, asc] of Object.entries(sort)) {
       let v1 = a[param];
       let v2 = b[param];
       if (v1 != null && typeof v1 === "object") {
@@ -322,32 +277,13 @@ function findMatches(resourceType, filter, sort, limit): any[] {
   return value;
 }
 
-function inferQuery(resourceType, queryResponse): void {
-  const limit = queries.limit.get(queryResponse);
-  let filter = queries.filter.get(queryResponse);
-  filter = unpackExpression(filter);
-  const bookmark = queries.bookmark.get(queryResponse);
-  const sort = queries.sort.get(queryResponse);
-  if (bookmark || !limit) {
-    if (bookmark) filter = limitFilter(filter, sort, bookmark);
-    if (covers(resources[resourceType].combinedFilter, filter))
-      queries.fulfilled.set(queryResponse, fulfillTimestamp);
-  }
-
-  queries.value.set(
-    queryResponse,
-    findMatches(resourceType, filter, sort, limit)
-  );
-}
-
 export function fetch(
   resourceType: string,
   filter: Expression,
-  options: QueryOptions = {}
+  options: { limit?: number; sort?: { [param: string]: number } } = {},
 ): QueryResponse {
   const filterStr = memoizedStringify(filter);
   const sort = Object.assign({}, options.sort);
-  for (const [k, v] of Object.entries(sort)) sort[k] += Math.sign(v);
 
   const limit = options.limit || 0;
   if (resourceType === "devices")
@@ -363,7 +299,16 @@ export function fetch(
   queries.filter.set(queryResponse, filter);
   queries.limit.set(queryResponse, limit);
   queries.sort.set(queryResponse, sort);
-  inferQuery(resourceType, queryResponse);
+  const [satisfied, diff] = paginate(
+    resources[resourceType].combinedFilter,
+    unpackExpression(filter),
+    sort,
+  );
+  const matches = findMatches(resourceType, satisfied, sort, limit);
+  queries.value.set(queryResponse, matches);
+  if (!diff || (limit && matches.length >= limit))
+    queries.fulfilled.set(queryResponse, fulfillTimestamp);
+  else queries.unsatisfied.set(queryResponse, diff);
   return queryResponse;
 }
 
@@ -397,7 +342,7 @@ export function fulfill(accessTimestamp: number): void {
                 throw new Error("Server is unreachable");
               } else if (xhr.status !== 200) {
                 throw new Error(
-                  `Unexpected response status code ${xhr.status}`
+                  `Unexpected response status code ${xhr.status}`,
                 );
               }
               return +xhr.getResponseHeader("x-total-count");
@@ -407,7 +352,7 @@ export function fulfill(accessTimestamp: number): void {
             queries.value.set(queryResponse, c);
             queries.fulfilled.set(queryResponse, fulfillTimestamp);
             queries.fulfilling.delete(queryResponse);
-          })
+          }),
         );
       }
     }
@@ -428,11 +373,18 @@ export function fulfill(accessTimestamp: number): void {
         queries.fulfilling.add(queryResponse);
         toFetchAll[resourceType] = toFetchAll[resourceType] || [];
         toFetchAll[resourceType].push(queryResponse);
-        const limit = queries.limit.get(queryResponse);
+        let limit = queries.limit.get(queryResponse);
         const sort = queries.sort.get(queryResponse);
         if (limit) {
           let filter = queries.filter.get(queryResponse);
           filter = unpackExpression(filter);
+
+          const unsatisfied = queries.unsatisfied.get(queryResponse);
+          if (unsatisfied) {
+            limit -= queries.value.get(queryResponse).length;
+            filter = unsatisfied;
+          }
+
           allPromises.push(
             xhrRequest({
               method: "GET",
@@ -447,24 +399,13 @@ export function fulfill(accessTimestamp: number): void {
                 }),
               background: true,
             }).then((res) => {
+              queries.unsatisfied.delete(queryResponse);
               if ((res as any[]).length) {
-                // Generate bookmark object
-                const bm = Object.keys(sort).reduce((b, k) => {
-                  if (res[0][k] != null) {
-                    if (typeof res[0][k] === "object") {
-                      if (res[0][k].value != null) b[k] = res[0][k].value[0];
-                    } else {
-                      b[k] = res[0][k];
-                    }
-                  }
-
-                  return b;
-                }, {});
-                queries.bookmark.set(queryResponse, bm);
+                queries.bookmark.set(queryResponse, toBookmark(sort, res[0]));
               } else {
                 queries.bookmark.delete(queryResponse);
               }
-            })
+            }),
           );
         }
       }
@@ -483,13 +424,14 @@ export function fulfill(accessTimestamp: number): void {
           filter = memoizedEvaluate(filter, null, fulfillTimestamp + clockSkew);
           const bookmark = queries.bookmark.get(queryResponse);
           const sort = queries.sort.get(queryResponse);
-          if (bookmark) filter = limitFilter(filter, sort, bookmark);
+          if (bookmark)
+            filter = and(filter, bookmarkToExpression(bookmark, sort));
           combinedFilter = or(combinedFilter, filter);
         }
 
         const [union, diff] = unionDiff(
           resources[resourceType].combinedFilter,
-          combinedFilter
+          combinedFilter,
         );
 
         if (!diff) {
@@ -498,16 +440,17 @@ export function fulfill(accessTimestamp: number): void {
             filter = memoizedEvaluate(
               filter,
               null,
-              fulfillTimestamp + clockSkew
+              fulfillTimestamp + clockSkew,
             );
             const limit = queries.limit.get(queryResponse);
             const bookmark = queries.bookmark.get(queryResponse);
             const sort = queries.sort.get(queryResponse);
-            if (bookmark) filter = limitFilter(filter, sort, bookmark);
+            if (bookmark)
+              filter = and(filter, bookmarkToExpression(bookmark, sort));
 
             queries.value.set(
               queryResponse,
-              findMatches(resourceType, filter, sort, limit)
+              findMatches(resourceType, filter, sort, limit),
             );
             queries.fulfilled.set(queryResponse, fulfillTimestamp);
             queries.fulfilling.delete(queryResponse);
@@ -556,16 +499,17 @@ export function fulfill(accessTimestamp: number): void {
               const limit = queries.limit.get(queryResponse);
               const bookmark = queries.bookmark.get(queryResponse);
               const sort = queries.sort.get(queryResponse);
-              if (bookmark) filter = limitFilter(filter, sort, bookmark);
+              if (bookmark)
+                filter = and(filter, bookmarkToExpression(bookmark, sort));
 
               queries.value.set(
                 queryResponse,
-                findMatches(resourceType, filter, sort, limit)
+                findMatches(resourceType, filter, sort, limit),
               );
               queries.fulfilled.set(queryResponse, fulfillTimestamp);
               queries.fulfilling.delete(queryResponse);
             }
-          })
+          }),
         );
       }
       if (updated) m.redraw();
@@ -594,17 +538,21 @@ export function getClockSkew(): number {
 
 export function postTasks(
   deviceId: string,
-  tasks: QueueTask[]
+  tasks: QueueTask[],
 ): Promise<string> {
+  const tasks2: Task[] = [];
   for (const t of tasks) {
     t.status = "pending";
-    t.device = deviceId;
+    const t2 = Object.assign({}, t);
+    delete t2.device;
+    delete t2.status;
+    tasks2.push(t2);
   }
 
   return xhrRequest({
     method: "POST",
     url: `api/devices/${encodeURIComponent(deviceId)}/tasks`,
-    body: tasks,
+    body: tasks2,
     extract: (xhr) => {
       if (xhr.status === 403) throw new Error("Not authorized");
       if (!xhr.status) throw new Error("Server is unreachable");
@@ -615,7 +563,6 @@ export function postTasks(
       for (const [i, t] of st.entries()) {
         tasks[i]._id = t._id;
         tasks[i].status = t.status;
-        tasks[i]["fault"] = t.fault;
       }
       return connectionRequestStatus;
     },
@@ -624,7 +571,7 @@ export function postTasks(
 
 export function updateTags(
   deviceId: string,
-  tags: Record<string, boolean>
+  tags: Record<string, boolean>,
 ): Promise<void> {
   return xhrRequest({
     method: "POST",
@@ -635,7 +582,7 @@ export function updateTags(
 
 export function deleteResource(
   resourceType: string,
-  id: string
+  id: string,
 ): Promise<void> {
   return xhrRequest({
     method: "DELETE",
@@ -646,7 +593,7 @@ export function deleteResource(
 export function putResource(
   resourceType: string,
   id: string,
-  object: Record<string, unknown>
+  object: Record<string, unknown>,
 ): Promise<void> {
   for (const k in object) if (object[k] === undefined) object[k] = null;
 
@@ -689,7 +636,7 @@ export function resourceExists(resource: string, id: string): Promise<number> {
 
 export function evaluateExpression(
   exp: Expression,
-  obj: Record<string, unknown>
+  obj: Record<string, unknown>,
 ): Expression {
   if (!Array.isArray(exp)) return exp;
   return memoizedEvaluate(exp, obj, fulfillTimestamp + clockSkew);
@@ -698,7 +645,7 @@ export function evaluateExpression(
 export function changePassword(
   username: string,
   newPassword: string,
-  authPassword?: string
+  authPassword?: string,
 ): Promise<void> {
   const body = { newPassword };
   if (authPassword) body["authPassword"] = authPassword;

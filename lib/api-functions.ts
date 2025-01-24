@@ -1,49 +1,61 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import * as db from "./db";
-import * as common from "./common";
-import * as cache from "./cache";
+import { ObjectId } from "mongodb";
+import { collections } from "./db/db.ts";
 import {
-  getCurrentSnapshot,
+  deleteConfig,
+  deleteFault as dbDeleteFault,
+  deleteFile,
+  deletePermission,
+  deletePreset,
+  deleteProvision,
+  deleteTask,
+  deleteUser,
+  deleteVirtualParameter,
+  putConfig,
+  putPermission,
+  putPreset,
+  putProvision,
+  putUser,
+  putVirtualParameter,
+} from "./ui/db.ts";
+import * as common from "./util.ts";
+import * as cache from "./cache.ts";
+import { acquireLock, getToken, releaseLock } from "./lock.ts";
+import {
+  getRevision,
   getConfig,
   getConfigExpression,
-} from "./local-cache";
+  getUsers,
+} from "./ui/local-cache.ts";
 import {
   httpConnectionRequest,
   udpConnectionRequest,
-} from "./connection-request";
-import { Expression, Task } from "./types";
-import { flattenDevice } from "./mongodb-functions";
-import { evaluate } from "./common/expression";
+  xmppConnectionRequest,
+} from "./connection-request.ts";
+import { Expression, Task } from "./types.ts";
+import { evaluate } from "./common/expression/util.ts";
+import { hashPassword } from "./auth.ts";
+import { flattenDevice } from "./ui/db.ts";
+import { ResourceLockedError } from "./common/errors.ts";
+import * as config from "../lib/config.ts";
+
+const XMPP_CONFIGURED = !!config.get("XMPP_JID");
 
 export async function connectionRequest(
   deviceId: string,
-  device?: Record<string, { value?: [boolean | number | string, string] }>
+  device?: Record<string, { value?: [boolean | number | string, string] }>,
 ): Promise<string> {
   if (!device) {
-    const res = await db.devicesCollection.findOne({ _id: deviceId });
+    const res = await collections.devices.findOne({ _id: deviceId });
     if (!res) throw new Error("No such device");
     device = flattenDevice(res);
   }
 
-  let connectionRequestUrl, udpConnectionRequestAddress, username, password;
+  let connectionRequestUrl,
+    udpConnectionRequestAddress,
+    stunEnable,
+    connReqJabberId,
+    username,
+    password;
 
   if (device["InternetGatewayDevice.ManagementServer.ConnectionRequestURL"]) {
     connectionRequestUrl = (device[
@@ -53,6 +65,12 @@ export async function connectionRequest(
       device[
         "InternetGatewayDevice.ManagementServer.UDPConnectionRequestAddress"
       ] || {}
+    ).value || [""])[0];
+    stunEnable = ((
+      device["InternetGatewayDevice.ManagementServer.STUNEnable"] || {}
+    ).value || [""])[0];
+    connReqJabberId = ((
+      device["InternetGatewayDevice.ManagementServer.ConnReqJabberID"] || {}
     ).value || [""])[0];
     username = ((
       device[
@@ -71,6 +89,10 @@ export async function connectionRequest(
     udpConnectionRequestAddress = ((
       device["Device.ManagementServer.UDPConnectionRequestAddress"] || {}
     ).value || [""])[0];
+    stunEnable = ((device["Device.ManagementServer.STUNEnable"] || {})
+      .value || [""])[0];
+    connReqJabberId = ((device["Device.ManagementServer.ConnReqJabberID"] || {})
+      .value || [""])[0];
     username = ((
       device["Device.ManagementServer.ConnectionRequestUsername"] || {}
     ).value || [""])[0];
@@ -78,8 +100,12 @@ export async function connectionRequest(
       device["Device.ManagementServer.ConnectionRequestPassword"] || {}
     ).value || [""])[0];
   }
-
-  const remoteAddress = new URL(connectionRequestUrl).hostname;
+  let remoteAddress;
+  try {
+    remoteAddress = new URL(connectionRequestUrl).hostname;
+  } catch (err) {
+    return "Invalid connection request URL";
+  }
 
   const evalCallback = (exp): Expression => {
     if (!Array.isArray(exp)) return exp;
@@ -103,32 +129,32 @@ export async function connectionRequest(
     return exp;
   };
 
-  const snapshot = await getCurrentSnapshot();
+  const snapshot = await getRevision();
   const now = Date.now();
   const UDP_CONNECTION_REQUEST_PORT = +getConfig(
     snapshot,
     "cwmp.udpConnectionRequestPort",
     {},
     now,
-    evalCallback
+    evalCallback,
   );
   const CONNECTION_REQUEST_TIMEOUT = +getConfig(
     snapshot,
     "cwmp.connectionRequestTimeout",
     {},
     now,
-    evalCallback
+    evalCallback,
   );
   const CONNECTION_REQUEST_ALLOW_BASIC_AUTH = !!getConfig(
     snapshot,
     "cwmp.connectionRequestAllowBasicAuth",
     {},
     now,
-    evalCallback
+    evalCallback,
   );
   let authExp: Expression = getConfigExpression(
     snapshot,
-    "cwmp.connectionRequestAuth"
+    "cwmp.connectionRequestAuth",
   );
 
   if (authExp === undefined) {
@@ -145,7 +171,7 @@ export async function connectionRequest(
   const debug = !!getConfig(snapshot, "cwmp.debug", {}, now, evalCallback);
 
   let udpProm = Promise.resolve(false);
-  if (udpConnectionRequestAddress) {
+  if (udpConnectionRequestAddress && +stunEnable) {
     try {
       const u = new URL("udp://" + udpConnectionRequestAddress);
       udpProm = udpConnectionRequest(
@@ -154,24 +180,36 @@ export async function connectionRequest(
         authExp,
         UDP_CONNECTION_REQUEST_PORT,
         debug,
-        deviceId
+        deviceId,
       ).then(
         () => true,
-        () => false
+        () => false,
       );
     } catch (err) {
       // Ignore invalid address
     }
   }
 
-  const status = await httpConnectionRequest(
-    connectionRequestUrl,
-    authExp,
-    CONNECTION_REQUEST_ALLOW_BASIC_AUTH,
-    CONNECTION_REQUEST_TIMEOUT,
-    debug,
-    deviceId
-  );
+  let status;
+
+  if (connReqJabberId && XMPP_CONFIGURED) {
+    status = await xmppConnectionRequest(
+      connReqJabberId,
+      authExp,
+      CONNECTION_REQUEST_TIMEOUT,
+      debug,
+      deviceId,
+    );
+  } else {
+    status = await httpConnectionRequest(
+      connectionRequestUrl,
+      authExp,
+      CONNECTION_REQUEST_ALLOW_BASIC_AUTH,
+      CONNECTION_REQUEST_TIMEOUT,
+      debug,
+      deviceId,
+    );
+  }
 
   if (await udpProm) return "";
 
@@ -181,17 +219,17 @@ export async function connectionRequest(
 export async function awaitSessionStart(
   deviceId: string,
   lastInform: number,
-  timeout: number
+  timeout: number,
 ): Promise<boolean> {
   const now = Date.now();
-  const device = await db.devicesCollection.findOne(
+  const device = await collections.devices.findOne(
     { _id: deviceId },
-    { projection: { _lastInform: 1 } }
+    { projection: { _lastInform: 1 } },
   );
   const li = (device["_lastInform"] as Date).getTime();
   if (li > lastInform) return true;
-  const token = await cache.get(`cwmp_session_${deviceId}`);
-  if (token) return true;
+  const token = await getToken(`cwmp_session_${deviceId}`);
+  if (token?.startsWith("cwmp_session_")) return true;
   if (timeout < 500) return false;
   await new Promise((resolve) => setTimeout(resolve, 500));
   timeout -= Date.now() - now;
@@ -200,11 +238,11 @@ export async function awaitSessionStart(
 
 export async function awaitSessionEnd(
   deviceId: string,
-  timeout: number
+  timeout: number,
 ): Promise<boolean> {
   const now = Date.now();
-  const token = await cache.get(`cwmp_session_${deviceId}`);
-  if (!token) return true;
+  const token = await getToken(`cwmp_session_${deviceId}`);
+  if (!token?.startsWith("cwmp_session_")) return true;
   if (timeout < 500) return false;
   await new Promise((resolve) => setTimeout(resolve, 500));
   timeout -= Date.now() - now;
@@ -295,8 +333,8 @@ function sanitizeTask(task): void {
         !task.provisions.every((arr) =>
           arr.every(
             (s) =>
-              s == null || ["boolean", "number", "string"].includes(typeof s)
-          )
+              s == null || ["boolean", "number", "string"].includes(typeof s),
+          ),
         )
       )
         throw new Error("Invalid 'provisions' property");
@@ -322,30 +360,140 @@ export async function insertTasks(tasks: any[]): Promise<Task[]> {
   for (const task of tasks) {
     sanitizeTask(task);
     if (task.uniqueKey) {
-      await db.tasksCollection.deleteOne({
+      await collections.tasks.deleteOne({
         device: task.device,
         uniqueKey: task.uniqueKey,
       });
     }
   }
-  await db.tasksCollection.insertMany(tasks);
+  await collections.tasks.insertMany(tasks);
+  for (const task of tasks) task._id = task._id.toString();
   return tasks;
 }
 
 export async function deleteDevice(deviceId: string): Promise<void> {
-  await Promise.all([
-    db.tasksCollection.deleteMany({ device: deviceId }),
-    db.devicesCollection.deleteOne({ _id: deviceId }),
-    db.faultsCollection.deleteMany({
-      _id: {
-        $regex: `^${common.escapeRegExp(deviceId)}\\:`,
-      },
-    }),
-    db.operationsCollection.deleteMany({
-      _id: {
-        $regex: `^${common.escapeRegExp(deviceId)}\\:`,
-      },
-    }),
-    cache.del(`${deviceId}_tasks_faults_operations`),
-  ]);
+  const token = await acquireLock(`cwmp_session_${deviceId}`, 5000);
+  if (!token) throw new ResourceLockedError("Device is in session");
+  try {
+    await Promise.all([
+      collections.tasks.deleteMany({ device: deviceId }),
+      collections.devices.deleteOne({ _id: deviceId }),
+      collections.faults.deleteMany({
+        _id: {
+          $regex: `^${common.escapeRegExp(deviceId)}\\:`,
+        },
+      }),
+      collections.operations.deleteMany({
+        _id: {
+          $regex: `^${common.escapeRegExp(deviceId)}\\:`,
+        },
+      }),
+    ]);
+  } finally {
+    await releaseLock(`cwmp_session_${deviceId}`, token);
+  }
+}
+
+export async function deleteFault(id: string): Promise<void> {
+  const deviceId = id.split(":", 1)[0];
+  const channel = id.slice(deviceId.length + 1);
+  const token = await acquireLock(`cwmp_session_${deviceId}`, 5000);
+  if (!token) throw new ResourceLockedError("Device is in session");
+  try {
+    const proms = [dbDeleteFault(id)];
+    if (channel.startsWith("task_"))
+      proms.push(deleteTask(new ObjectId(channel.slice(5))));
+    await Promise.all(proms);
+  } finally {
+    await releaseLock(`cwmp_session_${deviceId}`, token);
+  }
+}
+
+export async function deleteResource(
+  resource: string,
+  id: string,
+): Promise<void> {
+  if (resource === "devices") {
+    await deleteDevice(id);
+  } else if (resource === "files") {
+    await deleteFile(id);
+    await cache.del("cwmp-local-cache-hash");
+  } else if (resource === "faults") {
+    await deleteFault(id);
+  } else if (resource === "provisions") {
+    await deleteProvision(id);
+    await cache.del("cwmp-local-cache-hash");
+  } else if (resource === "presets") {
+    await deletePreset(id);
+    await cache.del("cwmp-local-cache-hash");
+  } else if (resource === "virtualParameters") {
+    await deleteVirtualParameter(id);
+    await cache.del("cwmp-local-cache-hash");
+  } else if (resource === "config") {
+    await deleteConfig(id);
+    await Promise.all([
+      cache.del("ui-local-cache-hash"),
+      cache.del("cwmp-local-cache-hash"),
+    ]);
+  } else if (resource === "permissions") {
+    await deletePermission(id);
+    await cache.del("ui-local-cache-hash");
+  } else if (resource === "users") {
+    await deleteUser(id);
+    await cache.del("ui-local-cache-hash");
+  } else {
+    throw new Error(`Unknown resource ${resource}`);
+  }
+}
+
+// TODO Implement validation
+export async function putResource(
+  resource: string,
+  id: string,
+  data: any,
+): Promise<void> {
+  if (resource === "presets") {
+    await putPreset(id, data);
+    await cache.del("cwmp-local-cache-hash");
+  } else if (resource === "provisions") {
+    await putProvision(id, data);
+    await cache.del("cwmp-local-cache-hash");
+  } else if (resource === "virtualParameters") {
+    await putVirtualParameter(id, data);
+    await cache.del("cwmp-local-cache-hash");
+  } else if (resource === "config") {
+    await putConfig(id, data);
+    await Promise.all([
+      cache.del("ui-local-cache-hash"),
+      cache.del("cwmp-local-cache-hash"),
+    ]);
+  } else if (resource === "permissions") {
+    await putPermission(id, data);
+    await cache.del("ui-local-cache-hash");
+  } else if (resource === "users") {
+    delete data["password"];
+    delete data["salt"];
+    await putUser(id, data);
+    await cache.del("ui-local-cache-hash");
+  } else {
+    throw new Error(`Unknown resource ${resource}`);
+  }
+}
+
+export function authLocal(
+  snapshot: string,
+  username: string,
+  password: string,
+): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const users = getUsers(snapshot);
+    const user = users[username];
+    if (!user?.password) return void resolve(null);
+    hashPassword(password, user.salt)
+      .then((hash) => {
+        if (hash === user.password) resolve(true);
+        else resolve(false);
+      })
+      .catch(reject);
+  });
 }

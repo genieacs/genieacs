@@ -1,27 +1,7 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import * as fs from "fs";
-import * as os from "os";
-
-import * as config from "./config";
-import { getRequestOrigin } from "./forwarded";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as config from "./config.ts";
+import { getRequestOrigin } from "./forwarded.ts";
 import {
   SessionContext,
   AcsRequest,
@@ -29,7 +9,7 @@ import {
   CpeFault,
   InformRequest,
   Fault,
-} from "./types";
+} from "./types.ts";
 
 const REOPEN_EVERY = 60000;
 
@@ -156,13 +136,13 @@ export function close(): void {
 }
 
 export function flatten(
-  details: Record<string, unknown>
+  details: Record<string, unknown>,
 ): Record<string, unknown> {
   if (details.sessionContext) {
     const sessionContext = details.sessionContext as SessionContext;
     details.deviceId = sessionContext.deviceId;
     details.remoteAddress = getRequestOrigin(
-      sessionContext.httpRequest
+      sessionContext.httpRequest,
     ).remoteAddress;
     delete details.sessionContext;
   }
@@ -220,7 +200,7 @@ export function flatten(
   // For genieacs-ui
   if (details.context) {
     details.remoteAddress = getRequestOrigin(
-      details.context["req"]
+      details.context["req"],
     ).remoteAddress;
     if (details.context["state"].user)
       details.user = details.context["state"].user.username;
@@ -235,7 +215,7 @@ export function flatten(
 
 function formatJson(
   details: Record<string, unknown>,
-  systemd: boolean
+  systemd: boolean,
 ): string {
   if (systemd) {
     let severity = "";
@@ -251,7 +231,7 @@ function formatJson(
 
 function formatSimple(
   details: Record<string, unknown>,
-  systemd: boolean
+  systemd: boolean,
 ): string {
   const skip = {
     user: true,

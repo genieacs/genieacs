@@ -1,6 +1,6 @@
 {
   "env": {
-    "es6": true,
+    "es2022": true,
     "node": true
   },
   "parser": "@typescript-eslint/parser",
@@ -17,11 +17,9 @@
     "no-shadow": ["error", { "allow": ["err"] }],
     "handle-callback-err": "error",
     "prefer-arrow-callback": "error",
-    "curly": ["error", "multi-or-nest", "consistent"],
     "no-buffer-constructor": "error",
     "prefer-const": ["error", { "destructuring": "all" }],
     "eqeqeq": ["error", "always", { "null": "ignore" }],
-    "no-return-await": "error",
     "@typescript-eslint/no-explicit-any": 0,
     "@typescript-eslint/no-use-before-define": [
       "error",
@@ -32,7 +30,7 @@
       { "allowExpressions": true }
     ],
     "@typescript-eslint/no-floating-promises": "error",
-    "require-atomic-updates": 0,
+    "@typescript-eslint/no-misused-promises": "error",
     "no-prototype-builtins": 0
   }
 }

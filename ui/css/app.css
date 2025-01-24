@@ -1,22 +1,3 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 @import "normalize.css";
 @import "codemirror/lib/codemirror.css";
 
@@ -34,10 +15,10 @@
 
   --disabled: #666;
 
-  --status-red: hsl(0, 80%, 80%);
-  --status-green: hsl(125, 80%, 80%);
-  --status-gray: hsl(58, 3%, 80%);
-  --status-yellow: hsl(46, 79%, 80%);
+  --status-red: 0 80% 80%;
+  --status-green: 125 80% 80%;
+  --status-gray: 58 3% 80%;
+  --status-yellow: 46 79% 80%;
 }
 
 body,
@@ -54,7 +35,9 @@ textarea {
 a {
   color: var(--color4);
   cursor: pointer;
-  transition: background-color var(--fade), color var(--fade);
+  transition:
+    background-color var(--fade),
+    color var(--fade);
   &:visited {
     color: var(--color4);
   }
@@ -79,7 +62,7 @@ i {
 
 @keyframes pending-blink {
   from {
-    background-color: color-mod(var(--status-green) a(90%));
+    background-color: hsl(var(--status-green) / 0.9);
   }
   to {
     background-color: transparent;
@@ -122,7 +105,9 @@ body {
       margin-top: -1px;
       box-shadow: 0 0 10px #ccc;
       overflow: hidden;
-      transition: height var(--fade), opacity var(--fade);
+      transition:
+        height var(--fade),
+        opacity var(--fade);
 
       & > div {
         padding: 0.3em;
@@ -142,10 +127,10 @@ body {
           }
         }
         & > .stale.active {
-          background-color: color-mod(var(--status-gray) a(90%));
+          background-color: hsl(var(--status-gray) / 0.9);
         }
         & > .fault.active {
-          background-color: color-mod(var(--status-red) a(90%));
+          background-color: hsl(var(--status-red) / 0.9);
         }
         & > .queued.active {
           font-weight: bold;
@@ -187,11 +172,11 @@ body {
           border-radius: 0.4em;
         }
         & > .stale {
-          background-color: color-mod(var(--status-gray) a(90%));
+          background-color: hsl(var(--status-gray) / 0.9);
           border-radius: 0.4em;
         }
         & > .fault {
-          background-color: color-mod(var(--status-red) a(90%));
+          background-color: hsl(var(--status-red) / 0.9);
           border-radius: 0.4em;
         }
         & .parameter {
@@ -228,19 +213,21 @@ body {
         border: 1px solid var(--color1);
         border-radius: 6px;
         box-shadow: 0 0 10px #ccc;
-        transition: opacity var(--fade), top var(--fade);
+        transition:
+          opacity var(--fade),
+          top var(--fade);
 
         &.error {
-          background-color: color-mod(var(--status-red) a(90%));
-          border: 1px solid var(--status-red);
+          background-color: hsl(var(--status-red) / 0.9);
+          border: 1px solid hsl(var(--status-red));
         }
         &.success {
-          background-color: color-mod(var(--status-green) a(90%));
-          border: 1px solid var(--status-green);
+          background-color: hsl(var(--status-green) / 0.9);
+          border: 1px solid hsl(var(--status-green));
         }
         &.warning {
-          background-color: color-mod(var(--status-yellow) a(90%));
-          border: 1px solid var(--status-yellow);
+          background-color: hsl(var(--status-yellow) / 0.9);
+          border: 1px solid hsl(var(--status-yellow));
         }
       }
     }
@@ -437,7 +424,9 @@ button {
   border: 0;
   color: var(--color4);
   border-radius: 4px;
-  transition: background-color var(--fade), color var(--fade);
+  transition:
+    background-color var(--fade),
+    color var(--fade);
   display: inline-block;
   vertical-align: middle;
 
@@ -468,7 +457,9 @@ input {
   border: 1px solid var(--color1);
   background-color: var(--color3);
   border-radius: 4px;
-  transition: border-color var(--fade), background-color var(--fade);
+  transition:
+    border-color var(--fade),
+    background-color var(--fade);
   &.error {
     background-color: #efcbcf;
     border-color: #e6b2b7;
@@ -670,7 +661,9 @@ span.tag {
   bottom: 0;
   background-color: rgba(0, 0, 0, 0.2);
   z-index: 100;
-  transition: opacity var(--fade), top var(--fade);
+  transition:
+    opacity var(--fade),
+    top var(--fade);
   display: flex;
   align-items: center;
   justify-content: center;

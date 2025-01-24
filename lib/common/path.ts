@@ -1,22 +1,3 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 type Segments = (string | Alias)[];
 type Alias = [Path, string][];
 
@@ -57,7 +38,7 @@ export default class Path {
 
   protected static parseAliasValue(
     pattern: string,
-    index: number
+    index: number,
   ): { index: number; value: string } {
     let i = index;
     while (charCodeAt(pattern, i) === CHAR_SPACE) ++i;
@@ -89,7 +70,7 @@ export default class Path {
 
   protected static parseAliasPath(
     pattern: string,
-    index: number
+    index: number,
   ): { index: number; path: Path } {
     let i = index;
     while (charCodeAt(pattern, i) === CHAR_SPACE) ++i;
@@ -103,7 +84,7 @@ export default class Path {
 
   protected static parseAlias(
     pattern: string,
-    index: number
+    index: number,
   ): { index: number; alias: Alias } {
     const alias: Alias = [];
     let i = index;
@@ -136,7 +117,7 @@ export default class Path {
 
   protected static parsePath(
     pattern: string,
-    index: number
+    index: number,
   ): { index: number; segments: Segments } {
     const segments = [];
 
@@ -173,7 +154,7 @@ export default class Path {
       if (Array.isArray(s)) {
         alias |= 1 << i;
         const parts = s.map(
-          (al) => `${al[0].toString()}:${JSON.stringify(al[1])}`
+          (al) => `${al[0].toString()}:${JSON.stringify(al[1])}`,
         );
         return `[${parts.join(",")}]`;
       } else if (s === "*") {

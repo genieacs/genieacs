@@ -1,24 +1,4 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import m from "mithril";
-import { ClosureComponent, Component } from "mithril";
+import m, { ClosureComponent, Component } from "mithril";
 
 const component: ClosureComponent = (): Component => {
   return {
@@ -31,8 +11,8 @@ const component: ClosureComponent = (): Component => {
           m(
             "li",
             { class: active["presets"] },
-            m("a", { href: "#!/admin/presets" }, "Presets")
-          )
+            m("a", { href: "#!/admin/presets" }, "Presets"),
+          ),
         );
       }
 
@@ -41,8 +21,8 @@ const component: ClosureComponent = (): Component => {
           m(
             "li",
             { class: active["provisions"] },
-            m("a", { href: "#!/admin/provisions" }, "Provisions")
-          )
+            m("a", { href: "#!/admin/provisions" }, "Provisions"),
+          ),
         );
       }
 
@@ -51,8 +31,12 @@ const component: ClosureComponent = (): Component => {
           m(
             "li",
             { class: active["virtualParameters"] },
-            m("a", { href: "#!/admin/virtualParameters" }, "Virtual Parameters")
-          )
+            m(
+              "a",
+              { href: "#!/admin/virtualParameters" },
+              "Virtual Parameters",
+            ),
+          ),
         );
       }
 
@@ -61,8 +45,8 @@ const component: ClosureComponent = (): Component => {
           m(
             "li",
             { class: active["files"] },
-            m("a", { href: "#!/admin/files" }, "Files")
-          )
+            m("a", { href: "#!/admin/files" }, "Files"),
+          ),
         );
       }
 
@@ -71,8 +55,8 @@ const component: ClosureComponent = (): Component => {
           m(
             "li",
             { class: active["config"] },
-            m("a", { href: "#!/admin/config" }, "Config")
-          )
+            m("a", { href: "#!/admin/config" }, "Config"),
+          ),
         );
       }
 
@@ -81,8 +65,8 @@ const component: ClosureComponent = (): Component => {
           m(
             "li",
             { class: active["permissions"] },
-            m("a", { href: "#!/admin/permissions" }, "Permissions")
-          )
+            m("a", { href: "#!/admin/permissions" }, "Permissions"),
+          ),
         );
       }
 
@@ -91,8 +75,8 @@ const component: ClosureComponent = (): Component => {
           m(
             "li",
             { class: active["users"] },
-            m("a", { href: "#!/admin/users" }, "Users")
-          )
+            m("a", { href: "#!/admin/users" }, "Users"),
+          ),
         );
       }
 

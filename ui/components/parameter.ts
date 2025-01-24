@@ -1,34 +1,15 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 import { ClosureComponent, Component, VnodeDOM } from "mithril";
-import { m } from "../components";
-import * as taskQueue from "../task-queue";
-import * as store from "../store";
-import * as expression from "../../lib/common/expression";
-import memoize from "../../lib/common/memoize";
-import timeAgo from "../timeago";
-import { getIcon } from "../icons";
+import { m } from "../components.ts";
+import * as taskQueue from "../task-queue.ts";
+import * as store from "../store.ts";
+import { evaluate } from "../../lib/common/expression/util.ts";
+import memoize from "../../lib/common/memoize.ts";
+import timeAgo from "../timeago.ts";
+import { getIcon } from "../icons.ts";
 
 const evaluateParam = memoize((exp, obj, now: number) => {
   let timestamp = now;
-  exp = expression.evaluate(exp, null, now, (e) => {
+  exp = evaluate(exp, null, now, (e) => {
     if (!Array.isArray(e)) return e;
     for (let i = 1; i < e.length; ++i) {
       if (
@@ -78,7 +59,7 @@ const component: ClosureComponent = (): Component => {
       const { value, timestamp, parameter } = evaluateParam(
         vnode.attrs["parameter"],
         device,
-        store.getTimestamp() + store.getClockSkew()
+        store.getTimestamp() + store.getClockSkew(),
       );
 
       if (value == null) return null;
@@ -103,7 +84,7 @@ const component: ClosureComponent = (): Component => {
               });
             },
           },
-          getIcon("edit")
+          getIcon("edit"),
         );
       }
 
@@ -124,7 +105,7 @@ const component: ClosureComponent = (): Component => {
           },
         },
         el,
-        edit
+        edit,
       );
     },
   };

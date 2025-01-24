@@ -1,23 +1,4 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import * as notifications from "./notifications";
+import * as notifications from "./notifications.ts";
 
 export let codeMirror: typeof import("codemirror");
 export let yaml: typeof import("yaml");
@@ -33,7 +14,7 @@ function onError(): void {
         Reload: () => {
           window.location.reload();
         },
-      }
+      },
     );
   }
 }
@@ -65,7 +46,7 @@ export function loadYaml(): Promise<void> {
   return new Promise((resolve, reject) => {
     import("yaml")
       .then((module) => {
-        yaml = module;
+        yaml = module.default;
         resolve();
       })
       .catch((err) => {

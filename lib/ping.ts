@@ -1,25 +1,6 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import { platform } from "os";
-import { exec } from "child_process";
-import { domainToASCII } from "url";
+import { platform } from "node:os";
+import { exec } from "node:child_process";
+import { domainToASCII } from "node:url";
 
 export interface PingResult {
   packetsTransmitted: number;
@@ -88,7 +69,7 @@ export function parsePing(osPlatform: string, stdout: string): PingResult {
 
 export function ping(
   host: string,
-  callback: (err: Error, res?: PingResult, stdout?: string) => void
+  callback: (err: Error, res?: PingResult, stdout?: string) => void,
 ): void {
   // Validate input to prevent possible remote code execution
   // Credit to Alex Hordijk for reporting this vulnerability

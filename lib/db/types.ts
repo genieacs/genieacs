@@ -1,5 +1,5 @@
 import { ObjectId } from "mongodb";
-import { Expression, FaultStruct } from "./types";
+import { Expression, FaultStruct } from "../types.ts";
 
 export interface Fault {
   _id: string;
@@ -25,6 +25,7 @@ interface TaskBase {
   timestamp?: Date;
   expiry?: Date;
   name: string;
+  device: string;
 }
 
 interface TaskGetParameterValues extends TaskBase {
@@ -100,6 +101,81 @@ export interface Config {
 }
 
 export interface Cache {
+  _id: string;
+  value: string;
+  timestamp: Date;
+  expire: Date;
+}
+
+export interface Device {
+  _id: string;
+  _lastInform: Date;
+  _registered: Date;
+  _tags?: string[];
+  _timestamp?: Date;
+}
+
+type Configuration =
+  | { type: "age"; name: string; age: number }
+  | { type: "value"; name: string; value: boolean | number | string }
+  | { type: "add_tag"; tag: string }
+  | { type: "delete_tag"; tag: string }
+  | { type: "add_object"; name: string; object: string }
+  | { type: "delete_object"; name: string; object: string }
+  | { type: "provision"; name: string; args?: Expression[] };
+
+export interface Preset {
+  _id: string;
+  weight: number;
+  channel: string;
+  events: Record<string, boolean>;
+  configurations: Configuration[];
+}
+
+export interface Object {
+  _id: string;
+}
+
+export interface Provision {
+  _id: string;
+  script: string;
+}
+
+export interface VirtualParameter {
+  _id: string;
+  script: string;
+}
+
+export interface File {
+  _id: string;
+  length: number;
+  filename: string;
+  uploadDate: Date;
+  metadata?: {
+    fileType?: string;
+    oui?: string;
+    productClass?: string;
+    version?: string;
+  };
+}
+
+export interface Permission {
+  _id: string;
+  role: string;
+  resource: string;
+  access: 1 | 2 | 3;
+  filter?: string;
+  validate?: string;
+}
+
+export interface User {
+  _id: string;
+  password: string;
+  roles: string;
+  salt: string;
+}
+
+export interface Lock {
   _id: string;
   value: string;
   timestamp: Date;

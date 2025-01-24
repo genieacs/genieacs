@@ -1,24 +1,5 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import { map, mapAsync, parseLikePattern } from "./expression-parser";
-import { Expression } from "../types";
+import { map, mapAsync, parseLikePattern } from "./parser.ts";
+import { Expression } from "../../types.ts";
 
 const isArray = Array.isArray;
 
@@ -74,7 +55,7 @@ export function likePatternToRegExp(pat: string, esc = "", flags = ""): RegExp {
 
 function compare(
   a: boolean | number | string,
-  b: boolean | number | string
+  b: boolean | number | string,
 ): number {
   if (typeof a === "boolean") a = +a;
   if (typeof b === "boolean") b = +b;
@@ -287,19 +268,19 @@ export function evaluate(
   exp: Expression,
   obj: Record<string, unknown> | ((e: string) => Expression),
   now: number,
-  cb?: (e: Expression) => Expression
+  cb?: (e: Expression) => Expression,
 ): string | number | boolean | null;
 export function evaluate(
   exp: Expression,
   obj?: Record<string, unknown> | ((e: string) => Expression),
   now?: number,
-  cb?: (e: Expression) => Expression
+  cb?: (e: Expression) => Expression,
 ): Expression;
 export function evaluate(
   exp: Expression,
   obj?: Record<string, unknown> | ((e: string) => Expression),
   now?: number,
-  cb?: (e: Expression) => Expression
+  cb?: (e: Expression) => Expression,
 ): Expression {
   return map(exp, (e) => {
     if (cb) e = cb(e);
@@ -327,19 +308,19 @@ export async function evaluateAsync(
   exp: Expression,
   obj: Record<string, unknown>,
   now: number,
-  cb?: (e: Expression) => Promise<Expression>
+  cb?: (e: Expression) => Promise<Expression>,
 ): Promise<string | number | boolean | null>;
 export async function evaluateAsync(
   exp: Expression,
   obj?: Record<string, unknown>,
   now?: number,
-  cb?: (e: Expression) => Promise<Expression>
+  cb?: (e: Expression) => Promise<Expression>,
 ): Promise<Expression>;
 export async function evaluateAsync(
   exp: Expression,
   obj?: Record<string, unknown>,
   now?: number,
-  cb?: (e: Expression) => Promise<Expression>
+  cb?: (e: Expression) => Promise<Expression>,
 ): Promise<Expression> {
   return mapAsync(exp, async (e) => {
     if (cb) e = await cb(e);

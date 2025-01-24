@@ -1,40 +1,32 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
+import { ClosureComponent } from "mithril";
+import { m } from "../components.ts";
+import * as taskQueue from "../task-queue.ts";
+import { QueryResponse, evaluateExpression } from "../store.ts";
+import * as expressionParser from "../../lib/common/expression/parser.ts";
+import { getIcon } from "../icons.ts";
+import { FlatDevice } from "../../lib/ui/db.ts";
+import { Expression } from "../../lib/types.ts";
 
-import { ClosureComponent, Component } from "mithril";
-import { m } from "../components";
-import * as taskQueue from "../task-queue";
-import { evaluateExpression } from "../store";
-import * as expressionParser from "../../lib/common/expression-parser";
-import { getIcon } from "../icons";
+interface Attrs {
+  device: FlatDevice;
+  parameter: Expression;
+  label: Expression;
+  childParameters: Record<string, { label: string; parameter: Expression }>;
+  filter?: Expression;
+  deviceQuery: QueryResponse;
+}
 
-const component: ClosureComponent = (): Component => {
+const component: ClosureComponent<Attrs> = () => {
   return {
     oninit: (vnode) => {
-      const obj = vnode.attrs["parameter"];
+      const obj = vnode.attrs.parameter;
       if (!Array.isArray(obj) || obj[0] !== "PARAM")
         throw new Error("Object must be a parameter path");
       vnode.state["object"] = obj[1];
-      vnode.state["parameters"] = Object.values(vnode.attrs["childParameters"]);
+      vnode.state["parameters"] = Object.values(vnode.attrs.childParameters);
     },
     view: (vnode) => {
-      const device = vnode.attrs["device"];
+      const device = vnode.attrs.device;
       const object = evaluateExpression(vnode.state["object"], device);
       const parameters = vnode.state["parameters"];
 
@@ -50,13 +42,15 @@ const component: ClosureComponent = (): Component => {
         }
       }
 
-      const headers = Object.values(parameters).map((p) => m("th", p["label"]));
+      const headers = Object.values(parameters).map((p) =>
+        m("th", evaluateExpression(p["label"], device)),
+      );
 
       const thead = m("thead", m("tr", headers));
 
       const rows = [];
       for (const i of instances) {
-        let filter = "filter" in vnode.attrs ? vnode.attrs["filter"] : true;
+        let filter = "filter" in vnode.attrs ? vnode.attrs.filter : true;
 
         filter = expressionParser.map(filter, (e) => {
           if (Array.isArray(e) && e[0] === "PARAM")
@@ -84,8 +78,8 @@ const component: ClosureComponent = (): Component => {
                 device: device,
                 parameter: param,
                 label: null,
-              })
-            )
+              }),
+            ),
           );
         });
 
@@ -100,14 +94,14 @@ const component: ClosureComponent = (): Component => {
                   onclick: () => {
                     taskQueue.queueTask({
                       name: "deleteObject",
-                      device: device["DeviceID.ID"].value[0],
+                      device: device["DeviceID.ID"].value[0] as string,
                       objectName: i,
                     });
                   },
                 },
-                getIcon("delete-instance")
-              )
-            )
+                getIcon("delete-instance"),
+              ),
+            ),
           );
         }
         rows.push(m("tr", row));
@@ -115,7 +109,7 @@ const component: ClosureComponent = (): Component => {
 
       if (!rows.length) {
         rows.push(
-          m("tr.empty", m("td", { colspan: headers.length }, "No instances"))
+          m("tr.empty", m("td", { colspan: headers.length }, "No instances")),
         );
       }
 
@@ -133,29 +127,29 @@ const component: ClosureComponent = (): Component => {
                   onclick: () => {
                     taskQueue.queueTask({
                       name: "addObject",
-                      device: device["DeviceID.ID"].value[0],
+                      device: device["DeviceID.ID"].value[0] as string,
                       objectName: object,
                     });
                   },
                 },
-                getIcon("add-instance")
-              )
-            )
-          )
+                getIcon("add-instance"),
+              ),
+            ),
+          ),
         );
       }
 
       let label;
 
-      const l = evaluateExpression(vnode.attrs["label"], device);
+      const l = evaluateExpression(vnode.attrs.label, device);
       if (l != null) label = m("h2", l);
 
       return [
         label,
         m(
           "loading",
-          { queries: [vnode.attrs["deviceQuery"]] },
-          m("table.table", thead, m("tbody", rows))
+          { queries: [vnode.attrs.deviceQuery] },
+          m("table.table", thead, m("tbody", rows)),
         ),
       ];
     },

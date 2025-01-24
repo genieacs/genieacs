@@ -1,78 +1,43 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import * as path from "path";
-import * as fs from "fs";
-import { rollup, WarningHandler } from "rollup";
-import rollupJson from "@rollup/plugin-json";
-import typescript from "@rollup/plugin-typescript";
-import { terser } from "rollup-plugin-terser";
-import nodeResolve from "@rollup/plugin-node-resolve";
-import commonjs from "@rollup/plugin-commonjs";
-import postcss from "postcss";
-import postcssImport from "postcss-import";
-import postcssPresetEnv from "postcss-preset-env";
-import postcssColorMod from "postcss-color-mod-function";
-import cssnano from "cssnano";
+import path from "node:path";
+import fs from "node:fs";
+import { createHash } from "node:crypto";
+import { promisify } from "node:util";
+import { exec } from "node:child_process";
+import * as esbuild from "esbuild";
 import { optimize } from "svgo";
-import * as xmlParser from "../lib/xml-parser";
+import * as xmlParser from "../lib/xml-parser.ts";
+
+const fsAsync = {
+  readdir: promisify(fs.readdir),
+  readFile: promisify(fs.readFile),
+  writeFile: promisify(fs.writeFile),
+  copyFile: promisify(fs.copyFile),
+  rename: promisify(fs.rename),
+  chmod: promisify(fs.chmod),
+  lstat: promisify(fs.lstat),
+  exists: promisify(fs.exists),
+  rmdir: promisify(fs.rmdir),
+  unlink: promisify(fs.unlink),
+  mkdir: promisify(fs.mkdir),
+};
+
+const execAsync = promisify(exec);
 
 const MODE = process.env["NODE_ENV"] || "production";
 
-const BUILD_METADATA = new Date()
-  .toISOString()
-  .split(".")[0]
-  .replace(/[^0-9]/g, "");
+const INPUT_DIR = process.cwd();
+const OUTPUT_DIR = path.join(INPUT_DIR, "dist");
 
-const INPUT_DIR = path.resolve(__dirname, "..");
-const OUTPUT_DIR = path.resolve(__dirname, "../dist");
-
-const builtins = [
-  "path",
-  "fs",
-  "cluster",
-  "os",
-  "tls",
-  "http",
-  "https",
-  "zlib",
-  "crypto",
-  "util",
-  "vm",
-  "querystring",
-  "child_process",
-  "dgram",
-  "url",
-  "readline",
-  "stream",
-];
-
-function rmDirSync(dirPath): void {
-  if (!fs.existsSync(dirPath)) return;
-  const files = fs.readdirSync(dirPath);
+async function rmDir(dirPath: string): Promise<void> {
+  if (!(await fsAsync.exists(dirPath))) return;
+  const files = await fsAsync.readdir(dirPath);
 
   for (const file of files) {
-    const filePath = `${dirPath}/${file}`;
-    if (fs.statSync(filePath).isFile()) fs.unlinkSync(filePath);
-    else rmDirSync(filePath);
+    const filePath = path.join(dirPath, file);
+    if ((await fsAsync.lstat(filePath)).isDirectory()) await rmDir(filePath);
+    else await fsAsync.unlink(filePath);
   }
-  fs.rmdirSync(dirPath);
+  await fsAsync.rmdir(dirPath);
 }
 
 // For lockfileVersion = 1
@@ -103,6 +68,59 @@ function xmlTostring(xml): string {
     : `<${xml.name} ${xml.attrs}>${children.join("")}</${xml.name}>`;
 }
 
+function assetHash(buffer: Buffer | string): string {
+  return createHash("md5").update(buffer).digest("hex").slice(0, 8);
+}
+
+const ASSETS = {} as {
+  APP_JS?: string;
+  APP_CSS?: string;
+  ICONS_SVG?: string;
+  LOGO_SVG?: string;
+  FAVICON_PNG?: string;
+};
+
+const assetsPlugin = {
+  name: "assets",
+  setup(build) {
+    build.onLoad({ filter: /\/build\/assets.ts$/ }, () => {
+      const lines = Object.entries(ASSETS).map(
+        ([k, v]) => `export const ${k} = ${JSON.stringify(v)};`,
+      );
+      return { contents: lines.join("\n") };
+    });
+  },
+} as esbuild.Plugin;
+
+const packageDotJsonPlugin = {
+  name: "packageDotJson",
+  setup(build) {
+    const sourcePath = path.join(INPUT_DIR, "package.json");
+    build.onResolve({ filter: /\/package.json$/ }, (args) => {
+      const p = path.join(args.resolveDir, args.path);
+      if (p !== sourcePath) return undefined;
+      return { path: path.join(OUTPUT_DIR, "package.json") };
+    });
+  },
+} as esbuild.Plugin;
+
+const inlineDepsPlugin = {
+  name: "inlineDeps",
+  setup(build) {
+    const deps = [
+      "parsimmon",
+      "espresso-iisojs",
+      "codemirror",
+      "mithril",
+      "yaml",
+    ];
+    build.onResolve({ filter: /^[^.]/ }, async (args) => {
+      if (deps.some((d) => args.path.startsWith(d))) return undefined;
+      return { sideEffects: false, external: true };
+    });
+  },
+} as esbuild.Plugin;
+
 function generateSymbol(id: string, svgStr: string): string {
   const xml = xmlParser.parseXml(svgStr);
   const svg = xml.children[0];
@@ -120,43 +138,60 @@ function generateSymbol(id: string, svgStr: string): string {
   return `<symbol id="icon-${id}" ${viewBox}>${symbolBody}</symbol>`;
 }
 
-async function init(): Promise<string[]> {
-  // Delete any old output directory
-  rmDirSync(OUTPUT_DIR);
+async function getBuildMetadata(): Promise<string> {
+  const date = new Date().toISOString().slice(2, 10).replaceAll("-", "");
 
-  // Create output directory layout
-  fs.mkdirSync(OUTPUT_DIR);
-  fs.mkdirSync(OUTPUT_DIR + "/bin");
-  fs.mkdirSync(OUTPUT_DIR + "/public");
+  const [commit, diff, newFiles] = await Promise.all([
+    execAsync("git rev-parse HEAD"),
+    execAsync("git diff HEAD"),
+    execAsync("git ls-files --others --exclude-standard"),
+  ]).then((res) => res.map((r) => r.stdout.trim()));
 
-  // Create package.json
-  const packageJson = JSON.parse(
-    fs.readFileSync(path.resolve(INPUT_DIR, "package.json")).toString()
+  if (!diff && !newFiles) return date + commit.slice(0, 4);
+
+  const hash = createHash("md5");
+  hash.update(commit).update(diff).update(newFiles);
+  for (const file of newFiles.split("\n").filter((f) => f))
+    hash.update(await fsAsync.readFile(file));
+  return date + hash.digest("hex").slice(0, 4);
+}
+
+async function init(): Promise<void> {
+  const [buildMetadata, packageJsonFile, npmShrinkwrapFile] = await Promise.all(
+    [
+      getBuildMetadata(),
+      fsAsync.readFile(path.join(INPUT_DIR, "package.json")),
+      fsAsync.readFile(path.join(INPUT_DIR, "npm-shrinkwrap.json")),
+    ],
   );
+
+  const packageJson = JSON.parse(packageJsonFile.toString());
   delete packageJson["devDependencies"];
   delete packageJson["private"];
-  packageJson["scripts"] = {
-    install: packageJson["scripts"].install,
-    configure: packageJson["scripts"].configure,
-  };
-  packageJson["version"] = `${packageJson["version"]}+${BUILD_METADATA}`;
-  fs.writeFileSync(
-    path.resolve(OUTPUT_DIR, "package.json"),
-    JSON.stringify(packageJson, null, 2)
-  );
+  delete packageJson["scripts"];
+  packageJson["version"] = `${packageJson["version"]}+${buildMetadata}`;
 
-  // Create npm-shrinkwrap.json
-  const npmShrinkwrapJson = JSON.parse(
-    fs.readFileSync(path.resolve(INPUT_DIR, "npm-shrinkwrap.json")).toString()
-  );
-  npmShrinkwrapJson["version"] = packageJson["version"];
-  stripDevDeps(npmShrinkwrapJson);
-  stripDevDeps2(npmShrinkwrapJson);
-  fs.writeFileSync(
-    path.resolve(OUTPUT_DIR, "npm-shrinkwrap.json"),
-    JSON.stringify(npmShrinkwrapJson, null, 2)
-  );
-  return Object.keys(packageJson["dependencies"]);
+  const npmShrinkwrap = JSON.parse(npmShrinkwrapFile.toString());
+  npmShrinkwrap["version"] = packageJson["version"];
+  stripDevDeps(npmShrinkwrap);
+  stripDevDeps2(npmShrinkwrap);
+
+  await rmDir(OUTPUT_DIR);
+
+  await fsAsync.mkdir(OUTPUT_DIR);
+
+  await Promise.all([
+    fsAsync.mkdir(path.join(OUTPUT_DIR, "bin")),
+    fsAsync.mkdir(path.join(OUTPUT_DIR, "public")),
+    fsAsync.writeFile(
+      path.join(OUTPUT_DIR, "package.json"),
+      JSON.stringify(packageJson, null, 2),
+    ),
+    fsAsync.writeFile(
+      path.join(OUTPUT_DIR, "npm-shrinkwrap.json"),
+      JSON.stringify(npmShrinkwrap, null, 2),
+    ),
+  ]);
 }
 
 async function copyStatic(): Promise<void> {
@@ -168,149 +203,125 @@ async function copyStatic(): Promise<void> {
     "public/favicon.png",
   ];
 
-  for (const file of files) {
-    fs.copyFileSync(
-      path.resolve(INPUT_DIR, file),
-      path.resolve(OUTPUT_DIR, file)
-    );
-  }
+  const [logo, favicon] = await Promise.all([
+    fsAsync.readFile(path.join(INPUT_DIR, "public/logo.svg")),
+    fsAsync.readFile(path.join(INPUT_DIR, "public/favicon.png")),
+  ]);
+
+  ASSETS.LOGO_SVG = `logo-${assetHash(logo)}.svg`;
+  ASSETS.FAVICON_PNG = `favicon-${assetHash(favicon)}.png`;
+
+  const filenames = {} as Record<string, string>;
+  filenames["public/logo.svg"] = path.join("public", ASSETS.LOGO_SVG);
+  filenames["public/favicon.png"] = path.join("public", ASSETS.FAVICON_PNG);
+
+  await Promise.all(
+    files.map((f) =>
+      fsAsync.copyFile(
+        path.join(INPUT_DIR, f),
+        path.join(OUTPUT_DIR, filenames[f] || f),
+      ),
+    ),
+  );
 }
 
 async function generateCss(): Promise<void> {
-  const cssInPath = path.resolve(INPUT_DIR, "ui/css/app.css");
-  const cssOutPath = path.resolve(OUTPUT_DIR, "public/app.css");
-  const cssIn = fs.readFileSync(cssInPath);
-  const cssOut = await postcss([
-    postcssImport,
-    postcssPresetEnv({
-      stage: 3,
-      features: {
-        "nesting-rules": true,
-      },
-    }),
-    postcssColorMod,
-    ...(MODE === "production" ? [cssnano] : []),
-  ]).process(cssIn, { from: cssInPath, to: cssOutPath });
-  fs.writeFileSync(cssOutPath, cssOut.css);
+  const res = await esbuild.build({
+    bundle: true,
+    absWorkingDir: INPUT_DIR,
+    minify: MODE === "production",
+    sourcemap: "linked",
+    sourcesContent: false,
+    entryPoints: ["ui/css/app.css"],
+    entryNames: "[dir]/[name]-[hash]",
+    outfile: path.join(OUTPUT_DIR, "public/app.css"),
+    target: ["chrome109", "safari15.6", "firefox115", "opera102", "edge118"],
+    metafile: true,
+  });
+
+  for (const [k, v] of Object.entries(res.metafile.outputs)) {
+    if (v.entryPoint === "ui/css/app.css") {
+      ASSETS.APP_CSS = path.relative(
+        path.join(OUTPUT_DIR, "public"),
+        path.join(INPUT_DIR, k),
+      );
+      break;
+    }
+  }
 }
 
-async function generateBackendJs(externals: string[]): Promise<void> {
-  for (const bin of [
+async function generateBackendJs(): Promise<void> {
+  const services = [
     "genieacs-cwmp",
     "genieacs-ext",
     "genieacs-nbi",
     "genieacs-fs",
     "genieacs-ui",
-  ]) {
-    const inputFile = path.resolve(INPUT_DIR, `bin/${bin}.ts`);
-    const outputFile = path.resolve(OUTPUT_DIR, `bin/${bin}`);
-    const bundle = await rollup({
-      input: inputFile,
-      external: [...builtins, ...externals],
-      acorn: {
-        allowHashBang: true,
-      },
-      treeshake: {
-        propertyReadSideEffects: false,
-        moduleSideEffects: false,
-      },
-      plugins: [
-        rollupJson({ preferConst: true }),
-        {
-          name: "",
-          resolveId: (importee, importer) => {
-            if (importee.endsWith("/package.json")) {
-              const p = path.resolve(path.dirname(importer), importee);
-              if (p === path.resolve(INPUT_DIR, "package.json"))
-                return path.resolve(OUTPUT_DIR, "package.json");
-            }
-            return null;
-          },
-        },
-        typescript({
-          tsconfig: "./tsconfig.json",
-          include: [`bin/${bin}.ts`, "lib/**/*.ts"],
-        }),
-        MODE === "production" ? terser() : null,
-      ],
-    });
+  ];
 
-    await bundle.write({
-      format: "cjs",
-      preferConst: true,
-      sourcemap: "inline",
-      sourcemapExcludeSources: true,
-      banner: "#!/usr/bin/env node",
-      file: outputFile,
-    });
+  await esbuild.build({
+    bundle: true,
+    absWorkingDir: INPUT_DIR,
+    minify: MODE === "production",
+    sourcemap: "inline",
+    sourcesContent: false,
+    platform: "node",
+    target: "node12.13.0",
+    packages: "external",
+    banner: { js: "#!/usr/bin/env node" },
+    entryPoints: services.map((s) => `bin/${s}.ts`),
+    outdir: path.join(OUTPUT_DIR, "bin"),
+    plugins: [packageDotJsonPlugin, assetsPlugin],
+  });
 
+  for (const bin of services) {
+    const p = path.join(OUTPUT_DIR, "bin", bin);
+    await fsAsync.rename(`${p}.js`, p);
     // Mark as executable
-    const mode = fs.statSync(outputFile).mode;
-    fs.chmodSync(outputFile, mode | 73);
+    const mode = (await fsAsync.lstat(p)).mode;
+    await fsAsync.chmod(p, mode | 73);
   }
 }
 
-async function generateFrontendJs(externals: string[]): Promise<void> {
-  const inputFile = path.resolve(INPUT_DIR, "ui/app.ts");
-  const outputDir = path.resolve(OUTPUT_DIR, "public");
-
-  const inlineDeps = ["parsimmon", "espresso-iisojs"];
-  const bundle = await rollup({
-    input: inputFile,
-    external: [
-      ...builtins,
-      ...externals.filter((e) => !inlineDeps.includes(e)),
-    ],
-    plugins: [
-      rollupJson({ preferConst: true }),
-      {
-        name: "",
-        resolveId: function (importee, importer) {
-          if (importee.endsWith("/package.json")) {
-            const p = path.resolve(path.dirname(importer), importee);
-            if (p === path.resolve(INPUT_DIR, "package.json"))
-              return path.resolve(OUTPUT_DIR, "package.json");
-          }
-          return null;
-        },
-      },
-      typescript({ tsconfig: "./tsconfig.json" }),
-      nodeResolve(),
-      commonjs(),
-      MODE === "production" ? terser() : null,
-    ],
-    preserveEntrySignatures: false,
-    treeshake: {
-      propertyReadSideEffects: false,
-      moduleSideEffects: false,
-    },
-    onwarn: ((warning, warn) => {
-      // Ignore circular dependency warnings
-      if (warning.code !== "CIRCULAR_DEPENDENCY") warn(warning);
-    }) as WarningHandler,
+async function generateFrontendJs(): Promise<void> {
+  const res = await esbuild.build({
+    bundle: true,
+    absWorkingDir: INPUT_DIR,
+    splitting: true,
+    minify: MODE === "production",
+    sourcemap: "linked",
+    sourcesContent: false,
+    platform: "browser",
+    format: "esm",
+    target: ["chrome109", "safari15.6", "firefox115", "opera102", "edge118"],
+    entryPoints: ["ui/app.ts"],
+    entryNames: "[dir]/[name]-[hash]",
+    outdir: path.join(OUTPUT_DIR, "public"),
+    plugins: [packageDotJsonPlugin, inlineDepsPlugin, assetsPlugin],
+    metafile: true,
   });
 
-  await bundle.write({
-    manualChunks: (id) => {
-      if (id.includes("node_modules/codemirror")) return "codemirror";
-      else if (id.includes("node_modules/yaml")) return "yaml";
-      return "app";
-    },
-    preferConst: true,
-    format: "es",
-    sourcemap: true,
-    sourcemapExcludeSources: true,
-    dir: outputDir,
-  });
+  for (const [k, v] of Object.entries(res.metafile.outputs)) {
+    for (const imp of v.imports)
+      if (imp.external) throw new Error(`External import found: ${imp.path}`);
+
+    if (v.entryPoint === "ui/app.ts") {
+      ASSETS.APP_JS = path.relative(
+        path.join(OUTPUT_DIR, "public"),
+        path.join(INPUT_DIR, k),
+      );
+    }
+  }
 }
 
 async function generateIconsSprite(): Promise<void> {
-  const symbols = [];
-  const iconsDir = path.resolve(INPUT_DIR, "ui/icons");
-  for (const file of fs.readdirSync(iconsDir)) {
+  const symbols = [] as string[];
+  const iconsDir = path.join(INPUT_DIR, "ui/icons");
+  for (const file of await fsAsync.readdir(iconsDir)) {
     const id = path.parse(file).name;
     const filePath = path.join(iconsDir, file);
-    const { data } = await optimize(fs.readFileSync(filePath).toString(), {
+    const src = (await fsAsync.readFile(filePath)).toString();
+    const { data } = await optimize(src, {
       plugins: [
         {
           name: "preset-default",
@@ -324,28 +335,25 @@ async function generateIconsSprite(): Promise<void> {
     });
     symbols.push(generateSymbol(id, data));
   }
-  fs.writeFileSync(
-    path.resolve(OUTPUT_DIR, "public/icons.svg"),
-    `<svg xmlns="http://www.w3.org/2000/svg">${symbols.join("")}</svg>`
+  const data = `<svg xmlns="http://www.w3.org/2000/svg">${symbols.join(
+    "",
+  )}</svg>`;
+  ASSETS.ICONS_SVG = `icons-${assetHash(data)}.svg`;
+  await fsAsync.writeFile(
+    path.join(OUTPUT_DIR, "public", ASSETS.ICONS_SVG),
+    data,
   );
 }
 
 init()
-  .then((externals) => {
+  .then(() =>
     Promise.all([
-      copyStatic(),
+      Promise.all([generateIconsSprite(), copyStatic()]).then(
+        generateFrontendJs,
+      ),
       generateCss(),
-      generateIconsSprite(),
-      generateBackendJs(externals),
-      generateFrontendJs(externals),
-    ])
-      .then(() => {
-        // Ignore
-      })
-      .catch((err) => {
-        process.stderr.write(err.stack + "\n");
-      });
-  })
+    ]).then(generateBackendJs),
+  )
   .catch((err) => {
     process.stderr.write(err.stack + "\n");
   });

@@ -1,26 +1,7 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 import { VnodeDOM, ClosureComponent, Children } from "mithril";
-import { m } from "./components";
-import codeEditorComponent from "./code-editor-component";
-import { getDatalistId } from "./datalist";
+import { m } from "./components.ts";
+import codeEditorComponent from "./code-editor-component.ts";
+import { getDatalistId } from "./datalist.ts";
 
 const singular = {
   presets: "preset",
@@ -61,11 +42,11 @@ function createField(current, attr, focus): Children {
           e.redraw = false;
         },
       },
-      options
+      options,
     );
   } else if (attr.type === "multi") {
     const optionsValues = Array.from(
-      new Set(attr.options.concat(current.object[attr.id] || []))
+      new Set(attr.options.concat(current.object[attr.id] || [])),
     );
     const currentSelected = new Set(current.object[attr.id]);
     const options = optionsValues.map((op) => {
@@ -216,15 +197,15 @@ const component: ClosureComponent<Attrs> = () => {
             "p",
             m("label", { for: attr.id }, attr.label || attr.id),
             m("br"),
-            createField(current, attr, focus)
-          )
+            createField(current, attr, focus),
+          ),
         );
       }
 
       const submit = m(
         "button.primary",
         { type: "submit" },
-        "Save"
+        "Save",
       ) as VnodeDOM;
       const buttons = [submit];
 
@@ -238,13 +219,13 @@ const component: ClosureComponent<Attrs> = () => {
               onclick: (e) => {
                 e.redraw = false;
                 e.target.disabled = true;
-                actionHandler("delete", current.object).finally(() => {
+                void actionHandler("delete", current.object).finally(() => {
                   e.target.disabled = false;
                 });
               },
             },
-            "Delete"
-          ) as VnodeDOM
+            "Delete",
+          ) as VnodeDOM,
         );
       }
 
@@ -255,7 +236,7 @@ const component: ClosureComponent<Attrs> = () => {
           "h1",
           `${current.isNew ? "New" : "Editing"} ${
             singular[resource] || resource
-          }`
+          }`,
         ),
         m(
           "form",
@@ -267,14 +248,14 @@ const component: ClosureComponent<Attrs> = () => {
               // e.target.onsubmit = null;
               (submit.dom as HTMLFormElement).disabled = true;
               // submit.dom.textContent = "Loading ...";
-              actionHandler("save", current.object).finally(() => {
+              void actionHandler("save", current.object).finally(() => {
                 // submit.dom.textContent = "Save";
                 // e.target.onsubmit = onsubmit;
                 (submit.dom as HTMLFormElement).disabled = false;
               });
             },
           },
-          form
+          form,
         ),
       ];
 

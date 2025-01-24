@@ -1,28 +1,9 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 import { ClosureComponent, Component } from "mithril";
-import { m } from "../components";
-import * as store from "../store";
-import * as notifications from "../notifications";
-import { getIcon } from "../icons";
-import { stringify } from "../../lib/common/yaml";
+import { m } from "../components.ts";
+import * as store from "../store.ts";
+import * as notifications from "../notifications.ts";
+import { getIcon } from "../icons.ts";
+import { stringify } from "../../lib/common/yaml.ts";
 
 const component: ClosureComponent = (): Component => {
   return {
@@ -76,8 +57,8 @@ const component: ClosureComponent = (): Component => {
                     });
                 },
               },
-              getIcon("remove")
-            )
+              getIcon("remove"),
+            ),
           ),
         ]);
       }
@@ -86,19 +67,19 @@ const component: ClosureComponent = (): Component => {
       if (rows.length) {
         tbody = m(
           "tbody",
-          rows.map((r) => m("tr", r))
+          rows.map((r) => m("tr", r)),
         );
       } else {
         tbody = m(
           "tbody",
-          m("tr.empty", m("td", { colspan: headers.length }, "No faults"))
+          m("tr.empty", m("td", { colspan: headers.length }, "No faults")),
         );
       }
 
       return m(
         "loading",
         { queries: [faults] },
-        m("table.table", thead, tbody)
+        m("table.table", thead, tbody),
       );
     },
   };

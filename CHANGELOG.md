@@ -1,5 +1,63 @@
 # Change Log
 
+## 1.2.13 (2024-06-06)
+
+- Increase connection timeout for UI and NBI from 30 to 120 seconds to avoid
+  timeouts when running unindexed queries in large deployments.
+
+- Fix race condition causing 503 error when deleting multiple faults at once.
+
+- Fix some UI config options not being evaluated as dynamic expressions.
+
+- Fix an issue where certain edge-case query expressions were not being
+  correctly converted to MongoDB queries, resulting in inaccurate search
+  results.
+
+## 1.2.12 (2024-03-28)
+
+- Fix broken XMPP support in the previous release.
+
+- Fix regression causing CSV downloads to be buffered in memory before being
+  streamed to the client.
+
+## 1.2.11 (2024-03-21)
+
+- Resolved an issue from the previous release that caused incompatibility with
+  Node.js versions 12 through 15.
+
+## 1.2.10 (2024-03-18)
+
+- Add support for XMPP connection requests. Use the environment variables
+  `XMPP_JID` and `XMPP_PASSWORD` to configure the XMPP connection for the ACS.
+
+- The environment variables `CWMP_SSL_CERT` and `CWMP_SSL_KEY`, as well as their
+  counterparts for UI, NBI, and FS, now accept PEM-encoded certificates and keys
+  in addition to file paths.
+
+- The UI no longer requires users to refresh the page after modifying presets,
+  provisions, or virtual parameters. Refreshing is now only necessary for
+  changes to users, permissions, or UI configurations.
+
+- Improved conversion of GenieACS expressions into MongoDB queries for more
+  optimized queries and better index utilization.
+
+- Refactor UI pagination and sorting to fix issues from the previous approach,
+  especially with sorting by rapidly changing parameters such as 'last inform'
+  time.
+
+- The file server now supports HEAD requests, the Range header, and conditional
+  requests.
+
+- Addressed an issue causing file server disconnections for slow clients over
+  HTTPS.
+
+- Fix bug preventing users from changing their own passwords.
+
+- Introduced a new 'locks' collection for database locking, replacing the
+  previous use of the 'cache' collection for this purpose.
+
+- Various other minor fixes and enhancements.
+
 ## 1.2.9 (2022-08-22)
 
 - New config option `cwmp.skipRootGpn` to enable a workaround for some

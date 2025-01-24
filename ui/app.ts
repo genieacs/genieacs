@@ -1,43 +1,24 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 import m, { RouteResolver } from "mithril";
-import layout from "./layout";
-import * as store from "./store";
-import * as wizardPage from "./wizard-page";
-import * as loginPage from "./login-page";
-import * as overviewPage from "./overview-page";
-import * as devicesPage from "./devices-page";
-import * as devicePage from "./device-page";
-import * as errorPage from "./error-page";
-import * as faultsPage from "./faults-page";
-import * as presetsPage from "./presets-page";
-import * as provisionsPage from "./provisions-page";
-import * as virtualParametersPage from "./virtual-parameters-page";
-import * as filesPage from "./files-page";
-import * as configPage from "./config-page";
-import * as permissionsPage from "./permissions-page";
-import * as usersPage from "./users-page";
-import Authorizer from "../lib//common/authorizer";
-import * as notifications from "./notifications";
-import { contextifyComponent } from "./components";
-import { PermissionSet, UiConfig } from "../lib/types";
+import layout from "./layout.ts";
+import * as store from "./store.ts";
+import * as wizardPage from "./wizard-page.ts";
+import * as loginPage from "./login-page.ts";
+import * as overviewPage from "./overview-page.ts";
+import * as devicesPage from "./devices-page.ts";
+import * as devicePage from "./device-page.ts";
+import * as errorPage from "./error-page.ts";
+import * as faultsPage from "./faults-page.ts";
+import * as presetsPage from "./presets-page.ts";
+import * as provisionsPage from "./provisions-page.ts";
+import * as virtualParametersPage from "./virtual-parameters-page.ts";
+import * as filesPage from "./files-page.ts";
+import * as configPage from "./config-page.ts";
+import * as permissionsPage from "./permissions-page.ts";
+import * as usersPage from "./users-page.ts";
+import Authorizer from "../lib//common/authorizer.ts";
+import * as notifications from "./notifications.ts";
+import { contextifyComponent } from "./components.ts";
+import { PermissionSet, UiConfig } from "../lib/types.ts";
 
 declare global {
   interface Window {
@@ -137,7 +118,7 @@ m.route(document.body, "/overview", {
   "/admin/provisions": pagify("provisions", provisionsPage),
   "/admin/virtualParameters": pagify(
     "virtualParameters",
-    virtualParametersPage
+    virtualParametersPage,
   ),
   "/admin/files": pagify("files", filesPage),
   "/admin/config": pagify("config", configPage),

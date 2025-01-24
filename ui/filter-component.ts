@@ -1,30 +1,10 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 import m, { ClosureComponent } from "mithril";
-import { parse, stringify, map } from "../lib/common/expression-parser";
-import memoize from "../lib/common/memoize";
-import Autocomplete from "./autocomplete-compnent";
-import * as smartQuery from "./smart-query";
-import { filterToMongoQuery } from "../lib/mongodb-functions";
-import { Expression } from "../lib/types";
-import { normalize } from "../lib/common/boolean-expression";
+import { parse, stringify, map } from "../lib/common/expression/parser.ts";
+import memoize from "../lib/common/memoize.ts";
+import Autocomplete from "./autocomplete-compnent.ts";
+import * as smartQuery from "./smart-query.ts";
+import { validQuery } from "../lib/db/synth.ts";
+import { Expression } from "../lib/types.ts";
 
 const getAutocomplete = memoize((resource) => {
   const labels = smartQuery.getLabels(resource);
@@ -36,21 +16,11 @@ const getAutocomplete = memoize((resource) => {
         .map((s) => ({
           value: `${s}: `,
           tip: smartQuery.getTip(resource, s),
-        }))
+        })),
     );
   });
   return autocomplete;
 });
-
-function validateQuery(q: Expression): void {
-  q = normalize(q);
-  if (Array.isArray(q) && q[0] === "CASE") {
-    q = q.slice(1).filter((a) => Array.isArray(a));
-    if (q.length > 1) q = ["AND", ...q];
-    else q = q[0];
-  }
-  if (Array.isArray(q)) filterToMongoQuery(q);
-}
 
 function parseFilter(resource, f): Expression {
   let exp;
@@ -62,16 +32,16 @@ function parseFilter(resource, f): Expression {
     exp = parse(f);
   }
 
+  const unpacked = map(exp, (e) => {
+    if (Array.isArray(e) && e[0] === "FUNC") {
+      if (e[1] === "Q") return smartQuery.unpack(resource, e[2], e[3]);
+      else if (e[1] === "NOW") return Date.now();
+    }
+    return e;
+  });
+
   // Throws exception if invalid Mongo query
-  validateQuery(
-    map(exp, (e) => {
-      if (Array.isArray(e) && e[0] === "FUNC") {
-        if (e[1] === "Q") return smartQuery.unpack(resource, e[2], e[3]);
-        else if (e[1] === "NOW") return Date.now();
-      }
-      return e;
-    })
-  );
+  validQuery(unpacked, resource);
 
   return exp;
 }

@@ -1,23 +1,4 @@
-/**
- * Copyright 2013-2019  GenieACS Inc.
- *
- * This file is part of GenieACS.
- *
- * GenieACS is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * GenieACS is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with GenieACS.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-import { constants } from "zlib";
+import { constants } from "node:zlib";
 import Koa from "koa";
 import Router from "koa-router";
 import * as jwt from "jsonwebtoken";
@@ -25,16 +6,17 @@ import koaStatic from "koa-static";
 import koaCompress from "koa-compress";
 import koaBodyParser from "koa-bodyparser";
 import koaJwt from "koa-jwt";
-import * as config from "./config";
-import api from "./ui/api";
-import Authorizer from "./common/authorizer";
-import * as logger from "./logger";
-import * as localCache from "./local-cache";
-import { PermissionSet } from "./types";
-import { authLocal } from "./ui/api-functions";
-import * as init from "./init";
+import * as config from "./config.ts";
+import api from "./ui/api.ts";
+import Authorizer from "./common/authorizer.ts";
+import * as logger from "./logger.ts";
+import * as localCache from "./ui/local-cache.ts";
+import { PermissionSet } from "./types.ts";
+import { authLocal } from "./api-functions.ts";
+import * as init from "./init.ts";
 import { version as VERSION } from "../package.json";
-import memoize from "./common/memoize";
+import memoize from "./common/memoize.ts";
+import { APP_JS, APP_CSS, FAVICON_PNG } from "../build/assets.ts";
 
 declare module "koa" {
   interface Request {
@@ -53,22 +35,26 @@ const getAuthorizer = memoize(
     const roles: string[] = JSON.parse(rolesStr);
     const allPermissions = localCache.getPermissions(snapshot);
     const permissionSets: PermissionSet[] = roles.map((r) =>
-      Object.values(allPermissions[r] || {})
+      Object.values(allPermissions[r] || {}),
     );
     return new Authorizer(permissionSets);
-  }
+  },
 );
 
-koa.on("error", async (err, ctx) => {
+koa.on("error", (err, ctx) => {
   setTimeout(() => {
     // Ignored errors resulting from aborted requests
     if (ctx?.req.aborted) return;
+
+    // Ignore client errors (e.g. malicious path)
+    if (err.status === 400) return;
+
     throw err;
   });
 });
 
 koa.use(async (ctx, next) => {
-  const configSnapshot = await localCache.getCurrentSnapshot();
+  const configSnapshot = await localCache.getRevision();
   ctx.state.configSnapshot = configSnapshot;
   ctx.set("X-Config-Snapshot", configSnapshot);
   ctx.set("GenieACS-Version", VERSION);
@@ -89,7 +75,7 @@ koa.use(
 
       return true;
     },
-  })
+  }),
 );
 
 koa.use(async (ctx, next) => {
@@ -109,7 +95,7 @@ koa.use(async (ctx, next) => {
 
   ctx.state.authorizer = getAuthorizer(
     ctx.state.configSnapshot,
-    JSON.stringify(roles)
+    JSON.stringify(roles),
   );
 
   return next();
@@ -221,6 +207,10 @@ router.post("/init", async (ctx) => {
 });
 
 router.get("/", async (ctx) => {
+  // koa-router seems to tolerate double slashes in the URL but that can
+  // be problematic when using relatives asset paths in HTML
+  if (ctx.path.endsWith("//")) return;
+
   const permissionSets: PermissionSet[] =
     ctx.state.authorizer.getPermissionSets();
 
@@ -232,8 +222,8 @@ router.get("/", async (ctx) => {
   <html>
     <head>
       <title>GenieACS</title>
-      <link rel="shortcut icon" type="image/png" href="favicon.png" />
-      <link rel="stylesheet" href="app.css">
+      <link rel="shortcut icon" type="image/png" href="${FAVICON_PNG}" />
+      <link rel="stylesheet" href="${APP_CSS}">
     </head>
     <body>
     <noscript>GenieACS UI requires JavaScript to work. Please enable JavaScript in your browser.</noscript>
@@ -244,11 +234,11 @@ router.get("/", async (ctx) => {
         window.configSnapshot = ${JSON.stringify(ctx.state.configSnapshot)};
         window.genieacsVersion = ${JSON.stringify(VERSION)};
         window.username = ${JSON.stringify(
-          ctx.state.user ? ctx.state.user.username : ""
+          ctx.state.user ? ctx.state.user.username : "",
         )};
         window.permissionSets = ${JSON.stringify(permissionSets)};
       </script>
-      <script type="module" src="app.js"></script>${wizard} 
+      <script type="module" src="${APP_JS}"></script>${wizard} 
     </body>
   </html>
   `;
@@ -268,7 +258,7 @@ koa.use(
         [constants.BROTLI_PARAM_QUALITY]: 5,
       },
     },
-  })
+  }),
 );
 
 koa.use(router.routes());
