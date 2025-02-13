@@ -129,7 +129,7 @@ Configure systemd
       [Service]
       User=genieacs
       EnvironmentFile=/opt/genieacs/genieacs.env
-      ExecStart=/usr/bin/genieacs-cwmp
+      ExecStart=/usr/local/bin/genieacs-cwmp
 
       [Install]
       WantedBy=default.target
@@ -151,7 +151,7 @@ Configure systemd
       [Service]
       User=genieacs
       EnvironmentFile=/opt/genieacs/genieacs.env
-      ExecStart=/usr/bin/genieacs-nbi
+      ExecStart=/usr/local/bin/genieacs-nbi
 
       [Install]
       WantedBy=default.target
@@ -173,7 +173,7 @@ Configure systemd
       [Service]
       User=genieacs
       EnvironmentFile=/opt/genieacs/genieacs.env
-      ExecStart=/usr/bin/genieacs-fs
+      ExecStart=/usr/local/bin/genieacs-fs
 
       [Install]
       WantedBy=default.target
@@ -195,7 +195,7 @@ Configure systemd
       [Service]
       User=genieacs
       EnvironmentFile=/opt/genieacs/genieacs.env
-      ExecStart=/usr/bin/genieacs-ui
+      ExecStart=/usr/local/bin/genieacs-ui
 
       [Install]
       WantedBy=default.target
