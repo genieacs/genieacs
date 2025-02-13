@@ -112,6 +112,8 @@ export default class VersionedMap<K, V> {
       prev = v;
     }
 
+    if (prev === NONEXISTENT && !res.delete) return null;
+
     return res;
   }
 
@@ -121,6 +123,8 @@ export default class VersionedMap<K, V> {
       (acc, cur) => (cur === "delete" ? acc : acc | (1 << +cur)),
       del,
     );
+
+    if (!mutations) return;
 
     const revisions = [];
 
@@ -149,7 +153,7 @@ export default class VersionedMap<K, V> {
 
   public *diff(): IterableIterator<[K, V, V]> {
     for (const [key, revisions] of this.map) {
-      if (revisions.length === 1) continue;
+      if (revisions.length <= 1) continue;
       let first = revisions[0];
       let last = revisions[revisions.length - 1];
       if (first === NONEXISTENT && last === NONEXISTENT) continue;
