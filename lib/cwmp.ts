@@ -1535,7 +1535,7 @@ async function listenerAsync(
   }
 
   stats.initiatedSessions += 1;
-  const deviceId = generateDeviceId(rpc.cpeRequest.deviceId);
+  const deviceId = generateDeviceId(rpc.cpeRequest.deviceId, config.get("CWMP_COMPACT_DEVICE_ID"));
 
   const cacheSnapshot = await localCache.getRevision();
 
