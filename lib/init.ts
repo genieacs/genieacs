@@ -102,6 +102,7 @@ export async function seed(options: Record<string, boolean>): Promise<void> {
       { role: "admin", resource: "provisions", access: 3, validate: "true" },
       { role: "admin", resource: "config", access: 3, validate: "true" },
       { role: "admin", resource: "permissions", access: 3, validate: "true" },
+      { role: "admin", resource: "uploads", access: 3, validate: "true" },
       { role: "admin", resource: "users", access: 3, validate: "true" },
       {
         role: "admin",

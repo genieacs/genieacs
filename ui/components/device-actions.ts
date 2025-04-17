@@ -3,6 +3,7 @@ import { m } from "../components.ts";
 import * as taskQueue from "../task-queue.ts";
 import * as notifications from "../notifications.ts";
 import * as store from "../store.ts";
+import * as overlay from "../overlay.ts";
 
 const component: ClosureComponent = (): Component => {
   return {
@@ -80,6 +81,30 @@ const component: ClosureComponent = (): Component => {
             },
           },
           "Delete",
+        ),
+      );
+
+      buttons.push(
+        m(
+          "button.primary",
+          {
+            title: "Fetch files from device",
+            onclick: () => {
+              const deviceId = device["DeviceID.ID"].value[0];
+              overlay.open(() => {
+                const dev = store.fetch("devices", [
+                  "=",
+                  ["PARAM", "DeviceID.ID"],
+                  deviceId,
+                ]);
+                return [
+                  m("h3", `Uploads from ${deviceId}`),
+                  m("device-uploads", { device: dev.value[0] }),
+                ];
+              });
+            },
+          },
+          "Uploads",
         ),
       );
 

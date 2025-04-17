@@ -27,6 +27,7 @@ const attributes = [
       "devices",
       "faults",
       "files",
+      "uploads",
       "permissions",
       "users",
       "presets",

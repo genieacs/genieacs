@@ -4,6 +4,7 @@ import {
   deleteConfig,
   deleteFault as dbDeleteFault,
   deleteFile,
+  deleteUpload,
   deletePermission,
   deletePreset,
   deleteProvision,
@@ -327,6 +328,23 @@ function sanitizeTask(task): void {
         throw new Error("Invalid 'targetFileName' property");
       break;
 
+    case "upload":
+      // genieacs-gui sends file ID instead of fileName and fileType
+      if (!task.file) {
+        if (typeof task.fileType !== "string" || !task.fileType.length)
+          throw new Error("Missing 'fileType' property");
+
+        if (typeof task.fileName !== "string" || !task.fileName.length)
+          throw new Error("Missing 'fileName' property");
+      }
+
+      if (
+        task.targetFileName != null &&
+        typeof task.targetFileName !== "string"
+      )
+        throw new Error("Invalid 'targetFileName' property");
+      break;
+
     case "provisions":
       if (
         !Array.isArray(task.provisions) ||
@@ -388,6 +406,9 @@ export async function deleteDevice(deviceId: string): Promise<void> {
           $regex: `^${common.escapeRegExp(deviceId)}\\:`,
         },
       }),
+      collections.files.deleteMany({
+        device: deviceId,
+      }),
     ]);
   } finally {
     await releaseLock(`cwmp_session_${deviceId}`, token);
@@ -417,6 +438,9 @@ export async function deleteResource(
     await deleteDevice(id);
   } else if (resource === "files") {
     await deleteFile(id);
+    await cache.del("cwmp-local-cache-hash");
+  } else if (resource === "uploads") {
+    await deleteUpload(id);
     await cache.del("cwmp-local-cache-hash");
   } else if (resource === "faults") {
     await deleteFault(id);
