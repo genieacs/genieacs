@@ -16,6 +16,7 @@ import summonButton from "./components/summon-button.ts";
 import deviceFaults from "./components/device-faults.ts";
 import allParameters from "./components/all-parameters.ts";
 import deviceActions from "./components/device-actions.ts";
+import deviceUploads from "./components/device-uploads.ts";
 import tags from "./components/tags.ts";
 import ping from "./components/ping.ts";
 import deviceLink from "./components/device-link.ts";
@@ -36,6 +37,7 @@ const comps = {
   ping,
   "device-link": deviceLink,
   "long-text": longTextComponent,
+  "device-uploads": deviceUploads,
   loading: loading,
 };
 

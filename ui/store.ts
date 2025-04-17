@@ -51,6 +51,7 @@ for (const r of [
   "provisions",
   "virtualParameters",
   "files",
+  "uploads",
   "config",
   "users",
   "permissions",

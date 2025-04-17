@@ -4,7 +4,7 @@ import { Collection, ObjectId, WithoutId } from "mongodb";
 import { encodeTag } from "../util.ts";
 import { evaluate } from "../common/expression/util.ts";
 import { Expression, Fault, Task } from "../types.ts";
-import { collections, filesBucket } from "../db/db.ts";
+import { collections, filesBucket, uploadsBucket } from "../db/db.ts";
 import { convertOldPrecondition, optimizeProjection } from "../db/util.ts";
 import * as MongoTypes from "../db/types.ts";
 import { parse, parseList, stringify } from "../common/expression/parser.ts";
@@ -305,6 +305,12 @@ function flattenFile(file: Record<string, unknown>): Record<string, unknown> {
   return f;
 }
 
+function flattenUpload(file: Record<string, unknown>): Record<string, unknown> {
+  const f = {};
+  f["_id"] = file["_id"];
+  return f;
+}
+
 function preProcessPreset(data: Record<string, unknown>): MongoTypes.Preset {
   const preset = Object.assign({}, data);
 
@@ -401,6 +407,7 @@ export async function* query(
     else if (resource === "tasks") doc = flattenTask(doc);
     else if (resource === "presets") doc = flattenPreset(doc);
     else if (resource === "files") doc = flattenFile(doc);
+    else if (resource === "uploads") doc = flattenUpload(doc);
 
     yield doc;
   }
@@ -580,8 +587,16 @@ export function putFile(
   });
 }
 
+export function getUploadBlob(filename: string): Readable {
+  return uploadsBucket.openDownloadStreamByName(filename);
+}
+
 export async function deleteFile(filename: string): Promise<void> {
   await filesBucket.delete(filename as any);
+}
+
+export async function deleteUpload(filename: string): Promise<void> {
+  await uploadsBucket.delete(filename as any);
 }
 
 export async function deleteFault(id: string): Promise<void> {
