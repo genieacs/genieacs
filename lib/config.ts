@@ -229,7 +229,7 @@ if (fsHostname) {
   const FS_SSL = !!allConfig["FS_SSL_CERT"];
   setConfig(
     "FS_URL_PREFIX",
-    (FS_SSL ? "https" : "http") + `://${fsHostname}:${FS_PORT}/`,
+    (FS_SSL ? "https" : "http") + `://${fsHostname}:${FS_PORT}/`
   );
 }
 
@@ -239,7 +239,7 @@ for (const [k, v] of Object.entries(options))
 
 export function get(
   optionName: string,
-  deviceId?: string,
+  deviceId?: string
 ): string | number | boolean {
   if (!deviceId) return allConfig[optionName];
 
@@ -247,22 +247,13 @@ export function get(
   let v = allConfig[optionName];
   if (v != null) return v;
 
-  let i = optionName.lastIndexOf("-");
-  v = allConfig[optionName.slice(0, i)];
-  if (v != null) return v;
-
-  i = optionName.lastIndexOf("-", i - 1);
-  v = allConfig[optionName.slice(0, i)];
-  if (v != null) return v;
-
-  i = optionName.lastIndexOf("-", i - 1);
-  v = allConfig[optionName.slice(0, i)];
-  if (v != null) return v;
-
-  i = optionName.lastIndexOf("-", i - 1);
-  if (i > 0) {
-    v = allConfig[optionName.slice(0, i)];
-    if (v != null) return v;
+  // first match, index + 1
+  let i = optionName.length + 1;
+  while (i !== -1) {
+    const index = optionName.lastIndexOf("-", i - 1);
+    v = allConfig[optionName.slice(0, index)];
+    if (v !== undefined) return v;
+    i = index;
   }
 
   return null;
