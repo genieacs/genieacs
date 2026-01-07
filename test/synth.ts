@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert";
 import initSqlJs from "sql.js/dist/sql-asm.js";
-import { minimize, unionDiff } from "../lib/common/expression/synth.ts";
+import { covers, minimize, unionDiff } from "../lib/common/expression/synth.ts";
 import { parse, stringify } from "../lib/common/expression/parser.ts";
 
 const STRING_VALUES = [null, "", "a", "ab", "ab10", "ab-10"];
@@ -113,5 +113,39 @@ void test("unionDiff", async () => {
 
     assert.strictEqual(setsEqual(res3, unionSet), true);
     assert.strictEqual(setsEqual(res4, diffSet), true);
+  }
+});
+
+void test("covers", async () => {
+  assert.strictEqual(covers(false, false), true);
+  assert.strictEqual(covers(false, parse("decimal > 5 AND decimal < 3")), true);
+  assert.strictEqual(covers(parse("true"), parse("decimal > 0")), true);
+  assert.strictEqual(covers(parse("true"), parse("false")), true);
+  assert.strictEqual(covers(parse("false"), parse("false")), true);
+  assert.strictEqual(covers(parse("false"), parse("decimal > 0")), false);
+  assert.strictEqual(covers(parse("decimal >= 0"), parse("decimal > 0")), true);
+  assert.strictEqual(
+    covers(parse("decimal > 0"), parse("decimal >= 0")),
+    false,
+  );
+
+  const cases = [
+    ["decimal >= 0", "decimal > 0"],
+    ["decimal > 0", "decimal > 5"],
+    ["string IS NOT NULL", "string = 'a'"],
+    ["true", "decimal > 0"],
+  ];
+
+  for (const [c1, c2] of cases) {
+    const res1 = await query(c1);
+    const res2 = await query(c2);
+    const coversResult = covers(parse(c1), parse(c2));
+    const actuallyCovers = Array.from(res2).every((r) => res1.has(r));
+
+    assert.strictEqual(
+      coversResult,
+      actuallyCovers,
+      `covers(${c1}, ${c2}) should match actual coverage`,
+    );
   }
 });

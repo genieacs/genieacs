@@ -955,7 +955,7 @@ export function covers(expr1: Expression, expr2: Expression): boolean {
   expr2 = normalize(expr2);
   if (!expr2) return true;
   expr1 = normalize(expr1);
-  if (!Array.isArray(expr1)) return !!expr1;
+  if (!Array.isArray(expr1) && expr1) return true;
 
   const synt1 = Clause.fromExpression(expr1);
   const synt2 = Clause.fromExpression(expr2);
