@@ -578,6 +578,9 @@ Object.defineProperty(context, "commit", { value: commit });
 Object.defineProperty(context, "ext", { value: ext });
 Object.defineProperty(context, "log", { value: log });
 Object.defineProperty(context, "alert", { value: alert });
+Object.defineProperty(context, "getValue", { value: getValue });
+Object.defineProperty(context, "setValue", { value: setValue });
+Object.defineProperty(context, "addObject", { value: addObject });
 
 // Monkey-patch Math.random() to make it deterministic
 context.random = random;
