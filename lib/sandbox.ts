@@ -472,6 +472,105 @@ export function setValue(
   return true;
 }
 
+/**
+ * Adds objects at the specified path.
+ *
+ * @param {string} path - The path where the object should be added.
+ * @return {number|undefined} The instance number of the added object, or
+ * undefined if the operation failed.
+ */
+export function addObject(
+  path: string,
+): number | undefined {
+  // If the path is not a string, return an error
+  if (typeof path !== "string") {
+    log(`[ERROR] addObject() called with a non-string path: ${path}`, {});
+    return UNDEFINED;
+  }
+
+  // Trim whitespace from the path
+  path = path.trim();
+
+  // If the path is empty, return an error
+  if (path.length === 0) {
+    log("[ERROR] addObject() called with an empty path.", {});
+    return UNDEFINED;
+  }
+
+  // If the path does not end with a *, return an error
+  if (!path.endsWith("*")) {
+    log(
+      '[ERROR] addObject() called with a path that does not end with "*"' +
+        `: ${path}.`,
+      {}
+    );
+    return UNDEFINED;
+  }
+
+  // Get the amount of objects already present at the path
+  let currentSize: number | undefined;
+  try {
+    const parameter = declare(
+      path,
+      { path: Date.now() },
+      null,
+    ) as { size?: number };
+
+    currentSize = parameter?.size;
+  } catch (error) {
+    log(
+      `[ERROR] Failed to declare parameter at path ${path} to add object(s).`,
+      {}
+    );
+    return UNDEFINED;
+  }
+
+  // If currentSize is undefined, return an error
+  if (typeof currentSize !== 'number') {
+    log(
+      '[ERROR] Unable to determine the current size of objects at path:' +
+       ` ${path}.`,
+      {}
+    );
+    return UNDEFINED;
+  }
+
+  // The new size will be current size plus 1 that we are creating
+  const newSize = currentSize + 1;
+
+  // The path of the new object added
+  let newObjectPath: string | undefined;
+
+  // Create the new object
+  try {
+    const parameter = declare(
+      path,
+      { path: Date.now() },
+      { path: newSize },
+    ) as { path?: string };
+
+    newObjectPath = parameter.path;
+  } catch (error) {
+    log(
+      `[ERROR] Failed to declare parameter at path ${path} to add object(s).`,
+      {}
+    );
+    return UNDEFINED;
+  }
+
+  // If newObjectPath is undefined, return an error
+  if (typeof newObjectPath !== 'string') {
+    log(
+      '[ERROR] Unable to determine the path of the newly added object at' +
+        ` ${path}.`,
+      {}
+    );
+    return UNDEFINED;
+  }
+
+  return parseInt(newObjectPath.split(".").pop() ?? "", 10);
+}
+
 Object.defineProperty(context, "Date", { value: SandboxDate });
 Object.defineProperty(context, "declare", { value: declare });
 Object.defineProperty(context, "clear", { value: clear });
