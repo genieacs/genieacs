@@ -365,6 +365,56 @@ function alert(schema: alertSchema):void {
   }
 }
 
+/**
+ * Gets the value of a parameter at the specified path.
+ *
+ * @param {string} path - The path of the parameter to get.
+ * @return {boolean|number|string|undefined} The value of the parameter, or
+ * undefined if not found.
+ */
+export function getValue(path: string): boolean | number | string | undefined {
+  // If the path is not a string, return an error
+  if (typeof path !== "string") {
+    log(`[ERROR] getValue() called with a non-string path: ${path}`, {});
+    return UNDEFINED;
+  }
+
+  // Trim whitespace from the path
+  path = path.trim();
+
+  // If the path is empty, return an error
+  if (path.length === 0) {
+    log("[ERROR] getValue() called with an empty path.", {});
+    return UNDEFINED;
+  }
+
+  // If the path has trailing dot, remove it
+  if (path.endsWith(".")) path = path.slice(0, -1);
+
+  // Get the value
+  let parameter;
+  try {
+    parameter = declare(
+      path,
+      { value: Date.now(), path: Date.now() },
+      null,
+    ) as {
+      value?: [boolean | number | string, string];
+    };
+  } catch {
+    log(
+      `[ERROR] Failed to declare parameter at path ${path} to get its value.`,
+      {}
+    );
+    return UNDEFINED;
+  }
+
+  // If this is a valid parameter with a value, return it
+  if (parameter?.value?.[0]) return parameter.value[0];
+
+  return UNDEFINED;
+}
+
 Object.defineProperty(context, "Date", { value: SandboxDate });
 Object.defineProperty(context, "declare", { value: declare });
 Object.defineProperty(context, "clear", { value: clear });
