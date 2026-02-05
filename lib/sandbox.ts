@@ -415,6 +415,63 @@ export function getValue(path: string): boolean | number | string | undefined {
   return UNDEFINED;
 }
 
+/**
+ * Sets the value of a parameter at the specified path.
+ *
+ * @param {string} path - The path of the parameter to set.
+ * @param {boolean|number|string} value - The value to set.
+ * @return {boolean} True if the value was set successfully, false otherwise.
+ */
+export function setValue(
+  path: string,
+  value: boolean | number | string
+): boolean {
+  // If the path is not a string, return an error
+  if (typeof path !== "string") {
+    log(`[ERROR] getValue() called with a non-string path: ${path}`, {});
+    return UNDEFINED;
+  }
+
+  // Trim whitespace from the path
+  path = path.trim();
+
+  // If the path is empty, return an error
+  if (path.length === 0) {
+    log("[ERROR] getValue() called with an empty path.", {});
+    return UNDEFINED;
+  }
+
+  // If the path has trailing dot, remove it
+  if (path.endsWith(".")) path = path.slice(0, -1);
+
+  // Check if the value is of valid type
+  if (
+    typeof value !== "boolean" &&
+    typeof value !== "number" &&
+    typeof value !== "string"
+  ) {
+    log(
+      `[ERROR] setValue() called with an invalid value type: ${typeof value}.`,
+      {}
+    );
+    return false;
+  }
+
+  // Set the value
+  try {
+    declare(path, null, { value: value });
+  } catch {
+    log(
+      `[ERROR] Failed to declare parameter at path ${path} to set its value.`,
+      {}
+    );
+
+    return false;
+  }
+
+  return true;
+}
+
 Object.defineProperty(context, "Date", { value: SandboxDate });
 Object.defineProperty(context, "declare", { value: declare });
 Object.defineProperty(context, "clear", { value: clear });
