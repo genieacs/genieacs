@@ -37,6 +37,10 @@ const UNDEFINED = undefined;
 
 const context = vm.createContext();
 
+const FLASHMAN_PORT = process.env.FLM_WEB_PORT || 8000;
+const FLASHMAN_URL = `http://localhost:${FLASHMAN_PORT}`;
+import request from "request";
+
 let state;
 
 const runningExtensions = new WeakMap<
@@ -366,13 +370,38 @@ function alert(schema: alertSchema):void {
 }
 
 /**
+ * Initializes the sandbox environment. This function should be called before
+ * running any custom scripts. It checks if the script configured to run 
+ */
+export function init(): void {
+  // args: Array<any>
+  // [0]: "PERIODIC"/"BOOTSTRAP"/"BOOT"
+  // [1]: {
+  //   isDebug: boolean,
+  //   mustRun: boolean,
+  //   
+  // }
+  // Get the tag that says whether we must run the script or not
+  const mustRun = state.globals[1]?.mustRun;
+  if (!mustRun) throw new Error("Script is not configured to run");
+  
+  state.initialized = true;
+}
+
+/**
  * Gets the value of a parameter at the specified path.
  *
  * @param {string} path - The path of the parameter to get.
+ *
  * @return {boolean|number|string|undefined} The value of the parameter, or
  * undefined if not found.
+ *
+ * @throws {Error} If the sandbox is not initialized.
  */
 export function getValue(path: string): boolean | number | string | undefined {
+  // If not initialized, throw an error
+  if (!state.initialized) throw new Error("Sandbox not initialized");
+
   // If the path is not a string, return an error
   if (typeof path !== "string") {
     log(`[ERROR] getValue() called with a non-string path: ${path}`, {});
@@ -392,22 +421,13 @@ export function getValue(path: string): boolean | number | string | undefined {
   if (path.endsWith(".")) path = path.slice(0, -1);
 
   // Get the value
-  let parameter;
-  try {
-    parameter = declare(
-      path,
-      { value: Date.now(), path: Date.now() },
-      null,
-    ) as {
-      value?: [boolean | number | string, string];
-    };
-  } catch {
-    log(
-      `[ERROR] Failed to declare parameter at path ${path} to get its value.`,
-      {}
-    );
-    return UNDEFINED;
-  }
+  const parameter = declare(
+    path,
+    { value: Date.now(), path: Date.now() },
+    null,
+  ) as {
+    value?: [boolean | number | string, string];
+  };
 
   // If this is a valid parameter with a value, return it
   if (parameter?.value?.[0]) return parameter.value[0];
@@ -426,6 +446,9 @@ export function setValue(
   path: string,
   value: boolean | number | string
 ): boolean {
+  // If not initialized, throw an error
+  if (!state.initialized) throw new Error("Sandbox not initialized");
+
   // If the path is not a string, return an error
   if (typeof path !== "string") {
     log(`[ERROR] getValue() called with a non-string path: ${path}`, {});
@@ -458,16 +481,7 @@ export function setValue(
   }
 
   // Set the value
-  try {
-    declare(path, null, { value: value });
-  } catch {
-    log(
-      `[ERROR] Failed to declare parameter at path ${path} to set its value.`,
-      {}
-    );
-
-    return false;
-  }
+  declare(path, null, { value: value });
 
   return true;
 }
@@ -482,6 +496,9 @@ export function setValue(
 export function addObject(
   path: string,
 ): number | undefined {
+  // If not initialized, throw an error
+  if (!state.initialized) throw new Error("Sandbox not initialized");
+
   // If the path is not a string, return an error
   if (typeof path !== "string") {
     log(`[ERROR] addObject() called with a non-string path: ${path}`, {});
@@ -497,33 +514,23 @@ export function addObject(
     return UNDEFINED;
   }
 
-  // If the path does not end with a *, return an error
-  if (!path.endsWith("*")) {
+  // If the path does not end with a * or [...], return an error
+  if (!path.endsWith("*") && !(/\[[\w=\d]*\]$/).test(path)) {
     log(
       '[ERROR] addObject() called with a path that does not end with "*"' +
-        `: ${path}.`,
+        `or [...]: ${path}.`,
       {}
     );
     return UNDEFINED;
   }
 
   // Get the amount of objects already present at the path
-  let currentSize: number | undefined;
-  try {
-    const parameter = declare(
-      path,
-      { path: Date.now() },
-      null,
-    ) as { size?: number };
-
-    currentSize = parameter?.size;
-  } catch (error) {
-    log(
-      `[ERROR] Failed to declare parameter at path ${path} to add object(s).`,
-      {}
-    );
-    return UNDEFINED;
-  }
+  const parameter = declare(
+    path,
+    { path: Date.now() },
+    null,
+  ) as { size?: number };
+  const currentSize = parameter?.size ?? 0;
 
   // If currentSize is undefined, return an error
   if (typeof currentSize !== 'number') {
@@ -538,25 +545,15 @@ export function addObject(
   // The new size will be current size plus 1 that we are creating
   const newSize = currentSize + 1;
 
-  // The path of the new object added
-  let newObjectPath: string | undefined;
-
   // Create the new object
-  try {
-    const parameter = declare(
-      path,
-      { path: Date.now() },
-      { path: newSize },
-    ) as { path?: string };
+  const objectCreated = declare(
+    path,
+    { path: Date.now() },
+    { path: newSize },
+  ) as { path?: string };
 
-    newObjectPath = parameter.path;
-  } catch (error) {
-    log(
-      `[ERROR] Failed to declare parameter at path ${path} to add object(s).`,
-      {}
-    );
-    return UNDEFINED;
-  }
+  // The path of the new object added
+  const newObjectPath = objectCreated.path;
 
   // If newObjectPath is undefined, return an error
   if (typeof newObjectPath !== 'string') {
@@ -571,6 +568,65 @@ export function addObject(
   return parseInt(newObjectPath.split(".").pop() ?? "", 10);
 }
 
+/**
+ * Deletes the last object at the specified path.
+ *
+ * @param {string} path - The path where the object should be deleted.
+ * @return {boolean} True if the object was deleted successfully, false
+ * otherwise.
+ */
+export function deleteObject(
+  path: string,
+): boolean {
+  // If not initialized, throw an error
+  if (!state.initialized) throw new Error("Sandbox not initialized");
+
+  // If the path is not a string, return an error
+  if (typeof path !== "string") {
+    log(`[ERROR] deleteObject() called with a non-string path: ${path}`, {});
+    return false;
+  }
+
+  // Trim whitespace from the path
+  path = path.trim();
+
+  // If the path is empty, return an error
+  if (path.length === 0) {
+    log("[ERROR] deleteObject() called with an empty path.", {});
+    return false;
+  }
+
+  // Get the amount of objects already present at the path
+  const parameter = declare(
+    path,
+    { path: Date.now() },
+    null,
+  ) as { size?: number };
+  const currentSize = parameter?.size ?? 1;
+
+  // If currentSize is undefined, return an error
+  if (typeof currentSize !== 'number') {
+    log(
+      '[ERROR] Unable to determine the current size of objects at path:' +
+       ` ${path}.`,
+      {}
+    );
+    return false;
+  }
+
+  // The new size will be current size minus 1 that we are deleting
+  const newSize = currentSize - 1;
+
+  // Delete the last object
+  declare(
+    path,
+    { path: Date.now() },
+    { path: newSize },
+  ) as { path?: string };
+
+  return true;
+}
+
 Object.defineProperty(context, "Date", { value: SandboxDate });
 Object.defineProperty(context, "declare", { value: declare });
 Object.defineProperty(context, "clear", { value: clear });
@@ -581,6 +637,7 @@ Object.defineProperty(context, "alert", { value: alert });
 Object.defineProperty(context, "getValue", { value: getValue });
 Object.defineProperty(context, "setValue", { value: setValue });
 Object.defineProperty(context, "addObject", { value: addObject });
+Object.defineProperty(context, "deleteObject", { value: deleteObject });
 
 // Monkey-patch Math.random() to make it deterministic
 context.random = random;
@@ -637,6 +694,7 @@ export async function run(
     clear: [],
     rng: null,
     extCounter: extCounter,
+    globals: globals,
   };
 
   const endTimer = 
