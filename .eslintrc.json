@@ -14,7 +14,7 @@
     "prettier"
   ],
   "rules": {
-    "no-shadow": ["error", { "allow": ["err"] }],
+    "no-shadow": "off",
     "handle-callback-err": "error",
     "prefer-arrow-callback": "error",
     "curly": ["error", "multi-or-nest", "consistent"],
@@ -22,6 +22,7 @@
     "prefer-const": ["error", { "destructuring": "all" }],
     "eqeqeq": ["error", "always", { "null": "ignore" }],
     "no-return-await": "error",
+    "@typescript-eslint/no-shadow": ["error", { "allow": ["err"] }],
     "@typescript-eslint/no-explicit-any": 0,
     "@typescript-eslint/no-use-before-define": [
       "error",
