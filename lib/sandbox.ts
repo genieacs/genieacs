@@ -493,7 +493,8 @@ function audit(actionType: ActionType, path: string, value?: any): void {
  */
 export function getValue(path: string): boolean | number | string | undefined {
   // If not initialized, throw an error
-  if (!state.initialized) throw new Error("Sandbox not initialized");
+  if (!context.initialized)
+    throw new Error("Sandbox not initialized");
 
   // If the path is not a string, return an error
   if (typeof path !== "string") {
@@ -540,11 +541,12 @@ export function setValue(
   value: boolean | number | string
 ): boolean {
   // If not initialized, throw an error
-  if (!state.initialized) throw new Error("Sandbox not initialized");
+  if (!context.initialized)
+    throw new Error("Sandbox not initialized");
 
   // If the path is not a string, return an error
   if (typeof path !== "string") {
-    log(`[ERROR] getValue() called with a non-string path: ${path}`, {});
+    log(`[ERROR] setValue() called with a non-string path: ${path}`, {});
     return UNDEFINED;
   }
 
@@ -553,7 +555,7 @@ export function setValue(
 
   // If the path is empty, return an error
   if (path.length === 0) {
-    log("[ERROR] getValue() called with an empty path.", {});
+    log("[ERROR] setValue() called with an empty path.", {});
     return UNDEFINED;
   }
 
@@ -573,6 +575,9 @@ export function setValue(
     return false;
   }
 
+  // Audit this setValue action before sending
+  audit(ActionType.SET_VALUE, path, value);
+
   // Set the value
   declare(path, null, { value: value });
 
@@ -590,7 +595,8 @@ export function addObject(
   path: string,
 ): number | undefined {
   // If not initialized, throw an error
-  if (!state.initialized) throw new Error("Sandbox not initialized");
+  if (!context.initialized)
+    throw new Error("Sandbox not initialized");
 
   // If the path is not a string, return an error
   if (typeof path !== "string") {
@@ -638,6 +644,9 @@ export function addObject(
   // The new size will be current size plus 1 that we are creating
   const newSize = currentSize + 1;
 
+  // Audit this addition
+  audit(ActionType.ADD_OBJECT, path, newSize);
+
   // Create the new object
   const objectCreated = declare(
     path,
@@ -672,11 +681,12 @@ export function deleteObject(
   path: string,
 ): boolean {
   // If not initialized, throw an error
-  if (!state.initialized) throw new Error("Sandbox not initialized");
+  if (!context.initialized)
+    throw new Error("Sandbox not initialized");
 
   // If the path is not a string, return an error
   if (typeof path !== "string") {
-    log(`[ERROR] deleteObject() called with a non-string path: ${path}`, {});
+    ferror(`[ERROR] deleteObject() called with a non-string path: ${path}`);
     return false;
   }
 
@@ -685,7 +695,7 @@ export function deleteObject(
 
   // If the path is empty, return an error
   if (path.length === 0) {
-    log("[ERROR] deleteObject() called with an empty path.", {});
+    ferror("[ERROR] deleteObject() called with an empty path.");
     return false;
   }
 
@@ -699,7 +709,7 @@ export function deleteObject(
 
   // If currentSize is undefined, return an error
   if (typeof currentSize !== 'number') {
-    log(
+    ferror(
       '[ERROR] Unable to determine the current size of objects at path:' +
        ` ${path}.`,
       {}
@@ -709,6 +719,9 @@ export function deleteObject(
 
   // The new size will be current size minus 1 that we are deleting
   const newSize = currentSize - 1;
+
+  // Audit this deletion
+  audit(ActionType.DELETE_OBJECT, path, newSize);
 
   // Delete the last object
   declare(
@@ -727,6 +740,8 @@ Object.defineProperty(context, "commit", { value: commit });
 Object.defineProperty(context, "ext", { value: ext });
 Object.defineProperty(context, "log", { value: log });
 Object.defineProperty(context, "alert", { value: alert });
+Object.defineProperty(context, "flog", { value: flog });
+Object.defineProperty(context, "ferror", { value: ferror });
 Object.defineProperty(context, "getValue", { value: getValue });
 Object.defineProperty(context, "setValue", { value: setValue });
 Object.defineProperty(context, "addObject", { value: addObject });
