@@ -370,22 +370,113 @@ function alert(schema: alertSchema):void {
 }
 
 /**
- * Initializes the sandbox environment. This function should be called before
- * running any custom scripts. It checks if the script configured to run 
+ * Flashman-Log!! Not the word "flog"!!
+ * Send the provided message to Flashman for logging. This function will only
+ * log if the sandbox is initialized and either in debug mode or if the
+ * environment variable FORCE_CUSTOM_SCRIPT_LOGGING is set to true.
+ *
+ * @param {Array<any>} args - The arguments to log. Each argument will be
+ * stringified and concatenated.
  */
-export function init(): void {
-  // args: Array<any>
-  // [0]: "PERIODIC"/"BOOTSTRAP"/"BOOT"
-  // [1]: {
-  //   isDebug: boolean,
-  //   mustRun: boolean,
-  //   
-  // }
-  // Get the tag that says whether we must run the script or not
-  const mustRun = state.globals[1]?.mustRun;
-  if (!mustRun) throw new Error("Script is not configured to run");
+export function flog(...args: any[]): void {
+  // If not initialized, throw an error
+  if (!context.initialized)
+    throw new Error("Sandbox not initialized");
+
+  // If no arguments were provided, do not log
+  if (args.length === 0) return;
+
+  // If not in debug mode, do not log
+  if (!context.isDebug && !FORCE_CUSTOM_SCRIPT_LOGGING) return;
+
+  // Prepare the message to log
+  const message = '[ INFO  ] ' + args
+    .map((arg) => JSON.stringify(arg))
+    .join(" ");
   
-  state.initialized = true;
+  // Send the message to Flashman
+  request({
+    url: `${FLASHMAN_URL}/api/v4/device/acs-id/` +
+      `${state.sessionContext.deviceId}/script/log`,
+    method: 'POST',
+    json: {
+      timestamp: new Date().toISOString(),
+      type: 'log',
+      message: message,
+    }
+  }).on('error', (err) => {
+    // If there is an error sending the log to Flashman, log it to the console
+    log('Failed to send log to Flashman: ' + JSON.stringify(err), {});
+  });
+}
+
+/**
+ * Flashman-Error!! Not the word "ferrou"!!
+ * Send the provided message to Flashman for logging. This function will only
+ * log if the sandbox is initialized and either in debug mode or if the
+ * environment variable FORCE_CUSTOM_SCRIPT_LOGGING is set to true.
+ *
+ * @param {Array<any>} args - The arguments to log. Each argument will be
+ * stringified and concatenated.
+ */
+export function ferror(...args: any[]): void {
+  // If not initialized, throw an error
+  if (!context.initialized)
+    throw new Error("Sandbox not initialized");
+
+  // If no arguments were provided, do not log
+  if (args.length === 0) return;
+
+  // If not in debug mode, do not log
+  if (!context.isDebug && !FORCE_CUSTOM_SCRIPT_LOGGING) return;
+
+  // Prepare the message to log
+  const message = '[ ERROR ] ' + args
+    .map((arg) => JSON.stringify(arg))
+    .join(" ");
+  
+  // Send the message to Flashman
+  request({
+    url: `${FLASHMAN_URL}/api/v4/device/acs-id/` +
+      `${state.sessionContext.deviceId}/script/log`,
+    method: 'POST',
+    json: {
+      timestamp: new Date().toISOString(),
+      type: 'error',
+      message: message,
+    }
+  }).on('error', (err) => {
+    // If there is an error sending the log to Flashman, log it to the console
+    log('Failed to send error log to Flashman: ' + JSON.stringify(err), {});
+  });
+}
+
+enum ActionType {
+  ADD_OBJECT = "addObject",
+  DELETE_OBJECT = "deleteObject",
+  SET_VALUE = "setValue",
+}
+
+function audit(actionType: ActionType, path: string, value?: any): void {
+  // Send the request to Flashman for auditing
+  request({
+    url: `${FLASHMAN_URL}/api/v4/device/acs-id/` +
+      `${state.sessionContext.deviceId}/script/audit`,
+    method: 'POST',
+    json: {
+      timestamp: new Date().toISOString(),
+      type: actionType,
+      path: path,
+      value: value,
+    },
+  }).on('error', (err) => {
+    // If there is an error sending the audit to Flashman, log it to the console
+    log(
+      'Failed to send audit to Flashman: ' + JSON.stringify(err) +
+        ` for action ${actionType} on path ${path} with value ${value}`,
+      {},
+    );
+  });
 }
 
 /**
