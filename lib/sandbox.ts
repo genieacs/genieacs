@@ -26,6 +26,7 @@ import * as scheduling from "./scheduling";
 import Path from "./common/path";
 import { Fault, SessionContext, ScriptResult } from "./types";
 import { metricsExporter } from "./metrics";
+import request from "request";
 
 // Used for throwing to exit user script and commit
 const COMMIT = Symbol();
@@ -37,9 +38,10 @@ const UNDEFINED = undefined;
 
 const context = vm.createContext();
 
+const FORCE_CUSTOM_SCRIPT_LOGGING =
+  process.env.FLM_FORCE_CUSTOM_SCRIPT_LOGGING === 'true';
 const FLASHMAN_PORT = process.env.FLM_WEB_PORT || 8000;
 const FLASHMAN_URL = `http://localhost:${FLASHMAN_PORT}`;
-import request from "request";
 
 let state;
 
