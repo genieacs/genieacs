@@ -733,6 +733,77 @@ export function deleteObject(
   return true;
 }
 
+/**
+ * Initializes the sandbox environment. This function should be called before
+ * running any custom scripts. It checks if the script configured to run 
+ * matches the script tag provided in the arguments and sets up the context
+ * accordingly.
+ *
+ * @throws {Error} If the sandbox is not initialized or if the script tag is not
+ * set in the arguments.
+ *
+ * @return {boolean} True if the sandbox was initialized successfully and must
+ * continue, false if it is debug and already ran once with the same script tag,
+ * so it should not run again.
+ */
+export function init(): boolean {
+  // args: Array<string>
+  // [0]: "PERIODIC"/"BOOTSTRAP"/"BOOT"
+  // [1]: {
+  //   isDebug: boolean,
+  //   scriptTag: string,
+  // }
+  // Try parsing the second argument as JSON, if it fails, throw an error
+  let scriptInfo;
+  try {
+    scriptInfo = JSON.parse(context.args?.[1]);
+  } catch (error) {
+    throw new Error(
+      "Invalid JSON in second argument: " + context.args?.[1] +
+      " Error: " + error.message,
+    );
+  }
+
+  // Get the tag to check if we must run the script or not
+  scriptInfo?.scriptTag;
+
+  // If the script tag was not set, throw an error
+  if (!scriptInfo?.scriptTag)
+    throw new Error("Script tag not set");
+
+  const scriptTag = scriptInfo?.scriptTag;
+
+  // If we must run the script in debug mode, check if the script tag matches or
+  // not, if so, throw COMMIT to not run the script
+  const tagValue = declare(
+    'Tags.' + scriptTag,
+    { value: Date.now() },
+    null,
+  ) as {
+    value?: [boolean | number | string, string];
+  };
+  if (
+    scriptInfo?.isDebug &&
+    tagValue?.value?.[0] === true
+  ) return false;
+
+  // Set the script tag in Tags to avoid running again in debug mode
+  declare('Tags.' + scriptInfo?.scriptTag, null, {value: true});
+
+  // Set the debug mode, tag and initilization flag
+  context.isDebug = !!scriptInfo?.isDebug;
+  context.scriptTag = scriptInfo?.scriptTag;
+  context.initialized = true;
+
+  // Log the script initialization
+  flog(
+    `Script ${scriptInfo?.scriptTag} ` +
+    `initialized in ${context.isDebug ? 'debug' : 'normal'} mode.`,
+  );
+
+  return true;
+}
+
 Object.defineProperty(context, "Date", { value: SandboxDate });
 Object.defineProperty(context, "declare", { value: declare });
 Object.defineProperty(context, "clear", { value: clear });
@@ -746,6 +817,7 @@ Object.defineProperty(context, "getValue", { value: getValue });
 Object.defineProperty(context, "setValue", { value: setValue });
 Object.defineProperty(context, "addObject", { value: addObject });
 Object.defineProperty(context, "deleteObject", { value: deleteObject });
+Object.defineProperty(context, "init", { value: init });
 
 // Monkey-patch Math.random() to make it deterministic
 context.random = random;
