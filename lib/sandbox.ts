@@ -34,6 +34,9 @@ const COMMIT = Symbol();
 // Used to execute extensions and restart
 const EXT = Symbol();
 
+// Used to skip provision if initilization conditions are not met
+const SKIP = Symbol();
+
 const UNDEFINED = undefined;
 
 const context = vm.createContext();
@@ -398,7 +401,7 @@ export function flog(...args: any[]): void {
   
   // Send the message to Flashman
   request({
-    url: `${FLASHMAN_URL}/api/v4/device/acs-id/` +
+    url: `${FLASHMAN_URL}/api/v3/device/acs-id/` +
       `${state.sessionContext.deviceId}/script/log`,
     method: 'POST',
     json: {
@@ -439,7 +442,7 @@ export function ferror(...args: any[]): void {
   
   // Send the message to Flashman
   request({
-    url: `${FLASHMAN_URL}/api/v4/device/acs-id/` +
+    url: `${FLASHMAN_URL}/api/v3/device/acs-id/` +
       `${state.sessionContext.deviceId}/script/log`,
     method: 'POST',
     json: {
@@ -462,7 +465,7 @@ enum ActionType {
 function audit(actionType: ActionType, path: string, value?: any): void {
   // Send the request to Flashman for auditing
   request({
-    url: `${FLASHMAN_URL}/api/v4/device/acs-id/` +
+    url: `${FLASHMAN_URL}/api/v3/device/acs-id/` +
       `${state.sessionContext.deviceId}/script/audit`,
     method: 'POST',
     json: {
@@ -741,12 +744,10 @@ export function deleteObject(
  *
  * @throws {Error} If the sandbox is not initialized or if the script tag is not
  * set in the arguments.
- *
- * @return {boolean} True if the sandbox was initialized successfully and must
- * continue, false if it is debug and already ran once with the same script tag,
+ * @throws {SKIP} If it is debug and already ran once with the same script tag,
  * so it should not run again.
  */
-export function init(): boolean {
+export function init(): void {
   // args: Array<string>
   // [0]: "PERIODIC"/"BOOTSTRAP"/"BOOT"
   // [1]: {
@@ -784,11 +785,11 @@ export function init(): boolean {
   };
   if (
     scriptInfo?.isDebug &&
-    tagValue?.value?.[0] === true
-  ) return false;
+    tagValue?.value?.[0] !== true
+  ) throw SKIP;
 
-  // Set the script tag in Tags to avoid running again in debug mode
-  declare('Tags.' + scriptInfo?.scriptTag, null, {value: true});
+  // Remove the script tag in Tags to avoid running again in debug mode
+  declare('Tags.' + scriptInfo?.scriptTag, null, {value: false});
 
   // Set the debug mode, tag and initilization flag
   context.isDebug = !!scriptInfo?.isDebug;
@@ -800,8 +801,6 @@ export function init(): boolean {
     `Script ${scriptInfo?.scriptTag} ` +
     `initialized in ${context.isDebug ? 'debug' : 'normal'} mode.`,
   );
-
-  return true;
 }
 
 Object.defineProperty(context, "Date", { value: SandboxDate });
@@ -896,6 +895,15 @@ export async function run(
       status = 1;
     } else if (err === EXT) {
       status = 2;
+    } else if (err === SKIP) {
+      endTimer();
+      return {
+        fault: null,
+        clear: state.clear,
+        declare: state.declarations,
+        done: true,
+        returnValue: ret,
+      };
     } else {
       return {
         fault: errorToFault(err),
