@@ -737,6 +737,39 @@ export function deleteObject(
 }
 
 /**
+ * Sends a request to Flashman to inform that a script with the provided tag has
+ * been run.
+ *
+ * @param {string} scriptTag - The tag of the script that has been run
+ * (scriptId). 
+ * @returns {Promise<void>} A promise that resolves when the request is
+ * successful, or rejects with an error if the request fails.
+ */
+function sendScriptRunInfoToFlashman(scriptTag: string): void{
+  request({
+    url: `${FLASHMAN_URL}/api/v3/device/acs-id/` +
+      `${state.sessionContext.deviceId}/script/${scriptTag}/run`,
+    method: 'POST',
+    json: {
+      timestamp: new Date().toISOString(),
+    },
+  }).on('response', (response) => {
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      log(
+        'Failed to send script run info to Flashman. ' +
+        `Status code: ${response.statusCode}`,
+        {}
+      );
+    }
+  }).on('error', (err) => {
+    log(
+      `Error sending script run info to Flashman: ${err.message}`,
+      {}
+    );
+  });
+}
+
+/**
  * Initializes the sandbox environment. This function should be called before
  * running any custom scripts. It checks if the script configured to run 
  * matches the script tag provided in the arguments and sets up the context
@@ -773,6 +806,9 @@ export function init(): void {
     throw new Error("Script tag not set");
 
   const scriptTag = scriptInfo?.scriptTag;
+
+  // Send a request to Flashman to inform that this script run
+  sendScriptRunInfoToFlashman(scriptTag);
 
   // If we must run the script in debug mode, check if the script tag matches or
   // not, if so, throw COMMIT to not run the script
