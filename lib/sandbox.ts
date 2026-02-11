@@ -402,7 +402,7 @@ export function flog(...args: any[]): void {
   // Send the message to Flashman
   request({
     url: `${FLASHMAN_URL}/api/v3/device/acs-id/` +
-      `${state.sessionContext.deviceId}/script/log`,
+      `${state.sessionContext.deviceId}/script/${context.scriptTag}/log`,
     method: 'POST',
     json: {
       timestamp: new Date().toISOString(),
@@ -443,7 +443,7 @@ export function ferror(...args: any[]): void {
   // Send the message to Flashman
   request({
     url: `${FLASHMAN_URL}/api/v3/device/acs-id/` +
-      `${state.sessionContext.deviceId}/script/log`,
+      `${state.sessionContext.deviceId}/script/${context.scriptTag}/log`,
     method: 'POST',
     json: {
       timestamp: new Date().toISOString(),
@@ -466,7 +466,7 @@ function audit(actionType: ActionType, path: string, value?: any): void {
   // Send the request to Flashman for auditing
   request({
     url: `${FLASHMAN_URL}/api/v3/device/acs-id/` +
-      `${state.sessionContext.deviceId}/script/audit`,
+      `${state.sessionContext.deviceId}/script/${context.scriptTag}/audit`,
     method: 'POST',
     json: {
       timestamp: new Date().toISOString(),
