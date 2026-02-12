@@ -44,7 +44,8 @@ const context = vm.createContext();
 const FORCE_CUSTOM_SCRIPT_LOGGING =
   process.env.FLM_FORCE_CUSTOM_SCRIPT_LOGGING === 'true';
 const FLASHMAN_PORT = process.env.FLM_WEB_PORT || 8000;
-const FLASHMAN_URL = `http://localhost:${FLASHMAN_PORT}`;
+const FLASHMAN_URL =
+  'http://'+(process.env.FLM_WEB_HOST || 'localhost') + `:${FLASHMAN_PORT}`;
 
 let state;
 
