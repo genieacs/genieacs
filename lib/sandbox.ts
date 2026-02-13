@@ -284,6 +284,19 @@ function ext(...args: unknown[]): any {
   throw EXT;
 }
 
+// Deferred extension - only runs when script completes successfully
+ext.defer = function (...args: unknown[]): any {
+  ++state.extCounter;
+  const extCall = args.map(String);
+  const key = `${state.revision}: ${JSON.stringify(extCall)}`;
+
+  if (key in state.sessionContext.extensionsCache)
+    return state.sessionContext.extensionsCache[key];
+
+  state.deferredExtensions[key] = extCall;
+  return null;
+};
+
 function log(msg: string, meta: Record<string, unknown>): void {
   if (state.revision === state.maxRevision && state.extCounter >= 0) {
     const details = Object.assign({}, meta, {
@@ -363,6 +376,7 @@ export async function run(
     clear: [],
     rng: null,
     extCounter: extCounter,
+    deferredExtensions: {},
   };
 
   for (const n of Object.keys(context)) delete context[n];
@@ -418,6 +432,25 @@ export async function run(
       maxRevision,
       extCounter - _state.extCounter,
     );
+  }
+
+  // Run deferred extensions only on successful completion
+  if (status === 0 && Object.keys(_state.deferredExtensions).length > 0) {
+    await Promise.all(
+      Object.entries(_state.deferredExtensions).map(async ([k, v]) => {
+        fault = (await runExtension(_state.sessionContext, k, v)) || fault;
+      }),
+    );
+  }
+
+  if (fault) {
+    return {
+      fault: fault,
+      clear: null,
+      declare: null,
+      done: false,
+      returnValue: null,
+    };
   }
 
   return {
