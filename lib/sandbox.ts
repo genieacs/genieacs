@@ -764,7 +764,7 @@ export async function updateFirmware(version: string): Promise<void> {
   let firmwareNameResponse;
   try {
     firmwareNameResponse = await fetch(
-      `${FLASHMAN_URL}/acs-id/${acsId}/firmware?version=${version}`,
+      `${FLASHMAN_URL}/acs-id/${acsId}/firmwares?version=${version}`,
       { method: 'GET' }
     );
   } catch (error) {
