@@ -571,8 +571,8 @@ const getChosenWan = async function(args, callback) {
     wanChosenPath = result.data.wanChosenPath;
   }
 
-  cacheGetMultiLanProvisionIDX = callidx;
-  cacheGetMultiLanProvisionDATA = {wanChosenPath};
+  cacheGetChosenWanIDX = callidx;
+  cacheGetChosenWanDATA = {wanChosenPath};
   callback(null, {wanChosenPath});
 };
 
