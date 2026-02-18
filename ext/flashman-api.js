@@ -176,12 +176,12 @@ const getDeviceModelFields = async function(args, callback) {
 
   const fieldsResult = await sendFlashmanRequest(
     'GET',
-    `oui/${params.oui}/` +
-    `model/${params.model}/` +
-    `model-name/${params.modelName}/` +
-    `hardware/${params.hardwareVersion}/` +
-    `firmware/${params.firmwareVersion}/` +
-    `tr-type/${params.trType}/` +
+    `oui/${encodeURIComponent(params.oui)}/` +
+    `model/${encodeURIComponent(params.model)}/` +
+    `model-name/${encodeURIComponent(params.modelName)}/` +
+    `hardware/${encodeURIComponent(params.hardwareVersion)}/` +
+    `firmware/${encodeURIComponent(params.firmwareVersion)}/` +
+    `tr-type/${encodeURIComponent(params.trType)}/` +
     'model-fields',
     {},
   );
@@ -500,7 +500,7 @@ const deleteTaskCallbacks = async function(args, callback) {
   // Send an empty body because request is dumb and won't interpret result body
   // as json unless you sent a json yourself
   let result = await sendFlashmanRequest(
-    'DELETE', `device/${params.acs_id}/taskCallbacks`, {},
+    'DELETE', `device/${encodeURIComponent(params.acs_id)}/taskCallbacks`, {},
   );
   cacheDeleteTaskCallbackIDX = callidx;
   cacheDeleteTaskCallbackDATA = result;
@@ -527,11 +527,11 @@ const getMultiLanProvision = async function(args, callback) {
 
   const result = await sendFlashmanRequest(
     'GET',
-    `model/${routerid.model}/` +
-    `model-name/${routerid.modelName}/` +
-    `hardware/${routerid.hardwareVersion}/` +
-    `firmware/${routerid.firmwareVersion}/` +
-    `tr-type/${routerid.trType}/` +
+    `model/${encodeURIComponent(routerid.model)}/` +
+    `model-name/${encodeURIComponent(routerid.modelName)}/` +
+    `hardware/${encodeURIComponent(routerid.hardwareVersion)}/` +
+    `firmware/${encodeURIComponent(routerid.firmwareVersion)}/` +
+    `tr-type/${encodeURIComponent(routerid.trType)}/` +
     'lan-index',
     {
       requests: params.requests,
@@ -562,7 +562,7 @@ const getChosenWan = async function(args, callback) {
 
   const result = await sendFlashmanRequest(
     'GET',
-    `acs-id/${acsID}/wan-chosen`,
+    `acs-id/${encodeURIComponent(acsID)}/wan-chosen`,
     {},
   );
 
