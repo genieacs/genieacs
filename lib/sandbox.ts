@@ -37,6 +37,9 @@ const EXT = Symbol();
 // Used to skip provision if initilization conditions are not met
 const SKIP = Symbol();
 
+// Used to upgrade a device's firmware
+const UPGRADE = Symbol();
+
 const UNDEFINED = undefined;
 
 const context = vm.createContext();
@@ -738,6 +741,95 @@ export function deleteObject(
 }
 
 /**
+ * Get which firmware to update from Flashman and update the device accordingly.
+ *
+ * @param {string} version - The version to update the firmware to.
+ * @throws {Error} If the sandbox is not initialized.
+ * @throws {Error} If there is an error fetching firmware information from
+ * flashman.
+ * @throws {Error} If the firmware version for the device is not found in
+ * Flashman.
+ * @throws {UPGRADE} To skip the provision and execute the firmware upgrade
+ * command on the device. 
+ */
+export async function updateFirmware(version: string): Promise<void> {
+  // If not initialized, throw an error
+  if (!context.initialized)
+    throw new Error("Sandbox not initialized");
+
+  const acsId = state.sessionContext.deviceId;
+
+  // Get the firmware filename from Flashman. Cannot be async as we must execute
+  // it in the same session
+  let firmwareNameResponse;
+  try {
+    firmwareNameResponse = await fetch(
+      `${FLASHMAN_URL}/acs-id/${acsId}/firmware?version=${version}`,
+      { method: 'GET' }
+    );
+  } catch (error) {
+    ferror(
+      `Error fetching firmware information from Flashman: ${error.message}`,
+    );
+    throw new Error(
+      `Error fetching firmware information from Flashman: ${error.message}`,
+    );
+  }
+
+  // If no firmware in Flashman throw the error and return
+  if (
+    firmwareNameResponse.status === 404 ||
+    !firmwareNameResponse.body?.filename
+  ) {
+    ferror(
+      `Firmware version ${version} for device ${acsId} not found in Flashman.`
+    );
+    throw new Error(
+      `Firmware version ${version} for device ${acsId} not found in Flashman.`
+    );
+  }
+
+  // If the request failed for any other reason, throw an error
+  if (!firmwareNameResponse.ok) {
+    ferror(
+      'Failed to fetch firmware information from Flashman. ' +
+      `Status: ${firmwareNameResponse.status}, ` +
+      `Body: ${JSON.stringify(firmwareNameResponse.body)}`
+    );
+    throw new Error(
+      'Failed to fetch firmware information from Flashman. ' +
+      `Status: ${firmwareNameResponse.status}, ` +
+      `Body: ${JSON.stringify(firmwareNameResponse.body)}`
+    );
+  }
+
+  // Send the firmware update command to the device
+  flog(
+    'Initiating firmware update to version', version,
+    'with firmware file', firmwareNameResponse.body.filename,
+    'for device', acsId + '.',
+    'Exiting script to execute firmware upgrade command on the device.'
+  );
+  declare(
+    'Downloads.[FileType:1 Firmware Upgrade Image]',
+    {path: 1},
+    {path: 1},
+  );
+  declare(
+    'Downloads.[FileType:1 Firmware Upgrade Image].FileName',
+    {value: 1},
+    {value: firmwareNameResponse.body.filename},
+  );
+  declare(
+    'Downloads.[FileType:1 Firmware Upgrade Image].Download',
+    {value: 1},
+    {value: Date.now()},
+  );
+
+  throw UPGRADE;
+}
+
+/**
  * Sends a request to Flashman to inform that a script with the provided tag has
  * been run.
  *
@@ -933,6 +1025,15 @@ export async function run(
     } else if (err === EXT) {
       status = 2;
     } else if (err === SKIP) {
+      endTimer();
+      return {
+        fault: null,
+        clear: state.clear,
+        declare: state.declarations,
+        done: true,
+        returnValue: ret,
+      };
+    } else if (err === UPGRADE) {
       endTimer();
       return {
         fault: null,
