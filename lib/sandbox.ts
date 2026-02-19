@@ -758,13 +758,14 @@ export async function updateFirmware(version: string): Promise<void> {
     throw new Error("Sandbox not initialized");
 
   const acsId = state.sessionContext.deviceId;
+  const productClass = declare('DeviceID.ProductClass', {value: 1}, null);
 
   // Get the firmware filename from Flashman. Cannot be async as we must execute
   // it in the same session
   let firmwareNameResponse;
   try {
     firmwareNameResponse = await fetch(
-      `${FLASHMAN_URL}/acs-id/${acsId}/firmwares?version=${version}`,
+      `${FLASHMAN_URL}/acs/firmwares?version=${version}&model=${productClass}`,
       { method: 'GET' }
     );
   } catch (error) {
