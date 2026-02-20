@@ -836,16 +836,20 @@ export async function updateFirmware(version: string): Promise<void> {
  *
  * @param {string} scriptTag - The tag of the script that has been run
  * (scriptId). 
+ * @param {Fault} fault - The fault information if the script encountered an
+ * error.
  * @returns {Promise<void>} A promise that resolves when the request is
  * successful, or rejects with an error if the request fails.
  */
-function sendScriptRunInfoToFlashman(scriptTag: string): void{
+function sendScriptRunInfoToFlashman(scriptTag: string, fault?: Fault): void {
   request({
     url: `${FLASHMAN_URL}/api/v3/device/acs-id/` +
       `${state.sessionContext.deviceId}/script/${scriptTag}/run`,
     method: 'POST',
     json: {
+      success: !fault,
       timestamp: new Date().toISOString(),
+      error: fault?.message ?? null,
     },
   }).on('response', (response) => {
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -892,17 +896,11 @@ export function init(): void {
     );
   }
 
-  // Get the tag to check if we must run the script or not
-  scriptInfo?.scriptTag;
-
   // If the script tag was not set, throw an error
   if (!scriptInfo?.scriptTag)
     throw new Error("Script tag not set");
 
   const scriptTag = scriptInfo?.scriptTag;
-
-  // Send a request to Flashman to inform that this script run
-  sendScriptRunInfoToFlashman(scriptTag);
 
   // If we must run the script in debug mode, check if the script tag matches or
   // not, if so, throw COMMIT to not run the script
@@ -1017,6 +1015,32 @@ export async function run(
 
   let ret, status;
 
+  // args: Array<string>
+  // [0]: "PERIODIC"/"BOOTSTRAP"/"BOOT"
+  // [1]: {
+  //   isDebug: boolean,
+  //   scriptTag: string,
+  // }
+  // Try parsing the second argument as JSON, if it fails, throw an error
+  let scriptInfo;
+  try {
+    scriptInfo = JSON.parse(context.args?.[1]);
+  } catch (error) {
+    log(
+      "Invalid JSON in second argument: " + context.args?.[1] +
+      " Error: " + error.message, {},
+    );
+    endTimer();
+    return {
+      fault: errorToFault(error),
+      clear: null,
+      declare: null,
+      done: false,
+      returnValue: null,
+    }; 
+  }
+  const scriptTag = scriptInfo?.scriptTag;
+
   try {
     ret = script.runInContext(context, { displayErrors: false });
     status = 0;
@@ -1035,6 +1059,8 @@ export async function run(
         returnValue: ret,
       };
     } else if (err === UPGRADE) {
+      // Send a request to Flashman to inform that this script run the firmware
+      if (scriptTag) sendScriptRunInfoToFlashman(scriptTag);
       endTimer();
       return {
         fault: null,
@@ -1044,8 +1070,11 @@ export async function run(
         returnValue: ret,
       };
     } else {
+      // Send a request to Flashman to inform that this script run with error
+      const fault = errorToFault(err);
+      if (scriptTag) sendScriptRunInfoToFlashman(scriptTag, fault);
       return {
-        fault: errorToFault(err),
+        fault: fault,
         clear: null,
         declare: null,
         done: false,
@@ -1053,6 +1082,10 @@ export async function run(
       };
     }
   }
+
+  
+  // Send a request to Flashman to inform that this script run the firmware
+  if (scriptTag) sendScriptRunInfoToFlashman(scriptTag);
 
   const _state = state;
   let fault;
