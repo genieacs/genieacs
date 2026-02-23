@@ -873,29 +873,17 @@ function sendScriptRunInfoToFlashman(scriptTag: string, fault?: Fault): void {
  * matches the script tag provided in the arguments and sets up the context
  * accordingly.
  *
+ * @param {{[isDebug]: boolean; [scriptTag]: string}} [scriptInfo] - The script
+ * information
+ *
  * @throws {Error} If the sandbox is not initialized or if the script tag is not
  * set in the arguments.
  * @throws {SKIP} If it is debug and already ran once with the same script tag,
  * so it should not run again.
  */
-export function init(): void {
-  // args: Array<string>
-  // [0]: "PERIODIC"/"BOOTSTRAP"/"BOOT"
-  // [1]: {
-  //   isDebug: boolean,
-  //   scriptTag: string,
-  // }
-  // Try parsing the second argument as JSON, if it fails, throw an error
-  let scriptInfo;
-  try {
-    scriptInfo = JSON.parse(context.args?.[1]);
-  } catch (error) {
-    throw new Error(
-      "Invalid JSON in second argument: " + context.args?.[1] +
-      " Error: " + error.message,
-    );
-  }
-
+function init(
+  scriptInfo?: { isDebug?: boolean; scriptTag?: string }
+): void {
   // If the script tag was not set, throw an error
   if (!scriptInfo?.scriptTag)
     throw new Error("Script tag not set");
@@ -944,7 +932,6 @@ Object.defineProperty(context, "getValue", { value: getValue });
 Object.defineProperty(context, "setValue", { value: setValue });
 Object.defineProperty(context, "addObject", { value: addObject });
 Object.defineProperty(context, "deleteObject", { value: deleteObject });
-Object.defineProperty(context, "init", { value: init });
 
 // Monkey-patch Math.random() to make it deterministic
 context.random = random;
@@ -1022,9 +1009,11 @@ export async function run(
   //   scriptTag: string,
   // }
   // Try parsing the second argument as JSON, if it fails, throw an error
+  // But only for scripts that come with scriptInfo in arguments
   let scriptInfo;
   try {
-    scriptInfo = JSON.parse(context.args?.[1]);
+    if (context.args?.[1]) scriptInfo = JSON.parse(context.args[1]);
+    init(scriptInfo);
   } catch (error) {
     log(
       "Invalid JSON in second argument: " + context.args?.[1] +
