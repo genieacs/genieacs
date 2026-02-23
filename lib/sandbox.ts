@@ -836,20 +836,24 @@ export async function updateFirmware(version: string): Promise<void> {
  *
  * @param {string} scriptTag - The tag of the script that has been run
  * (scriptId). 
- * @param {Fault} fault - The fault information if the script encountered an
- * error.
+ * @param {{fault?: Fault, started?: boolean}} runInfo - If any fault happened
+ * and if the script just started running
  * @returns {Promise<void>} A promise that resolves when the request is
  * successful, or rejects with an error if the request fails.
  */
-function sendScriptRunInfoToFlashman(scriptTag: string, fault?: Fault): void {
+function sendScriptRunInfoToFlashman(
+  scriptTag: string,
+  runInfo: {fault?: Fault, started?: boolean} = {},
+): void {
   request({
     url: `${FLASHMAN_URL}/api/v3/device/acs-id/` +
       `${state.sessionContext.deviceId}/script/${scriptTag}/run`,
     method: 'POST',
     json: {
-      success: !fault,
+      success: !runInfo?.fault,
+      started: runInfo?.started ?? false,
       timestamp: new Date().toISOString(),
-      error: fault?.message ?? null,
+      error: runInfo?.fault?.message ?? null,
     },
   }).on('response', (response) => {
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -917,6 +921,9 @@ function init(
     `Script ${scriptInfo?.scriptTag} ` +
     `initialized in ${context.isDebug ? 'debug' : 'normal'} mode.`,
   );
+
+  // Send the script initialization info to Flashman for monitoring
+  sendScriptRunInfoToFlashman(scriptInfo.scriptTag, {started: true});
 }
 
 Object.defineProperty(context, "Date", { value: SandboxDate });
@@ -1061,7 +1068,7 @@ export async function run(
     } else {
       // Send a request to Flashman to inform that this script run with error
       const fault = errorToFault(err);
-      if (scriptTag) sendScriptRunInfoToFlashman(scriptTag, fault);
+      if (scriptTag) sendScriptRunInfoToFlashman(scriptTag, {fault});
       return {
         fault: fault,
         clear: null,
@@ -1072,7 +1079,6 @@ export async function run(
     }
   }
 
-  
   // Send a request to Flashman to inform that this script run the firmware
   if (scriptTag) sendScriptRunInfoToFlashman(scriptTag);
 
