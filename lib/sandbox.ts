@@ -850,6 +850,7 @@ function sendScriptRunInfoToFlashman(
       `${state.sessionContext.deviceId}/script/${scriptTag}/run`,
     method: 'POST',
     json: {
+      mac: context.mac,
       success: !runInfo?.fault,
       started: runInfo?.started ?? false,
       timestamp: new Date().toISOString(),
@@ -869,6 +870,103 @@ function sendScriptRunInfoToFlashman(
       {}
     );
   });
+}
+
+/**
+ * Gets the MAC address of the device. This function should call the EXT
+ * function to retrieve the MAC address field from Flashman.
+ */
+function getMACAddress(): string | null {
+  const genieIDDeclare = declare('DeviceID.ID', {value: 1}, null) as {
+    value?: [boolean | number | string, string];
+  };
+  const ouiDeclare = declare('DeviceID.OUI', {value: 1}, null) as {
+    value?: [boolean | number | string, string];
+  };
+  const modelClassDeclare = declare(
+    'DeviceID.ProductClass',
+    {value: 1},
+    null,
+  ) as {
+    value?: [boolean | number | string, string];
+  };
+
+  // Detect TR-098 or TR-181 data model based on database value
+  const isIGDModel = (declare(
+    'InternetGatewayDevice.ManagementServer.URL',
+    {value: 1},
+    null,
+  ) as {
+    value?: [boolean | number | string, string];
+  }).value;
+  const prefix = (isIGDModel) ? 'InternetGatewayDevice' : 'Device';
+
+  const modelNameDeclare = declare(
+    prefix + '.DeviceInfo.ModelName',
+    {value: 1},
+    null,
+  ) as {
+    value?: [boolean | number | string, string];
+  };
+  const firmwareVersionDeclare = declare(
+    prefix + '.DeviceInfo.SoftwareVersion',
+    {value: 1},
+    null,
+  ) as {
+    value?: [boolean | number | string, string];
+  };
+  const hardwareVersionDeclare = declare(
+    prefix + '.DeviceInfo.HardwareVersion',
+    {value: 1},
+    null,
+  ) as {
+    value?: [boolean | number | string, string];
+  };
+  const trType = isIGDModel ? 'tr098' : 'tr181';
+
+  const genieID = genieIDDeclare.value?.[0];
+  const oui = ouiDeclare.value?.[0];
+  const modelClass = modelClassDeclare.value?.[0];
+  const modelName = modelNameDeclare.value?.[0];
+  const firmwareVersion = firmwareVersionDeclare.value?.[0];
+  const hardwareVersion = hardwareVersionDeclare.value?.[0];
+
+  const hashIndex = Date.now().toString() + genieID;
+
+  const flashmanArguments = {
+    oui: oui,
+    model: modelClass,
+    modelName: modelName,
+    firmwareVersion: firmwareVersion,
+    hardwareVersion: hardwareVersion,
+    trType: trType,
+    acs_id: genieID,
+  };
+
+  // Call the EXT function to get the MAC address field from Flashman
+  const macFieldResponse = ext(
+    'flashman-api',
+    'getMACField',
+    JSON.stringify(flashmanArguments),
+    hashIndex,
+  );
+
+  // Get the MAC address from the CPE
+  let mac: string | null = null;
+  if (macFieldResponse.success && macFieldResponse.macField) {
+    // Query and add the MAC address in Fargs
+    const macDeclare = declare(macFieldResponse.macField, {value: 1}, null) as {
+      value?: [boolean | number | string, string];
+    };
+
+    if (
+      macDeclare && macDeclare.value && macDeclare.value[0] &&
+      typeof macDeclare.value[0] === 'string'
+    ) mac = macDeclare.value[0].toUpperCase();
+  }
+
+  // Return the MAC address
+  return mac;
 }
 
 /**
@@ -911,10 +1009,14 @@ function init(
   // Remove the script tag in Tags to avoid running again in debug mode
   declare('Tags.' + scriptInfo?.scriptTag, null, {value: false});
 
+  // Get the MAC address of the device
+  const mac = getMACAddress();
+
   // Set the debug mode, tag and initilization flag
   context.isDebug = !!scriptInfo?.isDebug;
   context.scriptTag = scriptInfo?.scriptTag;
   context.initialized = true;
+  context.mac = mac;
 
   // Log the script initialization
   flog(
