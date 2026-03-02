@@ -390,7 +390,7 @@ function alert(schema: alertSchema):void {
 export function flog(...args: any[]): void {
   // If not initialized, throw an error
   if (!context.initialized)
-    throw new Error("Sandbox not initialized");
+    throw new Error("flog: Sandbox not initialized");
 
   // If no arguments were provided, do not log
   if (args.length === 0) return;
@@ -431,7 +431,7 @@ export function flog(...args: any[]): void {
 export function ferror(...args: any[]): void {
   // If not initialized, throw an error
   if (!context.initialized)
-    throw new Error("Sandbox not initialized");
+    throw new Error("ferror: Sandbox not initialized");
 
   // If no arguments were provided, do not log
   if (args.length === 0) return;
@@ -501,7 +501,7 @@ function audit(actionType: ActionType, path: string, value?: any): void {
 export function getValue(path: string): boolean | number | string | undefined {
   // If not initialized, throw an error
   if (!context.initialized)
-    throw new Error("Sandbox not initialized");
+    throw new Error("getValue: Sandbox not initialized");
 
   // If the path is not a string, return an error
   if (typeof path !== "string") {
@@ -549,7 +549,7 @@ export function setValue(
 ): boolean {
   // If not initialized, throw an error
   if (!context.initialized)
-    throw new Error("Sandbox not initialized");
+    throw new Error("setValue: Sandbox not initialized");
 
   // If the path is not a string, return an error
   if (typeof path !== "string") {
@@ -603,7 +603,7 @@ export function addObject(
 ): number | undefined {
   // If not initialized, throw an error
   if (!context.initialized)
-    throw new Error("Sandbox not initialized");
+    throw new Error("addObject: Sandbox not initialized");
 
   // If the path is not a string, return an error
   if (typeof path !== "string") {
@@ -689,7 +689,7 @@ export function deleteObject(
 ): boolean {
   // If not initialized, throw an error
   if (!context.initialized)
-    throw new Error("Sandbox not initialized");
+    throw new Error("deleteObject: Sandbox not initialized");
 
   // If the path is not a string, return an error
   if (typeof path !== "string") {
@@ -755,7 +755,7 @@ export function deleteObject(
 export async function updateFirmware(version: string): Promise<void> {
   // If not initialized, throw an error
   if (!context.initialized)
-    throw new Error("Sandbox not initialized");
+    throw new Error("updateFirmware: Sandbox not initialized");
 
   const acsId = state.sessionContext.deviceId;
   const productClass = declare('DeviceID.ProductClass', {value: 1}, null);
@@ -993,7 +993,7 @@ function init(
   const scriptTag = scriptInfo?.scriptTag;
 
   // If we must run the script in debug mode, check if the script tag matches or
-  // not, if so, throw COMMIT to not run the script
+  // not, if so, throw SKIP to not run the script
   const tagValue = declare(
     'Tags.' + scriptTag,
     { value: Date.now() },
