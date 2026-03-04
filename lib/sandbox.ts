@@ -801,7 +801,8 @@ export async function updateFirmware(version: string): Promise<void> {
   let firmwareNameResponse;
   try {
     firmwareNameResponse = await fetch(
-      `${FLASHMAN_URL}/acs/firmwares?version=${version}&model=${productClass}`,
+      `${FLASHMAN_URL}/acs/product-class/${productClass}/` +
+        `version/${version}/firmware`,
       { method: 'GET' }
     );
   } catch (error) {
@@ -827,7 +828,10 @@ export async function updateFirmware(version: string): Promise<void> {
   }
 
   // If the request failed for any other reason, throw an error
-  if (!firmwareNameResponse.ok) {
+  if (
+    !firmwareNameResponse.ok || firmwareNameResponse.status !== 200 ||
+    !firmwareNameResponse.body.success
+  ) {
     ferror(
       'Failed to fetch firmware information from Flashman. ' +
       `Status: ${firmwareNameResponse.status}, ` +
