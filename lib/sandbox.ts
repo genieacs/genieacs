@@ -541,7 +541,7 @@ export function getValue(path: string): boolean | number | string | undefined {
 
   // If the path is not a string, return an error
   if (typeof path !== "string") {
-    log(`[ERROR] getValue() called with a non-string path: ${path}`, {});
+    ferror(`getValue() called with a non-string path: ${path}`);
     return UNDEFINED;
   }
 
@@ -550,7 +550,7 @@ export function getValue(path: string): boolean | number | string | undefined {
 
   // If the path is empty, return an error
   if (path.length === 0) {
-    log("[ERROR] getValue() called with an empty path.", {});
+    ferror("getValue() called with an empty path.");
     return UNDEFINED;
   }
 
@@ -589,7 +589,7 @@ export function setValue(
 
   // If the path is not a string, return an error
   if (typeof path !== "string") {
-    log(`[ERROR] setValue() called with a non-string path: ${path}`, {});
+    ferror(`setValue() called with a non-string path: ${path}`);
     return UNDEFINED;
   }
 
@@ -598,7 +598,7 @@ export function setValue(
 
   // If the path is empty, return an error
   if (path.length === 0) {
-    log("[ERROR] setValue() called with an empty path.", {});
+    ferror("setValue() called with an empty path.");
     return UNDEFINED;
   }
 
@@ -611,10 +611,7 @@ export function setValue(
     typeof value !== "number" &&
     typeof value !== "string"
   ) {
-    log(
-      `[ERROR] setValue() called with an invalid value type: ${typeof value}.`,
-      {}
-    );
+    ferror(`setValue() called with an invalid value type: ${typeof value}.`);
     return false;
   }
 
@@ -643,7 +640,7 @@ export function addObject(
 
   // If the path is not a string, return an error
   if (typeof path !== "string") {
-    log(`[ERROR] addObject() called with a non-string path: ${path}`, {});
+    ferror(`addObject() called with a non-string path: ${path}`);
     return UNDEFINED;
   }
 
@@ -652,16 +649,15 @@ export function addObject(
 
   // If the path is empty, return an error
   if (path.length === 0) {
-    log("[ERROR] addObject() called with an empty path.", {});
+    ferror("addObject() called with an empty path.");
     return UNDEFINED;
   }
 
   // If the path does not end with a * or [...], return an error
   if (!path.endsWith("*") && !(/\[[\w=\d]*\]$/).test(path)) {
-    log(
-      '[ERROR] addObject() called with a path that does not end with "*"' +
+    ferror(
+      'addObject() called with a path that does not end with "*"' +
         `or [...]: ${path}.`,
-      {}
     );
     return UNDEFINED;
   }
@@ -676,10 +672,9 @@ export function addObject(
 
   // If currentSize is undefined, return an error
   if (typeof currentSize !== 'number') {
-    log(
-      '[ERROR] Unable to determine the current size of objects at path:' +
+    ferror(
+      'Unable to determine the current size of objects at path:' +
        ` ${path}.`,
-      {}
     );
     return UNDEFINED;
   }
@@ -702,10 +697,9 @@ export function addObject(
 
   // If newObjectPath is undefined, return an error
   if (typeof newObjectPath !== 'string') {
-    log(
-      '[ERROR] Unable to determine the path of the newly added object at' +
+    ferror(
+      'Unable to determine the path of the newly added object at' +
         ` ${path}.`,
-      {}
     );
     return UNDEFINED;
   }
@@ -729,7 +723,7 @@ export function deleteObject(
 
   // If the path is not a string, return an error
   if (typeof path !== "string") {
-    ferror(`[ERROR] deleteObject() called with a non-string path: ${path}`);
+    ferror(`deleteObject() called with a non-string path: ${path}`);
     return false;
   }
 
@@ -738,7 +732,7 @@ export function deleteObject(
 
   // If the path is empty, return an error
   if (path.length === 0) {
-    ferror("[ERROR] deleteObject() called with an empty path.");
+    ferror("deleteObject() called with an empty path.");
     return false;
   }
 
@@ -753,9 +747,8 @@ export function deleteObject(
   // If currentSize is undefined, return an error
   if (typeof currentSize !== 'number') {
     ferror(
-      '[ERROR] Unable to determine the current size of objects at path:' +
+      'Unable to determine the current size of objects at path:' +
        ` ${path}.`,
-      {}
     );
     return false;
   }
