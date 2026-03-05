@@ -408,7 +408,7 @@ export function flog(...args: any[]): void {
   
   // Send the message to Flashman
   request({
-    url: `${FLASHMAN_URL}/api/v3/device/acs-id/` +
+    url: `${FLASHMAN_URL}/acs/acs-id/` +
       `${state.sessionContext.deviceId}/script/` +
       `${state.sessionContext.customScriptInfo?.scriptTag}/log`,
     method: 'POST',
@@ -462,7 +462,7 @@ export function ferror(...args: any[]): void {
   
   // Send the message to Flashman
   request({
-    url: `${FLASHMAN_URL}/api/v3/device/acs-id/` +
+    url: `${FLASHMAN_URL}/acs/acs-id/` +
       `${state.sessionContext.deviceId}/script/` +
       `${state.sessionContext.customScriptInfo?.scriptTag}/log`,
     method: 'POST',
@@ -495,7 +495,7 @@ enum ActionType {
 function audit(actionType: ActionType, path: string, value?: any): void {
   // Send the request to Flashman for auditing
   request({
-    url: `${FLASHMAN_URL}/api/v3/device/acs-id/` +
+    url: `${FLASHMAN_URL}/acs/acs-id/` +
       `${state.sessionContext.deviceId}/script/` +
       `${state.sessionContext.customScriptInfo?.scriptTag}/audit`,
     method: 'POST',
@@ -886,7 +886,7 @@ function sendScriptRunInfoToFlashman(
   runInfo: {fault?: Fault, started?: boolean} = {},
 ): void {
   request({
-    url: `${FLASHMAN_URL}/api/v3/device/acs-id/` +
+    url: `${FLASHMAN_URL}/acs/acs-id/` +
       `${state.sessionContext.deviceId}/script/${scriptTag}/run`,
     method: 'POST',
     json: {
