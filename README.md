@@ -1,5 +1,9 @@
 # GenieACS
 
+**This is the development branch for GenieACS v1.3. It is unstable and not ready
+for production use. For the latest stable release, see the
+[v1.2 branch](https://github.com/genieacs/genieacs/tree/v1.2).**
+
 GenieACS is a high performance Auto Configuration Server (ACS) for remote
 management of TR-069 enabled devices. It utilizes a declarative and fault
 tolerant configuration engine for automating complex provisioning scenarios at
@@ -72,5 +76,5 @@ For commercial support options, please visit
 
 ## License
 
-Copyright 2013-2021 GenieACS Inc. GenieACS is released under the
+Copyright 2013-2026 GenieACS Inc. GenieACS is released under the
 [AGPLv3 license terms](https://raw.githubusercontent.com/genieacs/genieacs/master/LICENSE).
