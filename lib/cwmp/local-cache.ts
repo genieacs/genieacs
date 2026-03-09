@@ -82,7 +82,7 @@ async function fetchPresets(): Promise<[string, Preset[]]> {
       try {
         schedule.duration = +parts.shift() * 1000;
         schedule.schedule = scheduling.parseCron(parts.join(" "));
-      } catch (err) {
+      } catch {
         logger.warn({
           message: "Invalid preset schedule",
           preset: preset["_id"],
@@ -97,7 +97,7 @@ async function fetchPresets(): Promise<[string, Preset[]]> {
     if (preset["precondition"]) {
       try {
         precondition = parse(preset["precondition"]);
-      } catch (error) {
+      } catch {
         precondition = convertOldPrecondition(
           JSON.parse(preset["precondition"]),
         );

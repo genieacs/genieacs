@@ -70,7 +70,7 @@ function matchEtag(etag: string, header: string): boolean {
     if (t.startsWith("W/")) t = t.substring(2);
     try {
       t = JSON.parse(t);
-    } catch (e) {
+    } catch {
       // Ignore
     }
     if (t === "*") return true;

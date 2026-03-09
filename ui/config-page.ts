@@ -31,7 +31,7 @@ function putActionHandler(action, _object, isNew?): Promise<ValidationErrors> {
 
       try {
         object.value = stringify(parse(object.value || ""));
-      } catch (err) {
+      } catch {
         return void resolve({
           value: "Config value must be valid expression",
         });

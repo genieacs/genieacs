@@ -20,12 +20,12 @@ const cidrs: [IPv4 | IPv6, number][] = [];
 for (const str of FORWARDED_HEADER.split(",").map((s) => s.trim())) {
   try {
     cidrs.push(parseCIDR(str));
-  } catch (err) {
+  } catch {
     // Not a valid CIDR format, try parsing as IP
     try {
       const ip = parse(str);
       cidrs.push([ip, ip.toByteArray().length * 8]);
-    } catch (err) {
+    } catch {
       // Not a valid IP either, ignore
     }
   }

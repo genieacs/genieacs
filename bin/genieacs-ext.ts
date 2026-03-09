@@ -55,6 +55,7 @@ process.on("message", (message) => {
   if (!script) {
     const cwd = process.env["GENIEACS_EXT_DIR"];
     process.chdir(cwd);
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     script = require(`${cwd}/${fileName}`);
   }
 

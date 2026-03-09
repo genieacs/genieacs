@@ -157,7 +157,7 @@ export async function httpConnectionRequest(
         authHeader = auth.parseWwwAuthenticateHeader(
           res.headers["www-authenticate"],
         );
-      } catch (err) {
+      } catch {
         return "Connection request error: Error parsing www-authenticate header";
       }
       [username, password, authExp] = await extractAuth(authExp, false);

@@ -78,7 +78,7 @@ export async function fetchDevice(
 
     try {
       res.push([Path.parse(path), t, attrs]);
-    } catch (err) {
+    } catch {
       // The path parser is now more strict so we might be in a situation where
       // the database contains invalid paths from before this change So here we
       // encode the invalid characters.

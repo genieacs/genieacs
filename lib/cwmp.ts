@@ -89,7 +89,7 @@ async function authenticate(
       authentication = auth.parseAuthorizationHeader(
         sessionContext.httpRequest.headers["authorization"],
       );
-    } catch (err) {
+    } catch {
       return false;
     }
   }
@@ -1274,7 +1274,7 @@ async function clientError(
   body: string,
   msg: string,
 ): Promise<void> {
-  let debugEnabled = false;
+  let debugEnabled: boolean;
   let deviceId: string = null;
 
   if (sessionContext) {
@@ -1312,7 +1312,7 @@ async function clientError(
 function decodeString(buffer: Buffer, charset: string): string {
   try {
     return buffer.toString(charset as BufferEncoding);
-  } catch (err) {
+  } catch {
     if (encodingExists(charset)) return decode(buffer, charset);
   }
   return null;
@@ -1383,7 +1383,7 @@ async function listenerAsync(
     // connection is closed before the stream is finished.
     // For Node 12.9+ we can just use stream.readableEnded
     if (!readableEnded) throw new Error("Connection closed");
-  } catch (err) {
+  } catch {
     return;
   }
 

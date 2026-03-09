@@ -501,7 +501,7 @@ async function handler(
       };
       try {
         await filesBucket.delete(filename as unknown as ObjectId);
-      } catch (err) {
+      } catch {
         // Ignore error if file doesn't exist
       }
 

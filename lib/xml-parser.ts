@@ -41,7 +41,7 @@ export function parseXmlDeclaration(buffer: Buffer): Attribute[] {
       str = str.slice(0, str.indexOf("?>"));
       try {
         return parseAttrs(str.slice(5));
-      } catch (err) {
+      } catch {
         // Ignore
       }
     }

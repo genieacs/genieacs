@@ -103,7 +103,7 @@ export async function connectionRequest(
   let remoteAddress;
   try {
     remoteAddress = new URL(connectionRequestUrl).hostname;
-  } catch (err) {
+  } catch {
     return "Invalid connection request URL";
   }
 
@@ -185,7 +185,7 @@ export async function connectionRequest(
         () => true,
         () => false,
       );
-    } catch (err) {
+    } catch {
       // Ignore invalid address
     }
   }

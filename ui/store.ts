@@ -113,7 +113,7 @@ function checkConnection(): void {
             setTimestamp(now2);
             m.redraw();
           }
-        } catch (err) {
+        } catch {
           // Ignore in case of missing or invalid Date header
         }
 
@@ -200,7 +200,9 @@ export async function xhrRequest(
       try {
         response = xhr.responseText ? JSON.parse(xhr.responseText) : null;
       } catch (err) {
-        throw new Error("Invalid JSON: " + xhr.responseText.slice(0, 80));
+        throw new Error("Invalid JSON: " + xhr.responseText.slice(0, 80), {
+          cause: err,
+        });
       }
     } else {
       response = xhr.responseText;

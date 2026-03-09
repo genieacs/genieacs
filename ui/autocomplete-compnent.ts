@@ -119,7 +119,9 @@ export default class Autocomplete {
       if (!this.visible) {
         if (!this.hideTimeout) {
           document.body.appendChild(this.container);
-          window.getComputedStyle(this.container).opacity;
+          // Force style recalc so the initial opacity is resolved before
+          // setting it to "1", allowing the CSS transition to play.
+          void window.getComputedStyle(this.container).opacity;
         } else {
           clearTimeout(this.hideTimeout);
           this.hideTimeout = null;

@@ -119,7 +119,7 @@ function parameterInfoList(xml: Element): [Path, boolean, boolean][] {
         if (param && !param.endsWith("."))
           return [Path.parse(param), false, parsed];
         else return [Path.parse(param.slice(0, -1)), true, parsed];
-      } catch (err) {
+      } catch {
         warnings.push({
           message: "Missing or invalid XML node",
           element: "Name",
@@ -201,7 +201,7 @@ function parameterValueList(
       }
       try {
         return [Path.parse(param), parsed, valueType];
-      } catch (err) {
+      } catch {
         warnings.push({
           message: "Missing or invalid XML node",
           element: "Name",
@@ -250,7 +250,7 @@ function parameterAttributeList(xml: Element): [Path, number, string[]][] {
 
       try {
         return [Path.parse(param), notification, accessList];
-      } catch (err) {
+      } catch {
         warnings.push({
           message: "Missing or invalid XML node",
           element: "Name",

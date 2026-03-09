@@ -83,7 +83,7 @@ const component: ClosureComponent<Attrs> = (initialVnode) => {
     const list = filterList.map((f, idx) => {
       try {
         return parseFilter(attrs.resource, f);
-      } catch (err) {
+      } catch {
         filterInvalid |= 1 << idx;
       }
       return null;

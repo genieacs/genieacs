@@ -93,7 +93,7 @@ export function start(
           res.writeHead(500, { Connection: "close" });
           res.end(`${err.name}: ${err.message}`);
         }
-      } catch (err) {
+      } catch {
         // Ignore
       }
       throw err;

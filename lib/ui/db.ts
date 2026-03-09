@@ -260,7 +260,7 @@ function flattenPreset(
     try {
       // Try parse to check expression validity
       parse(p.precondition as string);
-    } catch (error) {
+    } catch {
       p.precondition = convertOldPrecondition(
         JSON.parse(p.precondition as string),
       );

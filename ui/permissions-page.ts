@@ -90,7 +90,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
       if (object.filter) {
         try {
           object.filter = stringify(memoizedParse(object.filter));
-        } catch (err) {
+        } catch {
           return void resolve({
             filter: "Filter must be valid expression",
           });
@@ -100,7 +100,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
       if (object.validate) {
         try {
           object.validate = stringify(memoizedParse(object.validate));
-        } catch (err) {
+        } catch {
           return void resolve({
             validate: "Validate must be valid expression",
           });

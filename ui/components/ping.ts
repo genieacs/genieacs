@@ -47,7 +47,7 @@ const component: ClosureComponent = (vn): Component => {
       try {
         const url = new URL(param.value[0]);
         h = url.hostname;
-      } catch (err) {
+      } catch {
         // Ignore
       }
 

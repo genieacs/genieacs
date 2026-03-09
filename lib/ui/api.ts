@@ -519,7 +519,7 @@ router.put("/files/:id", async (ctx) => {
 
   try {
     await db.deleteFile(id);
-  } catch (err) {
+  } catch {
     // File doesn't exist, ignore
   }
 

@@ -25,7 +25,7 @@ function parseHeaderFeilds(str: string): Record<string, string> {
       try {
         value = JSON.parse(value);
       } catch (error) {
-        throw new Error("Unable to parse auth header");
+        throw new Error("Unable to parse auth header", { cause: error });
       }
     }
     res[name.trim()] = value;
