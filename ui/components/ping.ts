@@ -60,7 +60,7 @@ const component: ClosureComponent = (vn): Component => {
         }
       }
 
-      return m("div", host ? `Pinging ${host}:` : "");
+      return m("div.text-sm my-4", host ? `Pinging ${host}:` : "");
     },
   };
 };

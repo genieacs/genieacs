@@ -110,12 +110,28 @@ const inlineDepsPlugin = {
     const deps = [
       "parsimmon",
       "espresso-iisojs",
-      "codemirror",
+      "@codemirror",
       "mithril",
       "yaml",
     ];
+    const depFiles = new Set();
     build.onResolve({ filter: /^[^.]/ }, async (args) => {
-      if (deps.some((d) => args.path.startsWith(d))) return undefined;
+      if (args.pluginData === "inlineDeps") return undefined;
+      if (
+        depFiles.has(args.importer) ||
+        deps.some((d) => args.path.startsWith(d))
+      ) {
+        const res = await build.resolve(args.path, {
+          importer: args.importer,
+          namespace: args.namespace,
+          resolveDir: args.resolveDir,
+          kind: args.kind,
+          with: args.with,
+          pluginData: "inlineDeps",
+        });
+        depFiles.add(res.path);
+        return res;
+      }
       return { sideEffects: false, external: true };
     });
   },
@@ -226,6 +242,16 @@ async function copyStatic(): Promise<void> {
 }
 
 async function generateCss(): Promise<void> {
+  const tailwindPlugin = {
+    name: "tailwind",
+    setup(build) {
+      build.onLoad({ filter: /\/ui\/css\/app.css$/ }, async (args) => {
+        const res = await execAsync(`npx @tailwindcss/cli -i ${args.path}`);
+        return { loader: "css", contents: res.stdout };
+      });
+    },
+  } as esbuild.Plugin;
+
   const res = await esbuild.build({
     bundle: true,
     absWorkingDir: INPUT_DIR,
@@ -235,7 +261,11 @@ async function generateCss(): Promise<void> {
     entryPoints: ["ui/css/app.css"],
     entryNames: "[dir]/[name]-[hash]",
     outfile: path.join(OUTPUT_DIR, "public/app.css"),
-    target: ["chrome109", "safari15.6", "firefox115", "opera102", "edge118"],
+    plugins: [tailwindPlugin],
+    loader: {
+      ".woff2": "dataurl",
+    },
+    target: ["chrome111", "safari16.4", "firefox128"],
     metafile: true,
   });
 
@@ -293,7 +323,7 @@ async function generateFrontendJs(): Promise<void> {
     sourcesContent: false,
     platform: "browser",
     format: "esm",
-    target: ["chrome109", "safari15.6", "firefox115", "opera102", "edge118"],
+    target: ["chrome111", "safari16.4", "firefox128"],
     entryPoints: ["ui/app.ts"],
     entryNames: "[dir]/[name]-[hash]",
     outdir: path.join(OUTPUT_DIR, "public"),

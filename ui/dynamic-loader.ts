@@ -1,7 +1,7 @@
 import * as notifications from "./notifications.ts";
 
-export let codeMirror: typeof import("codemirror");
-export let yaml: typeof import("yaml");
+export let codeMirror: typeof import("./codemirror-loader");
+export let yaml: typeof import("./yaml-loader");
 
 let note;
 
@@ -23,14 +23,9 @@ export function loadCodeMirror(): Promise<void> {
   if (codeMirror) return Promise.resolve();
 
   return new Promise((resolve, reject) => {
-    const promises = [
-      import("codemirror"),
-      import("codemirror/mode/javascript/javascript"),
-      import("codemirror/mode/yaml/yaml"),
-    ];
-    Promise.all(promises)
-      .then((modules) => {
-        codeMirror = modules[0].default;
+    import("./codemirror-loader")
+      .then((module) => {
+        codeMirror = module;
         resolve();
       })
       .catch((err) => {
@@ -44,9 +39,9 @@ export function loadYaml(): Promise<void> {
   if (yaml) return Promise.resolve();
 
   return new Promise((resolve, reject) => {
-    import("yaml")
+    import("./yaml-loader")
       .then((module) => {
-        yaml = module.default;
+        yaml = module;
         resolve();
       })
       .catch((err) => {

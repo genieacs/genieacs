@@ -10,8 +10,10 @@ const component: ClosureComponent = (): Component => {
       const device = vnode.attrs["device"];
 
       return m(
-        "button.primary",
+        "button",
         {
+          class:
+            "px-2.5 py-1.5 border border-transparent text-xs font-medium rounded-sm shadow-xs text-white bg-cyan-600 hover:bg-cyan-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500",
           title: "Initiate session and refresh basic parameters",
           onclick: (e) => {
             e.target.disabled = true;

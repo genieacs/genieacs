@@ -25,8 +25,12 @@ export const component: ClosureComponent = (): Component => {
 
       const dev = store.fetch("devices", vnode.attrs["deviceFilter"]);
       if (!dev.value.length) {
-        if (!dev.fulfilling)
-          return m("p.error", `No such device ${vnode.attrs["deviceId"]}`);
+        if (!dev.fulfilling) {
+          return m(
+            "p.text-sm font-bold text-red-500",
+            `No such device ${vnode.attrs["deviceId"]}`,
+          );
+        }
         return m(
           "loading",
           { queries: [dev] },
@@ -47,7 +51,7 @@ export const component: ClosureComponent = (): Component => {
         );
       }
 
-      return [m("h1", vnode.attrs["deviceId"]), cmps];
+      return m("div.device-page", m("h1", vnode.attrs["deviceId"]), cmps);
     },
   };
 };

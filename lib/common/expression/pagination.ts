@@ -1,8 +1,8 @@
 import { complement } from "espresso-iisojs";
-import { Expression } from "../../types";
-import normalize from "./normalize";
-import { Clause, SynthContext } from "./synth";
-import { and, or } from "./util";
+import { Expression } from "../../types.ts";
+import normalize from "./normalize.ts";
+import { Clause, SynthContext } from "./synth.ts";
+import { and, or } from "./util.ts";
 
 type Bookmark = Record<string, null | boolean | number | string>;
 

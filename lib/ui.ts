@@ -105,6 +105,9 @@ router.post("/login", async (ctx) => {
 
   const username = ctx.request.body.username;
   const password = ctx.request.body.password;
+  const remember = ctx.request.body.remember;
+  const TWO_WEEKS_SECS = 1209600;
+  const ONE_DAY_SECS = 86400;
 
   const log = {
     message: "Log in",
@@ -115,8 +118,14 @@ router.post("/login", async (ctx) => {
 
   function success(authMethod): void {
     log.method = authMethod;
-    const token = jwt.sign({ username, authMethod }, JWT_SECRET);
-    ctx.cookies.set(JWT_COOKIE, token, { sameSite: "lax" });
+    const expiresIn = remember ? TWO_WEEKS_SECS : ONE_DAY_SECS;
+    const token = jwt.sign({ username, authMethod }, JWT_SECRET, {
+      expiresIn,
+    });
+    ctx.cookies.set(JWT_COOKIE, token, {
+      sameSite: "lax",
+      maxAge: remember ? expiresIn * 1000 : null,
+    });
     ctx.body = JSON.stringify(token);
     logger.accessInfo(log);
   }
@@ -219,7 +228,7 @@ router.get("/", async (ctx) => {
       <link rel="shortcut icon" type="image/png" href="${FAVICON_PNG}" />
       <link rel="stylesheet" href="${APP_CSS}">
     </head>
-    <body>
+    <body class="h-full bg-stone-100">
     <noscript>GenieACS UI requires JavaScript to work. Please enable JavaScript in your browser.</noscript>
       <script>
         window.clientConfig = ${JSON.stringify({

@@ -16,25 +16,22 @@ const component: ClosureComponent = (): Component => {
         const filter = slice["filter"];
         if (evaluateExpression(filter, device || {})) {
           const dot = m(
-            "svg",
+            "svg.inline",
             {
               width: "1em",
               height: "1em",
+              style: "margin: 0 0.2em 0.2em",
               xmlns: "http://www.w3.org/2000/svg",
               "xmlns:xlink": "http://www.w3.org/1999/xlink",
             },
-            m("circle", {
+            m("circle.stroke-stone-200 stroke-1", {
               cx: "0.5em",
               cy: "0.5em",
               r: "0.4em",
               fill: evaluateExpression(slice["color"], null),
             }),
           );
-          return m(
-            "span.overview-dot",
-            dot,
-            evaluateExpression(slice["label"], null),
-          );
+          return m("span", dot, evaluateExpression(slice["label"], null));
         }
       }
       return null;

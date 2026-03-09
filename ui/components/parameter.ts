@@ -5,7 +5,7 @@ import * as store from "../store.ts";
 import { evaluate } from "../../lib/common/expression/util.ts";
 import memoize from "../../lib/common/memoize.ts";
 import timeAgo from "../timeago.ts";
-import { getIcon } from "../icons.ts";
+import { icon } from "../tailwind-utility-components.ts";
 
 const evaluateParam = memoize((exp, obj, now: number) => {
   let timestamp = now;
@@ -84,16 +84,18 @@ const component: ClosureComponent = (): Component => {
               });
             },
           },
-          getIcon("edit"),
+          m(icon, {
+            name: "edit",
+            class: "inline h-4 w-4 ml-1 text-cyan-700 hover:text-cyan-900",
+          }),
         );
       }
 
       const el = m("long-text", { text: `${value}` });
 
       return m(
-        "span",
+        "span.inline-flex overflow-hidden align-top",
         {
-          class: "parameter-value",
           onmouseover: (e) => {
             e.redraw = false;
             // Don't update any child element
@@ -104,7 +106,7 @@ const component: ClosureComponent = (): Component => {
             }
           },
         },
-        el,
+        m("span.truncate", el),
         edit,
       );
     },

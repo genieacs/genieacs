@@ -27,7 +27,7 @@ function createField(current, attr, focus): Children {
       options.push(m("option", { value: op }, op));
 
     return m(
-      "select",
+      "select.mt-1 block pl-3 pr-10 py-2 text-base border-stone-300 focus:outline-hidden focus:ring-cyan-500 focus:border-cyan-500 sm:text-sm rounded-md",
       {
         name: attr.id,
         value: selected,
@@ -68,7 +68,16 @@ function createField(current, attr, focus): Children {
         },
       };
 
-      return m("tr", [m("td", m("input", opts)), m("td", op)]);
+      return m("tr", [
+        m(
+          "td",
+          m(
+            "input.focus:ring-cyan-500 h-4 w-4 text-cyan-700 border-stone-300 rounded-sm",
+            opts,
+          ),
+        ),
+        m("td", op),
+      ]);
     });
 
     return m("table", options);
@@ -102,18 +111,55 @@ function createField(current, attr, focus): Children {
       },
     });
   } else if (attr.type === "textarea") {
-    return m("textarea", {
+    return m(
+      "textarea.shadow-xs block focus:ring-cyan-500 focus:border-cyan-500 sm:text-sm border border-stone-300 rounded-md",
+      {
+        name: attr.id,
+        value: current.object[attr.id],
+        readonly: attr.id === "_id" && !current.isNew,
+        cols: attr.cols || 80,
+        rows: attr.rows || 4,
+        style: "resize: none;",
+        oncreate: focus
+          ? (_vnode) => {
+              const dom = _vnode.dom as HTMLInputElement;
+              dom.focus();
+              dom.setSelectionRange(dom.value.length, dom.value.length);
+            }
+          : null,
+        oninput: (e) => {
+          current.object[attr.id] = e.target.value;
+          current.modified = true;
+          e.redraw = false;
+        },
+        onkeypress: (e) => {
+          e.redraw = false;
+          if (e.which === 13 && !e.shiftKey) {
+            const dom = e.target;
+            dom.form.querySelector("button[type=submit]").click();
+            return false;
+          }
+          return true;
+        },
+      },
+    );
+  }
+
+  let datalist: string = null;
+  if (attr.options) datalist = getDatalistId(attr.options);
+
+  return m(
+    "input.shadow-xs focus:ring-cyan-500 focus:border-cyan-500 block sm:text-sm border-stone-300 rounded-md",
+    {
+      type: attr.type === "password" ? "password" : "text",
       name: attr.id,
+      list: datalist,
+      autocomplete: datalist ? "off" : null,
+      disabled: attr.id === "_id" && !current.isNew,
       value: current.object[attr.id],
-      readonly: attr.id === "_id" && !current.isNew,
-      cols: attr.cols || 80,
-      rows: attr.rows || 4,
-      style: "resize: none;",
       oncreate: focus
         ? (_vnode) => {
-            const dom = _vnode.dom as HTMLInputElement;
-            dom.focus();
-            dom.setSelectionRange(dom.value.length, dom.value.length);
+            (_vnode.dom as HTMLInputElement).focus();
           }
         : null,
       oninput: (e) => {
@@ -121,39 +167,8 @@ function createField(current, attr, focus): Children {
         current.modified = true;
         e.redraw = false;
       },
-      onkeypress: (e) => {
-        e.redraw = false;
-        if (e.which === 13 && !e.shiftKey) {
-          const dom = e.target;
-          dom.form.querySelector("button[type=submit]").click();
-          return false;
-        }
-        return true;
-      },
-    });
-  }
-
-  let datalist: string = null;
-  if (attr.options) datalist = getDatalistId(attr.options);
-
-  return m("input", {
-    type: attr.type === "password" ? "password" : "text",
-    name: attr.id,
-    list: datalist,
-    autocomplete: datalist ? "off" : null,
-    disabled: attr.id === "_id" && !current.isNew,
-    value: current.object[attr.id],
-    oncreate: focus
-      ? (_vnode) => {
-          (_vnode.dom as HTMLInputElement).focus();
-        }
-      : null,
-    oninput: (e) => {
-      current.object[attr.id] = e.target.value;
-      current.modified = true;
-      e.redraw = false;
     },
-  });
+  );
 }
 
 interface Attrs {
@@ -195,24 +210,22 @@ const component: ClosureComponent<Attrs> = () => {
         form.push(
           m(
             "p",
-            m("label", { for: attr.id }, attr.label || attr.id),
-            m("br"),
+            m(
+              "label.block text-sm font-semibold text-stone-700 mt-2 mb-1",
+              { for: attr.id },
+              attr.label || attr.id,
+            ),
             createField(current, attr, focus),
           ),
         );
       }
 
-      const submit = m(
-        "button.primary",
-        { type: "submit" },
-        "Save",
-      ) as VnodeDOM;
-      const buttons = [submit];
+      const buttons: VnodeDOM[] = [];
 
       if (!current.isNew) {
         buttons.push(
           m(
-            "button.primary",
+            "button.ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-xs text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-red-500",
             {
               type: "button",
               title: `Delete ${singular[resource] || resource}`,
@@ -229,11 +242,19 @@ const component: ClosureComponent<Attrs> = () => {
         );
       }
 
-      form.push(m(".actions-bar", buttons));
+      const submit = m(
+        "button.ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-xs text-sm font-medium rounded-md text-white bg-cyan-600 hover:bg-cyan-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500",
+        { type: "submit" },
+        "Save",
+      ) as VnodeDOM;
+
+      buttons.push(submit);
+
+      form.push(m("div.flex justify-end mt-5", buttons));
 
       const children = [
         m(
-          "h1",
+          "h2.text-lg leading-6 font-medium text-stone-900",
           `${current.isNew ? "New" : "Editing"} ${
             singular[resource] || resource
           }`,
@@ -259,7 +280,7 @@ const component: ClosureComponent<Attrs> = () => {
         ),
       ];
 
-      return m("div.put-form", children);
+      return m("div", children);
     },
   };
 };

@@ -8,7 +8,7 @@ import { Expression } from "../lib/types.ts";
 
 const getAutocomplete = memoize((resource) => {
   const labels = smartQuery.getLabels(resource);
-  const autocomplete = new Autocomplete("autocomplete", (txt, cb) => {
+  const autocomplete = new Autocomplete((txt, cb) => {
     txt = txt.toLowerCase();
     cb(
       labels
@@ -111,32 +111,41 @@ const component: ClosureComponent<Attrs> = (initialVnode) => {
 
       attrs = vnode.attrs;
 
-      return m("div.filter", [
-        m("b", "Filter"),
-        ...filterList.map((fltr, idx) => {
-          return m("input", {
-            type: "text",
-            class: `${(filterInvalid >> idx) & 1 ? "error" : ""}`,
-            value: fltr,
-            oninput: (e) => {
-              e.redraw = false;
-              filterList[idx] = e.target.value;
-              filterTouched = true;
-            },
-            oncreate: (vn) => {
-              const el = vn.dom as HTMLInputElement;
-              getAutocomplete(vnode.attrs.resource).attach(el);
+      return m("div.mb-5", [
+        m("label.text-sm font-semibold text-stone-700", "Filter"),
+        m(
+          "div.shadow-sm rounded-md mt-1 max-w-screen-sm -space-y-px",
+          ...filterList.map((fltr, idx) => {
+            let classNames =
+              "appearance-none rounded-none relative block w-full px-3 py-2 border-stone-300 placeholder-stone-500 text-stone-900 focus:ring-cyan-500 focus:border-cyan-500 focus:z-10 sm:text-sm";
+            if (idx === 0) classNames += " rounded-t-md";
+            if (idx === filterList.length - 1) classNames += " rounded-b-md";
+            if (filterInvalid & (1 << idx)) classNames += " text-red-700";
 
-              el.addEventListener("blur", () => {
-                if (filterTouched) onChange();
-              });
+            return m(`input`, {
+              type: "text",
+              class: classNames,
+              value: fltr,
+              oninput: (e) => {
+                e.redraw = false;
+                filterList[idx] = e.target.value;
+                filterTouched = true;
+              },
+              oncreate: (vn) => {
+                const el = vn.dom as HTMLInputElement;
+                getAutocomplete(vnode.attrs.resource).attach(el);
 
-              el.addEventListener("keydown", (e) => {
-                if (e.key === "Enter" && filterTouched) onChange();
-              });
-            },
-          });
-        }),
+                el.addEventListener("blur", () => {
+                  if (filterTouched) onChange();
+                });
+
+                el.addEventListener("keydown", (e) => {
+                  if (e.key === "Enter" && filterTouched) onChange();
+                });
+              },
+            });
+          }),
+        ),
       ]);
     },
   };

@@ -3,7 +3,7 @@ import { m } from "../components.ts";
 import * as taskQueue from "../task-queue.ts";
 import { QueryResponse, evaluateExpression } from "../store.ts";
 import * as expressionParser from "../../lib/common/expression/parser.ts";
-import { getIcon } from "../icons.ts";
+import { icon } from "../tailwind-utility-components.ts";
 import { FlatDevice } from "../../lib/ui/db.ts";
 import { Expression } from "../../lib/types.ts";
 
@@ -42,11 +42,24 @@ const component: ClosureComponent<Attrs> = () => {
         }
       }
 
-      const headers = Object.values(parameters).map((p) =>
-        m("th", evaluateExpression(p["label"], device)),
-      );
+      const headers = Object.values(parameters).map((p, i) => {
+        const padding = i ? "px-3" : "pl-6 pr-3";
 
-      const thead = m("thead", m("tr", headers));
+        return m(
+          "th",
+          {
+            scope: "col",
+            class:
+              "py-3.5 text-left text-sm font-semibold text-stone-500 " +
+              padding,
+          },
+          evaluateExpression(p["label"], device),
+        );
+      });
+
+      headers.push(m("th.pl-3", { scope: "col" }));
+
+      const thead = m("thead.bg-stone-50", m("tr", headers));
 
       const rows = [];
       for (const i of instances) {
@@ -60,7 +73,9 @@ const component: ClosureComponent<Attrs> = () => {
 
         if (!evaluateExpression(filter, device)) continue;
 
-        const row = parameters.map((p) => {
+        const row = parameters.map((p, j) => {
+          const padding = j ? "px-3" : "pl-6 pr-3";
+
           const param = expressionParser.map(p.parameter, (e) => {
             if (Array.isArray(e) && e[0] === "PARAM")
               return ["PARAM", ["||", i, ".", e[1]]];
@@ -68,6 +83,9 @@ const component: ClosureComponent<Attrs> = () => {
           });
           return m(
             "td",
+            {
+              class: "whitespace-nowrap py-4 text-sm text-stone-900 " + padding,
+            },
             m.context(
               {
                 device: device,
@@ -87,6 +105,10 @@ const component: ClosureComponent<Attrs> = () => {
           row.push(
             m(
               "td",
+              {
+                class:
+                  "whitespace-nowrap pl-3 pr-6 py-4 text-sm text-stone-900",
+              },
               m(
                 "button",
                 {
@@ -99,17 +121,29 @@ const component: ClosureComponent<Attrs> = () => {
                     });
                   },
                 },
-                getIcon("delete-instance"),
+                m(icon, {
+                  name: "delete-instance",
+                  class: "inline h-4 w-4 text-cyan-700 hover:text-cyan-900",
+                }),
               ),
             ),
           );
+        } else {
+          row.push(m("td"));
         }
         rows.push(m("tr", row));
       }
 
       if (!rows.length) {
         rows.push(
-          m("tr.empty", m("td", { colspan: headers.length }, "No instances")),
+          m(
+            "tr",
+            m(
+              "td.bg-stripes text-sm font-medium text-center text-stone-500 p-4",
+              { colspan: headers.length },
+              "No instances",
+            ),
+          ),
         );
       }
 
@@ -132,7 +166,11 @@ const component: ClosureComponent<Attrs> = () => {
                     });
                   },
                 },
-                getIcon("add-instance"),
+                m(icon, {
+                  name: "add-instance",
+                  class:
+                    "inline h-4 w-4 ml-1 text-cyan-700 hover:text-cyan-900",
+                }),
               ),
             ),
           ),
@@ -149,7 +187,14 @@ const component: ClosureComponent<Attrs> = () => {
         m(
           "loading",
           { queries: [vnode.attrs.deviceQuery] },
-          m("table.table", thead, m("tbody", rows)),
+          m(
+            "div.shadow-sm overflow-hidden rounded-lg w-max",
+            m(
+              "table.divide-y divide-stone-200",
+              thead,
+              m("tbody.divide-y divide-stone-200 bg-white", rows),
+            ),
+          ),
         ),
       ];
     },

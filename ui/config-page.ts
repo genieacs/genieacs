@@ -7,7 +7,7 @@ import uiConfigComponent from "./ui-config-component.ts";
 import * as overlay from "./overlay.ts";
 import { parse, stringify } from "../lib/common/expression/parser.ts";
 import { loadCodeMirror, loadYaml } from "./dynamic-loader.ts";
-import { getIcon } from "./icons.ts";
+import { icon } from "./tailwind-utility-components.ts";
 
 const attributes = [
   { id: "_id", label: "Key" },
@@ -64,6 +64,7 @@ function putActionHandler(action, _object, isNew?): Promise<ValidationErrors> {
         })
         .catch(reject);
     } else if (action === "delete") {
+      if (!confirm("Deleting config. Are you sure?")) return void resolve(null);
       store
         .deleteResource("config", object["_id"])
         .then(() => {
@@ -166,7 +167,10 @@ function renderTable(confsResponse, searchString): Children {
           );
         },
       },
-      getIcon("edit"),
+      m(icon, {
+        name: "edit",
+        class: "inline h-4 w-4 ml-1 text-cyan-700 hover:text-cyan-900",
+      }),
     );
 
     const del = m(
@@ -181,26 +185,32 @@ function renderTable(confsResponse, searchString): Children {
           });
         },
       },
-      getIcon("remove"),
+      m(icon, {
+        name: "remove",
+        class: "inline h-4 w-4 ml-1 text-cyan-700 hover:text-cyan-900",
+      }),
     );
 
     rows.push(
       m(
         "tr",
         attrs,
-        m("td.left", m("long-text", { text: conf._id })),
+        m("td.pl-4 pr-2 py-2 truncate", m("long-text", { text: conf._id })),
         m(
-          "td.right",
-          m("span", [m("long-text", { text: `${conf.value}` }), edit, del]),
+          "td.px-2 py-2 text-right truncate",
+          m("long-text", { text: `${conf.value}` }),
         ),
+        m("td.pl-2 pr-4 py-2 w-max", edit, del),
       ),
     );
   }
 
-  if (!rows.length)
-    rows.push(m("tr.empty", m("td", { colspan: 2 }, "No config")));
+  if (!rows.length) rows.push(m("tr", m("td", { colspan: 3 }, "No config")));
 
-  return m("table", m("tbody", rows));
+  return m(
+    "table.w-full table-fixed font-mono text-sm text-stone-700",
+    m("tbody.bg-white divide-y divide-stone-200", rows),
+  );
 }
 
 export const component: ClosureComponent = (): Component => {
@@ -208,16 +218,19 @@ export const component: ClosureComponent = (): Component => {
     view: (vnode) => {
       document.title = "Config - GenieACS";
 
-      const search = m("input", {
-        type: "text",
-        placeholder: "Search config",
-        oninput: (e) => {
-          vnode.state["searchString"] = e.target.value;
-          e.redraw = false;
-          clearTimeout(vnode.state["timeout"]);
-          vnode.state["timeout"] = setTimeout(m.redraw, 250);
+      const search = m(
+        "input.appearance-none block w-full px-3 py-2 border-stone-300 placeholder-stone-500 text-stone-900 focus:ring-cyan-500 focus:border-cyan-500 sm:text-sm rounded-md mt-1 max-w-screen-sm shadow-sm mb-5",
+        {
+          type: "text",
+          placeholder: "Search config",
+          oninput: (e) => {
+            vnode.state["searchString"] = e.target.value;
+            e.redraw = false;
+            clearTimeout(vnode.state["timeout"]);
+            vnode.state["timeout"] = setTimeout(m.redraw, 250);
+          },
         },
-      });
+      );
 
       const confs = store.fetch("config", true);
 
@@ -226,7 +239,7 @@ export const component: ClosureComponent = (): Component => {
 
       if (window.authorizer.hasAccess("config", 3)) {
         newConfig = m(
-          "button.primary",
+          "button.mr-4 px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500",
           {
             title: "Create new config",
             onclick: () => {
@@ -295,7 +308,7 @@ export const component: ClosureComponent = (): Component => {
           const attrs = { prefix: sub.prefix, name: sub.name, data: sub.data };
           subs.push(
             m(
-              "button",
+              "button.mr-4 px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500",
               {
                 onclick: () => {
                   let cb: () => Children = null;
@@ -345,19 +358,21 @@ export const component: ClosureComponent = (): Component => {
       }
 
       return [
-        m("h1", "Listing config"),
+        m("h1.text-xl font-medium text-stone-900 mb-5", "Listing config"),
         m(
           "loading",
           { queries: [confs] },
           m(
-            ".all-parameters",
+            "div",
             search,
             m(
-              ".parameter-list",
-              { style: "height: 400px" },
-              renderTable(confs, vnode.state["searchString"]),
+              ".shadow-sm overflow-hidden border-b border-stone-200 rounded-lg bg-white",
+              m(
+                ".overflow-y-scroll h-96",
+                renderTable(confs, vnode.state["searchString"]),
+              ),
             ),
-            m(".actions-bar", [newConfig].concat(subs)),
+            m(".mt-5", [newConfig].concat(subs)),
           ),
         ),
       ];

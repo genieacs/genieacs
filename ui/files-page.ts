@@ -120,7 +120,7 @@ export const component: ClosureComponent = (): Component => {
       function onFilterChanged(filter): void {
         const ops = { filter };
         if (vnode.attrs["sort"]) ops["sort"] = vnode.attrs["sort"];
-        m.route.set("/admin/files", ops);
+        m.route.set("/files", ops);
       }
 
       const sort = vnode.attrs["sort"]
@@ -137,7 +137,7 @@ export const component: ClosureComponent = (): Component => {
           _sort[attributes[Math.abs(index) - 1].id] = Math.sign(index);
         const ops = { sort: JSON.stringify(_sort) };
         if (vnode.attrs["filter"]) ops["filter"] = vnode.attrs["filter"];
-        m.route.set("/admin/files", ops);
+        m.route.set("/files", ops);
       }
 
       let filter = vnode.attrs["filter"]
@@ -163,14 +163,20 @@ export const component: ClosureComponent = (): Component => {
       attrs["onSortChange"] = onSortChange;
       attrs["downloadUrl"] = downloadUrl;
       attrs["recordActionsCallback"] = (file) => {
-        return [m("a", { href: "api/blob/files/" + file["_id"] }, "Download")];
+        return [
+          m(
+            "a.text-cyan-700 hover:text-cyan-900",
+            { href: "api/blob/files/" + file["_id"] },
+            "Download",
+          ),
+        ];
       };
 
       if (window.authorizer.hasAccess("files", 3)) {
         attrs["actionsCallback"] = (selected: Set<string>): Children => {
           return [
             m(
-              "button.primary",
+              "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
               {
                 title: "Create new file",
                 onclick: () => {
@@ -257,7 +263,7 @@ export const component: ClosureComponent = (): Component => {
               "New",
             ),
             m(
-              "button.primary",
+              "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
               {
                 title: "Delete selected files",
                 disabled: !selected.size,
@@ -300,7 +306,7 @@ export const component: ClosureComponent = (): Component => {
       };
 
       return [
-        m("h1", "Listing files"),
+        m("h1.text-xl font-medium text-stone-900 mb-5", "Listing files"),
         m(filterComponent, filterAttrs),
         m(
           "loading",

@@ -657,12 +657,16 @@ export function changePassword(
   });
 }
 
-export function logIn(username: string, password: string): Promise<void> {
+export function logIn(
+  username: string,
+  password: string,
+  remember = false,
+): Promise<void> {
   return xhrRequest({
     method: "POST",
     url: "login",
     background: true,
-    body: { username, password },
+    body: { username, password, remember },
   });
 }
 

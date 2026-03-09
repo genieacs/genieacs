@@ -39,6 +39,22 @@ interface ValidationErrors {
   [prop: string]: string;
 }
 
+function getExcerpt(text: string, maxLength = 80, maxLines = 10): string[] {
+  let lines: string[] = text?.split("\n", maxLines + 1) ?? [""];
+
+  if (lines.length > maxLines) {
+    lines.pop();
+    lines[maxLines - 1] = "\ufe19";
+  }
+
+  lines = lines.map((l) => {
+    if (l.length <= maxLength) return l;
+    return l.slice(0, maxLength - 1) + "\u2026";
+  });
+
+  return lines;
+}
+
 function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
   return new Promise((resolve, reject) => {
     const object = Object.assign({}, _object);
@@ -90,6 +106,8 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
         })
         .catch(reject);
     } else if (action === "delete") {
+      if (!confirm("Deleting preset. Are you sure?")) return void resolve(null);
+
       store
         .deleteResource("presets", object["_id"])
         .then(() => {
@@ -149,7 +167,7 @@ export const component: ClosureComponent = (): Component => {
       function onFilterChanged(filter): void {
         const ops = { filter };
         if (vnode.attrs["sort"]) ops["sort"] = vnode.attrs["sort"];
-        m.route.set("/admin/presets", ops);
+        m.route.set("/presets", ops);
       }
 
       const sort = vnode.attrs["sort"]
@@ -176,7 +194,7 @@ export const component: ClosureComponent = (): Component => {
           _sort[attributes[Math.abs(index) - 1].id] = Math.sign(index);
         const ops = { sort: JSON.stringify(_sort) };
         if (vnode.attrs["filter"]) ops["filter"] = vnode.attrs["filter"];
-        m.route.set("/admin/presets", ops);
+        m.route.set("/presets", ops);
       }
 
       let filter = vnode.attrs["filter"]
@@ -227,18 +245,24 @@ export const component: ClosureComponent = (): Component => {
           }
 
           return m(
-            "a",
+            "a.text-cyan-700 hover:text-cyan-900 font-mono",
             { href: devicesUrl, title: preset["precondition"] },
-            preset["precondition"],
+            getExcerpt(preset["precondition"], 80, 1)[0],
+          );
+        } else if (attr.id === "provisionArgs") {
+          return m(
+            "span.font-mono",
+            { title: preset["provisionArgs"] },
+            getExcerpt(preset["provisionArgs"], 80, 1)[0],
           );
         } else if (
           attr.id === "provision" &&
           userDefinedProvisions.has(preset[attr.id])
         ) {
           return m(
-            "a",
+            "a.text-cyan-700 hover:text-cyan-900",
             {
-              href: `#!/admin/provisions?${m.buildQueryString({
+              href: `#!/provisions?${m.buildQueryString({
                 filter: `Q("ID", "${preset["provision"]}")`,
               })}`,
             },
@@ -261,7 +285,7 @@ export const component: ClosureComponent = (): Component => {
       attrs["recordActionsCallback"] = (preset) => {
         return [
           m(
-            "a",
+            "button.text-cyan-700 hover:text-cyan-900 font-medium",
             {
               onclick: () => {
                 let cb: () => Children = null;
@@ -322,7 +346,7 @@ export const component: ClosureComponent = (): Component => {
         attrs["actionsCallback"] = (selected: Set<string>): Children => {
           return [
             m(
-              "button.primary",
+              "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
               {
                 title: "Create new preset",
                 onclick: () => {
@@ -368,7 +392,7 @@ export const component: ClosureComponent = (): Component => {
               "New",
             ),
             m(
-              "button.primary",
+              "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
               {
                 title: "Delete selected presets",
                 disabled: !selected.size,
@@ -411,7 +435,7 @@ export const component: ClosureComponent = (): Component => {
       };
 
       return [
-        m("h1", "Listing presets"),
+        m("h1.text-xl font-medium text-stone-900 mb-5", "Listing presets"),
         m(filterComponent, filterAttrs),
         m(
           "loading",

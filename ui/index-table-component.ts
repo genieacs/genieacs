@@ -1,6 +1,6 @@
 import { ClosureComponent, Component, Children } from "mithril";
 import { m } from "./components.ts";
-import { getIcon } from "./icons.ts";
+import { icon } from "./tailwind-utility-components.ts";
 import debounce from "../lib/common/debounce.ts";
 
 interface Attribute {
@@ -10,6 +10,22 @@ interface Attribute {
 }
 
 const MAX_PAGE_SIZE = 200;
+
+function getExcerpt(text: string, maxLength = 80, maxLines = 10): string[] {
+  let lines: string[] = text?.split("\n", maxLines + 1) ?? [""];
+
+  if (lines.length > maxLines) {
+    lines.pop();
+    lines[maxLines - 1] = "\ufe19";
+  }
+
+  lines = lines.map((l) => {
+    if (l.length <= maxLength) return l;
+    return l.slice(0, maxLength - 1) + "\u2026";
+  });
+
+  return lines;
+}
 
 function renderTable(
   attributes: Attribute[],
@@ -40,32 +56,66 @@ function renderTable(
   // Table header
   const labels = [];
   if (buttons.length) {
-    const selectAll = m("input", {
-      type: "checkbox",
-      checked: records.length && selected.size === records.length,
-      onchange: (e) => {
-        for (const record of records) {
-          const id = record["_id"] || record["DeviceID.ID"].value[0];
-          if (e.target.checked) selected.add(id);
-          else selected.delete(id);
-        }
+    const selectAll = m(
+      "input.focus:ring-cyan-500 h-4 w-4 text-cyan-700 border-stone-300 rounded-sm",
+      {
+        type: "checkbox",
+        checked: records.length && selected.size === records.length,
+        onchange: (e) => {
+          for (const record of records) {
+            const id = record["_id"] || record["DeviceID.ID"].value[0];
+            if (e.target.checked) selected.add(id);
+            else selected.delete(id);
+          }
+        },
+        disabled: !total,
       },
-      disabled: !total,
-    });
-    labels.push(m("th", selectAll));
+    );
+    labels.push(
+      m(
+        "th",
+        { class: "px-6 py-3.5 w-0", scope: "col" },
+        m("span.sr-only", "Select"),
+        selectAll,
+      ),
+    );
   }
 
-  for (let i = 0; i < attributes.length; i++) {
-    const attr = attributes[i];
+  for (const [i, attr] of attributes.entries()) {
+    let padding: string;
+    if (i === 0) padding = buttons.length ? "pr-3" : "pl-6 pr-3";
+    else if (i === attributes.length - +!recordActionsCallback)
+      padding = "pl-3 pr-6";
+    else padding = "px-3";
+
     const label = attr.label;
     if (!sortAttributes.hasOwnProperty(i)) {
-      labels.push(m("th", label));
+      labels.push(
+        m(
+          "th",
+          {
+            class:
+              "py-3.5 text-left text-sm font-semibold text-stone-500 " +
+              padding,
+            scope: "col",
+          },
+          label,
+        ),
+      );
       continue;
     }
 
-    let symbol = getIcon("unsorted");
-    if (sortAttributes[i] > 0) symbol = getIcon("sorted-asc");
-    else if (sortAttributes[i] < 0) symbol = getIcon("sorted-dsc");
+    let symbol: Children;
+    if (sortAttributes[i] > 0) {
+      symbol = m(icon, { name: "sorted-asc", class: "inline h-4 w-4 ml-1" });
+    } else if (sortAttributes[i] < 0) {
+      symbol = m(icon, { name: "sorted-dsc", class: "inline h-4 w-4 ml-1" });
+    } else {
+      symbol = m(icon, {
+        name: "unsorted",
+        class: "inline h-4 w-4 ml-1 opacity-50 hover:opacity-100",
+      });
+    }
 
     const sortable = m(
       "button",
@@ -78,41 +128,71 @@ function renderTable(
       symbol,
     );
 
-    labels.push(m("th", [label, sortable]));
+    labels.push(
+      m(
+        "th",
+        {
+          class:
+            "py-3.5 text-left text-sm font-semibold text-stone-500 whitespace-nowrap " +
+            padding,
+          scope: "col",
+        },
+        [label, sortable],
+      ),
+    );
   }
+
+  if (recordActionsCallback)
+    labels.push(m("th", { class: "pl-3 pr-6 py-3.5 w-0", scope: "col" }));
 
   // Table rows
   const rows = [];
   for (const record of records) {
     const id = record["_id"] || record["DeviceID.ID"].value[0];
     const tds = [];
+    const isSelected = selected.has(id);
     if (buttons.length) {
-      const checkbox = m("input", {
-        type: "checkbox",
-        checked: selected.has(id),
-        onchange: (e) => {
-          if (e.target.checked) selected.add(id);
-          else selected.delete(id);
+      const checkbox = m(
+        "input.focus:ring-cyan-500 h-4 w-4 text-cyan-700 border-stone-300 rounded-sm",
+        {
+          type: "checkbox",
+          checked: isSelected,
+          onchange: (e) => {
+            if (e.target.checked) selected.add(id);
+            else selected.delete(id);
+          },
+          onclick: (e) => {
+            e.stopPropagation();
+            e.redraw = false;
+          },
         },
-        onclick: (e) => {
-          e.stopPropagation();
-          e.redraw = false;
-        },
-      });
-      tds.push(m("td", checkbox));
+      );
+      tds.push(
+        m("td.px-6 py-4 whitespace-nowrap text-sm text-stone-500", checkbox),
+      );
     }
 
-    for (const attr of attributes) {
-      const attrs = {};
+    for (const [i, attr] of attributes.entries()) {
+      let padding: string;
+      if (i === 0) padding = buttons.length ? "pr-3" : "pl-6 pr-3";
+      else if (i === attributes.length - +!recordActionsCallback)
+        padding = "pl-3 pr-6";
+      else padding = "px-3";
+
+      const attrs = {
+        class: "py-4 whitespace-nowrap text-sm text-stone-900 " + padding,
+      };
       let valueComponent;
 
       if (typeof valueCallback === "function") {
         valueComponent = valueCallback(attr, record);
       } else if (attr.type === "code") {
-        const firstLines = record[attr.id].split("\n", 11);
-        if (firstLines.length > 10) firstLines[10] = ["\ufe19"];
-        if (attrs["title"] == null) attrs["title"] = firstLines.join("\n");
-        valueComponent = firstLines[0] || "";
+        const excerpt = getExcerpt(record[attr.id]);
+        valueComponent = m(
+          "span.font-mono",
+          { title: excerpt.join("\n") },
+          excerpt[0],
+        );
       } else {
         valueComponent = record[attr.id];
       }
@@ -129,13 +209,20 @@ function renderTable(
       recordButtons = recordActionsCallback;
     }
 
-    for (const button of recordButtons)
-      tds.push(m("td.table-row-links", button));
+    for (const button of recordButtons) {
+      tds.push(
+        m(
+          "td.pl-3 pr-6 py-4 whitespace-nowrap text-right text-sm font-medium",
+          button,
+        ),
+      );
+    }
 
     rows.push(
       m(
         "tr",
         {
+          class: isSelected ? "bg-stone-50" : "",
           onclick: (e) => {
             if (["INPUT", "BUTTON", "A"].includes(e.target.nodeName)) {
               e.redraw = false;
@@ -150,17 +237,27 @@ function renderTable(
     );
   }
 
-  if (!rows.length)
-    rows.push(m("tr.empty", m("td", { colspan: labels.length }, "No records")));
+  if (!rows.length) {
+    rows.push(
+      m(
+        "tr",
+        m(
+          "td.bg-stripes text-sm font-medium text-center text-stone-500 p-4",
+          { colspan: labels.length },
+          "No records",
+        ),
+      ),
+    );
+  }
 
   // Table footer
-  const footerElements = [];
-  if (total != null) footerElements.push(`${records.length}/${total}`);
-  else footerElements.push(`${records.length}`);
+  const pagination = [];
+  if (total != null) pagination.push(`${records.length} / ${total}`);
+  else pagination.push(`${records.length}`);
 
-  footerElements.push(
+  pagination.push(
     m(
-      "button",
+      "button.px-4 py-2 border border-stone-300 rounded-md text-stone-700 bg-white hover:bg-stone-50 ml-4 disabled:opacity-50 disabled:cursor-not-allowed",
       {
         title: "Show more records",
         onclick: showMoreCallback,
@@ -171,27 +268,53 @@ function renderTable(
     ),
   );
 
+  let download: Children;
   if (downloadUrl) {
-    footerElements.push(
-      m("a.download-csv", { href: downloadUrl, download: "" }, "Download"),
+    download = m(
+      "a.text-cyan-700 hover:text-cyan-900",
+      { href: downloadUrl, download: "" },
+      "Download",
     );
   }
 
   const tfoot = m(
-    "tfoot",
-    m("tr", m("td", { colspan: labels.length }, footerElements)),
+    "tfoot.bg-white",
+    m(
+      "tr",
+      m(
+        "td.px-6 py-3 text-sm font-medium text-stone-700",
+        { colspan: labels.length },
+        m(
+          "div.flex items-center justify-between",
+          m("div", pagination),
+          download,
+        ),
+      ),
+    ),
   );
 
   const children = [
     m(
-      "table.table.highlight",
-      m("thead", m("tr", labels)),
-      m("tbody", rows),
-      tfoot,
+      "div.flex flex-col",
+      m(
+        "div.-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8",
+        m(
+          "div.py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8",
+          m(
+            "div.shadow-sm overflow-hidden border-b border-stone-200 sm:rounded-lg",
+            m(
+              "table.min-w-full divide-y divide-stone-200",
+              m("thead.bg-stone-50", m("tr", labels)),
+              m("tbody.bg-white divide-y divide-stone-200", rows),
+              tfoot,
+            ),
+          ),
+        ),
+      ),
     ),
   ];
 
-  if (buttons.length) children.push(m("div.actions-bar", buttons));
+  if (buttons.length) children.push(m("div.flex gap-3 mt-4", buttons));
   return children;
 }
 

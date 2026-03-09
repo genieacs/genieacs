@@ -42,7 +42,14 @@
     "seedrandom": "^3.0.5"
   },
   "devDependencies": {
-    "@types/codemirror": "^5.60.17",
+    "@codemirror/commands": "^6.10.2",
+    "@codemirror/lang-javascript": "^6.2.5",
+    "@codemirror/lang-yaml": "^6.1.2",
+    "@codemirror/language": "^6.12.2",
+    "@codemirror/state": "^6.5.4",
+    "@codemirror/view": "^6.39.16",
+    "@tailwindcss/cli": "^4.2.1",
+    "@tailwindcss/forms": "^0.5.11",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/koa": "^2.15.0",
     "@types/koa-compress": "^4.0.7",
@@ -52,7 +59,6 @@
     "@types/seedrandom": "^3.0.8",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
-    "codemirror": "^5.65.21",
     "esbuild": "^0.27.4",
     "eslint": "^8.57.1",
     "eslint-config-prettier": "^9.1.2",
@@ -60,6 +66,7 @@
     "prettier": "^3.8.1",
     "sql.js": "^1.14.1",
     "svgo": "^3.3.3",
+    "tailwindcss": "^4.2.1",
     "typescript": "^5.9.3",
     "yaml": "^1.10.2"
   },

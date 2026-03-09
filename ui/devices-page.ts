@@ -69,7 +69,7 @@ function renderActions(selected: Set<string>): Children {
 
   buttons.push(
     m(
-      "button.primary",
+      "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
       {
         title: "Reboot selected devices",
         disabled: !selected.size,
@@ -87,7 +87,7 @@ function renderActions(selected: Set<string>): Children {
 
   buttons.push(
     m(
-      "button.critical",
+      "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
       {
         title: "Factory reset selected devices",
         disabled: !selected.size,
@@ -105,7 +105,7 @@ function renderActions(selected: Set<string>): Children {
 
   buttons.push(
     m(
-      "button.critical",
+      "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
       {
         title: "Push a firmware or a config file",
         disabled: !selected.size,
@@ -122,7 +122,7 @@ function renderActions(selected: Set<string>): Children {
 
   buttons.push(
     m(
-      "button.primary",
+      "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
       {
         title: "Delete selected devices",
         disabled: !selected.size,
@@ -153,7 +153,7 @@ function renderActions(selected: Set<string>): Children {
 
   buttons.push(
     m(
-      "button.primary",
+      "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
       {
         title: "Tag selected devices",
         disabled: !selected.size,
@@ -185,7 +185,7 @@ function renderActions(selected: Set<string>): Children {
 
   buttons.push(
     m(
-      "button.primary",
+      "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
       {
         title: "Untag selected devices",
         disabled: !selected.size,
@@ -299,7 +299,7 @@ export const component: ClosureComponent = (): Component => {
       attrs["valueCallback"] = valueCallback;
       attrs["recordActionsCallback"] = (device): Children => {
         return m(
-          "a",
+          "a.text-cyan-700 hover:text-cyan-900",
           {
             href: `#!/devices/${encodeURIComponent(
               device["DeviceID.ID"].value[0],
@@ -319,7 +319,7 @@ export const component: ClosureComponent = (): Component => {
       };
 
       return [
-        m("h1", "Listing devices"),
+        m("h1.text-xl font-medium text-stone-900 mb-5", "Listing devices"),
         m(filterComponent, filterAttrs),
         m("loading", { queries: [devs, count] }, m(indexTableComponent, attrs)),
       ];

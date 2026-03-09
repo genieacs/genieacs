@@ -41,28 +41,43 @@ export const component: ClosureComponent = (): Component => {
       document.title = "Overview - GenieACS";
       const children = [];
       for (const group of Object.values(GROUPS)) {
-        if (group["label"])
+        if (group["label"]) {
           children.push(
-            m("h1", store.evaluateExpression(group["label"], null)),
+            m(
+              "h1.text-xl font-medium text-stone-900 mb-5",
+              store.evaluateExpression(group["label"], null),
+            ),
           );
+        }
 
         const groupChildren = [];
         for (const chartName of Object.values(group["charts"]) as string[]) {
           const chart = vnode.attrs["charts"][chartName];
           const chartChildren = [];
-          if (chart.label)
+          if (chart.label) {
             chartChildren.push(
-              m("h2", store.evaluateExpression(chart.label, null)),
+              m(
+                "h2.text-lg font-semibold text-stone-700 truncate mb-5 text-center",
+                store.evaluateExpression(chart.label, null),
+              ),
             );
+          }
 
           const attrs = {};
           attrs["chart"] = chart;
           chartChildren.push(m(pieChartComponent, attrs));
 
-          groupChildren.push(m(".overview-chart", chartChildren));
+          groupChildren.push(
+            m(
+              "div.p-4 bg-white shadow-sm rounded-lg sm:p-6 sm:px-8",
+              chartChildren,
+            ),
+          );
         }
 
-        children.push(m(".overview-chart-group", groupChildren));
+        children.push(
+          m("div.flex justify-center mt-5 mb-10 gap-x-10", groupChildren),
+        );
       }
 
       return children;

@@ -30,7 +30,7 @@ const component: ClosureComponent<Attrs> = () => {
         );
 
         return m(
-          "tr",
+          "div.py-3 grid grid-cols-3 gap-4 px-6",
           {
             oncreate: (vn) => {
               (vn.dom as HTMLElement).style.display = (p as VnodeDOM).dom
@@ -43,15 +43,22 @@ const component: ClosureComponent<Attrs> = () => {
                 : "none";
             },
           },
-          m("th", evaluateExpression(parameter.label, device)),
-          m("td", p),
+          m(
+            "dt.text-sm font-medium text-stone-500",
+            evaluateExpression(parameter["label"], device),
+          ),
+          m("dd.text-sm text-stone-900 col-span-2", p),
         );
       });
 
       return m(
         "loading",
         { queries: [vnode.attrs.deviceQuery] },
-        m("table.parameter-list", rows),
+        m(
+          "dl.bg-white shadow-sm overflow-hidden rounded-lg w-max py-1",
+          { class: "[&>*+*]:border-t [&>*+*]:border-stone-200" },
+          rows,
+        ),
       );
     },
   };

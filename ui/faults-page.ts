@@ -127,14 +127,22 @@ export const component: ClosureComponent = (): Component => {
             fault["device"],
           )}`;
 
-          return m("a", { href: deviceHref }, fault["device"]);
+          return m(
+            "a.text-cyan-700 hover:text-cyan-900 font-medium",
+            { href: deviceHref },
+            fault["device"],
+          );
         }
 
         if (attr.id === "message")
-          return m("long-text", { text: fault["message"] });
+          return m("long-text", { text: fault["message"], class: "max-w-xs" });
 
-        if (attr.id === "detail")
-          return m("long-text", { text: yamlStringify(fault["detail"]) });
+        if (attr.id === "detail") {
+          return m("long-text", {
+            text: yamlStringify(fault["detail"]),
+            class: "max-w-xs",
+          });
+        }
 
         if (attr.id === "timestamp")
           return new Date(fault["timestamp"]).toLocaleString();
@@ -155,7 +163,7 @@ export const component: ClosureComponent = (): Component => {
       if (window.authorizer.hasAccess("faults", 3)) {
         attrs["actionsCallback"] = (selected: Set<string>): Children => {
           return m(
-            "button.primary",
+            "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
             {
               disabled: selected.size === 0,
               title: "Delete selected faults",
@@ -190,7 +198,7 @@ export const component: ClosureComponent = (): Component => {
       };
 
       return [
-        m("h1", "Listing faults"),
+        m("h1.text-xl font-medium text-stone-900 mb-5", "Listing faults"),
         m(filterComponent, filterAttrs),
         m(
           "loading",

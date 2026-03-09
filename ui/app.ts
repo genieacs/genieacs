@@ -1,8 +1,8 @@
 import m, { RouteResolver } from "mithril";
-import layout from "./layout.ts";
+import layout from "./layout.tsx";
 import * as store from "./store.ts";
 import * as wizardPage from "./wizard-page.ts";
-import * as loginPage from "./login-page.ts";
+import * as loginPage from "./login-page.tsx";
 import * as overviewPage from "./overview-page.ts";
 import * as devicesPage from "./devices-page.ts";
 import * as devicePage from "./device-page.ts";
@@ -16,9 +16,10 @@ import * as configPage from "./config-page.ts";
 import * as permissionsPage from "./permissions-page.ts";
 import * as usersPage from "./users-page.ts";
 import Authorizer from "../lib//common/authorizer.ts";
-import * as notifications from "./notifications.ts";
 import { contextifyComponent } from "./components.ts";
 import { PermissionSet, UiConfig } from "../lib/types.ts";
+import drawerComponent from "./drawer-component.ts";
+import { render as renderOverlay } from "./overlay.ts";
 
 declare global {
   interface Window {
@@ -33,16 +34,6 @@ declare global {
 
 window.authorizer = new Authorizer(window.permissionSets);
 
-const adminPages = [
-  "presets",
-  "provisions",
-  "virtualParameters",
-  "files",
-  "config",
-  "users",
-  "permissions",
-];
-
 let state;
 
 function pagify(pageName, page): RouteResolver {
@@ -52,10 +43,14 @@ function pagify(pageName, page): RouteResolver {
       let p;
       if (state?.error) p = m(errorPage.component, state);
       else p = m(contextifyComponent(page.component), state);
-      const attrs = {};
-      attrs["page"] = pageName;
-      attrs["oncreate"] = attrs["onupdate"] = () => {
-        store.fulfill(lastRenderTimestamp);
+      const attrs = {
+        page: pageName,
+        oncreate: () => {
+          store.fulfill(lastRenderTimestamp);
+        },
+        onupdate: () => {
+          store.fulfill(lastRenderTimestamp);
+        },
       };
       return m(layout, attrs, p);
     },
@@ -78,10 +73,8 @@ function pagify(pageName, page): RouteResolver {
           resolve();
         })
         .catch((err) => {
-          if (!window.username && err.message.indexOf("authorized") >= 0) {
-            notifications.push("error", err.message);
+          if (!window.username && err.message.indexOf("authorized") >= 0)
             m.route.set("/login", { continue: requestedPath });
-          }
           state = { error: err.message };
           resolve();
         });
@@ -91,37 +84,20 @@ function pagify(pageName, page): RouteResolver {
   return component;
 }
 
-function redirectAdminPage(): RouteResolver {
-  const component: RouteResolver = {
-    onmatch: () => {
-      for (const page of adminPages) {
-        if (window.authorizer.hasAccess(page, 2)) {
-          m.route.set(`/admin/${page}`);
-          return null;
-        }
-      }
-      return null;
-    },
-  };
-  return component;
-}
-
 m.route(document.body, "/overview", {
   "/wizard": pagify("wizard", wizardPage),
-  "/login": pagify("login", loginPage),
   "/overview": pagify("overview", overviewPage),
   "/devices": pagify("devices", devicesPage),
   "/devices/:id": pagify("devices", devicePage),
   "/faults": pagify("faults", faultsPage),
-  "/admin": redirectAdminPage(),
-  "/admin/presets": pagify("presets", presetsPage),
-  "/admin/provisions": pagify("provisions", provisionsPage),
-  "/admin/virtualParameters": pagify(
-    "virtualParameters",
-    virtualParametersPage,
-  ),
-  "/admin/files": pagify("files", filesPage),
-  "/admin/config": pagify("config", configPage),
-  "/admin/users": pagify("users", usersPage),
-  "/admin/permissions": pagify("permissions", permissionsPage),
+  "/presets": pagify("presets", presetsPage),
+  "/provisions": pagify("provisions", provisionsPage),
+  "/virtualParameters": pagify("virtualParameters", virtualParametersPage),
+  "/files": pagify("files", filesPage),
+  "/config": pagify("config", configPage),
+  "/users": pagify("users", usersPage),
+  "/permissions": pagify("permissions", permissionsPage),
+  "/login": {
+    render: () => [m(loginPage.component), renderOverlay(), m(drawerComponent)],
+  },
 });

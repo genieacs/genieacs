@@ -110,10 +110,17 @@ const component: ClosureComponent<Attrs> = () => {
       };
 
       const code = m(codeEditorComponent, attrs);
-      const submit = m("button.primary", { type: "submit" }, "Save");
+      const submit = m(
+        "button.ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-xs text-sm font-medium rounded-md text-white bg-cyan-600 hover:bg-cyan-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500",
+        { type: "submit" },
+        "Save",
+      );
 
-      return m("div.put-form", [
-        m("h1", `Editing ${name}`),
+      return m("div", [
+        m(
+          "h2.mb-5 text-lg leading-6 font-medium text-stone-900",
+          `Editing ${name}`,
+        ),
         m(
           "form",
           {
@@ -128,7 +135,7 @@ const component: ClosureComponent<Attrs> = () => {
                 .catch(vnode.attrs.onError);
             },
           },
-          [code, m(".actions-bar", [submit])],
+          [code, m(".flex justify-end mt-5", [submit])],
         ),
       ]);
     },

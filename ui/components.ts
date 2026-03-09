@@ -127,7 +127,7 @@ export function contextifyComponent(component: ComponentTypes): ComponentTypes {
             return res;
           } catch (err) {
             return m(
-              "p.error",
+              "p.text-sm font-bold text-red-500 cursor-pointer",
               {
                 title: "Click to print stack trace to console",
                 onclick: () => console.error(err),

@@ -44,6 +44,22 @@ const attributes = [
   { id: "validate", label: "Validate", type: "textarea" },
 ];
 
+function getExcerpt(text: string, maxLength = 80, maxLines = 10): string[] {
+  let lines: string[] = text?.split("\n", maxLines + 1) ?? [""];
+
+  if (lines.length > maxLines) {
+    lines.pop();
+    lines[maxLines - 1] = "\ufe19";
+  }
+
+  lines = lines.map((l) => {
+    if (l.length <= maxLength) return l;
+    return l.slice(0, maxLength - 1) + "\u2026";
+  });
+
+  return lines;
+}
+
 const unpackSmartQuery = memoize((query) => {
   return map(query, (e) => {
     if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "Q")
@@ -119,6 +135,8 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
         })
         .catch(reject);
     } else if (action === "delete") {
+      if (!confirm("Deleting permission. Are you sure?"))
+        return void resolve(null);
       store
         .deleteResource("permissions", object["_id"])
         .then(() => {
@@ -177,7 +195,7 @@ export const component: ClosureComponent = (): Component => {
       function onFilterChanged(filter): void {
         const ops = { filter };
         if (vnode.attrs["sort"]) ops["sort"] = vnode.attrs["sort"];
-        m.route.set("/admin/permissions", ops);
+        m.route.set("/permissions", ops);
       }
 
       const sort = vnode.attrs["sort"]
@@ -197,7 +215,7 @@ export const component: ClosureComponent = (): Component => {
           _sort[attributes[Math.abs(index) - 1].id] = Math.sign(index);
         const ops = { sort: JSON.stringify(_sort) };
         if (vnode.attrs["filter"]) ops["filter"] = vnode.attrs["filter"];
-        m.route.set("/admin/permissions", ops);
+        m.route.set("/permissions", ops);
       }
 
       let filter = vnode.attrs["filter"]
@@ -221,6 +239,9 @@ export const component: ClosureComponent = (): Component => {
           else if (val === 2) return "2: read";
           else if (val === 3) return "3: write";
           return val;
+        } else if (attr.id === "validate" || attr.id === "filter") {
+          const except = getExcerpt(permission[attr.id], 80, 1);
+          return m("span.font-mono", { title: permission[attr.id] }, except[0]);
         }
 
         return permission[attr.id];
@@ -244,7 +265,7 @@ export const component: ClosureComponent = (): Component => {
           if (val === 3) permission["access"] = "3: write";
           return [
             m(
-              "a",
+              "button.text-cyan-700 hover:text-cyan-900 font-medium",
               {
                 onclick: () => {
                   let cb: () => Children = null;
@@ -306,7 +327,7 @@ export const component: ClosureComponent = (): Component => {
         attrs["actionsCallback"] = (selected: Set<string>): Children => {
           return [
             m(
-              "button.primary",
+              "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
               {
                 title: "Create new permission",
                 onclick: () => {
@@ -352,7 +373,7 @@ export const component: ClosureComponent = (): Component => {
               "New",
             ),
             m(
-              "button.primary",
+              "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
               {
                 title: "Delete selected permissions",
                 disabled: !selected.size,
@@ -397,7 +418,7 @@ export const component: ClosureComponent = (): Component => {
       };
 
       return [
-        m("h1", "Listing permissions"),
+        m("h1.text-xl font-medium text-stone-900 mb-5", "Listing permissions"),
         m(filterComponent, filterAttrs),
         m(
           "loading",

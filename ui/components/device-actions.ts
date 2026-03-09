@@ -13,7 +13,7 @@ const component: ClosureComponent = (): Component => {
 
       buttons.push(
         m(
-          "button.primary",
+          "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
           {
             title: "Reboot device",
             onclick: () => {
@@ -29,7 +29,7 @@ const component: ClosureComponent = (): Component => {
 
       buttons.push(
         m(
-          "button.critical",
+          "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
           {
             title: "Factory reset device",
             onclick: () => {
@@ -45,7 +45,7 @@ const component: ClosureComponent = (): Component => {
 
       buttons.push(
         m(
-          "button.critical",
+          "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
           {
             title: "Push a firmware or a config file",
             onclick: () => {
@@ -61,7 +61,7 @@ const component: ClosureComponent = (): Component => {
 
       buttons.push(
         m(
-          "button.primary",
+          "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
           {
             title: "Delete device",
             onclick: () => {
@@ -83,7 +83,7 @@ const component: ClosureComponent = (): Component => {
         ),
       );
 
-      return m(".actions-bar", buttons);
+      return m("div.flex gap-3 mt-4", buttons);
     },
   };
 };

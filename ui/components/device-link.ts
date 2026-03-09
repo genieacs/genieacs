@@ -19,7 +19,7 @@ const component: ClosureComponent = (): Component => {
       });
       if (deviceId) {
         return m(
-          "a",
+          "a.text-cyan-700 hover:text-cyan-900 font-medium",
           { href: `#!/devices/${encodeURIComponent(deviceId)}` },
           children,
         );

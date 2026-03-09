@@ -7,7 +7,7 @@ import m, {
 } from "mithril";
 import * as store from "./store.ts";
 import * as notifications from "./notifications.ts";
-import { getIcon } from "./icons.ts";
+import { icon } from "./tailwind-utility-components.ts";
 import {
   clear,
   commit,
@@ -21,14 +21,6 @@ import {
 
 const invalid: WeakSet<StageTask> = new WeakSet();
 
-function mparam(param): Children {
-  return m("span.parameter", { title: param }, `${param}`);
-}
-
-function mval(val): Children {
-  return m("span.value", { title: val }, `${val}`);
-}
-
 function renderStagingSpv(task: StageTask, queueFunc, cancelFunc): Children {
   function keydown(e: KeyboardEvent): void {
     if (e.key === "Enter") queueFunc();
@@ -39,7 +31,7 @@ function renderStagingSpv(task: StageTask, queueFunc, cancelFunc): Children {
   let input;
   if (task.parameterValues[0][2] === "xsd:boolean") {
     input = m(
-      "select",
+      "select.mt-1 w-full block pl-3 pr-10 py-2 text-base border-stone-300 focus:outline-hidden focus:ring-cyan-500 focus:border-cyan-500 sm:text-sm rounded-md",
       {
         value: task.parameterValues[0][1].toString(),
         onchange: (e) => {
@@ -61,25 +53,43 @@ function renderStagingSpv(task: StageTask, queueFunc, cancelFunc): Children {
     let value = task.parameterValues[0][1];
     if (type === "xsd:dateTime" && typeof value === "number")
       value = new Date(value).toJSON() || value;
-    input = m("input", {
-      type: ["xsd:int", "xsd:unsignedInt"].includes(type) ? "number" : "text",
-      value: value,
-      oninput: (e) => {
-        e.redraw = false;
-        task.parameterValues[0][1] = input.dom.value;
+    input = m(
+      "input.mt-1 w-full shadow-xs focus:ring-cyan-500 focus:border-cyan-500 block sm:text-sm border-stone-300 rounded-md",
+      {
+        type: ["xsd:int", "xsd:unsignedInt"].includes(type) ? "number" : "text",
+        value: value,
+        oninput: (e) => {
+          e.redraw = false;
+          task.parameterValues[0][1] = input.dom.value;
+        },
+        onkeydown: keydown,
+        oncreate: (vnode) => {
+          (vnode.dom as HTMLInputElement).focus();
+          (vnode.dom as HTMLInputElement).select();
+          // Need to prevent scrolling on focus because
+          // we're animating height and using overflow: hidden
+          (vnode.dom.parentNode.parentNode as Element).scrollTop = 0;
+        },
       },
-      onkeydown: keydown,
-      oncreate: (vnode) => {
-        (vnode.dom as HTMLInputElement).focus();
-        (vnode.dom as HTMLInputElement).select();
-        // Need to prevent scrolling on focus because
-        // we're animating height and using overflow: hidden
-        (vnode.dom.parentNode.parentNode as Element).scrollTop = 0;
-      },
-    });
+    );
   }
 
-  return [m("span", "Editing ", mparam(task.parameterValues[0][0])), input];
+  return [
+    m(
+      "span.text-sm text-stone-700 inline-flex max-w-full gap-2",
+      "Editing",
+      m(
+        "span",
+        {
+          title: task.parameterValues[0][0],
+          dir: "rtl",
+          class: "italic pr-1 min-w-0 truncate",
+        },
+        task.parameterValues[0][0],
+      ),
+    ),
+    input,
+  ];
 }
 
 function renderStagingDownload(task: StageTask): Children {
@@ -138,11 +148,13 @@ function renderStagingDownload(task: StageTask): Children {
       ),
     );
 
-  return [
-    "Push ",
+  return m("div.flex items-center gap-2 text-sm text-stone-700 max-w-full", [
+    "Push",
     m(
       "select",
       {
+        class:
+          "min-w-0 pl-3 pr-10 py-2 text-base border-stone-300 focus:outline-hidden focus:ring-cyan-500 focus:border-cyan-500 sm:text-sm rounded-md",
         onchange: (e) => {
           const f = e.target.value;
           task.fileName = f;
@@ -151,21 +163,22 @@ function renderStagingDownload(task: StageTask): Children {
             if (file._id === f) task.fileType = file["metadata.fileType"];
         },
         disabled: files.fulfilling,
-        style: "width: 350px",
       },
       filesList,
     ),
-    " as ",
+    "as",
     m(
       "select",
       {
+        class:
+          "min-w-0 pl-3 pr-10 py-2 text-base border-stone-300 focus:outline-hidden focus:ring-cyan-500 focus:border-cyan-500 sm:text-sm rounded-md",
         onchange: (e) => {
           task.fileType = e.target.value;
         },
       },
       typesList,
     ),
-  ];
+  ]);
 }
 
 function renderStaging(staging: Set<StageTask>): Child[] {
@@ -190,17 +203,34 @@ function renderStaging(staging: Set<StageTask>): Child[] {
     else if (s.name === "download") elms = renderStagingDownload(s);
 
     const queue = m(
-      "button.primary",
-      { title: "Queue task", onclick: queueFunc, disabled: invalid.has(s) },
+      "button",
+      {
+        class:
+          "px-2.5 py-1.5 border border-transparent text-xs font-medium rounded-sm shadow-xs text-white bg-cyan-600 hover:bg-cyan-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:cursor-not-allowed disabled:opacity-50",
+        title: "Queue task",
+        onclick: queueFunc,
+        disabled: invalid.has(s),
+      },
       "Queue",
     );
     const cancel = m(
       "button",
-      { title: "Cancel edit", onclick: cancelFunc },
+      {
+        class:
+          "px-2.5 py-1.5 border border-stone-300 shadow-xs text-xs font-medium rounded-sm text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:cursor-not-allowed disabled:opacity-50",
+        title: "Cancel edit",
+        onclick: cancelFunc,
+      },
       "Cancel",
     );
 
-    elements.push(m(".staging", elms, m("div.actions", queue, cancel)));
+    elements.push(
+      m(
+        "div.p-4",
+        elms,
+        m("div.flex mt-4 justify-center gap-4", cancel, queue),
+      ),
+    );
   }
   return elements;
 }
@@ -214,9 +244,10 @@ function renderQueue(queue: Set<QueueTask>): Child[] {
   }
 
   for (const [k, v] of Object.entries(devices)) {
-    details.push(m("strong", k));
+    details.push(m("h3.font-semibold text-stone-700", k));
     for (const t of v) {
-      const actions = [];
+      const actions: ReturnType<typeof m>[] = [];
+      let task: ReturnType<typeof m>;
 
       if (t.status === "fault" || t.status === "stale") {
         actions.push(
@@ -228,7 +259,10 @@ function renderQueue(queue: Set<QueueTask>): Child[] {
                 queueTask(t);
               },
             },
-            getIcon("retry"),
+            m(icon, {
+              name: "retry",
+              class: "inline h-4 w-4 text-cyan-700 hover:text-cyan-900",
+            }),
           ),
         );
       }
@@ -242,74 +276,116 @@ function renderQueue(queue: Set<QueueTask>): Child[] {
               deleteTask(t);
             },
           },
-          getIcon("remove"),
+          m(icon, {
+            name: "remove",
+            class: "inline h-4 w-4 text-cyan-700 hover:text-cyan-900",
+          }),
         ),
       );
 
       if (t.name === "setParameterValues") {
-        details.push(
+        task = m(
+          "span.text-stone-900 inline-flex max-w-full gap-2",
+          "Set",
           m(
-            `div.${t.status}`,
-            m(
-              "span",
-              "Set ",
-              mparam(t.parameterValues[0][0]),
-              " to '",
-              mval(t.parameterValues[0][1]),
-              "'",
-            ),
-            m(".actions", actions),
+            "span",
+            {
+              title: t.parameterValues[0][0],
+              dir: "rtl",
+              class: "italic pr-1 min-w-0 truncate",
+            },
+            t.parameterValues[0][0],
+          ),
+          "to",
+          m(
+            "span",
+            {
+              title: t.parameterValues[0][1],
+              class: "min-w-0 truncate",
+            },
+            t.parameterValues[0][1],
           ),
         );
       } else if (t.name === "refreshObject") {
-        details.push(
+        task = m(
+          "span.text-stone-900 inline-flex max-w-full gap-2",
+          "Refresh",
           m(
-            `div.${t.status}`,
-            m("span", "Refresh ", mparam(t.parameterName)),
-            m(".actions", actions),
+            "span",
+            {
+              title: t.parameterName,
+              dir: "rtl",
+              class: "italic pr-1 min-w-0 truncate",
+            },
+            t.parameterName,
           ),
         );
       } else if (t.name === "reboot") {
-        details.push(m(`div.${t.status}`, "Reboot", m(".actions", actions)));
+        task = m("span.text-stone-900", "Reboot");
       } else if (t.name === "factoryReset") {
-        details.push(
-          m(`div.${t.status}`, "Factory reset", m(".actions", actions)),
-        );
+        task = m("span.text-stone-900", "Factory reset");
       } else if (t.name === "addObject") {
-        details.push(
+        task = m(
+          "span.text-stone-900 inline-flex max-w-full gap-2",
+          "Add",
           m(
-            `div.${t.status}`,
-            m("span", "Add ", mparam(t.objectName)),
-            m(".actions", actions),
+            "span",
+            {
+              title: t.objectName,
+              dir: "rtl",
+              class: "italic pr-1 min-w-0 truncate",
+            },
+            t.objectName,
           ),
         );
       } else if (t.name === "deleteObject") {
-        details.push(
+        task = m(
+          "span.text-stone-900 inline-flex max-w-full gap-2",
+          "Delete",
           m(
-            `div.${t.status}`,
-            m("span", "Delete ", mparam(t.objectName)),
-            m(".actions", actions),
+            "span",
+            {
+              title: t.objectName,
+              dir: "rtl",
+              class: "italic pr-1 min-w-0 truncate",
+            },
+            t.objectName,
           ),
         );
       } else if (t.name === "getParameterValues") {
-        details.push(
-          m(
-            `div.${t.status}`,
-            `Refresh ${t.parameterNames.length} parameters`,
-            m(".actions", actions),
-          ),
+        task = m(
+          "span.text-stone-900",
+          `Refresh ${t.parameterNames.length} parameters`,
         );
       } else if (t.name === "download") {
-        details.push(
-          m(
-            `div.${t.status}`,
-            `Push file: ${t.fileName} (${t.fileType})`,
-            m(".actions", actions),
-          ),
+        task = m(
+          "span.text-stone-900",
+          `Push file: ${t.fileName} (${t.fileType})`,
         );
       } else {
-        details.push(m(`div.${t.status}`, t.name, m(".actions", actions)));
+        task = m("span.text-stone-900", t.name);
       }
+
+      let bgDiv: ReturnType<typeof m>;
+      if (t.status === "pending") {
+        bgDiv = m(
+          "div.block absolute inset-0 bg-emerald-200 rounded-sm animate-pulse",
+          "",
+        );
+      } else if (t.status === "fault") {
+        bgDiv = m("div.block absolute inset-0 bg-red-200 rounded-sm", "");
+      } else if (t.status === "stale") {
+        bgDiv = m("div.block absolute inset-0 bg-stone-200 rounded-sm", "");
+      }
+
+      details.push(
+        m(
+          "div.flex justify-between w-full rounded-sm items-center relative",
+          bgDiv,
+          m("div.overflow-hidden relative", task),
+          m("div.flex whitespace-nowrap gap-2 ml-2 relative", actions),
+        ),
+      );
     }
   }
 
@@ -320,20 +396,47 @@ function renderNotifications(notifs): Child[] {
   const notificationElements: Child[] = [];
 
   for (const n of notifs) {
+    let notifColors = "",
+      buttonColors = "";
+    if (n.type === "success") {
+      notifColors = "bg-emerald-50 text-emerald-800 border-emerald-100";
+      buttonColors =
+        "hover:bg-emerald-100 text-emerald-800 focus:ring-offset-emerald-50 focus:ring-emerald-600";
+    } else if (n.type === "error") {
+      notifColors = "bg-red-50 text-red-800 border-red-100";
+      buttonColors =
+        "hover:bg-red-100 text-red-800 focus:ring-offset-red-50 focus:ring-red-600";
+    } else if (n.type === "warning") {
+      notifColors = "bg-yellow-50 text-yellow-800 border-yellow-100";
+      buttonColors =
+        "hover:bg-yellow-100 text-yellow-800 focus:ring-offset-yellow-50 focus:ring-yellow-600";
+    }
+
     let buttons;
     if (n.actions) {
       const btns = Object.entries(n.actions).map(([label, onclick]) =>
-        m("button.primary", { onclick: onclick }, label),
+        m(
+          "button",
+          {
+            class:
+              "ml-2 px-2 py-1.5 -my-1.5 rounded-md text-sm font-medium focus:outline-hidden focus:ring-2 focus:ring-offset-2 " +
+              buttonColors,
+            onclick: onclick,
+          },
+          label,
+        ),
       );
-      if (btns.length) buttons = m("div", { style: "float: right" }, btns);
+      if (btns.length) buttons = m("div", btns);
     }
 
     notificationElements.push(
       m(
-        "div.notification",
+        "div",
         {
-          class: n.type,
-          style: "position: absolute;opacity: 0",
+          class:
+            "absolute flex justify-between rounded-md w-full text-sm shadow-md p-4 border transition-[top,opacity] " +
+            notifColors,
+          style: "opacity: 0",
           oncreate: (vnode) => {
             (vnode.dom as HTMLDivElement).style.opacity = "1";
           },
@@ -347,7 +450,8 @@ function renderNotifications(notifs): Child[] {
           },
           key: n.timestamp,
         },
-        m("div", buttons, n.message),
+        n.message,
+        buttons,
       ),
     );
   }
@@ -367,10 +471,10 @@ const component: ClosureComponent = (): Component => {
       const queueElements = renderQueue(queue);
 
       function repositionNotifications(): void {
-        let top = 10;
+        let top = 16;
         for (const c of notificationElements as VnodeDOM[]) {
           (c.dom as HTMLDivElement).style.top = `${top}px`;
-          top += (c.dom as HTMLDivElement).offsetHeight + 10;
+          top += (c.dom as HTMLDivElement).offsetHeight + 16;
         }
       }
 
@@ -397,10 +501,23 @@ const component: ClosureComponent = (): Component => {
         for (const t of queue) statusCount[t["status"]] += 1;
 
         const actions = m(
-          ".actions",
+          "div.flex ml-auto gap-2",
           m(
-            "button.primary",
+            "button",
             {
+              class:
+                "px-2.5 py-1.5 -my-1.5 border border-stone-300 shadow-xs text-xs font-medium rounded-sm text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
+              title: "Clear tasks",
+              onclick: clear,
+              disabled: !queueElements.length,
+            },
+            "Clear",
+          ),
+          m(
+            "button",
+            {
+              class:
+                "px-2.5 py-1.5 -my-1.5 border border-transparent text-xs font-medium rounded-sm shadow-xs text-white bg-cyan-600 hover:bg-cyan-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
               title: "Commit queued tasks",
               disabled: !statusCount.queued,
               onclick: () => {
@@ -458,45 +575,47 @@ const component: ClosureComponent = (): Component => {
             },
             "Commit",
           ),
-          m(
-            "button",
-            {
-              title: "Clear tasks",
-              onclick: clear,
-              disabled: !queueElements.length,
-            },
-            "Clear",
-          ),
         );
 
         statusElement = m(
-          ".status",
+          "div.flex p-4 gap-5 items-center text-sm",
           m(
-            "span.queued",
-            { class: statusCount.queued ? "active" : "" },
+            "span.text-stone-700 -mx-1 px-1",
+            { class: statusCount.queued ? "font-semibold" : "" },
             `Queued: ${statusCount.queued}`,
           ),
           m(
-            "span.pending",
-            { class: statusCount.pending ? "active" : "" },
-            `Pending: ${statusCount.pending}`,
+            "span.text-stone-700 relative",
+            statusCount.pending
+              ? m(
+                  "div.block absolute -inset-x-1 inset-y-0 rounded-sm bg-emerald-200 animate-pulse",
+                  "",
+                )
+              : null,
+            m("span.relative", `Pending: ${statusCount.pending}`),
           ),
           m(
-            "span.fault",
-            { class: statusCount.fault ? "active" : "" },
-            `Fault: ${statusCount.fault}`,
+            "span.text-stone-700 relative",
+            m("span.relative", `Fault: ${statusCount.fault}`),
           ),
           m(
-            "span.stale",
-            { class: statusCount.stale ? "active" : "" },
-            `Stale: ${statusCount.stale}`,
+            "span.text-stone-700 relative",
+            statusCount.stale
+              ? m(
+                  "div.block absolute -inset-x-1 inset-y-0 rounded-sm bg-stone-200",
+                  "",
+                )
+              : null,
+            m("span.relative", `Stale: ${statusCount.stale}`),
           ),
           actions,
         );
 
         drawerElement = m(
-          ".drawer",
+          "div",
           {
+            class:
+              "w-[48rem] mx-auto pointer-events-auto bg-white rounded-b-lg border-stone-300 border-x border-b shadow-md overflow-hidden transition-[height] -mt-px",
             key: "drawer",
             style: "opacity: 0;height: 0;",
             oncreate: (vnode2) => {
@@ -504,20 +623,20 @@ const component: ClosureComponent = (): Component => {
               (vnode2.dom as HTMLDivElement).style.opacity = "1";
               resizeDrawer();
             },
-            onmouseover: (e) => {
+            onmouseenter: (e) => {
+              if (drawerElement.dom.style.opacity === "0") return;
               vnode.state["mouseIn"] = true;
               resizeDrawer();
               e.redraw = false;
             },
             onmouseleave: (e) => {
+              if (drawerElement.dom.style.opacity === "0") return;
               vnode.state["mouseIn"] = false;
               resizeDrawer();
               e.redraw = false;
             },
             onupdate: resizeDrawer,
             onbeforeremove: (vnode2) => {
-              (vnode2.dom as HTMLDivElement).onmouseover = null;
-              (vnode2.dom as HTMLDivElement).onmouseleave = null;
               (vnode2.dom as HTMLDivElement).style.opacity = "0";
               (vnode2.dom as HTMLDivElement).style.height = "0";
               return new Promise((resolve) => {
@@ -526,18 +645,20 @@ const component: ClosureComponent = (): Component => {
             },
           },
           statusElement,
-          stagingElements.length ? stagingElements : m(".queue", queueElements),
+          stagingElements.length
+            ? stagingElements
+            : m("div.px-4 pb-4 text-sm", queueElements),
         );
       }
 
       return m(
-        "div.drawer-wrapper",
+        "div.fixed pointer-events-none inset-0 z-30",
         drawerElement,
         m(
-          "div.notifications-wrapper",
+          "div",
           {
+            class: "relative w-[48rem] mx-auto pointer-events-auto",
             key: "notifications",
-            style: "position: relative;",
             onupdate: repositionNotifications,
             oncreate: repositionNotifications,
           },

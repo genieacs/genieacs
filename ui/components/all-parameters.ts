@@ -3,7 +3,7 @@ import { m } from "../components.ts";
 import * as taskQueue from "../task-queue.ts";
 import { parse } from "../../lib/common/expression/parser.ts";
 import memoize from "../../lib/common/memoize.ts";
-import { getIcon } from "../icons.ts";
+import { icon } from "../tailwind-utility-components.ts";
 import { QueryResponse, evaluateExpression } from "../store.ts";
 import debounce from "../../lib/common/debounce.ts";
 import { Expression } from "../../lib/types.ts";
@@ -55,14 +55,17 @@ const component: ClosureComponent<Attrs> = () => {
       const limit =
         (evaluateExpression(vnode.attrs.limit, device) as number) || 100;
 
-      const search = m("input", {
-        type: "text",
-        placeholder: "Search parameters",
-        oninput: (e) => {
-          formQueryString(e.target.value);
-          e.redraw = false;
+      const search = m(
+        "input.appearance-none border-0 block w-full px-4 py-3 border-stone-300 placeholder-stone-500 text-stone-900 focus:ring-cyan-500 text-sm rounded-t-lg font-mono focus:ring-2",
+        {
+          type: "text",
+          placeholder: "Search parameters",
+          oninput: (e) => {
+            formQueryString(e.target.value);
+            e.redraw = false;
+          },
         },
-      });
+      );
 
       const instanceRegex = /\.[0-9]+$/;
       let re;
@@ -92,8 +95,6 @@ const component: ClosureComponent<Attrs> = () => {
       const rows = filteredKeys.map((k) => {
         const p = device[k];
         const val = [];
-        const attrs = { key: k };
-
         if (p.object === false) {
           val.push(
             m(
@@ -116,7 +117,11 @@ const component: ClosureComponent<Attrs> = () => {
                     });
                   },
                 },
-                getIcon("delete-instance"),
+                m(icon, {
+                  name: "delete-instance",
+                  class:
+                    "inline h-4 w-4 ml-1 text-cyan-700 hover:text-cyan-900",
+                }),
               ),
             );
           } else {
@@ -133,7 +138,11 @@ const component: ClosureComponent<Attrs> = () => {
                     });
                   },
                 },
-                getIcon("add-instance"),
+                m(icon, {
+                  name: "add-instance",
+                  class:
+                    "inline h-4 w-4 ml-1 text-cyan-700 hover:text-cyan-900",
+                }),
               ),
             );
           }
@@ -152,15 +161,17 @@ const component: ClosureComponent<Attrs> = () => {
                 });
               },
             },
-            getIcon("refresh"),
+            m(icon, {
+              name: "refresh",
+              class: "inline h-4 w-4 ml-1 text-cyan-700 hover:text-cyan-900",
+            }),
           ),
         );
 
         return m(
           "tr",
-          attrs,
-          m("td.left", m("long-text", { text: k })),
-          m("td.right", val),
+          m("td.pl-4 pr-2 py-2 truncate", m("long-text", { text: k })),
+          m("td.pr-4 py-2 text-right flex justify-end", val),
         );
       });
 
@@ -168,25 +179,37 @@ const component: ClosureComponent<Attrs> = () => {
         "loading",
         { queries: [vnode.attrs.deviceQuery] },
         m(
-          ".all-parameters",
-          m(
-            "a.download-csv",
-            {
-              href: `api/devices/${encodeURIComponent(
-                device["DeviceID.ID"].value[0],
-              )}.csv`,
-              download: "",
-              style: "float: right;",
-            },
-            "Download",
-          ),
+          ".bg-white shadow-sm rounded-lg",
           search,
           m(
-            ".parameter-list",
-            m("table", m("tbody", rows)),
+            ".overflow-hidden",
             m(
-              "m",
-              `Displaying ${filteredKeys.length} out of ${count} parameters.`,
+              ".overflow-y-scroll h-96 shadow-inner",
+              m(
+                "table.w-full table-fixed font-mono text-xs text-stone-900",
+                m("tbody.divide-y divide-stone-200", rows),
+              ),
+            ),
+            m(
+              "div.text-stone-700 px-4 py-3 flex justify-between items-end",
+              m(
+                "span.text-xs",
+                "Displaying ",
+                m("span.font-medium", "" + filteredKeys.length),
+                " out of ",
+                m("span.font-medium", "" + count),
+                " parameters",
+              ),
+              m(
+                "a.text-cyan-700 hover:text-cyan-900 text-sm font-medium",
+                {
+                  href: `api/devices/${encodeURIComponent(
+                    device["DeviceID.ID"].value[0],
+                  )}.csv`,
+                  download: "",
+                },
+                "Download",
+              ),
             ),
           ),
         ),

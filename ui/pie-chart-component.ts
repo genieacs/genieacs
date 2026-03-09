@@ -23,21 +23,30 @@ function drawChart(chartData): Children {
   for (const slice of Object.values(slices)) {
     const percent = total > 0 ? (slice["count"]["value"] || 0) / total : 0;
     legend.push(
-      m(".legend-line", [
-        m("span.color", {
-          style: `background-color: ${store.evaluateExpression(slice["color"], null)} !important;`,
-        }),
-        `${store.evaluateExpression(slice["label"], null)}: `,
+      m("tr", [
         m(
-          "a",
-          {
-            href: `#!/devices/?${m.buildQueryString({
-              filter: memoizedStringify(slice["filter"]),
-            })}`,
-          },
-          slice["count"]["value"] || 0,
+          "td",
+          m("span.inline-block w-3 h-3 border border-stone-200 mr-1", {
+            style: `background-color: ${store.evaluateExpression(slice["color"], null)} !important;`,
+          }),
         ),
-        ` (${(percent * 100).toFixed(2)}%)`,
+        m("td.w-full", store.evaluateExpression(slice["label"], null)),
+        m(
+          "td.text-stone-500 text-right tabular-nums",
+          `${Math.round(percent * 100)}%`,
+        ),
+        m(
+          "td.text-right tabular-nums",
+          m(
+            "a.text-cyan-700 hover:text-cyan-900 font-medium ml-2",
+            {
+              href: `#!/devices/?${m.buildQueryString({
+                filter: memoizedStringify(slice["filter"]),
+              })}`,
+            },
+            slice["count"]["value"] || 0,
+          ),
+        ),
       ]),
     );
 
@@ -56,7 +65,7 @@ function drawChart(chartData): Children {
       startY = endY;
 
       paths.push(
-        m("path", {
+        m("path.stroke-white stroke-1", {
           d: sketch,
           fill: store.evaluateExpression(slice["color"], null),
         }),
@@ -69,26 +78,26 @@ function drawChart(chartData): Children {
 
       links.push(
         m(
-          "a",
+          "a.opacity-0 hover:opacity-100 focus-visible:opacity-100 outline-hidden",
           {
             "xlink:href": `#!/devices/?${m.buildQueryString({
               filter: memoizedStringify(slice["filter"]),
             })}`,
           },
           [
-            m("path", {
+            m("path.stroke-cyan-500 stroke-1", {
               d: sketch,
               "fill-opacity": 0,
             }),
             m(
-              "text",
+              "text.opacity-40 font-medium fill-black",
               {
                 x: percentageX,
                 y: percentageY,
                 "dominant-baseline": "middle",
                 "text-anchor": "middle",
               },
-              `${(percent * 100).toFixed(2)}%`,
+              `${Math.round(percent * 100)}%`,
             ),
           ],
         ),
@@ -96,16 +105,23 @@ function drawChart(chartData): Children {
     }
   }
 
-  legend.push(m("span.legend-total", `Total: ${total}`));
+  legend.push(
+    m(
+      "tr",
+      m("td", ""),
+      m("td", { colspan: 2 }, "Total"),
+      m("td.text-right tabular-nums", total),
+    ),
+  );
 
   return m(
     "loading",
     {
       queries: Object.values(chartData.slices).map((s) => s["count"]),
     },
-    m("div", { class: "pie-chart" }, [
+    m("div", [
       m(
-        "svg",
+        "svg.m-4",
         {
           // Adding 2 as padding; strokes must not be more than 2
           viewBox: "-102 -102 204 204",
@@ -116,7 +132,7 @@ function drawChart(chartData): Children {
         },
         paths.concat(links),
       ),
-      m(".legend", legend),
+      m("table.mt-8 text-sm", legend),
     ]),
   );
 }

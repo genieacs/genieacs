@@ -1,805 +1,166 @@
-@import "normalize.css";
-@import "codemirror/lib/codemirror.css";
+@import "tailwindcss";
+@plugin "@tailwindcss/forms";
 
-:root {
-  --base-font-size: 13px;
-  --base-line-height: 16px;
+@source inline("h-full bg-stone-100");
+@source "../../ui/**/*.{ts,tsx}";
 
-  --color1: #ebe0bf;
-  --color2: #b9b098;
-  --color3: #f2ebd5;
-  --color4: #046380;
-  --color5: #002f2f;
+@theme {
+  --font-sans:
+    "Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono:
+    "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
 
-  --fade: 0.2s;
+  /* Reset default color palette to match v3 exclusive palette */
+  --color-*: initial;
 
-  --disabled: #666;
+  --color-black: #000;
+  --color-white: #fff;
 
-  --status-red: 0 80% 80%;
-  --status-green: 125 80% 80%;
-  --status-gray: 58 3% 80%;
-  --status-yellow: 46 79% 80%;
+  --color-cyan-50: #edfdfe;
+  --color-cyan-100: #d3f7fa;
+  --color-cyan-200: #aceef5;
+  --color-cyan-300: #72e0ee;
+  --color-cyan-400: #31c8df;
+  --color-cyan-500: #15abc5;
+  --color-cyan-600: #1589a5;
+  --color-cyan-700: #186e86;
+  --color-cyan-800: #1c5a6e;
+  --color-cyan-900: #1c4b5d;
+
+  --color-stone-50: #faf8f8;
+  --color-stone-100: #f5f2f0;
+  --color-stone-200: #e7e4e2;
+  --color-stone-300: #d6d3d1;
+  --color-stone-400: #a8a29e;
+  --color-stone-500: #78716c;
+  --color-stone-600: #57534e;
+  --color-stone-700: #44403c;
+  --color-stone-800: #292524;
+  --color-stone-900: #1c1917;
+
+  --color-red-50: #fdf3f3;
+  --color-red-100: #fce4e4;
+  --color-red-200: #facece;
+  --color-red-300: #f5acac;
+  --color-red-400: #ee7b7b;
+  --color-red-500: #e25151;
+  --color-red-600: #ce3434;
+  --color-red-700: #ad2828;
+  --color-red-800: #902424;
+  --color-red-900: #782424;
+
+  --color-emerald-50: #edfcf5;
+  --color-emerald-100: #d4f7e5;
+  --color-emerald-200: #adedd0;
+  --color-emerald-300: #77deb5;
+  --color-emerald-400: #40c796;
+  --color-emerald-500: #1dac7d;
+  --color-emerald-600: #108b65;
+  --color-emerald-700: #0d6f53;
+  --color-emerald-800: #0d5843;
+  --color-emerald-900: #0b4938;
+
+  --color-yellow-50: #fcfbea;
+  --color-yellow-100: #faf5c7;
+  --color-yellow-200: #f5e993;
+  --color-yellow-300: #efd755;
+  --color-yellow-400: #e9c226;
+  --color-yellow-500: #d9aa19;
+  --color-yellow-600: #bb8513;
+  --color-yellow-700: #956013;
+  --color-yellow-800: #7c4c17;
+  --color-yellow-900: #6a3f19;
+
+  --color-blue-50: #f0f6fe;
+  --color-blue-100: #deeafb;
+  --color-blue-200: #c4dcf9;
+  --color-blue-300: #9bc5f5;
+  --color-blue-400: #6ca6ee;
+  --color-blue-500: #4985e8;
+  --color-blue-600: #3469dc;
+  --color-blue-700: #2b55ca;
+  --color-blue-800: #2946a4;
+  --color-blue-900: #263e82;
+
+  --background-image-stripes: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 10px,
+    rgba(0, 0, 0, 0.02) 10px,
+    rgba(0, 0, 0, 0.02) 20px
+  );
 }
 
-body,
-input,
-button,
-select,
-option,
-textarea {
-  outline-color: var(--color4);
-  font-family: sans-serif;
-  color: var(--color5);
-}
-
-a {
-  color: var(--color4);
-  cursor: pointer;
-  transition:
-    background-color var(--fade),
-    color var(--fade);
-  &:visited {
-    color: var(--color4);
-  }
-  &:hover {
-    color: white;
-    background-color: var(--color4);
-  }
-  /* text-decoration does not propagate to inline-block children */
-  & span {
-    text-decoration: inherit;
-  }
-}
-
-strong,
-b {
-  font-weight: bold;
-}
-
-i {
-  font-style: italic;
-}
-
-@keyframes pending-blink {
-  from {
-    background-color: hsl(var(--status-green) / 0.9);
-  }
-  to {
-    background-color: transparent;
-  }
-}
-
-body {
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-#content-wrapper {
-  flex-grow: 1;
-  display: flex;
-  overflow-x: auto;
-  overflow-y: auto;
-}
-
-#header {
-  background-color: #f2eddf;
-  border-bottom: 1px solid var(--color1);
-  overflow: visible;
-  position: relative;
-
-  & > .drawer-wrapper {
-    position: fixed;
-    z-index: 10;
-    width: 720px;
-    margin-left: -360px;
-    top: 0;
-    left: 50%;
-    & > .drawer {
-      background-color: rgba(255, 255, 255, 0.9);
-      border-bottom-left-radius: 6px;
-      border-bottom-right-radius: 6px;
-      border-bottom: 1px solid var(--color1);
-      border-left: 1px solid var(--color1);
-      border-right: 1px solid var(--color1);
-      margin-top: -1px;
-      box-shadow: 0 0 10px #ccc;
-      overflow: hidden;
-      transition:
-        height var(--fade),
-        opacity var(--fade);
-
-      & > div {
-        padding: 0.3em;
-      }
-
-      & > .status {
-        display: flex;
-        & > span {
-          margin-right: 1em;
-          padding-left: 0.2em;
-          padding-right: 0.2em;
-          border-radius: 0.4em;
-        }
-        & > .pending.active {
-          &.active {
-            animation: 0.5s linear 0s infinite alternate pending-blink;
-          }
-        }
-        & > .stale.active {
-          background-color: hsl(var(--status-gray) / 0.9);
-        }
-        & > .fault.active {
-          background-color: hsl(var(--status-red) / 0.9);
-        }
-        & > .queued.active {
-          font-weight: bold;
-        }
-
-        & > .actions {
-          flex-grow: 1;
-          text-align: right;
-        }
-      }
-
-      & > .staging {
-        & .parameter {
-          font-style: italic;
-          max-width: 500px;
-          text-overflow: ellipsis;
-          display: inline-block;
-          overflow: hidden;
-          vertical-align: text-bottom;
-        }
-
-        & input {
-          width: 100%;
-          box-sizing: border-box;
-          padding: 0.3em;
-          margin-top: 0.3em;
-          margin-bottom: 0.3em;
-        }
-        & .actions {
-          text-align: right;
-        }
-      }
-
-      & > .queue {
-        max-height: 400px;
-        overflow-y: auto;
-        & > .pending {
-          animation: 0.5s linear 0s infinite alternate pending-blink;
-          border-radius: 0.4em;
-        }
-        & > .stale {
-          background-color: hsl(var(--status-gray) / 0.9);
-          border-radius: 0.4em;
-        }
-        & > .fault {
-          background-color: hsl(var(--status-red) / 0.9);
-          border-radius: 0.4em;
-        }
-        & .parameter {
-          font-style: italic;
-          max-width: 400px;
-          text-overflow: ellipsis;
-          display: inline-block;
-          overflow: hidden;
-          vertical-align: text-bottom;
-        }
-        & .value {
-          max-width: 200px;
-          text-overflow: ellipsis;
-          display: inline-block;
-          overflow: hidden;
-          vertical-align: text-bottom;
-          white-space: nowrap;
-        }
-        & > div {
-          display: flex;
-          & > .actions {
-            flex-grow: 1;
-            text-align: right;
-          }
-        }
-      }
-    }
-    & > .notifications-wrapper {
-      & > .notification {
-        padding: 0.3em;
-        left: 0;
-        right: 0;
-        background-color: rgba(255, 255, 255, 0.9);
-        border: 1px solid var(--color1);
-        border-radius: 6px;
-        box-shadow: 0 0 10px #ccc;
-        transition:
-          opacity var(--fade),
-          top var(--fade);
-
-        &.error {
-          background-color: hsl(var(--status-red) / 0.9);
-          border: 1px solid hsl(var(--status-red));
-        }
-        &.success {
-          background-color: hsl(var(--status-green) / 0.9);
-          border: 1px solid hsl(var(--status-green));
-        }
-        &.warning {
-          background-color: hsl(var(--status-yellow) / 0.9);
-          border: 1px solid hsl(var(--status-yellow));
-        }
-      }
-    }
-  }
-  & > nav {
-    display: inline-block;
-    overflow: visible;
-    position: absolute;
-    bottom: -1px;
-
-    & > ul {
-      font-weight: bold;
-      display: inline-block;
-      margin: 0 10px;
-      padding: 0;
-
-      & > li {
-        margin: 0 2px;
-        background-color: var(--color1);
-        display: inline-block;
-        border-top-left-radius: 6px;
-        border-top-right-radius: 6px;
-        border-top: 1px solid var(--color1);
-        border-left: 1px solid var(--color1);
-        border-right: 1px solid var(--color1);
-        transition: background-color var(--fade);
-        &.active,
-        &:hover {
-          background-color: white;
-        }
-
-        & > a,
-        & > a:visited,
-        & > a:hover {
-          display: inline-block;
-          min-width: 140px;
-          color: var(--color4);
-          text-decoration: none;
-          background: none;
-          padding: 8px;
-        }
-      }
-    }
+@supports (font-variation-settings: normal) {
+  @font-face {
+    font-family: "Roboto Mono";
+    src: url("RobotoMono.woff2") format("woff2-variations");
+    font-weight: 100 700;
+    font-style: normal;
+    unicode-range:
+      U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+      U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+      U+FEFF, U+FFFD;
+    font-display: swap;
   }
 
-  & > .logo {
-    display: inline-block;
-    position: relative;
-    & > img {
-      margin: 10px;
-      height: 56px;
-      vertical-align: top;
-    }
-
-    & > .version {
-      position: absolute;
-      bottom: 5px;
-      right: 10px;
-      font-family: monospace;
-      font-size: 10px;
-      color: #666;
-    }
+  @font-face {
+    font-family: "Inter";
+    font-weight: 100 900;
+    font-display: swap;
+    font-style: normal;
+    font-named-instance: "Regular";
+    src: url("InterVariable.woff2") format("woff2-variations");
+    unicode-range:
+      U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+      U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+      U+FEFF, U+FFFD;
   }
 
-  & > .user-menu {
-    float: right;
-    margin: 5px;
+  @font-face {
+    font-family: "Inter";
+    font-weight: 100 900;
+    font-display: swap;
+    font-style: italic;
+    font-named-instance: "Italic";
+    src: url("InterVariable-Italic.woff2") format("woff2-variations");
+    unicode-range:
+      U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+      U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+      U+FEFF, U+FFFD;
   }
 }
 
-#side-menu {
-  width: 200px;
-  min-width: 200px;
-  & > ul {
-    padding: 0;
-    list-style: none;
+.device-page {
+  h1 {
+    @apply text-xl font-medium text-stone-900 mb-5;
+  }
 
-    & > li {
-      & > a {
-        display: block;
-        text-decoration: none;
-        margin: 5px 0;
-        padding: 8px;
-        border-bottom-right-radius: 6px;
-        border-top-right-radius: 6px;
-        background-color: var(--color3);
-        &:hover {
-          background-color: var(--color4);
-          color: var(--color3);
-        }
-      }
+  h2 {
+    @apply text-lg font-semibold text-stone-900 mb-5 mt-8;
+  }
 
-      &.active {
-        font-weight: bold;
-      }
+  h3 {
+    @apply text-lg font-medium text-stone-900 mb-5 mt-8;
+  }
+
+  span.inform {
+    @apply flex gap-3;
+    & > button {
+      @apply -my-1.5;
     }
   }
 }
 
-#content {
-  flex-grow: 1;
-  margin: 10px;
-  min-height: 250px;
-
-  /* Workaround for Chrome ignoring bottom margin when flex container overflows */
-  &::after {
-    content: "";
-    display: block;
-    padding-bottom: 1px;
-  }
-}
-
-table.table {
-  border-spacing: 0;
-  text-align: left;
-  overflow-x: auto;
-
-  & table.table {
-    font-size: 90%;
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
   }
 
-  & th {
-    white-space: nowrap;
-    color: var(--color4);
-    font-weight: bold;
-    border-bottom: 2px solid var(--color4);
-    margin: 0;
-    padding: 0.2em 0.5em;
+  :focus-visible {
+    @apply outline-2 outline-cyan-500;
   }
-
-  & td {
-    margin: 0;
-    padding: 0.2em 0.5em;
-
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 400px;
-  }
-
-  & tfoot td > a {
-    margin-left: 1em;
-  }
-
-  &.highlight > tbody > tr {
-    & > td {
-      border-bottom: 1px dotted var(--color1);
-    }
-    transition: background-color var(--fade);
-    &:hover {
-      background-color: var(--color3);
-    }
-  }
-
-  & tbody > tr.empty {
-    text-align: center;
-    color: var(--disabled);
-    &:hover {
-      background-color: initial;
-    }
-  }
-}
-
-h1 {
-  color: var(--color4);
-  font-size: 130%;
-  font-weight: bold;
-}
-
-h2 {
-  color: var(--color5);
-  font-weight: bold;
-  font-size: 120%;
-}
-
-h3 {
-  color: var(--color5);
-  font-size: 110%;
-}
-
-p.error {
-  color: #a00;
-}
-
-/* Remove button padding in FF */
-input::-moz-focus-inner {
-  border: 0;
-  padding: 0;
-}
-
-input[type="button"],
-button {
-  background: transparent;
-  border: 0;
-  color: var(--color4);
-  border-radius: 4px;
-  transition:
-    background-color var(--fade),
-    color var(--fade);
-  display: inline-block;
-  vertical-align: middle;
-
-  &.primary {
-    border: 1px solid var(--color1);
-    background-color: var(--color3);
-  }
-  &.critical {
-    border: 1px solid var(--color1);
-    background-color: var(--color3);
-    color: #700;
-  }
-  &:hover:enabled {
-    background-color: var(--color4);
-    color: var(--color3);
-  }
-  &:disabled {
-    color: var(--disabled);
-    cursor: not-allowed;
-  }
-}
-
-.CodeMirror,
-textarea,
-select,
-input {
-  display: block;
-  border: 1px solid var(--color1);
-  background-color: var(--color3);
-  border-radius: 4px;
-  transition:
-    border-color var(--fade),
-    background-color var(--fade);
-  &.error {
-    background-color: #efcbcf;
-    border-color: #e6b2b7;
-  }
-  &:focus,
-  &:hover {
-    border-color: var(--color4);
-  }
-}
-
-.filter {
-  margin-bottom: 0.5em;
-  & > input {
-    font-size: 90%;
-    width: 35em;
-    margin: 2px;
-    padding: 2px;
-  }
-}
-
-.page-overview {
-  & > h1 {
-    text-align: center;
-  }
-}
-
-.overview-chart-group {
-  display: flex;
-  justify-content: center;
-
-  & h2 {
-    text-align: center;
-  }
-}
-
-table.parameter-list {
-  border-spacing: 0;
-  text-align: left;
-  & th {
-    padding: 0;
-    padding-right: 1em;
-  }
-}
-
-.overview-dot {
-  & > svg {
-    margin-bottom: -0.125em;
-    margin-left: 0.2em;
-    margin-right: 0.2em;
-    & > circle {
-      stroke: var(--color5);
-      stroke-width: 0.08em;
-    }
-  }
-}
-
-span.inform {
-  & > * {
-    margin-right: 0.5em;
-  }
-}
-
-.pie-chart {
-  margin: 20px;
-  text-align: center;
-
-  & > svg {
-    & > path {
-      stroke: var(--color1);
-      stroke-width: 1px;
-    }
-
-    & > a {
-      transition: opacity var(--fade);
-      opacity: 0;
-
-      & > text {
-        font-weight: bold;
-        opacity: 0.4;
-      }
-
-      & > path {
-        stroke: var(--color4);
-      }
-
-      &:hover {
-        opacity: 1;
-      }
-    }
-  }
-
-  & > .legend {
-    text-align: left;
-    margin: 15px;
-
-    & > .legend-line {
-      & > .color {
-        height: 12px;
-        width: 12px;
-        margin-right: 5px;
-        border: 1px solid var(--color1);
-        display: inline-block;
-      }
-    }
-  }
-}
-
-span.na {
-  color: var(--disabled);
-}
-
-.all-parameters {
-  & > input {
-    font-family: monospace;
-    font-size: 14px;
-    margin-bottom: 2px;
-    padding: 4px;
-    width: 700px;
-  }
-
-  & > .parameter-list {
-    font-family: monospace;
-    font-size: 14px;
-    & button {
-      font-size: 16px;
-    }
-    overflow-y: scroll;
-    height: 200px;
-
-    & > table {
-      width: 100%;
-      table-layout: fixed;
-      border-spacing: 0;
-      & > tbody {
-        & > tr {
-          & > td {
-            overflow: hidden;
-            white-space: nowrap;
-            border-bottom: 1px dotted var(--color1);
-          }
-          transition: background-color var(--fade);
-          &:hover {
-            background-color: var(--color3);
-          }
-
-          & > td.left {
-            & > * {
-              max-width: 100%;
-            }
-          }
-          & > td.right {
-            text-align: right;
-            padding-right: 0.5em;
-          }
-        }
-      }
-    }
-  }
-}
-
-.container-right {
-  float: right;
-  clear: right;
-}
-
-.container-full-width {
-  clear: both;
-}
-
-.actions-bar {
-  margin-top: 10px;
-  margin-bottom: 10px;
-  & > button {
-    margin-right: 10px;
-  }
-}
-
-span.tag {
-  display: inline-block;
-  background-image: url('data:image/svg+xml;utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="190" height="16"><path d="M6.59 15.42l-6-6a2 2 0 0 1 0-2.83l6-6A2 2 0 0 1 8 0h180a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-1.41-.58zM4.35 6.59A2 2 0 1 0 7.17 9.4 2 2 0 0 0 4.35 6.6z" fill="%23e8d5b2"></path></svg>');
-  background-size: cover;
-  background-repeat: no-repeat;
-  border-radius: 0.2em;
-  padding-left: 1em;
-  padding-right: 0.2em;
-}
-
-.tags {
-  & > .tag {
-    margin-right: 0.5em;
-  }
-}
-
-.overlay-wrapper {
-  position: fixed;
-  left: 0;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.2);
-  z-index: 100;
-  transition:
-    opacity var(--fade),
-    top var(--fade);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  & > .overlay {
-    max-width: 90vw;
-    max-height: 90vh;
-    background-color: white;
-    border: 1px solid var(--color1);
-    border-radius: 10px;
-    padding: 10px;
-    box-shadow: 0 0 15px #aaa;
-    overflow: auto;
-  }
-}
-
-.overlay > .put-form {
-  min-width: 700px;
-}
-
-.autocomplete {
-  box-shadow: 0 0 10px #ccc;
-  background-color: rgba(255, 255, 255, 0.9);
-  border: 1px solid var(--color1);
-  border-radius: 4px;
-  max-height: 300px;
-  overflow-y: auto;
-  transition: opacity var(--fade);
-  & > .suggestion {
-    padding: 5px;
-
-    &.selected,
-    &:hover {
-      background-color: var(--color3);
-    }
-  }
-}
-
-span.long-text {
-  display: inline-block;
-  overflow-x: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 400px;
-  /*
-  "overflow: hidden" changes the baseline as explained here:
-  https://stackoverflow.com/questions/9273016/why-is-this-inline-block-element-pushed-downward
-  */
-  vertical-align: top;
-}
-
-span.long-text-overflowed {
-  cursor: pointer;
-  &:hover {
-    text-decoration: underline;
-    text-decoration-style: dotted;
-  }
-}
-
-textarea.long-text {
-  font-family: monospace;
-  font-size: 14px;
-  min-width: 10vw;
-  min-height: 10vh;
-}
-
-span.parameter-value {
-  & > span:empty::before {
-    content: "blank";
-    color: #aaa;
-  }
-}
-
-.wizard-dialog {
-  max-width: 720px;
-  margin: 10px auto;
-  padding: 10px;
-  border-radius: 6px;
-  border: 1px solid var(--color1);
-  box-shadow: 0 0 10px #ccc;
-}
-
-.icon {
-  display: block;
-  width: 1em;
-  height: 1em;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  &.icon-unsorted {
-    opacity: 0.3;
-  }
-}
-
-.loading {
-  opacity: 0.6;
-}
-
-@keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
-.loading-overlay {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  &::after {
-    background-image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJ4TWlkWU1pZCI+PHBhdGggZD0iTTEwIDUwYTQwIDQwIDAgMDA4MCAwIDQwIDQyIDAgMDEtODAgMCIgZmlsbD0iI2IxMmQ1YyIgLz48L3N2Zz4=);
-    content: "";
-    width: 48px;
-    height: 48px;
-    animation: spin 1s linear infinite;
-    background-repeat: no-repeat;
-    background-size: 100% 100%;
-  }
-}
-
-.progress {
-  background-color: #eee;
-  overflow: hidden;
-  height: 3px;
-  & > .progress-bar {
-    height: 100%;
-    background-color: #b12d5c;
-  }
-}
-
-/* To keep consistent style after changing from Quirks to Standards mode */
-td,
-th {
-  line-height: normal;
 }
