@@ -403,7 +403,7 @@ export function flog(...args: any[]): void {
 
   // Prepare the message to log
   const message = '[ INFO  ] ' + args
-    .map((arg) => JSON.stringify(arg))
+    .map((arg) => typeof arg === 'object' ? JSON.stringify(arg) : arg)
     .join(" ");
   
   // Send the message to Flashman
@@ -457,7 +457,7 @@ export function ferror(...args: any[]): void {
 
   // Prepare the message to log
   const message = '[ ERROR ] ' + args
-    .map((arg) => JSON.stringify(arg))
+    .map((arg) => typeof arg === 'object' ? JSON.stringify(arg) : arg)
     .join(" ");
   
   // Send the message to Flashman
@@ -844,6 +844,7 @@ export async function updateFirmware(version: string): Promise<void> {
     'for device', acsId + '.',
     'Exiting script to execute firmware upgrade command on the device.'
   );
+  audit(ActionType.SET_VALUE, 'version', version);
   declare(
     'Downloads.[FileType:1 Firmware Upgrade Image]',
     {path: 1},
@@ -910,6 +911,9 @@ function sendScriptRunInfoToFlashman(
  * function to retrieve the MAC address field from Flashman.
  */
 function getMACAddress(): string | null {
+  if (state.sessionContext?.customScriptInfo?.mac)
+    return state.sessionContext.customScriptInfo.mac;
+
   const genieIDDeclare = declare('DeviceID.ID', {value: 1}, null) as {
     value?: [boolean | number | string, string];
   };
@@ -1014,6 +1018,8 @@ function getMACAddress(): string | null {
  * so it should not run again.
  */
 function init(): void {
+  if (state.sessionContext?.customScriptInfo?.initialized) return;
+
   let scriptInfo;
   try {
     scriptInfo = JSON.parse(context.args[1]);
@@ -1055,6 +1061,7 @@ function init(): void {
   // Set the debug mode, tag and initilization flag
   if (!state.sessionContext.customScriptInfo)
     state.sessionContext.customScriptInfo = {};
+
   state.sessionContext.customScriptInfo.isDebug = !!scriptInfo?.isDebug;
   state.sessionContext.customScriptInfo.scriptTag = scriptInfo?.scriptTag;
   state.sessionContext.customScriptInfo.mac = mac;
@@ -1072,7 +1079,6 @@ function init(): void {
       state.sessionContext.customScriptInfo.isDebug ? 'debug' : 'normal'
     } mode.`,
   );
-
 }
 
 Object.defineProperty(context, "Date", { value: SandboxDate });
