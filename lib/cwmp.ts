@@ -10,11 +10,7 @@ import * as config from "./config.ts";
 import { generateDeviceId, once, setTimeoutPromise } from "./util.ts";
 import * as soap from "./soap.ts";
 import * as session from "./session.ts";
-import {
-  evaluateAsync,
-  evaluate,
-  extractParams,
-} from "./common/expression/util.ts";
+import Expression, { Value } from "./common/expression.ts";
 import * as cache from "./cache.ts";
 import * as lock from "./lock.ts";
 import * as localCache from "./cwmp/local-cache.ts";
@@ -39,7 +35,6 @@ import {
   AcsRequest,
   SessionFault,
   Fault,
-  Expression,
   SoapMessage,
   InformRequest,
   Preset,
@@ -80,7 +75,7 @@ async function authenticate(
     sessionContext.cacheSnapshot,
     "cwmp.auth",
   );
-  if (authExpression == null) return true;
+  if (!authExpression) return true;
 
   let authentication;
 
@@ -107,56 +102,65 @@ async function authenticate(
     authentication["body"] = body;
   }
 
-  const res = await evaluateAsync(
-    authExpression,
-    {},
-    sessionContext.timestamp,
+  const res = await authExpression.evaluateAsync(
     async (e: Expression): Promise<Expression> => {
       e = session.configContextCallback(sessionContext, e);
-      if (Array.isArray(e) && e[0] === "FUNC") {
-        if (e[1] === "EXT") {
-          if (typeof e[2] !== "string" || typeof e[3] !== "string") return null;
+      if (e instanceof Expression.Parameter)
+        return new Expression.Literal(null);
 
-          for (let i = 4; i < e.length; i++)
-            if (Array.isArray(e[i])) return null;
+      if (e instanceof Expression.FunctionCall) {
+        if (e.name === "NOW")
+          return new Expression.Literal(sessionContext.timestamp);
+        if (e.name === "EXT") {
+          if (!e.args.every((a) => a instanceof Expression.Literal))
+            return new Expression.Literal(null);
 
-          const { fault, value } = await extensions.run(e.slice(2));
-          return fault ? null : value;
-        } else if (e[1] === "AUTH") {
-          const username = e[2];
-          const password = e[3];
-          if (username != null && password != null && authentication) {
-            if (authentication["method"] === "Basic") {
-              return (
-                authentication["username"] === e[2] &&
-                authentication["password"] === e[3]
-              );
-            }
+          const args = e.args.map((a) => a.value.toString());
+          if (typeof args[0] !== "string" || typeof args[1] !== "string")
+            return new Expression.Literal(null);
 
-            if (authentication["method"] === "Digest") {
-              const expected = auth.digest(
-                username,
-                REALM,
-                password,
-                authentication["nonce"],
-                "POST",
-                authentication["uri"],
-                authentication["qop"],
-                authentication["body"],
-                authentication["cnonce"],
-                authentication["nc"],
-              );
-              return expected === authentication["response"];
+          const { fault, value } = await extensions.run(args);
+          if (fault) return new Expression.Literal(null);
+          return new Expression.Literal(value);
+        } else if (e.name === "AUTH") {
+          if (e.args.every((a) => a instanceof Expression.Literal)) {
+            const username = e.args[0].value;
+            const password = e.args[1].value;
+            if (username != null && password != null && authentication) {
+              if (authentication["method"] === "Basic") {
+                return new Expression.Literal(
+                  authentication["username"] === username.toString() &&
+                    authentication["password"] === password.toString(),
+                );
+              }
+
+              if (authentication["method"] === "Digest") {
+                const expected = auth.digest(
+                  username.toString(),
+                  REALM,
+                  password.toString(),
+                  authentication["nonce"],
+                  "POST",
+                  authentication["uri"],
+                  authentication["qop"],
+                  body,
+                  authentication["cnonce"],
+                  authentication["nc"],
+                );
+                return new Expression.Literal(
+                  expected === authentication["response"],
+                );
+              }
             }
           }
-          return false;
+          return new Expression.Literal(false);
         }
       }
       return e;
     },
   );
 
-  if (res && !Array.isArray(res)) return true;
+  if (res instanceof Expression.Literal) return !!res.value;
 
   return false;
 }
@@ -315,8 +319,7 @@ async function inform(
   const cookiesPath = localCache.getConfig(
     sessionContext.cacheSnapshot,
     "cwmp.cookiesPath",
-    {},
-    sessionContext.timestamp,
+    "",
     (e) => session.configContextCallback(sessionContext, e),
   );
 
@@ -406,8 +409,7 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
   const RETRY_DELAY = +localCache.getConfig(
     sessionContext.cacheSnapshot,
     "cwmp.retryDelay",
-    {},
-    sessionContext.timestamp,
+    300,
     (e) => session.configContextCallback(sessionContext, e),
   );
 
@@ -434,14 +436,14 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
   deviceData.attributes.revision = 1;
 
   const deviceEvents = {};
-  for (const p of deviceData.paths.find(Path.parse("Events.*"), false, true)) {
+  for (const p of deviceData.paths.find(Path.parse("Events"), 0b001, 0b1)) {
     const attrs = deviceData.attributes.get(p);
     const t = attrs?.value[1][0] as number;
     if (t >= sessionContext.timestamp)
       deviceEvents[p.segments[1] as string] = true;
   }
 
-  const parameters: { [name: string]: Path } = {};
+  const parameters = new Set<string>();
   const filteredPresets: Preset[] = [];
 
   for (const preset of presets) {
@@ -470,29 +472,31 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
         continue;
     }
 
-    filteredPresets.push(preset);
-    for (const k of extractParams(
-      evaluate(preset.precondition, null, sessionContext.timestamp),
-    )) {
-      // Mark channel in case of fault during fetching precondition
-      sessionContext.channels[preset.channel] = 0;
-      if (typeof k === "string") parameters[k] = Path.parse(k);
-    }
-    for (const prov of preset.provisions) {
-      for (const arg of prov.slice(1)) {
-        for (const k of extractParams(
-          evaluate(arg, null, sessionContext.timestamp),
-        )) {
-          // Mark channel in case of fault during fetching precondition
-          sessionContext.channels[preset.channel] = 0;
-          if (typeof k === "string") parameters[k] = Path.parse(k);
-        }
+    const pre = { ...preset };
+    const evalCallback = (e: Expression): Expression => {
+      if (e instanceof Expression.FunctionCall && e.name === "NOW")
+        return new Expression.Literal(sessionContext.timestamp);
+      if (e instanceof Expression.Parameter) {
+        // Mark channel in case of fault during fetching precondition
+        sessionContext.channels[preset.channel] = 0;
+        parameters.add(e.path.toString());
       }
-    }
+      return e;
+    };
+
+    pre.precondition = preset.precondition.evaluate(evalCallback);
+
+    pre.provisions = pre.provisions.map((prov) => {
+      let args = prov.slice(1) as Expression[];
+      args = args.map((arg) => arg.evaluate(evalCallback));
+      return [prov[0], ...args];
+    });
+
+    filteredPresets.push(pre);
   }
 
-  const declarations = Object.values(parameters).map((v) => ({
-    path: v,
+  const declarations = [...parameters].map((v) => ({
+    path: Path.parse(v),
     pathGet: 1,
     pathSet: null,
     attrGet: { value: 1 },
@@ -520,22 +524,21 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
     session.addProvisions(sessionContext, whiteList, whiteListProvisions);
 
   const appendProvisionsToFaults = {};
+
+  const evalCallback2 = (e: Expression): Expression.Literal => {
+    e = session.configContextCallback(sessionContext, e);
+    if (!(e instanceof Expression.Literal)) return new Expression.Literal(null);
+    return e;
+  };
+
   for (const p of filteredPresets) {
-    if (
-      evaluate(p.precondition, {}, sessionContext.timestamp, (e) =>
-        session.configContextCallback(sessionContext, e),
-      )
-    ) {
+    if (p.precondition.evaluate(evalCallback2).value) {
       const provs = p.provisions.map((pp) => [
         pp[0],
         ...pp
           .slice(1)
-          .map((arg) =>
-            evaluate(arg, {}, sessionContext.timestamp, (e) =>
-              session.configContextCallback(sessionContext, e),
-            ),
-          ),
-      ]) as [string, ...Expression[]][];
+          .map((arg) => (arg as Expression).evaluate(evalCallback2).value),
+      ]) as [string, ...Value[]][];
       if (blackList[p.channel] === 2) {
         appendProvisionsToFaults[p.channel] = (
           appendProvisionsToFaults[p.channel] || []
@@ -925,16 +928,18 @@ export async function onConnection(socket: Socket): Promise<void> {
 export async function onClientError(err: Error, socket: Socket): Promise<void> {
   const remoteAddress = getSocketEndpoints(socket).remoteAddress;
   const cacheSnapshot = await localCache.getRevision();
-  const debugEnabled = !!localCache.getConfig(
+  const debugEnabled = localCache.getConfig(
     cacheSnapshot,
     "cwmp.debug",
-    {
-      remoteAddress: remoteAddress,
-    },
-    Date.now(),
+    false,
     (e) => {
-      if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "REMOTE_ADDRESS")
-        return remoteAddress;
+      if (e instanceof Expression.FunctionCall) {
+        if (e.name === "REMOTE_ADDRESS")
+          return new Expression.Literal(remoteAddress);
+        if (e.name === "NOW") return new Expression.Literal(Date.now());
+      }
+      if (!(e instanceof Expression.Literal))
+        return new Expression.Literal(null);
       return e;
     },
   );
@@ -1030,8 +1035,7 @@ async function processRequest(
     sessionContext.debug = !!localCache.getConfig(
       sessionContext.cacheSnapshot,
       "cwmp.debug",
-      {},
-      sessionContext.timestamp,
+      false,
       (e) => session.configContextCallback(sessionContext, e),
     );
 
@@ -1039,8 +1043,7 @@ async function processRequest(
       sessionContext.timeout = +localCache.getConfig(
         sessionContext.cacheSnapshot,
         "cwmp.sessionTimeout",
-        {},
-        sessionContext.timestamp,
+        30,
         (e) => session.configContextCallback(sessionContext, e),
       );
     }
@@ -1282,16 +1285,19 @@ async function clientError(
     deviceId = sessionContext.deviceId;
   } else {
     const cacheSnapshot = await localCache.getRevision();
-    debugEnabled = !!localCache.getConfig(
+    const remoteAddress = getRequestOrigin(httpRequest).remoteAddress;
+    debugEnabled = localCache.getConfig(
       cacheSnapshot,
       "cwmp.debug",
-      {
-        remoteAddress: getRequestOrigin(httpRequest).remoteAddress,
-      },
-      Date.now(),
+      false,
       (e) => {
-        if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "REMOTE_ADDRESS")
-          return getRequestOrigin(httpRequest).remoteAddress;
+        if (e instanceof Expression.FunctionCall) {
+          if (e.name === "REMOTE_ADDRESS")
+            return new Expression.Literal(remoteAddress);
+          if (e.name === "NOW") return new Expression.Literal(Date.now());
+        }
+        if (!(e instanceof Expression.Literal))
+          return new Expression.Literal(null);
         return e;
       },
     );

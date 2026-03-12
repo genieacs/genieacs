@@ -1,7 +1,6 @@
 import { Attributes, ClosureComponent } from "mithril";
-import { map } from "../../lib/common/expression/parser.ts";
 import memoize from "../../lib/common/memoize.ts";
-import { Expression } from "../../lib/types.ts";
+import Expression from "../../lib/common/expression.ts";
 import { m } from "../components.ts";
 import { evaluateExpression, getTimestamp } from "../store.ts";
 import { FlatDevice } from "../../lib/ui/db.ts";
@@ -14,15 +13,16 @@ const evaluateAttributes = memoize(
   ): Attributes => {
     const res: Attributes = {};
     for (const [k, v] of Object.entries(attrs)) {
-      const vv = map(v, (e) => {
-        if (
-          Array.isArray(e) &&
-          e[0] === "FUNC" &&
-          e[1] === "ENCODEURICOMPONENT"
-        ) {
-          const a = evaluateExpression(e[2], obj);
-          if (a == null) return null;
-          return encodeURIComponent(a as string);
+      const vv = v.evaluate((e) => {
+        if (e instanceof Expression.Literal) return e;
+        else if (e instanceof Expression.FunctionCall) {
+          if (e.name === "ENCODEURICOMPONENT") {
+            const a = evaluateExpression(e.args[0], obj);
+            if (a instanceof Expression.Literal) {
+              if (a.value == null) return new Expression.Literal(null);
+              return new Expression.Literal(encodeURIComponent(a.value));
+            }
+          }
         }
         return e;
       });
@@ -47,9 +47,10 @@ const component: ClosureComponent<Attrs> = () => {
       }
 
       const children = Object.values(vnode.attrs.components).map((c) => {
-        if (Array.isArray(c)) c = evaluateExpression(c, device || {});
+        if (c instanceof Expression)
+          c = evaluateExpression(c, device || {}).value;
         if (typeof c !== "object") return `${c}`;
-        const type = evaluateExpression(c["type"], device || {});
+        const type = evaluateExpression(c["type"], device || {}).value;
         if (!type) return null;
         return m(type as string, c);
       });
@@ -59,8 +60,8 @@ const component: ClosureComponent<Attrs> = () => {
       if (el == null) return children;
 
       let attrs: Attributes;
-      if (Array.isArray(el)) {
-        el = evaluateExpression(el, device || {});
+      if (el instanceof Expression) {
+        el = evaluateExpression(el, device || {}).value;
       } else if (typeof el === "object") {
         if (el["attributes"] != null) {
           attrs = evaluateAttributes(

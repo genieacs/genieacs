@@ -1,8 +1,8 @@
 import { complement } from "espresso-iisojs";
-import { Expression } from "../../types.ts";
+import Expression from "../expression.ts";
 import normalize from "./normalize.ts";
 import { Clause, SynthContext } from "./synth.ts";
-import { and, or } from "./util.ts";
+import Path from "../path.ts";
 
 type Bookmark = Record<string, null | boolean | number | string>;
 
@@ -27,25 +27,35 @@ export function bookmarkToExpression(
 ): Expression {
   return Object.entries(sort)
     .reverse()
-    .reduce((cur, kv) => {
-      const [param, asc] = kv;
-      if (asc < 0) {
-        if (bookmark[param] == null) {
-          return or(
-            ["IS NOT NULL", ["PARAM", param]],
-            and(["IS NULL", ["PARAM", param]], cur),
+    .reduce(
+      (cur, kv) => {
+        const [param, asc] = kv;
+        const p = new Expression.Parameter(Path.parse(param));
+        const b = new Expression.Literal(bookmark[param]);
+        if (asc < 0) {
+          if (bookmark[param] == null) {
+            return Expression.or(
+              new Expression.Unary("IS NOT NULL", p),
+              Expression.and(new Expression.Unary("IS NULL", p), cur),
+            );
+          }
+          return new Expression.Binary(
+            "OR",
+            new Expression.Binary(">", p, b),
+            new Expression.Binary("AND", new Expression.Binary("=", p, b), cur),
+          );
+        } else {
+          let f: Expression = new Expression.Unary("IS NULL", p);
+          if (bookmark[param] == null) return Expression.and(f, cur);
+          f = Expression.or(f, new Expression.Binary("<", p, b));
+          return Expression.or(
+            f,
+            Expression.and(new Expression.Binary("=", p, b), cur),
           );
         }
-        let f = null;
-        f = or(f, [">", ["PARAM", param], bookmark[param]]);
-        return or(f, and(["=", ["PARAM", param], bookmark[param]], cur));
-      } else {
-        let f: Expression = ["IS NULL", ["PARAM", param]];
-        if (bookmark[param] == null) return and(f, cur);
-        f = or(f, ["<", ["PARAM", param], bookmark[param]]);
-        return or(f, and(["=", ["PARAM", param], bookmark[param]], cur));
-      }
-    }, true as Expression);
+      },
+      new Expression.Literal(true) as Expression,
+    );
 }
 
 function getCover(
@@ -60,7 +70,7 @@ function getCover(
   const nextCov: Minterm = [];
 
   if (sort > 0) {
-    const lhs = new Clause.Exp(["PARAM", param]);
+    const lhs = new Clause.Exp(new Expression.Parameter(Path.parse(param)));
     const isNull = context.getVar(new Clause.IsNull(lhs));
     cov.push((isNull << 2) ^ 2);
   }
@@ -68,15 +78,15 @@ function getCover(
   for (const m of minterm) {
     const clause = context.getClause(m >>> 2);
     if (clause instanceof Clause.IsNull) {
-      const lhs = clause.operand.expression();
-      if (!Array.isArray(lhs) || lhs[0] !== "PARAM") continue;
-      if (lhs[1] !== param) continue;
+      if (!(clause.operand instanceof Clause.Exp)) continue;
+      if (!(clause.operand.exp instanceof Expression.Parameter)) continue;
+      if (clause.operand.exp.path.toString() !== param) continue;
       nextCov.push(m);
       if (sort < 0 && m & 1) cov.push(m, m ^ 1);
     } else if (clause instanceof Clause.Compare) {
-      const lhs = clause.lhs.expression();
-      if (!Array.isArray(lhs) || lhs[0] !== "PARAM") continue;
-      if (lhs[1] !== param) continue;
+      if (!(clause.lhs instanceof Clause.Exp)) continue;
+      if (!(clause.lhs.exp instanceof Expression.Parameter)) continue;
+      if (clause.lhs.exp.path.toString() !== param) continue;
       if (!(m & 1) && sort > 0) continue;
       nextCov.push(m);
 
@@ -117,18 +127,20 @@ export function paginate(
   sort: Record<string, number>,
 ): [Expression, Expression] {
   fetched = normalize(fetched);
-  if (!fetched) return [false, toFetch];
+  if (fetched instanceof Expression.Literal && !fetched.value)
+    return [new Expression.Literal(false), toFetch];
 
   toFetch = normalize(toFetch);
-  if (!toFetch) return [false, toFetch];
+  if (toFetch instanceof Expression.Literal && !toFetch.value)
+    return [new Expression.Literal(false), toFetch];
 
   const synth1 = Clause.fromExpression(fetched);
   const synth2 = Clause.fromExpression(toFetch);
 
   const context = new SynthContext();
 
-  const expr1Minterms = synth1.true(context);
-  const expr2MintermsC = complement(synth2.true(context));
+  const expr1Minterms = synth1.getMinterms(context, 0b100);
+  const expr2MintermsC = synth2.getMinterms(context, 0b011);
 
   const gaps = context.sanitizeMinterms(
     complement([

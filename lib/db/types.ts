@@ -1,5 +1,6 @@
 import { ObjectId } from "mongodb";
-import { Expression, FaultStruct } from "../types.ts";
+import { FaultStruct } from "../types.ts";
+import { Value } from "../common/expression.ts";
 
 export interface Fault {
   _id: string;
@@ -71,7 +72,7 @@ interface TaskDeleteObject extends TaskBase {
 
 interface TaskProvisions extends TaskBase {
   name: "provisions";
-  provisions?: [string, ...Expression[]][];
+  provisions?: [string, ...Value[]][];
 }
 
 export type Task =
@@ -122,7 +123,7 @@ type Configuration =
   | { type: "delete_tag"; tag: string }
   | { type: "add_object"; name: string; object: string }
   | { type: "delete_object"; name: string; object: string }
-  | { type: "provision"; name: string; args?: Expression[] };
+  | { type: "provision"; name: string; args?: string[] };
 
 export interface Preset {
   _id: string;

@@ -2,13 +2,13 @@ import test from "node:test";
 import assert from "node:assert";
 import { EJSON } from "bson";
 import { Filter } from "mongodb";
-import { stringify, parse } from "../lib/common/expression/parser.ts";
+import Expression from "../lib/common/expression.ts";
 import { convertOldPrecondition } from "../lib/db/util.ts";
 import { toMongoQuery } from "../lib/db/synth.ts";
 
 void test("convertOldPrecondition", () => {
   const tests = [
-    [{}, "true"],
+    [{}, "TRUE"],
     [{ test: "test" }, 'test = "test"'],
     [{ test: { $eq: "test" } }, 'test = "test"'],
     [{ test: { $ne: "test" } }, 'test <> "test" OR test IS NULL'],
@@ -31,7 +31,7 @@ void test("convertOldPrecondition", () => {
     [{ test: "test", test2: "test2" }, 'test = "test" AND test2 = "test2"'],
     [
       { $or: [{ test: "test" }, { test: { $ne: "test" } }] },
-      'test = "test" OR (test <> "test" OR test IS NULL)',
+      'test = "test" OR test <> "test" OR test IS NULL',
     ],
     [
       { test: { $gte: "test1", $ne: "test2" } },
@@ -54,7 +54,7 @@ void test("convertOldPrecondition", () => {
 
   for (const t of tests) {
     assert.strictEqual(
-      stringify(convertOldPrecondition(t[0] as Record<string, unknown>)),
+      convertOldPrecondition(t[0] as Record<string, unknown>).toString(),
       t[1],
     );
   }
@@ -86,7 +86,6 @@ void test("toMongoQuery", async () => {
       "Param1 <> 1657844103524",
       {
         "Param1._value": { $ne: 1657844103524 },
-
         $and: [
           {
             "Param1._value": { $ne: { $date: "2022-07-15T00:15:03.524Z" } },
@@ -114,7 +113,6 @@ void test("toMongoQuery", async () => {
         },
       },
     ],
-
     [
       "LOWER(Param1) LIKE 'value'",
       {
@@ -146,7 +144,7 @@ void test("toMongoQuery", async () => {
   ];
 
   for (const [expStr, expect] of queries) {
-    const exp = parse(expStr);
+    const exp = Expression.parse(expStr);
     let query = toMongoQuery(exp, "devices");
     if (query) query = EJSON.serialize(query);
     assert.deepStrictEqual(query, expect);
@@ -156,11 +154,10 @@ void test("toMongoQuery", async () => {
     ["Param1 = Param2", "Right-hand operand must be a literal value"],
     ["Param1 LIKE Param2", "Right-hand operand of 'LIKE' must be a string"],
     ["NOW() = 1", "Left-hand operand must be a parameter"],
-    ["param{param2} = 1", "Left-hand operand must be a parameter"],
   ];
 
   for (const [expStr, err] of failQueries) {
-    const exp = parse(expStr);
+    const exp = Expression.parse(expStr);
     assert.throws(() => toMongoQuery(exp, "devices"), {
       message: err,
     });

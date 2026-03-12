@@ -1,8 +1,8 @@
 import m from "mithril";
-import { stringify } from "../lib/common/expression/parser.ts";
-import { or, and, evaluate } from "../lib/common/expression/util.ts";
+import Expression from "../lib/common/expression.ts";
+import Path from "../lib/common/path.ts";
 import memoize from "../lib/common/memoize.ts";
-import { Expression, Task } from "../lib/types.ts";
+import { Task } from "../lib/types.ts";
 import * as notifications from "./notifications.ts";
 import { configSnapshot, genieacsVersion } from "./config.ts";
 import { QueueTask } from "./task-queue.ts";
@@ -14,7 +14,30 @@ import {
   toBookmark,
 } from "../lib/common/expression/pagination.ts";
 
-const memoizedStringify = memoize(stringify);
+function evaluate(exp: Expression, timestamp: number): Expression;
+function evaluate(
+  exp: Expression,
+  timestamp: number,
+  obj: Record<string, unknown>,
+): Expression.Literal;
+function evaluate(
+  exp: Expression,
+  timestamp: number,
+  obj?: Record<string, unknown>,
+): Expression {
+  return exp.evaluate((e) => {
+    if (e instanceof Expression.Literal) return e;
+    else if (e instanceof Expression.FunctionCall) {
+      if (e.name === "NOW") return new Expression.Literal(timestamp);
+    } else if (e instanceof Expression.Parameter && obj) {
+      let v = obj[e.path.toString()];
+      if (v == null) return new Expression.Literal(null);
+      if (typeof v === "object") v = v["value"]?.[0];
+      return new Expression.Literal(v as any);
+    }
+    return e;
+  });
+}
 const memoizedEvaluate = memoize(evaluate);
 
 let fulfillTimestamp = 0;
@@ -59,7 +82,7 @@ for (const r of [
     objects: new Map(),
     count: new Map(),
     fetch: new Map(),
-    combinedFilter: null,
+    combinedFilter: new Expression.Literal(false) as Expression,
   };
 }
 
@@ -215,13 +238,11 @@ export async function xhrRequest(
 }
 
 export function unpackExpression(exp: Expression): Expression {
-  if (!Array.isArray(exp)) return exp;
-  const e = memoizedEvaluate(exp, null, fulfillTimestamp + clockSkew);
-  return e;
+  return memoizedEvaluate(exp, fulfillTimestamp + clockSkew);
 }
 
 export function count(resourceType: string, filter: Expression): QueryResponse {
-  const filterStr = memoizedStringify(filter);
+  const filterStr = filter.toString();
   let queryResponse = resources[resourceType].count.get(filterStr);
   if (queryResponse) return queryResponse;
 
@@ -271,7 +292,8 @@ function compareFunction(sort: {
 function findMatches(resourceType, filter, sort, limit): any[] {
   let value = [];
   for (const obj of resources[resourceType].objects.values())
-    if (evaluate(filter, obj, fulfillTimestamp + clockSkew)) value.push(obj);
+    if (evaluate(filter, fulfillTimestamp + clockSkew, obj).value)
+      value.push(obj);
 
   value = value.sort(compareFunction(sort));
   if (limit) value = value.slice(0, limit);
@@ -284,7 +306,6 @@ export function fetch(
   filter: Expression,
   options: { limit?: number; sort?: { [param: string]: number } } = {},
 ): QueryResponse {
-  const filterStr = memoizedStringify(filter);
   const sort = Object.assign({}, options.sort);
 
   const limit = options.limit || 0;
@@ -292,7 +313,7 @@ export function fetch(
     sort["DeviceID.ID"] = sort["DeviceID.ID"] || 1;
   else sort["_id"] = sort["_id"] || 1;
 
-  const key = `${filterStr}:${limit}:${JSON.stringify(sort)}`;
+  const key = `${filter.toString()}:${limit}:${JSON.stringify(sort)}`;
   let queryResponse = resources[resourceType].fetch.get(key);
   if (queryResponse) return queryResponse;
 
@@ -308,7 +329,10 @@ export function fetch(
   );
   const matches = findMatches(resourceType, satisfied, sort, limit);
   queries.value.set(queryResponse, matches);
-  if (!diff || (limit && matches.length >= limit))
+  if (
+    (diff instanceof Expression.Literal && !diff.value) ||
+    (limit && matches.length >= limit)
+  )
     queries.fulfilled.set(queryResponse, fulfillTimestamp);
   else queries.unsatisfied.set(queryResponse, diff);
   return queryResponse;
@@ -336,7 +360,7 @@ export function fulfill(accessTimestamp: number): void {
             url:
               `api/${resourceType}/?` +
               m.buildQueryString({
-                filter: memoizedStringify(filter),
+                filter: filter.toString(),
               }),
             extract: (xhr) => {
               if (xhr.status === 403) throw new Error("Not authorized");
@@ -393,7 +417,7 @@ export function fulfill(accessTimestamp: number): void {
               url:
                 `api/${resourceType}/?` +
                 m.buildQueryString({
-                  filter: memoizedStringify(filter),
+                  filter: filter.toString(),
                   limit: 1,
                   skip: limit - 1,
                   sort: JSON.stringify(sort),
@@ -419,16 +443,19 @@ export function fulfill(accessTimestamp: number): void {
       let updated = false;
       const allPromises2 = [];
       for (const [resourceType, toFetch] of Object.entries(toFetchAll)) {
-        let combinedFilter = null;
+        let combinedFilter = new Expression.Literal(false) as Expression;
 
         for (const queryResponse of toFetch) {
           let filter = queries.filter.get(queryResponse);
-          filter = memoizedEvaluate(filter, null, fulfillTimestamp + clockSkew);
+          filter = memoizedEvaluate(filter, fulfillTimestamp + clockSkew);
           const bookmark = queries.bookmark.get(queryResponse);
           const sort = queries.sort.get(queryResponse);
           if (bookmark)
-            filter = and(filter, bookmarkToExpression(bookmark, sort));
-          combinedFilter = or(combinedFilter, filter);
+            filter = Expression.and(
+              filter,
+              bookmarkToExpression(bookmark, sort),
+            );
+          combinedFilter = Expression.or(combinedFilter, filter);
         }
 
         const [union, diff] = unionDiff(
@@ -436,19 +463,18 @@ export function fulfill(accessTimestamp: number): void {
           combinedFilter,
         );
 
-        if (!diff) {
+        if (diff instanceof Expression.Literal && !diff.value) {
           for (const queryResponse of toFetch) {
             let filter = queries.filter.get(queryResponse);
-            filter = memoizedEvaluate(
-              filter,
-              null,
-              fulfillTimestamp + clockSkew,
-            );
+            filter = memoizedEvaluate(filter, fulfillTimestamp + clockSkew);
             const limit = queries.limit.get(queryResponse);
             const bookmark = queries.bookmark.get(queryResponse);
             const sort = queries.sort.get(queryResponse);
             if (bookmark)
-              filter = and(filter, bookmarkToExpression(bookmark, sort));
+              filter = Expression.and(
+                filter,
+                bookmarkToExpression(bookmark, sort),
+              );
 
             queries.value.set(
               queryResponse,
@@ -462,7 +488,11 @@ export function fulfill(accessTimestamp: number): void {
         }
 
         let deleted = new Set<string>();
-        if (!resources[resourceType].combinedFilter)
+        if (
+          resources[resourceType].combinedFilter instanceof
+            Expression.Literal &&
+          !resources[resourceType].combinedFilter.value
+        )
           deleted = new Set(resources[resourceType].objects.keys());
 
         const combinedFilterDiff = diff;
@@ -474,15 +504,12 @@ export function fulfill(accessTimestamp: number): void {
             url:
               `api/${resourceType}/?` +
               m.buildQueryString({
-                filter: memoizedStringify(combinedFilterDiff),
+                filter: combinedFilterDiff.toString(),
               }),
             background: false,
           }).then((res) => {
             for (const r of res as any[]) {
-              const id =
-                resourceType === "devices"
-                  ? r["DeviceID.ID"].value[0]
-                  : r["_id"];
+              const id = r["DeviceID.ID"] ?? r["_id"];
               resources[resourceType].objects.set(id, r);
               deleted.delete(id);
             }
@@ -490,7 +517,8 @@ export function fulfill(accessTimestamp: number): void {
             for (const d of deleted) {
               const obj = resources[resourceType].objects.get(d);
               if (
-                evaluate(combinedFilterDiff, obj, fulfillTimestamp + clockSkew)
+                evaluate(combinedFilterDiff, fulfillTimestamp + clockSkew, obj)
+                  .value
               )
                 resources[resourceType].objects.delete(d);
             }
@@ -502,7 +530,10 @@ export function fulfill(accessTimestamp: number): void {
               const bookmark = queries.bookmark.get(queryResponse);
               const sort = queries.sort.get(queryResponse);
               if (bookmark)
-                filter = and(filter, bookmarkToExpression(bookmark, sort));
+                filter = Expression.and(
+                  filter,
+                  bookmarkToExpression(bookmark, sort),
+                );
 
               queries.value.set(
                 queryResponse,
@@ -530,7 +561,7 @@ export function setTimestamp(t: number): void {
   if (t > fulfillTimestamp) {
     fulfillTimestamp = t;
     for (const resource of Object.values(resources))
-      resource.combinedFilter = null;
+      resource.combinedFilter = new Expression.Literal(false);
   }
 }
 
@@ -607,23 +638,32 @@ export function putResource(
 }
 
 export function queryConfig(pattern = "%"): Promise<any[]> {
-  const filter = stringify(["LIKE", ["PARAM", "_id"], pattern]);
+  const filter = new Expression.Binary(
+    "LIKE",
+    new Expression.Parameter(Path.parse("_id")),
+    new Expression.Literal(pattern),
+  );
   return xhrRequest({
     method: "GET",
-    url: `api/config/?${m.buildQueryString({ filter: filter })}`,
+    url: `api/config/?${m.buildQueryString({ filter: filter.toString() })}`,
     background: true,
   });
 }
 
 export function resourceExists(resource: string, id: string): Promise<number> {
   const param = resource === "devices" ? "DeviceID.ID" : "_id";
-  const filter = ["=", ["PARAM", param], id];
+  const filter = new Expression.Binary(
+    "=",
+    new Expression.Parameter(Path.parse(param)),
+    new Expression.Literal(id),
+  );
+
   return xhrRequest({
     method: "HEAD",
     url:
       `api/${resource}/?` +
       m.buildQueryString({
-        filter: memoizedStringify(filter),
+        filter: filter.toString(),
       }),
     extract: (xhr) => {
       if (xhr.status === 403) throw new Error("Not authorized");
@@ -636,12 +676,16 @@ export function resourceExists(resource: string, id: string): Promise<number> {
   });
 }
 
+export function evaluateExpression(exp: Expression): Expression;
 export function evaluateExpression(
   exp: Expression,
   obj: Record<string, unknown>,
+): Expression.Literal;
+export function evaluateExpression(
+  exp: Expression,
+  obj?: Record<string, unknown>,
 ): Expression {
-  if (!Array.isArray(exp)) return exp;
-  return memoizedEvaluate(exp, obj, fulfillTimestamp + clockSkew);
+  return memoizedEvaluate(exp, fulfillTimestamp + clockSkew, obj);
 }
 
 export function changePassword(

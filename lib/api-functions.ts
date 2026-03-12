@@ -31,8 +31,8 @@ import {
   udpConnectionRequest,
   xmppConnectionRequest,
 } from "./connection-request.ts";
-import { Expression, Task } from "./types.ts";
-import { evaluate } from "./common/expression/util.ts";
+import { Task } from "./types.ts";
+import Expression, { Value } from "./common/expression.ts";
 import { hashPassword } from "./auth.ts";
 import { flattenDevice } from "./ui/db.ts";
 import { ResourceLockedError } from "./common/errors.ts";
@@ -42,7 +42,7 @@ const XMPP_CONFIGURED = !!config.get("XMPP_JID");
 
 export async function connectionRequest(
   deviceId: string,
-  device?: Record<string, { value?: [boolean | number | string, string] }>,
+  device?: Record<string, Value>,
 ): Promise<string> {
   if (!device) {
     const res = await collections.devices.findOne({ _id: deviceId });
@@ -58,47 +58,36 @@ export async function connectionRequest(
     password;
 
   if (device["InternetGatewayDevice.ManagementServer.ConnectionRequestURL"]) {
-    connectionRequestUrl = (device[
-      "InternetGatewayDevice.ManagementServer.ConnectionRequestURL"
-    ].value || [""])[0];
-    udpConnectionRequestAddress = ((
+    connectionRequestUrl =
+      device["InternetGatewayDevice.ManagementServer.ConnectionRequestURL"] ||
+      "";
+    udpConnectionRequestAddress =
       device[
         "InternetGatewayDevice.ManagementServer.UDPConnectionRequestAddress"
-      ] || {}
-    ).value || [""])[0];
-    stunEnable = ((
-      device["InternetGatewayDevice.ManagementServer.STUNEnable"] || {}
-    ).value || [""])[0];
-    connReqJabberId = ((
-      device["InternetGatewayDevice.ManagementServer.ConnReqJabberID"] || {}
-    ).value || [""])[0];
-    username = ((
+      ] || "";
+    stunEnable =
+      device["InternetGatewayDevice.ManagementServer.STUNEnable"] || "";
+    connReqJabberId =
+      device["InternetGatewayDevice.ManagementServer.ConnReqJabberID"] || "";
+    username =
       device[
         "InternetGatewayDevice.ManagementServer.ConnectionRequestUsername"
-      ] || {}
-    ).value || [""])[0];
-    password = ((
+      ] || "";
+    password =
       device[
         "InternetGatewayDevice.ManagementServer.ConnectionRequestPassword"
-      ] || {}
-    ).value || [""])[0];
+      ] || "";
   } else {
-    connectionRequestUrl = (device[
-      "Device.ManagementServer.ConnectionRequestURL"
-    ].value || [""])[0];
-    udpConnectionRequestAddress = ((
-      device["Device.ManagementServer.UDPConnectionRequestAddress"] || {}
-    ).value || [""])[0];
-    stunEnable = ((device["Device.ManagementServer.STUNEnable"] || {})
-      .value || [""])[0];
-    connReqJabberId = ((device["Device.ManagementServer.ConnReqJabberID"] || {})
-      .value || [""])[0];
-    username = ((
-      device["Device.ManagementServer.ConnectionRequestUsername"] || {}
-    ).value || [""])[0];
-    password = ((
-      device["Device.ManagementServer.ConnectionRequestPassword"] || {}
-    ).value || [""])[0];
+    connectionRequestUrl =
+      device["Device.ManagementServer.ConnectionRequestURL"] || "";
+    udpConnectionRequestAddress =
+      device["Device.ManagementServer.UDPConnectionRequestAddress"] || "";
+    stunEnable = device["Device.ManagementServer.STUNEnable"] || "";
+    connReqJabberId = device["Device.ManagementServer.ConnReqJabberID"] || "";
+    username =
+      device["Device.ManagementServer.ConnectionRequestUsername"] || "";
+    password =
+      device["Device.ManagementServer.ConnectionRequestPassword"] || "";
   }
   let remoteAddress;
   try {
@@ -107,68 +96,70 @@ export async function connectionRequest(
     return "Invalid connection request URL";
   }
 
-  const evalCallback = (exp): Expression => {
-    if (!Array.isArray(exp)) return exp;
-    if (exp[0] === "PARAM" && typeof exp[1] === "string") {
-      let name = exp[1];
+  const snapshot = await getRevision();
+  const now = Date.now();
+
+  const evalCallback = (exp: Expression): Expression => {
+    if (exp instanceof Expression.Parameter) {
+      let name = exp.path.toString();
       if (name === "id") name = "DeviceID.ID";
       else if (name === "serialNumber") name = "DeviceID.SerialNumber";
       else if (name === "productClass") name = "DeviceID.ProductClass";
       else if (name === "oui") name = "DeviceID.OUI";
-      else if (name === "remoteAddress") return remoteAddress;
-      else if (name === "username") return username;
-      else if (name === "password") return password;
-
-      const p = device[name];
-      if (p?.value) return p.value[0];
-    } else if (exp[0] === "FUNC") {
-      if (exp[1] === "REMOTE_ADDRESS") return remoteAddress;
-      else if (exp[1] === "USERNAME") return username;
-      else if (exp[1] === "PASSWORD") return password;
+      else if (name === "remoteAddress")
+        return new Expression.Literal(remoteAddress);
+      else if (name === "username") return new Expression.Literal(username);
+      else if (name === "password") return new Expression.Literal(password);
+      return new Expression.Literal(device[name] ?? null);
+    } else if (exp instanceof Expression.FunctionCall) {
+      if (exp.name === "NOW") return new Expression.Literal(now);
+      else if (exp.name === "REMOTE_ADDRESS")
+        return new Expression.Literal(remoteAddress);
+      else if (exp.name === "USERNAME") return new Expression.Literal(username);
+      else if (exp.name === "PASSWORD") return new Expression.Literal(password);
     }
     return exp;
   };
 
-  const snapshot = await getRevision();
-  const now = Date.now();
-  const UDP_CONNECTION_REQUEST_PORT = +getConfig(
+  const configCallback = (exp: Expression): Expression.Literal => {
+    const e = evalCallback(exp);
+    if (e instanceof Expression.Literal) return e;
+    return new Expression.Literal(null);
+  };
+
+  const UDP_CONNECTION_REQUEST_PORT = getConfig(
     snapshot,
     "cwmp.udpConnectionRequestPort",
-    {},
-    now,
-    evalCallback,
+    0,
+    configCallback,
   );
-  const CONNECTION_REQUEST_TIMEOUT = +getConfig(
+  const CONNECTION_REQUEST_TIMEOUT = getConfig(
     snapshot,
     "cwmp.connectionRequestTimeout",
-    {},
-    now,
-    evalCallback,
+    2000,
+    configCallback,
   );
-  const CONNECTION_REQUEST_ALLOW_BASIC_AUTH = !!getConfig(
+  const CONNECTION_REQUEST_ALLOW_BASIC_AUTH = getConfig(
     snapshot,
     "cwmp.connectionRequestAllowBasicAuth",
-    {},
-    now,
-    evalCallback,
+    false,
+    configCallback,
   );
   let authExp: Expression = getConfigExpression(
     snapshot,
     "cwmp.connectionRequestAuth",
   );
 
-  if (authExp === undefined) {
-    authExp = [
-      "FUNC",
-      "AUTH",
-      ["PARAM", "username"],
-      ["PARAM", "password"],
-    ] as Expression;
+  if (!authExp) {
+    authExp = new Expression.FunctionCall("AUTH", [
+      new Expression.FunctionCall("USERNAME", []),
+      new Expression.FunctionCall("PASSWORD", []),
+    ]);
   }
 
-  authExp = evaluate(authExp, {}, now, evalCallback);
+  authExp = authExp.evaluate(evalCallback);
 
-  const debug = !!getConfig(snapshot, "cwmp.debug", {}, now, evalCallback);
+  const debug = getConfig(snapshot, "cwmp.debug", false, configCallback);
 
   let udpProm = Promise.resolve(false);
   if (udpConnectionRequestAddress && +stunEnable) {

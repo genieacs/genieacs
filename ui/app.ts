@@ -20,19 +20,37 @@ import { contextifyComponent } from "./components.ts";
 import { PermissionSet, UiConfig } from "../lib/types.ts";
 import drawerComponent from "./drawer-component.ts";
 import { render as renderOverlay } from "./overlay.ts";
+import Expression from "../lib/common/expression.ts";
 
 declare global {
   interface Window {
     authorizer: Authorizer;
-    permissionSets: PermissionSet[];
+    permissionSets: {
+      [resource: string]: { access: number; validate: string; filter: string };
+    }[][];
     username: string;
-    clientConfig: { ui: UiConfig };
+    clientConfig: UiConfig;
     configSnapshot: string;
     genieacsVersion: string;
   }
 }
 
-window.authorizer = new Authorizer(window.permissionSets);
+const permissionSets: PermissionSet[] = window.permissionSets.map((p) =>
+  p.map((s) =>
+    Object.fromEntries(
+      Object.entries(s).map(([resource, { access, validate, filter }]) => [
+        resource,
+        {
+          access,
+          validate: Expression.parse(validate),
+          filter: Expression.parse(filter),
+        },
+      ]),
+    ),
+  ),
+);
+
+window.authorizer = new Authorizer(permissionSets);
 
 let state;
 

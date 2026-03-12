@@ -2,47 +2,45 @@ import { ClosureComponent } from "mithril";
 import { m } from "../components.ts";
 import * as taskQueue from "../task-queue.ts";
 import { QueryResponse, evaluateExpression } from "../store.ts";
-import * as expressionParser from "../../lib/common/expression/parser.ts";
 import { icon } from "../tailwind-utility-components.ts";
 import { FlatDevice } from "../../lib/ui/db.ts";
-import { Expression } from "../../lib/types.ts";
+import Expression from "../../lib/common/expression.ts";
+import Path from "../../lib/common/path.ts";
 
 interface Attrs {
   device: FlatDevice;
   parameter: Expression;
   label: Expression;
-  childParameters: Record<string, { label: string; parameter: Expression }>;
+  childParameters: Record<string, { label: Expression; parameter: Expression }>;
   filter?: Expression;
   deviceQuery: QueryResponse;
 }
 
 const component: ClosureComponent<Attrs> = () => {
+  let object: Path;
+  let parameters: { label: Expression; parameter: Expression }[];
+
   return {
     oninit: (vnode) => {
       const obj = vnode.attrs.parameter;
-      if (!Array.isArray(obj) || obj[0] !== "PARAM")
+      if (!(obj instanceof Expression.Parameter))
         throw new Error("Object must be a parameter path");
-      vnode.state["object"] = obj[1];
-      vnode.state["parameters"] = Object.values(vnode.attrs.childParameters);
+      object = obj.path;
+      parameters = Object.values(vnode.attrs.childParameters);
     },
     view: (vnode) => {
       const device = vnode.attrs.device;
-      const object = evaluateExpression(vnode.state["object"], device);
-      const parameters = vnode.state["parameters"];
-
-      if (typeof object !== "string" || !device[object]) return null;
-
       const instances: Set<string> = new Set();
-      const prefix = `${object}.`;
+      const prefix = `${object.toString()}.`;
       for (const p in device) {
-        if (p.startsWith(prefix)) {
-          const i = p.indexOf(".", prefix.length);
-          if (i === -1) instances.add(p);
-          else instances.add(p.slice(0, i));
-        }
+        if (!p.startsWith(prefix)) continue;
+        if (p.lastIndexOf(":") !== -1) continue;
+        const i = p.indexOf(".", prefix.length);
+        if (i === -1) instances.add(p);
+        else instances.add(p.slice(0, i));
       }
 
-      const headers = Object.values(parameters).map((p, i) => {
+      const headers = parameters.map((p, i) => {
         const padding = i ? "px-3" : "pl-6 pr-3";
 
         return m(
@@ -53,7 +51,7 @@ const component: ClosureComponent<Attrs> = () => {
               "py-3.5 text-left text-sm font-semibold text-stone-500 " +
               padding,
           },
-          evaluateExpression(p["label"], device),
+          evaluateExpression(p.label, device).value,
         );
       });
 
@@ -63,24 +61,33 @@ const component: ClosureComponent<Attrs> = () => {
 
       const rows = [];
       for (const i of instances) {
-        let filter = "filter" in vnode.attrs ? vnode.attrs.filter : true;
+        let filter: Expression =
+          "filter" in vnode.attrs
+            ? vnode.attrs.filter
+            : new Expression.Literal(true);
 
-        filter = expressionParser.map(filter, (e) => {
-          if (Array.isArray(e) && e[0] === "PARAM")
-            return ["PARAM", ["||", i, ".", e[1]]];
+        const root = Path.parse(i);
+        filter = filter.evaluate((e) => {
+          if (e instanceof Expression.Parameter)
+            return new Expression.Parameter(root.concat(e.path));
           return e;
         });
 
-        if (!evaluateExpression(filter, device)) continue;
+        if (!evaluateExpression(filter, device).value) continue;
 
         const row = parameters.map((p, j) => {
           const padding = j ? "px-3" : "pl-6 pr-3";
 
-          const param = expressionParser.map(p.parameter, (e) => {
-            if (Array.isArray(e) && e[0] === "PARAM")
-              return ["PARAM", ["||", i, ".", e[1]]];
+          const param = p.parameter.evaluate((e) => {
+            if (e instanceof Expression.Parameter)
+              return new Expression.Parameter(root.concat(e.path));
             return e;
           });
+
+          let type = "parameter";
+          if (p["type"] instanceof Expression)
+            type = evaluateExpression(p["type"], device).value + "";
+
           return m(
             "td",
             {
@@ -91,7 +98,7 @@ const component: ClosureComponent<Attrs> = () => {
                 device: device,
                 parameter: param,
               },
-              p.type || "parameter",
+              type,
               Object.assign({}, p, {
                 device: device,
                 parameter: param,
@@ -101,7 +108,7 @@ const component: ClosureComponent<Attrs> = () => {
           );
         });
 
-        if (device[i].writable === true) {
+        if (device[i + ":writable"]) {
           row.push(
             m(
               "td",
@@ -116,7 +123,7 @@ const component: ClosureComponent<Attrs> = () => {
                   onclick: () => {
                     taskQueue.queueTask({
                       name: "deleteObject",
-                      device: device["DeviceID.ID"].value[0] as string,
+                      device: device["DeviceID.ID"] as string,
                       objectName: i,
                     });
                   },
@@ -147,7 +154,7 @@ const component: ClosureComponent<Attrs> = () => {
         );
       }
 
-      if (device[object].writable === true) {
+      if (device[object.toString() + ":writable"]) {
         rows.push(
           m(
             "tr",
@@ -161,8 +168,8 @@ const component: ClosureComponent<Attrs> = () => {
                   onclick: () => {
                     taskQueue.queueTask({
                       name: "addObject",
-                      device: device["DeviceID.ID"].value[0] as string,
-                      objectName: object,
+                      device: device["DeviceID.ID"] as string,
+                      objectName: object.toString(),
                     });
                   },
                 },

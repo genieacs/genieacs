@@ -23,7 +23,7 @@ export default defineConfig(
       },
     },
     rules: {
-      "no-shadow": ["error", { allow: ["err"] }],
+      "@typescript-eslint/no-shadow": ["error", { allow: ["err"] }],
       "handle-callback-err": "error",
       "prefer-arrow-callback": "error",
       "no-buffer-constructor": "error",

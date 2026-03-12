@@ -1,51 +1,103 @@
-import config from "./config.ts";
-import { Expression } from "../lib/types.ts";
+import { filters } from "./config.ts";
+import Expression from "../lib/common/expression.ts";
 import { encodeTag } from "../lib/util.ts";
+import Path from "../lib/common/path.ts";
 
 const resources = {
   devices: {},
   faults: {
-    Device: { parameter: ["PARAM", "device"], type: "string" },
-    Channel: { parameter: ["PARAM", "channel"], type: "string" },
-    Code: { parameter: ["PARAM", "code"], type: "string" },
-    Retries: { parameter: ["PARAM", "retries"], type: "number" },
-    Timestamp: { parameter: ["PARAM", "timestamp"], type: "timestamp" },
-  },
-  presets: {
-    ID: { parameter: ["PARAM", "_id"], type: "string" },
-    Channel: { parameter: ["PARAM", "channel"], type: "string" },
-    Weight: { parameter: ["PARAM", "weight"], type: "number" },
-  },
-  provisions: {
-    ID: { parameter: ["PARAM", "_id"], type: "string" },
-  },
-  virtualParameters: {
-    ID: { parameter: ["PARAM", "_id"], type: "string" },
-  },
-  files: {
-    ID: { parameter: ["PARAM", "_id"], type: "string" },
-    Type: { parameter: ["PARAM", "metadata.fileType"], type: "string" },
-    OUI: { parameter: ["PARAM", "metadata.oui"], type: "string" },
-    "Product class": {
-      parameter: ["PARAM", "metadata.productClass"],
+    Device: {
+      parameter: new Expression.Parameter(Path.parse("device")),
       type: "string",
     },
-    Version: { parameter: ["PARAM", "metadata.version"], type: "string" },
+    Channel: {
+      parameter: new Expression.Parameter(Path.parse("channel")),
+      type: "string",
+    },
+    Code: {
+      parameter: new Expression.Parameter(Path.parse("code")),
+      type: "string",
+    },
+    Retries: {
+      parameter: new Expression.Parameter(Path.parse("retries")),
+      type: "number",
+    },
+    Timestamp: {
+      parameter: new Expression.Parameter(Path.parse("timestamp")),
+      type: "timestamp",
+    },
+  },
+  presets: {
+    ID: {
+      parameter: new Expression.Parameter(Path.parse("_id")),
+      type: "string",
+    },
+    Channel: {
+      parameter: new Expression.Parameter(Path.parse("channel")),
+      type: "string",
+    },
+    Weight: {
+      parameter: new Expression.Parameter(Path.parse("weight")),
+      type: "number",
+    },
+  },
+  provisions: {
+    ID: {
+      parameter: new Expression.Parameter(Path.parse("_id")),
+      type: "string",
+    },
+  },
+  virtualParameters: {
+    ID: {
+      parameter: new Expression.Parameter(Path.parse("_id")),
+      type: "string",
+    },
+  },
+  files: {
+    ID: {
+      parameter: new Expression.Parameter(Path.parse("_id")),
+      type: "string",
+    },
+    Type: {
+      parameter: new Expression.Parameter(Path.parse("metadata.fileType")),
+      type: "string",
+    },
+    OUI: {
+      parameter: new Expression.Parameter(Path.parse("metadata.oui")),
+      type: "string",
+    },
+    "Product class": {
+      parameter: new Expression.Parameter(Path.parse("metadata.productClass")),
+      type: "string",
+    },
+    Version: {
+      parameter: new Expression.Parameter(Path.parse("metadata.version")),
+      type: "string",
+    },
   },
   permissions: {
-    Role: { parameter: ["PARAM", "role"], type: "string" },
-    Resource: { parameter: ["PARAM", "resource"], type: "string" },
-    Access: { parameter: ["PARAM", "access"], type: "number" },
+    Role: {
+      parameter: new Expression.Parameter(Path.parse("role")),
+      type: "string",
+    },
+    Resource: {
+      parameter: new Expression.Parameter(Path.parse("resource")),
+      type: "string",
+    },
+    Access: {
+      parameter: new Expression.Parameter(Path.parse("access")),
+      type: "number",
+    },
   },
-  users: { Username: { parameter: ["PARAM", "_id"], type: "string" } },
+  users: {
+    Username: {
+      parameter: new Expression.Parameter(Path.parse("_id")),
+      type: "string",
+    },
+  },
 };
 
-for (const v of Object.values(
-  config.ui.filters as Record<
-    string,
-    { label: string; parameter: string; type: string }
-  >,
-)) {
+for (const v of filters) {
   resources.devices[v.label] = {
     parameter: v.parameter,
     type: (v.type || "").split(",").map((s) => s.trim()),
@@ -70,7 +122,7 @@ function queryNumber(param: Expression, value: string): Expression {
   const v = parseInt(value);
   if (v !== +value) return null;
 
-  return [op, param, v];
+  return new Expression.Binary(op, param, new Expression.Literal(v));
 }
 
 function queryTimestamp(param: Expression, value: string): Expression {
@@ -86,52 +138,71 @@ function queryTimestamp(param: Expression, value: string): Expression {
   let v = parseInt(value);
   if (v !== +value) v = Date.parse(value);
   if (isNaN(v)) return null;
-  return [op, param, v];
+  return new Expression.Binary(op, param, new Expression.Literal(v));
 }
 
 function queryString(param: Expression, value: string): Expression {
-  return ["LIKE", ["FUNC", "LOWER", param], value.toLowerCase()];
+  return new Expression.Binary(
+    "LIKE",
+    new Expression.FunctionCall("LOWER", [param]),
+    new Expression.Literal(value.toLowerCase()),
+  );
 }
 
 function queryStringCaseSensitive(
   param: Expression,
   value: string,
 ): Expression {
-  return ["LIKE", param, value];
+  return new Expression.Binary("LIKE", param, new Expression.Literal(value));
 }
 
 function queryStringMonoCase(param: Expression, value: string): Expression {
-  return [
-    "OR",
-    ["LIKE", param, value.toLowerCase()],
-    ["LIKE", param, value.toUpperCase()],
-  ];
+  return Expression.or(
+    new Expression.Binary(
+      "LIKE",
+      param,
+      new Expression.Literal(value.toLowerCase()),
+    ),
+    new Expression.Binary(
+      "LIKE",
+      param,
+      new Expression.Literal(value.toUpperCase()),
+    ),
+  );
 }
 
 function queryMac(param: Expression, value: string): Expression {
   value = value.replace(/[^a-f0-9]/gi, "").toLowerCase();
   if (!value) return null;
   if (value.length === 12) {
-    return [
-      "OR",
-      ["=", param, value.replace(/(..)(?!$)/g, "$1:").toLowerCase()],
-      ["=", param, value.replace(/(..)(?!$)/g, "$1:").toUpperCase()],
-    ];
+    value = value.replace(/(..)(?!$)/g, "$1:");
+    return Expression.or(
+      new Expression.Binary(
+        "=",
+        param,
+        new Expression.Literal(value.toLowerCase()),
+      ),
+      new Expression.Binary(
+        "=",
+        param,
+        new Expression.Literal(value.toUpperCase()),
+      ),
+    );
   }
 
-  return [
-    "OR",
-    [
+  param = new Expression.FunctionCall("LOWER", [param]);
+  return Expression.or(
+    new Expression.Binary(
       "LIKE",
-      ["FUNC", "LOWER", param],
-      `%${value.replace(/(..)(?!$)/g, "$1:")}%`,
-    ],
-    [
+      param,
+      new Expression.Literal(`%${value.replace(/(..)(?!$)/g, "$1:")}%`),
+    ),
+    new Expression.Binary(
       "LIKE",
-      ["FUNC", "LOWER", param],
-      `%${value.replace(/(.)(.)/g, "$1:$2")}%`,
-    ],
-  ];
+      param,
+      new Expression.Literal(`%${value.replace(/(.)(.)/g, "$1:$2")}%`),
+    ),
+  );
 }
 
 function queryMacWildcard(param: Expression, value: string): Expression {
@@ -143,23 +214,32 @@ function queryMacWildcard(param: Expression, value: string): Expression {
     p.replace(/(.)(.)/gi, "$1:$2"),
   ]);
 
-  const res = new Set();
+  const set = new Set<string>();
   for (let i = 0; i < 2 ** groups.length; ++i) {
     const r = groups.map((g, j) => g[(i >> j) & 1]).join("%");
     if (/^[a-f0-9]:/i.test(r) || /:[a-f0-9]$/i.test(r)) continue;
-    res.add(r.toLocaleLowerCase());
-    res.add(r.toUpperCase());
+    set.add(r.toLocaleLowerCase());
+    set.add(r.toUpperCase());
   }
-  if (!res.size) return queryStringMonoCase(param, value);
+  if (!set.size) return queryStringMonoCase(param, value);
 
-  const clauses = [...res].map((r) => ["LIKE", param, r]);
-  if (clauses.length === 1) return clauses[0];
-  return ["OR", ...clauses];
+  let res: Expression = new Expression.Literal(false);
+  for (const s of set) {
+    res = Expression.or(
+      res,
+      new Expression.Binary("LIKE", param, new Expression.Literal(s)),
+    );
+  }
+
+  return res;
 }
 
 function queryTag(tag: string): Expression {
   const t = encodeTag(tag);
-  return ["IS NOT NULL", ["PARAM", `Tags.${t}`]];
+  return new Expression.Unary(
+    "IS NOT NULL",
+    new Expression.Parameter(Path.parse(`Tags.${t}`)),
+  );
 }
 
 export function getTip(resource: string, label: string): string {
@@ -214,21 +294,21 @@ export function unpack(
   if (!resources[resource]) return null;
   const type = resources[resource][label].type;
   value = value.trim();
-  const res: Expression = ["OR"];
+  let res: Expression = new Expression.Literal(false);
 
   if (type.length === 0 || type.includes("number")) {
     const q = queryNumber(resources[resource][label].parameter, value);
-    if (q) res.push(q);
+    if (q) res = Expression.or(res, q);
   }
 
   if (type.length === 0 || type.includes("string")) {
     const q = queryString(resources[resource][label].parameter, value);
-    if (q) res.push(q);
+    if (q) res = Expression.or(res, q);
   }
 
   if (type.length === 0 || type.includes("timestamp")) {
     const q = queryTimestamp(resources[resource][label].parameter, value);
-    if (q) res.push(q);
+    if (q) res = Expression.or(res, q);
   }
 
   if (type.includes("string-casesensitive")) {
@@ -236,30 +316,28 @@ export function unpack(
       resources[resource][label].parameter,
       value,
     );
-    if (q) res.push(q);
+    if (q) res = Expression.or(res, q);
   }
 
   if (type.includes("string-monocase")) {
     const q = queryStringMonoCase(resources[resource][label].parameter, value);
-    if (q) res.push(q);
+    if (q) res = Expression.or(res, q);
   }
 
   if (type.includes("mac")) {
     const q = queryMac(resources[resource][label].parameter, value);
-    if (q) res.push(q);
+    if (q) res = Expression.or(res, q);
   }
 
   if (type.includes("mac-wildcard")) {
     const q = queryMacWildcard(resources[resource][label].parameter, value);
-    if (q) res.push(q);
+    if (q) res = Expression.or(res, q);
   }
 
   if (type.includes("tag")) {
     const q = queryTag(value);
-    if (q) res.push(q);
+    if (q) res = Expression.or(res, q);
   }
 
-  if (res.length <= 1) return null;
-  else if (res.length === 2) return res[1];
-  else return res;
+  return res;
 }

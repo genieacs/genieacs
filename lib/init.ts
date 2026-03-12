@@ -79,14 +79,23 @@ export async function getStatus(): Promise<Status> {
   const users = getUsers(configSnapshot);
   const ui = getUiConfig(configSnapshot);
 
-  return {
+  const status = {
     users: !Object.keys(users).length,
     presets: !presetCount,
-    filters: !Object.keys(ui["filters"]).length,
-    device: !Object.keys(ui["device"]).length,
-    index: !Object.keys(ui["index"]).length,
-    overview: !Object.keys(ui["overview"]).length,
+    filters: true,
+    device: true,
+    index: true,
+    overview: true,
   };
+
+  for (const k of Object.keys(ui)) {
+    if (k.startsWith("filters.")) status.filters = false;
+    if (k.startsWith("device.")) status.device = false;
+    if (k.startsWith("index.")) status.index = false;
+    if (k.startsWith("overview.")) status.overview = false;
+  }
+
+  return status;
 }
 
 export async function seed(options: Record<string, boolean>): Promise<void> {

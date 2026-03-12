@@ -1,10 +1,9 @@
 import m, { ClosureComponent } from "mithril";
-import { parse, stringify, map } from "../lib/common/expression/parser.ts";
 import memoize from "../lib/common/memoize.ts";
 import Autocomplete from "./autocomplete-compnent.ts";
 import * as smartQuery from "./smart-query.ts";
 import { validQuery } from "../lib/db/synth.ts";
-import { Expression } from "../lib/types.ts";
+import Expression from "../lib/common/expression.ts";
 
 const getAutocomplete = memoize((resource) => {
   const labels = smartQuery.getLabels(resource);
@@ -22,20 +21,35 @@ const getAutocomplete = memoize((resource) => {
   return autocomplete;
 });
 
-function parseFilter(resource, f): Expression {
+function parseFilter(resource: string, f: string): Expression {
   let exp;
   if (/^[\s0-9a-zA-Z]+:/.test(f)) {
     const k = f.split(":", 1)[0];
     const v = f.slice(k.length + 1).trim();
-    exp = ["FUNC", "Q", k.trim(), v];
+    exp = new Expression.FunctionCall("Q", [
+      new Expression.Literal(k.trim()),
+      new Expression.Literal(v),
+    ]);
   } else {
-    exp = parse(f);
+    exp = Expression.parse(f);
   }
 
-  const unpacked = map(exp, (e) => {
-    if (Array.isArray(e) && e[0] === "FUNC") {
-      if (e[1] === "Q") return smartQuery.unpack(resource, e[2], e[3]);
-      else if (e[1] === "NOW") return Date.now();
+  const unpacked = exp.evaluate((e) => {
+    if (e instanceof Expression.FunctionCall) {
+      if (e.name === "NOW") return new Expression.Literal(Date.now());
+      else if (e.name === "Q") {
+        if (
+          e.args[0] instanceof Expression.Literal &&
+          e.args[1] instanceof Expression.Literal
+        ) {
+          const r = smartQuery.unpack(
+            resource,
+            e.args[0].value as string,
+            e.args[1].value as string,
+          );
+          return r;
+        }
+      }
     }
     return e;
   });
@@ -46,28 +60,33 @@ function parseFilter(resource, f): Expression {
   return exp;
 }
 
-function stringifyFilter(f: Expression): string {
-  if (Array.isArray(f) && f[0] === "FUNC" && f[1] === "Q")
-    return `${f[2]}: ${f[3]}`;
-  return stringify(f);
-}
-
-function splitFilter(filter: string): string[] {
+function splitFilter(filter: Expression): string[] {
   if (!filter) return [""];
-  const list: string[] = [];
-  const f = parse(filter);
-  if (Array.isArray(f) && f[0] === "AND")
-    for (const ff of f.slice(1)) list.push(stringifyFilter(ff));
-  else list.push(stringifyFilter(f));
+  if (filter instanceof Expression.Literal && filter.value) return [""];
+  const list: Expression[] = [filter];
+  const res: string[] = [];
+  while (list.length) {
+    const f = list.pop();
+    if (f instanceof Expression.Binary && f.operator === "AND") {
+      list.push(f.right);
+      list.push(f.left);
+    } else if (f instanceof Expression.FunctionCall && f.name === "Q") {
+      const l = f.args[0] as Expression.Literal;
+      const r = f.args[1] as Expression.Literal;
+      res.push(`${l.value}: ${r.value}`);
+    } else {
+      res.push(f.toString());
+    }
+  }
 
-  list.push("");
-  return list;
+  res.push("");
+  return res;
 }
 
 interface Attrs {
   resource: string;
-  filter: string;
-  onChange: (filter: string) => void;
+  filter?: Expression;
+  onChange: (filter: Expression) => void;
 }
 
 const component: ClosureComponent<Attrs> = (initialVnode) => {
@@ -80,23 +99,22 @@ const component: ClosureComponent<Attrs> = (initialVnode) => {
     filterTouched = false;
     filterInvalid = 0;
     filterList = filterList.filter((f) => f);
-    const list = filterList.map((f, idx) => {
+    let filter: Expression = new Expression.Literal(true);
+    for (const [idx, f] of filterList.entries()) {
       try {
-        return parseFilter(attrs.resource, f);
+        filter = Expression.and(filter, parseFilter(attrs.resource, f));
       } catch {
         filterInvalid |= 1 << idx;
       }
-      return null;
-    });
+    }
     filterList.push("");
 
     if (filterInvalid) {
       m.redraw();
       return;
     }
-    if (list.length === 0) attrs.onChange("");
-    else if (list.length > 1) attrs.onChange(stringify(["AND", ...list]));
-    else attrs.onChange(stringify(list[0]));
+    if (!filterList.length) attrs.onChange(null);
+    else attrs.onChange(filter);
   }
 
   return {
@@ -120,7 +138,7 @@ const component: ClosureComponent<Attrs> = (initialVnode) => {
               "appearance-none rounded-none relative block w-full px-3 py-2 border-stone-300 placeholder-stone-500 text-stone-900 focus:ring-cyan-500 focus:border-cyan-500 focus:z-10 sm:text-sm";
             if (idx === 0) classNames += " rounded-t-md";
             if (idx === filterList.length - 1) classNames += " rounded-b-md";
-            if (filterInvalid & (1 << idx)) classNames += " text-red-700";
+            if (filterInvalid & (1 << idx)) classNames += " !text-red-700";
 
             return m(`input`, {
               type: "text",

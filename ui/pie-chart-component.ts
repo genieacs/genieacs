@@ -1,12 +1,8 @@
-import { ClosureComponent, Component, Children } from "mithril";
+import { ClosureComponent, Children } from "mithril";
 import { m } from "./components.ts";
-import { stringify } from "../lib/common/expression/parser.ts";
-import memoize from "../lib/common/memoize.ts";
-import * as store from "./store.ts";
+import Expression from "../lib/common/expression.ts";
 
-const memoizedStringify = memoize(stringify);
-
-function drawChart(chartData): Children {
+function drawChart(chartData: Attrs["chart"]): Children {
   const slices = chartData.slices;
   const total: number = Array.from(Object.values(chartData.slices)).reduce(
     (a: number, s) => a + (s["count"]["value"] || 0),
@@ -27,10 +23,10 @@ function drawChart(chartData): Children {
         m(
           "td",
           m("span.inline-block w-3 h-3 border border-stone-200 mr-1", {
-            style: `background-color: ${store.evaluateExpression(slice["color"], null)} !important;`,
+            style: `background-color: ${slice.color} !important;`,
           }),
         ),
-        m("td.w-full", store.evaluateExpression(slice["label"], null)),
+        m("td.w-full", slice.label),
         m(
           "td.text-stone-500 text-right tabular-nums",
           `${Math.round(percent * 100)}%`,
@@ -41,7 +37,7 @@ function drawChart(chartData): Children {
             "a.text-cyan-700 hover:text-cyan-900 font-medium ml-2",
             {
               href: `#!/devices/?${m.buildQueryString({
-                filter: memoizedStringify(slice["filter"]),
+                filter: slice.filter.toString(),
               })}`,
             },
             slice["count"]["value"] || 0,
@@ -67,7 +63,7 @@ function drawChart(chartData): Children {
       paths.push(
         m("path.stroke-white stroke-1", {
           d: sketch,
-          fill: store.evaluateExpression(slice["color"], null),
+          fill: slice.color,
         }),
       );
 
@@ -81,7 +77,7 @@ function drawChart(chartData): Children {
           "a.opacity-0 hover:opacity-100 focus-visible:opacity-100 outline-hidden",
           {
             "xlink:href": `#!/devices/?${m.buildQueryString({
-              filter: memoizedStringify(slice["filter"]),
+              filter: slice.filter.toString(),
             })}`,
           },
           [
@@ -137,10 +133,21 @@ function drawChart(chartData): Children {
   );
 }
 
-const component: ClosureComponent = (): Component => {
+interface Attrs {
+  chart: {
+    label: string;
+    slices: {
+      label: string;
+      filter: Expression;
+      color: string;
+    }[];
+  };
+}
+
+const component: ClosureComponent<Attrs> = () => {
   return {
     view: (vnode) => {
-      return drawChart(vnode.attrs["chart"]);
+      return drawChart(vnode.attrs.chart);
     },
   };
 };

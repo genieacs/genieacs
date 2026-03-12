@@ -2,12 +2,11 @@ import { Script } from "node:vm";
 import { Readable } from "node:stream";
 import { Collection, ObjectId, WithoutId } from "mongodb";
 import { encodeTag } from "../util.ts";
-import { evaluate } from "../common/expression/util.ts";
-import { Expression, Fault, Task } from "../types.ts";
+import { Fault, Task } from "../types.ts";
 import { collections, filesBucket } from "../db/db.ts";
 import { convertOldPrecondition, optimizeProjection } from "../db/util.ts";
 import * as MongoTypes from "../db/types.ts";
-import { parse, parseList, stringify } from "../common/expression/parser.ts";
+import Expression, { parseList, Value } from "../common/expression.ts";
 import { toMongoQuery } from "../db/synth.ts";
 
 function processDeviceProjection(
@@ -61,21 +60,8 @@ function parseDate(d: Date): number | string {
   return isNaN(n) ? "" + d : n;
 }
 
-interface FlatAttributes {
-  object?: boolean;
-  objectTimestamp?: number;
-  writable?: boolean;
-  writableTimestamp?: number;
-  value?: [string | number | boolean, string];
-  valueTimestamp?: number;
-  notification?: number;
-  notificationTimestamp?: number;
-  accessList?: string[];
-  accessListTimestamp?: number;
-}
-
 export interface FlatDevice {
-  [param: string]: FlatAttributes;
+  [param: string]: Value;
 }
 
 export function flattenDevice(device: Record<string, unknown>): FlatDevice {
@@ -88,100 +74,38 @@ export function flattenDevice(device: Record<string, unknown>): FlatDevice {
     for (const [name, tree] of Object.entries(input)) {
       if (!root) {
         if (name === "_lastInform") {
-          output["Events.Inform"] = {
-            value: [parseDate(tree as Date), "xsd:dateTime"],
-            valueTimestamp: timestamp,
-            writable: false,
-            writableTimestamp: timestamp,
-            object: false,
-            objectTimestamp: timestamp,
-          };
+          output["Events.Inform"] = parseDate(tree as Date);
+          output["Events.Inform:type"] = "xsd:dateTime";
         } else if (name === "_registered") {
-          output["Events.Registered"] = {
-            value: [parseDate(tree as Date), "xsd:dateTime"],
-            valueTimestamp: timestamp,
-            writable: false,
-            writableTimestamp: timestamp,
-            object: false,
-            objectTimestamp: timestamp,
-          };
+          output["Events.Registered"] = parseDate(tree as Date);
+          output["Events.Registered:type"] = "xsd:dateTime";
         } else if (name === "_lastBoot") {
-          output["Events.1_BOOT"] = {
-            value: [parseDate(tree as Date), "xsd:dateTime"],
-            valueTimestamp: timestamp,
-            writable: false,
-            writableTimestamp: timestamp,
-            object: false,
-            objectTimestamp: timestamp,
-          };
+          output["Events.1_BOOT"] = parseDate(tree as Date);
+          output["Events.1_BOOT:type"] = "xsd:dateTime";
         } else if (name === "_lastBootstrap") {
-          output["Events.0_BOOTSTRAP"] = {
-            value: [parseDate(tree as Date), "xsd:dateTime"],
-            valueTimestamp: timestamp,
-            writable: false,
-            writableTimestamp: timestamp,
-            object: false,
-            objectTimestamp: timestamp,
-          };
+          output["Events.0_BOOTSTRAP"] = parseDate(tree as Date);
+          output["Events.0_BOOTSTRAP:type"] = "xsd:dateTime";
         } else if (name === "_id") {
-          output["DeviceID.ID"] = {
-            value: [tree as string, "xsd:string"],
-            valueTimestamp: timestamp,
-            writable: false,
-            writableTimestamp: timestamp,
-            object: false,
-            objectTimestamp: timestamp,
-          };
+          output["DeviceID.ID"] = tree as string;
+          output["DeviceID.ID:type"] = "xsd:dateTime";
         } else if (name === "_deviceId") {
-          output["DeviceID.Manufacturer"] = {
-            value: [tree["_Manufacturer"], "xsd:string"],
-            valueTimestamp: timestamp,
-            writable: false,
-            writableTimestamp: timestamp,
-            object: false,
-            objectTimestamp: timestamp,
-          };
-          output["DeviceID.OUI"] = {
-            value: [tree["_OUI"], "xsd:string"],
-            valueTimestamp: timestamp,
-            writable: false,
-            writableTimestamp: timestamp,
-            object: false,
-            objectTimestamp: timestamp,
-          };
-          output["DeviceID.ProductClass"] = {
-            value: [tree["_ProductClass"], "xsd:string"],
-            valueTimestamp: timestamp,
-            writable: false,
-            writableTimestamp: timestamp,
-            object: false,
-            objectTimestamp: timestamp,
-          };
-          output["DeviceID.SerialNumber"] = {
-            value: [tree["_SerialNumber"], "xsd:string"],
-            valueTimestamp: timestamp,
-            writable: false,
-            writableTimestamp: timestamp,
-            object: false,
-            objectTimestamp: timestamp,
-          };
+          output["DeviceID.Manufacturer"] = tree["_Manufacturer"];
+          output["DeviceID.Manufacturer:type"] = "xsd:string";
+          output["DeviceID.OUI"] = tree["_OUI"];
+          output["DeviceID.OUI:type"] = "xsd:string";
+          output["DeviceID.ProductClass"] = tree["_ProductClass"];
+          output["DeviceID.ProductClass:type"] = "xsd:string";
+          output["DeviceID.SerialNumber"] = tree["_SerialNumber"];
+          output["DeviceID.SerialNumber:type"] = "xsd:string";
         } else if (name === "_tags") {
-          output["Tags"] = {
-            writable: false,
-            writableTimestamp: timestamp,
-            object: true,
-            objectTimestamp: timestamp,
-          };
+          output["Tags:object"] = true;
+          output["Tags:writable"] = true;
 
           for (const t of tree as string[]) {
-            output[`Tags.${encodeTag(t)}`] = {
-              value: [true, "xsd:boolean"],
-              valueTimestamp: timestamp,
-              writable: true,
-              writableTimestamp: timestamp,
-              object: false,
-              objectTimestamp: timestamp,
-            };
+            const et = encodeTag(t);
+            output[`Tags.${et}`] = true;
+            output[`Tags.${et}:type`] = "xsd:boolean";
+            output[`Tags.${et}:writable`] = true;
           }
         }
       }
@@ -194,40 +118,37 @@ export function flattenDevice(device: Record<string, unknown>): FlatDevice {
       else if (+input["_timestamp"] > timestamp)
         childrenTimestamp = +input["_timestamp"];
 
-      const attrs: FlatAttributes = {};
+      const r = root ? `${root}.${name}` : name;
+
       if (tree["_value"] != null) {
-        attrs.value = [
-          tree["_value"] instanceof Date ? +tree["_value"] : tree["_value"],
-          tree["_type"],
-        ];
-        attrs.valueTimestamp = +(tree["_timestamp"] || childrenTimestamp);
-        attrs.object = false;
-        attrs.objectTimestamp = childrenTimestamp;
+        output[r] =
+          tree["_value"] instanceof Date ? +tree["_value"] : tree["_value"];
+        output[`${r}:type`] = tree["_type"];
+        output[`${r}:timestamp`] = childrenTimestamp;
+        output[`${r}:valueTimestamp`] = +(
+          tree["_timestamp"] || childrenTimestamp
+        );
       } else if (tree["_object"] != null) {
-        attrs.object = tree["_object"];
-        attrs.objectTimestamp = childrenTimestamp;
+        output[`${r}:object`] = tree["_object"];
+        output[`${r}:timestamp`] = childrenTimestamp;
       }
 
       if (tree["_writable"] != null) {
-        attrs.writable = tree["_writable"];
-        attrs.writableTimestamp = childrenTimestamp;
+        output[`${r}:writable`] = tree["_writable"];
+        output[`${r}:timestamp`] = childrenTimestamp;
       }
 
       if (tree["_notification"] != null) {
-        attrs.notification = tree["_notification"];
-        attrs.notificationTimestamp = +tree["_attributesTimestamp"] || 1;
+        output[`${r}:notification`] = tree["_notification"];
+        output[`${r}:attributesTimestamp`] = +tree["_attributesTimestamp"] || 1;
       }
 
       if (tree["_accessList"] != null) {
-        attrs.accessList = tree["_accessList"];
-        attrs.accessListTimestamp = +tree["_attributesTimestamp"] || 1;
+        output[`${r}:accessList`] = tree["_accessList"].join(",");
+        output[`${r}:attributesTimestamp`] = +tree["_attributesTimestamp"] || 1;
       }
 
-      const r = root ? `${root}.${name}` : name;
-      output[r] = attrs;
-
-      if (attrs.object || tree["object"] == null)
-        recursive(tree, r, output, childrenTimestamp);
+      recursive(tree, r, output, childrenTimestamp);
     }
   }
 
@@ -259,14 +180,12 @@ function flattenPreset(
   if (p.precondition) {
     try {
       // Try parse to check expression validity
-      parse(p.precondition as string);
+      Expression.parse(p.precondition as string);
     } catch {
-      p.precondition = convertOldPrecondition(
-        JSON.parse(p.precondition as string),
-      );
-      p.precondition = (p.precondition as string).length
-        ? stringify(p.precondition as Expression)
-        : "";
+      const e = convertOldPrecondition(JSON.parse(p.precondition as string));
+      if (e instanceof Expression.Literal && e.value)
+        p.precondition = e.toString();
+      else p.precondition = "";
     }
   }
 
@@ -285,7 +204,7 @@ function flattenPreset(
   ) {
     p.provision = provision.name;
     p.provisionArgs = provision.args
-      ? provision.args.map((a) => stringify(a)).join(", ")
+      ? provision.args.map((a) => a.toString()).join(", ")
       : "";
   }
 
@@ -309,8 +228,7 @@ function preProcessPreset(data: Record<string, unknown>): MongoTypes.Preset {
   const preset = Object.assign({}, data);
 
   if (!preset.precondition) preset.precondition = "";
-  // Try parse to check expression validity
-  parse(preset.precondition as string);
+  else Expression.parse(preset.precondition as string); // Try parse to check validity
 
   preset.weight = parseInt(preset.weight as string) || 0;
 
@@ -361,7 +279,13 @@ export async function* query(
   options?: QueryOptions,
 ): AsyncGenerator<any, void, undefined> {
   options = options || {};
-  filter = evaluate(filter, null, Date.now());
+  const now = Date.now();
+  filter = filter.evaluate((e) => {
+    if (e instanceof Expression.FunctionCall) {
+      if (e.name === "NOW") return new Expression.Literal(now);
+    }
+    return e;
+  });
   const q = toMongoQuery(filter, resource);
   if (!q) return;
 
@@ -408,7 +332,13 @@ export async function* query(
 
 export function count(resource: string, filter: Expression): Promise<number> {
   const collection = collections[resource] as Collection<any>;
-  filter = evaluate(filter, null, Date.now());
+  const now = Date.now();
+  filter = filter.evaluate((e) => {
+    if (e instanceof Expression.FunctionCall) {
+      if (e.name === "NOW") return new Expression.Literal(now);
+    }
+    return e;
+  });
   const q = toMongoQuery(filter, resource);
   if (!q) return Promise.resolve(0);
   return collection.countDocuments(q);

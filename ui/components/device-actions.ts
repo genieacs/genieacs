@@ -19,7 +19,7 @@ const component: ClosureComponent = (): Component => {
             onclick: () => {
               taskQueue.queueTask({
                 name: "reboot",
-                device: device["DeviceID.ID"].value[0],
+                device: device["DeviceID.ID"],
               });
             },
           },
@@ -35,7 +35,7 @@ const component: ClosureComponent = (): Component => {
             onclick: () => {
               taskQueue.queueTask({
                 name: "factoryReset",
-                device: device["DeviceID.ID"].value[0],
+                device: device["DeviceID.ID"],
               });
             },
           },
@@ -51,7 +51,7 @@ const component: ClosureComponent = (): Component => {
             onclick: () => {
               taskQueue.stageDownload({
                 name: "download",
-                devices: [device["DeviceID.ID"].value[0]],
+                devices: [device["DeviceID.ID"]],
               });
             },
           },
@@ -66,7 +66,7 @@ const component: ClosureComponent = (): Component => {
             title: "Delete device",
             onclick: () => {
               if (!confirm("Deleting this device. Are you sure?")) return;
-              const deviceId = device["DeviceID.ID"].value[0];
+              const deviceId = device["DeviceID.ID"];
 
               store
                 .deleteResource("devices", deviceId)

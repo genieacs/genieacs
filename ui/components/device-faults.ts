@@ -3,17 +3,24 @@ import { m } from "../components.ts";
 import * as store from "../store.ts";
 import * as notifications from "../notifications.ts";
 import { stringify } from "../../lib/common/yaml.ts";
+import Expression from "../../lib/common/expression.ts";
+import Path from "../../lib/common/path.ts";
 
 const component: ClosureComponent = (): Component => {
   return {
     view: (vnode) => {
       const device = vnode.attrs["device"];
-      const deviceId = device["DeviceID.ID"].value[0];
-      const faults = store.fetch("faults", [
-        "AND",
-        [">", ["PARAM", "_id"], `${deviceId}:`],
-        ["<", ["PARAM", "_id"], `${deviceId}:zzzz`],
-      ]);
+      const deviceId = device["DeviceID.ID"];
+      const p = new Expression.Parameter(Path.parse("_id"));
+      const exp = Expression.and(
+        new Expression.Binary(">", p, new Expression.Literal(`${deviceId}:`)),
+        new Expression.Binary(
+          "<",
+          p,
+          new Expression.Literal(`${deviceId}:zzzz`),
+        ),
+      );
+      const faults = store.fetch("faults", exp);
 
       const headers = [
         "Channel",

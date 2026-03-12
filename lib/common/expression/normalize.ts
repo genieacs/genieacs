@@ -1,22 +1,15 @@
-import * as BI from "./bigint.ts";
-import { Expression } from "../../types.ts";
-import { map } from "./parser.ts";
-import { and, evaluateCallback } from "./util.ts";
-
-const ZERO = BI.BigInt(0);
-const ONE = BI.BigInt(1);
-const TWO = BI.BigInt(2);
-const NEGATIVE_ONE = BI.BigInt(-1);
+import Expression from "../expression.ts";
+import { reduce } from "./evaluate.ts";
 
 class Indeterminates {
-  declare public map: Map<string, number>;
-  declare public sortedKeys: string[];
+  declare public map: Map<Expression, number>;
+  declare public sortedKeys: Expression[];
 
-  public constructor(str?: string) {
+  public constructor(exp?: Expression) {
     this.map = new Map();
-    if (str) {
-      this.map.set(str, 1);
-      this.sortedKeys = [str];
+    if (exp) {
+      this.map.set(exp, 1);
+      this.sortedKeys = [exp];
     } else {
       this.sortedKeys = [];
     }
@@ -37,27 +30,31 @@ class Indeterminates {
     const res = new Indeterminates();
     res.sortedKeys = indeterminates1.sortedKeys.slice();
     res.map = new Map(indeterminates1.map);
+    const strMap: Map<string, Expression> = new Map();
+    for (const k of res.map.keys()) strMap.set(k.toString(), k);
 
     for (const [key, val] of indeterminates2.map) {
-      const v = res.map.get(key);
-      if (!v) {
+      const k = strMap.get(key.toString());
+      if (!k) {
         res.map.set(key, val);
         res.sortedKeys.push(key);
       } else {
-        const v2 = val + v;
+        const v2 = val + res.map.get(k);
         if (!v2) {
-          res.map.delete(key);
-          res.sortedKeys = res.sortedKeys.filter((s) => s !== key);
+          res.map.delete(k);
+          res.sortedKeys = res.sortedKeys.filter((s) => s !== k);
         } else {
-          res.map.set(key, v2);
+          res.map.set(k, v2);
         }
       }
     }
 
     res.sortedKeys.sort((a, b) => {
-      if (a.length !== b.length) return b.length - a.length;
-      else if (a > b) return 1;
-      else if (a < b) return -1;
+      const str1 = a.toString();
+      const str2 = b.toString();
+      if (str1.length !== str2.length) return str2.length - str1.length;
+      else if (str1 > str2) return 1;
+      else if (str1 < str2) return -1;
       return 0;
     });
 
@@ -73,10 +70,10 @@ class Indeterminates {
       const k2 = b.sortedKeys[i];
       const w2 = b.map.get(k2);
       if (w1 !== w2) return w2 - w1;
-      if (k1.length > k2.length) return -1;
-      else if (k1.length < k2.length) return 1;
-      else if (k1 > k2) return 1;
-      else if (k1 < k2) return -1;
+      if (k1.toString().length > k2.toString().length) return -1;
+      else if (k1.toString().length < k2.toString().length) return 1;
+      else if (k1.toString() > k2.toString()) return 1;
+      else if (k1.toString() < k2.toString()) return -1;
     }
     return 0;
   }
@@ -84,24 +81,33 @@ class Indeterminates {
 
 interface Term {
   indeterminates: Indeterminates;
-  coefficientNumerator: BI.bigint;
-  coefficientDenominator: BI.bigint;
+  coefficientNumerator: bigint;
+  coefficientDenominator: bigint;
 }
 
-function findGcd(a: BI.bigint, b: BI.bigint): BI.bigint {
-  while (BI.ne(b, ZERO)) {
+function findGcd(a: bigint, b: bigint): bigint {
+  while (b !== 0n) {
     const t = b;
-    b = BI.rem(a, b);
+    b = a % b;
     a = t;
   }
   return a;
 }
 
-class Polynomial {
+class Polynomial extends Expression {
   declare public terms: Term[];
 
   public constructor(terms: Term[]) {
+    super();
     this.terms = terms;
+  }
+
+  map(): Polynomial {
+    return this;
+  }
+
+  async mapAsync(): Promise<Polynomial> {
+    return this;
   }
 
   public static simplifyTerms(terms: Term[]): Term[] {
@@ -115,40 +121,37 @@ class Polynomial {
       const t1 = ts[i - 1];
       const t2 = ts[i];
       if (Indeterminates.compare(t1.indeterminates, t2.indeterminates) === 0) {
-        const numerator = BI.add(
-          BI.mul(t1.coefficientNumerator, t2.coefficientDenominator),
-          BI.mul(t2.coefficientNumerator, t1.coefficientDenominator),
-        );
+        const numerator =
+          t1.coefficientNumerator * t2.coefficientDenominator +
+          t2.coefficientNumerator * t1.coefficientDenominator;
 
-        const denominator = BI.mul(
-          t1.coefficientDenominator,
-          t2.coefficientDenominator,
-        );
+        const denominator =
+          t1.coefficientDenominator * t2.coefficientDenominator;
 
         const gcd = findGcd(numerator, denominator);
 
         ts[i] = {
           indeterminates: t2.indeterminates,
-          coefficientNumerator: BI.div(numerator, gcd),
-          coefficientDenominator: BI.div(denominator, gcd),
+          coefficientNumerator: numerator / gcd,
+          coefficientDenominator: denominator / gcd,
         };
         ts[i - 1] = {
           indeterminates: t1.indeterminates,
-          coefficientNumerator: ZERO,
+          coefficientNumerator: 0n,
           coefficientDenominator: t1.coefficientDenominator,
         };
       }
     }
-    return ts.filter((v) => BI.ne(v.coefficientNumerator, ZERO));
+    return ts.filter((v) => v.coefficientNumerator !== 0n);
   }
 
   public static fromIndeterminate(indeterminate: Expression): Polynomial {
-    const indeterminates = new Indeterminates(JSON.stringify(indeterminate));
+    const indeterminates = new Indeterminates(indeterminate);
     const terms = [
       {
         indeterminates: indeterminates,
-        coefficientNumerator: ONE,
-        coefficientDenominator: ONE,
+        coefficientNumerator: 1n,
+        coefficientDenominator: 1n,
       },
     ];
     return new Polynomial(terms);
@@ -156,15 +159,12 @@ class Polynomial {
 
   public static fromConstant(constant: number): Polynomial {
     const [int, frac] = Math.abs(constant).toString(2).split(".", 2);
-    let numerator = BI.BigInt("0b" + int);
-    if (constant < 0) numerator = BI.mul(numerator, NEGATIVE_ONE);
-    let denominator = ONE;
+    let numerator = BigInt("0b" + int);
+    if (constant < 0) numerator = numerator / -1n;
+    let denominator = 1n;
     if (frac) {
-      denominator = BI.exp(TWO, BI.BigInt(frac.length));
-      numerator = BI.add(
-        BI.mul(numerator, denominator),
-        BI.BigInt("0b" + frac),
-      );
+      denominator = 2n ** BigInt(frac.length);
+      numerator = numerator * denominator + BigInt("0b" + frac);
     }
 
     const terms = [
@@ -181,7 +181,7 @@ class Polynomial {
   public negation(): Polynomial {
     const terms = this.terms.map((t) => ({
       indeterminates: t.indeterminates,
-      coefficientNumerator: BI.mul(t.coefficientNumerator, NEGATIVE_ONE),
+      coefficientNumerator: t.coefficientNumerator * -1n,
       coefficientDenominator: t.coefficientDenominator,
     }));
 
@@ -217,14 +217,9 @@ class Polynomial {
 
     for (const t1 of this.terms) {
       for (const t2 of rhs.terms) {
-        const numerator = BI.mul(
-          t1.coefficientNumerator,
-          t2.coefficientNumerator,
-        );
-        const denominator = BI.mul(
-          t1.coefficientDenominator,
-          t2.coefficientDenominator,
-        );
+        const numerator = t1.coefficientNumerator * t2.coefficientNumerator;
+        const denominator =
+          t1.coefficientDenominator * t2.coefficientDenominator;
         const gcd = findGcd(numerator, denominator);
 
         terms.push({
@@ -232,8 +227,8 @@ class Polynomial {
             t1.indeterminates,
             t2.indeterminates,
           ),
-          coefficientNumerator: BI.div(numerator, gcd),
-          coefficientDenominator: BI.div(denominator, gcd),
+          coefficientNumerator: numerator / gcd,
+          coefficientDenominator: denominator / gcd,
         });
       }
     }
@@ -245,40 +240,48 @@ class Polynomial {
     return this.multiply(rhs.reciprocal());
   }
 
-  public toString(): string {
-    const add: string[] = [];
+  public toExpression(): Expression {
+    const add: Expression[] = [];
     for (const t of this.terms) {
       const coefficient =
-        BI.toNumber(t.coefficientNumerator) /
-        BI.toNumber(t.coefficientDenominator);
+        Number(t.coefficientNumerator) / Number(t.coefficientDenominator);
 
-      const mul: string[] = [];
+      const mul: Expression[] = [];
       if (t.indeterminates.sortedKeys.length) {
         for (const k of t.indeterminates.sortedKeys) {
           const w = t.indeterminates.map.get(k);
           for (let i = Math.abs(w); i > 0; --i) {
             if (w > 0) mul.push(k);
-            else mul.push(`["/",1,${k}]`);
+            else
+              mul.push(
+                new Expression.Binary("/", new Expression.Literal(1), k),
+              );
           }
         }
 
-        if (coefficient !== 1) mul.push(coefficient.toString());
+        if (coefficient !== 1) mul.push(new Expression.Literal(coefficient));
 
-        if (mul.length > 1) add.push(`["*",${mul.join(",")}]`);
-        else add.push(mul["0"]);
+        while (mul.length > 1) {
+          const r = mul.pop();
+          const l = mul.pop();
+          mul.push(new Expression.Binary("*", l, r));
+        }
+        add.push(mul[0]);
       } else {
-        add.push(coefficient.toString());
+        add.push(new Expression.Literal(coefficient));
       }
     }
 
-    if (!add.length) return "0";
-    else if (add.length === 1) return add[0];
-    else return `["+",${add.join(",")}]`;
+    while (add.length > 1) {
+      const r = add.pop();
+      const l = add.pop();
+      add.push(new Expression.Binary("+", l, r));
+    }
+
+    if (!add.length) return new Expression.Literal(0);
+    return add[0];
   }
 }
-
-const ADDITIVE_IDENTITY = Polynomial.fromConstant(0);
-const MULTIPLICATIVE_IDENTITY = Polynomial.fromConstant(1);
 
 const SWAPPED_OPS = {
   "=": "=",
@@ -289,156 +292,163 @@ const SWAPPED_OPS = {
   "<=": ">=",
 };
 
+function cartesianProduct<T>(arrays: T[][]): T[][] {
+  return arrays.reduce<T[][]>(
+    (acc, cur) => acc.flatMap((a) => cur.map((item) => [...a, item])),
+    [[]],
+  );
+}
+
+function toPolynomial(e: Expression): Polynomial {
+  if (e instanceof Polynomial) return e;
+  if (e instanceof Expression.Literal) {
+    if (e.value == null) return null;
+    if (typeof e.value === "number") return Polynomial.fromConstant(e.value);
+    if (typeof e.value === "string")
+      return Polynomial.fromConstant(parseFloat(e.value) || 0);
+    if (typeof e.value === "boolean") return Polynomial.fromConstant(+e.value);
+  }
+  return Polynomial.fromIndeterminate(e);
+}
+
+function fromPolynomial(e: Expression): Expression {
+  if (e instanceof Polynomial) return e.toExpression();
+  if (e instanceof Expression.Conditional) return e.map(fromPolynomial);
+  return e;
+}
+
 function normalizeCallback(exp: Expression): Expression {
-  if (!Array.isArray(exp)) return exp;
-  const op = exp[0];
-
-  if (op === "FUNC" && exp[1] === "COALESCE") {
-    const res: Expression[] = ["CASE"];
-    for (let i = 2; i < exp.length; ++i)
-      res.push(normalizeCallback(["IS NOT NULL", exp[i]]), exp[i]);
-    return normalizeCallback(res);
-  }
-
-  if (op === "CASE") {
-    const res = [] as [Expression, Expression][];
-    for (let i = 1; i < exp.length; i += 2) {
-      let w = exp[i];
-      if (w instanceof Polynomial) w = JSON.parse(w.toString());
-      if (!Array.isArray(w) && !w) continue;
-      const t = exp[i + 1];
-      if (!Array.isArray(t) || t[0] !== "CASE") {
-        res.push([w, t]);
-        continue;
-      }
-      for (let j = 1; j < t.length; j += 2) res.push([and(w, t[j]), t[j + 1]]);
-      res.push([w, null]);
-      if (!Array.isArray(w) && w) break;
-    }
-    while (res[res.length - 1][1] == null) res.pop();
-    return ["CASE", ...res.flat()];
-  }
-
-  const permutations: Map<number, [Expression, Expression][]> = new Map();
-  for (const [i, e] of exp.entries()) {
-    if (!Array.isArray(e)) continue;
-    if (e[0] !== "CASE") continue;
-    const perms: [Expression, Expression][] = [];
-    for (let j = 1; j < e.length; j += 2) perms.push([e[j], e[j + 1]]);
-    perms.push([true, null]);
-    permutations.set(i, perms);
-  }
-
-  if (permutations.size) {
-    let res: [Expression, Expression][] = [[true, exp]];
-    for (const [i, perms] of permutations) {
-      const res2: [Expression, Expression][] = [];
-      for (const [w, t] of perms) {
-        res2.push(
-          ...res.map((r) => {
-            const e = (r[1] as Expression[]).slice();
-            e[i] = t;
-            return [and(w, r[0]), e] as [Expression, Expression];
-          }),
+  if (exp instanceof Expression.FunctionCall) {
+    if (exp.name === "COALESCE") {
+      let e: Expression = new Expression.Literal(null);
+      for (let i = exp.args.length - 1; i >= 0; --i) {
+        e = new Expression.Conditional(
+          normalizeCallback(new Expression.Unary("IS NOT NULL", exp.args[i])),
+          exp.args[i],
+          e,
         );
-        if (!Array.isArray(w) && w) break;
       }
-      res = res2;
+      return normalizeCallback(e);
     }
-
-    for (const r of res) r[1] = normalizeCallback(r[1]);
-
-    if (res[0][0] === true) return res[0][1];
-    while (res[res.length - 1][1] == null) res.pop();
-
-    return ["CASE", ...res.flat()];
   }
 
-  function toPolynomial(e: Expression): Polynomial {
-    if (e == null) return null;
-    if (e instanceof Polynomial) return e;
-    if (typeof e === "number") return Polynomial.fromConstant(e);
-    if (typeof e === "string")
-      return Polynomial.fromConstant(parseFloat(e) || 0);
-    if (typeof e === "boolean") return Polynomial.fromConstant(+e);
-    return Polynomial.fromIndeterminate(e);
+  if (exp instanceof Expression.Conditional) {
+    let e = exp;
+
+    if (e.condition instanceof Polynomial)
+      e = new Expression.Conditional(
+        e.condition.toExpression(),
+        e.then,
+        e.otherwise,
+      );
+
+    if (e.then instanceof Expression.Conditional) {
+      e = new Expression.Conditional(
+        Expression.and(e.condition, e.then.condition),
+        e.then.then,
+        new Expression.Conditional(e.condition, e.then.otherwise, e.otherwise),
+      );
+    }
+
+    return e;
   }
 
-  if (op === "+") {
-    const args: Polynomial[] = [];
-    for (let i = 1; i < exp.length; ++i) {
-      const p = toPolynomial(exp[i]);
-      if (p == null) return null;
-      args.push(p);
+  const combs: [Expression, Expression][][] = [];
+  const callback: (e: Expression) => Expression = (e) => {
+    if (e instanceof Expression.Conditional) {
+      combs[combs.length - 1].push([e.condition, e.then]);
+      callback(e.otherwise);
+    } else {
+      combs[combs.length - 1].push([new Expression.Literal(true), e]);
     }
-    return args.reduce(
-      (previousValue, currentValue) => previousValue.add(currentValue),
-      ADDITIVE_IDENTITY,
-    ) as unknown as Expression;
-  } else if (op === "*") {
-    const args: Polynomial[] = [];
-    for (let i = 1; i < exp.length; ++i) {
-      const p = toPolynomial(exp[i]);
-      if (p == null) return null;
-      args.push(p);
+    return e;
+  };
+
+  exp.map((e) => {
+    combs.push([]);
+    callback(e);
+    return e;
+  });
+
+  if (combs.some((a) => a.length > 1)) {
+    let res: Expression = new Expression.Literal(null);
+    for (const p of cartesianProduct(combs).reverse()) {
+      let condition: Expression = new Expression.Literal(true);
+      const e = reduce(
+        normalizeCallback(
+          exp.map((_, i) => {
+            condition = Expression.and(condition, p[i][0]);
+            return p[i][1];
+          }),
+        ),
+      );
+
+      if (!(condition instanceof Expression.Literal))
+        res = new Expression.Conditional(condition, e, res);
+      else if (condition.value) res = e;
     }
-    return args.reduce(
-      (previousValue, currentValue) => previousValue.multiply(currentValue),
-      MULTIPLICATIVE_IDENTITY,
-    ) as unknown as Expression;
-  } else if (op === "-") {
-    const args: Polynomial[] = [];
-    for (let i = 1; i < exp.length; ++i) {
-      const p = toPolynomial(exp[i]);
-      if (p == null) return null;
-      args.push(p);
-    }
-    return args.reduce((previousValue, currentValue) =>
-      previousValue.subtract(currentValue),
-    ) as unknown as Expression;
-  } else if (op === "/") {
-    const args: Polynomial[] = [];
-    for (let i = 1; i < exp.length; ++i) {
-      const p = toPolynomial(exp[i]);
-      if (p == null) return null;
-      args.push(p);
-    }
-    return args.reduce((previousValue, currentValue) =>
-      previousValue.divide(currentValue),
-    ) as unknown as Expression;
-  } else if (["=", "<>", ">", ">=", "<", "<="].includes(op)) {
-    if (exp[1] == null || exp[2] == null) return null;
-    let lhs: Polynomial, rhs: Polynomial;
-    if (exp[1] instanceof Polynomial) lhs = exp[1];
-    else if (typeof exp[1] === "number") lhs = Polynomial.fromConstant(exp[1]);
+    return res;
+  }
 
-    if (exp[2] instanceof Polynomial) rhs = exp[2];
-    else if (typeof exp[2] === "number") rhs = Polynomial.fromConstant(exp[2]);
+  if (exp instanceof Expression.Binary) {
+    if (["+", "-", "*", "/"].includes(exp.operator)) {
+      const lhs = toPolynomial(exp.left);
+      const rhs = toPolynomial(exp.right);
+      if (lhs == null || rhs == null) return new Expression.Literal(null);
+      if (exp.operator === "+") return lhs.add(rhs);
+      if (exp.operator === "-") return lhs.subtract(rhs);
+      if (exp.operator === "*") return lhs.multiply(rhs);
+      if (exp.operator === "/") return lhs.divide(rhs);
+    } else if ([">", ">=", "<", "<=", "=", "<>"].includes(exp.operator)) {
+      let lhs: Polynomial, rhs: Polynomial;
 
-    if (lhs || rhs) {
-      if (!lhs) lhs = Polynomial.fromIndeterminate(exp[1]);
-      if (!rhs) rhs = Polynomial.fromIndeterminate(exp[2]);
+      if (exp.left instanceof Polynomial) lhs = exp.left;
+      else if (exp.left instanceof Expression.Literal) {
+        if (exp.left.value == null) return exp.left;
+        else if (typeof exp.left.value === "number")
+          lhs = Polynomial.fromConstant(exp.left.value);
+      }
 
-      lhs = lhs.subtract(rhs);
-      rhs = lhs.constant().negation();
-      lhs = lhs.add(rhs);
+      if (exp.right instanceof Polynomial) rhs = exp.right;
+      else if (exp.right instanceof Expression.Literal) {
+        if (exp.right.value == null) return exp.right;
+        else if (typeof exp.right.value === "number")
+          rhs = Polynomial.fromConstant(exp.right.value);
+      }
 
-      if (!lhs.terms.length) {
-        exp = [op, JSON.parse(lhs.toString()), JSON.parse(rhs.toString())];
+      if (lhs || rhs) {
+        if (!lhs) lhs = Polynomial.fromIndeterminate(exp.left);
+        if (!rhs) rhs = Polynomial.fromIndeterminate(exp.right);
 
-        if (op === "=") return exp[1] === exp[2];
-        else if (op === "<>") return exp[1] !== exp[2];
-        else if (op === ">") return exp[1] > exp[2];
-        else if (op === ">=") return exp[1] >= exp[2];
-        else if (op === "<") return exp[1] < exp[2];
-        else if (op === "<=") return exp[1] <= exp[2];
-      } else {
+        lhs = lhs.subtract(rhs);
+        rhs = lhs.constant().negation();
+        lhs = lhs.add(rhs);
+
+        if (!lhs.terms.length) {
+          const l = lhs.toExpression() as Expression.Literal;
+          const r = rhs.toExpression() as Expression.Literal;
+
+          if (exp.operator === "=")
+            return new Expression.Literal(l.value === r.value);
+          else if (exp.operator === "<>")
+            return new Expression.Literal(l.value !== r.value);
+          else if (exp.operator === ">")
+            return new Expression.Literal(l.value > r.value);
+          else if (exp.operator === ">=")
+            return new Expression.Literal(l.value >= r.value);
+          else if (exp.operator === "<")
+            return new Expression.Literal(l.value < r.value);
+          else if (exp.operator === "<=")
+            return new Expression.Literal(l.value <= r.value);
+          else throw new Error("Invalid operator");
+        }
+
         let flipOp = 1;
 
         const n = lhs.terms[0].coefficientNumerator;
         const d = lhs.terms[0].coefficientDenominator;
 
-        if (BI.lt(n, ZERO) || BI.lt(d, ZERO)) flipOp *= -1;
+        if (n < 0n || d < 0n) flipOp *= -1;
 
         const reciprocal = new Polynomial([
           {
@@ -463,30 +473,18 @@ function normalizeCallback(exp: Expression): Expression {
           rhs = rhs.reciprocal();
         }
 
-        if (flipOp < 0) exp = [SWAPPED_OPS[op], lhs, rhs];
-        else exp = [op, lhs, rhs];
+        if (flipOp > 0) exp = new Expression.Binary(exp.operator, lhs, rhs);
+        else exp = new Expression.Binary(SWAPPED_OPS[exp.operator], lhs, rhs);
       }
     }
   }
 
   // Restore polynomial expressions
-  exp = exp.map((e) =>
-    e instanceof Polynomial ? JSON.parse(e.toString()) : e,
-  );
-
-  exp = evaluateCallback(exp);
+  exp = exp.map(fromPolynomial);
 
   return exp;
 }
 
-export default function normalize(expr: Expression): Expression {
-  expr = map(expr, normalizeCallback);
-  if (expr instanceof Polynomial) {
-    expr = JSON.parse(expr.toString());
-  } else if (Array.isArray(expr) && expr[0] === "CASE") {
-    expr = expr.map((e) =>
-      e instanceof Polynomial ? JSON.parse(e.toString()) : e,
-    );
-  }
-  return expr;
+export default function normalize(exp: Expression): Expression {
+  return fromPolynomial(exp.evaluate(normalizeCallback));
 }

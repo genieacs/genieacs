@@ -5,7 +5,7 @@ import * as notifications from "./notifications.ts";
 import putFormComponent from "./put-form-component.ts";
 import uiConfigComponent from "./ui-config-component.ts";
 import * as overlay from "./overlay.ts";
-import { parse, stringify } from "../lib/common/expression/parser.ts";
+import Expression from "../lib/common/expression.ts";
 import { loadCodeMirror, loadYaml } from "./dynamic-loader.ts";
 import { icon } from "./tailwind-utility-components.ts";
 
@@ -30,7 +30,7 @@ function putActionHandler(action, _object, isNew?): Promise<ValidationErrors> {
       if (!id.match(regex)) return void resolve({ _id: "Invalid ID" });
 
       try {
-        object.value = stringify(parse(object.value || ""));
+        object.value = Expression.parse(object.value || "").toString();
       } catch {
         return void resolve({
           value: "Config value must be valid expression",
@@ -232,7 +232,7 @@ export const component: ClosureComponent = (): Component => {
         },
       );
 
-      const confs = store.fetch("config", true);
+      const confs = store.fetch("config", new Expression.Literal(true));
 
       let newConfig;
       const subs = [];

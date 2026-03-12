@@ -4,7 +4,7 @@ import * as store from "./store.ts";
 import { yaml } from "./dynamic-loader.ts";
 import * as configFunctions from "./config-functions.ts";
 import codeEditorComponent from "./code-editor-component.ts";
-import { parse } from "../lib/common/expression/parser.ts";
+import Expression from "../lib/common/expression.ts";
 
 function putActionHandler(prefix: string[], dataYaml: string): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -27,7 +27,7 @@ function putActionHandler(prefix: string[], dataYaml: string): Promise<any> {
       }
 
       // Try parse to ensure valid expressions
-      for (const v of Object.values(updated)) parse(v as string);
+      for (const v of Object.values(updated)) Expression.parse(v as string);
 
       store
         .queryConfig(`${prefix.join(".")}.%`)

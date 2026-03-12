@@ -214,8 +214,17 @@ router.get("/", async (ctx) => {
   // be problematic when using relatives asset paths in HTML
   if (ctx.path.endsWith("//")) return;
 
-  const permissionSets: PermissionSet[] =
-    ctx.state.authorizer.getPermissionSets();
+  const ps: PermissionSet[] = ctx.state.authorizer.getPermissionSets();
+  const permissionSets = ps.map((p) =>
+    p.map((s) =>
+      Object.fromEntries(
+        Object.entries(s).map(([resource, { access, validate, filter }]) => [
+          resource,
+          { access, validate: validate.toString(), filter: filter.toString() },
+        ]),
+      ),
+    ),
+  );
 
   let wizard = "";
   if (!Object.keys(localCache.getUsers(ctx.state.configSnapshot)).length)
@@ -231,9 +240,7 @@ router.get("/", async (ctx) => {
     <body class="h-full bg-stone-100">
     <noscript>GenieACS UI requires JavaScript to work. Please enable JavaScript in your browser.</noscript>
       <script>
-        window.clientConfig = ${JSON.stringify({
-          ui: localCache.getUiConfig(ctx.state.configSnapshot),
-        })};
+        window.clientConfig = ${JSON.stringify(localCache.getUiConfig(ctx.state.configSnapshot))};
         window.configSnapshot = ${JSON.stringify(ctx.state.configSnapshot)};
         window.genieacsVersion = ${JSON.stringify(VERSION)};
         window.username = ${JSON.stringify(

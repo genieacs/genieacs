@@ -18,6 +18,7 @@ import {
   queueTask,
   StageTask,
 } from "./task-queue.ts";
+import Expression from "../lib/common/expression.ts";
 
 const invalid: WeakSet<StageTask> = new WeakSet();
 
@@ -95,7 +96,7 @@ function renderStagingSpv(task: StageTask, queueFunc, cancelFunc): Children {
 function renderStagingDownload(task: StageTask): Children {
   if (!task.fileName || !task.fileType) invalid.add(task);
   else invalid.delete(task);
-  const files = store.fetch("files", true);
+  const files = store.fetch("files", new Expression.Literal(true));
   let oui = "";
   let productClass = "";
   for (const d of task.devices) {

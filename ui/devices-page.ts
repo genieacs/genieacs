@@ -1,63 +1,72 @@
-import { ClosureComponent, Component, Children } from "mithril";
+import { ClosureComponent, Children } from "mithril";
 import { m } from "./components.ts";
-import config from "./config.ts";
+import { pageSize as PAGE_SIZE, index as indexConfig } from "./config.ts";
 import indexTableComponent from "./index-table-component.ts";
 import filterComponent from "./filter-component.ts";
 import * as store from "./store.ts";
 import { queueTask, stageDownload } from "./task-queue.ts";
 import * as notifications from "./notifications.ts";
-import { parse, stringify, map } from "../lib/common/expression/parser.ts";
-import { evaluate, extractParams } from "../lib/common/expression/util.ts";
+import Expression, { extractPaths } from "../lib/common/expression.ts";
 import memoize from "../lib/common/memoize.ts";
 import * as smartQuery from "./smart-query.ts";
 
-const PAGE_SIZE = config.ui.pageSize || 10;
-
-const memoizedParse = memoize(parse);
-const memoizedJsonParse = memoize(JSON.parse);
-const memoizedGetSortable = memoize((p) => {
-  const expressionParams = extractParams(p);
-  if (expressionParams.length === 1) {
-    const param = evaluate(expressionParams[0]);
-    if (typeof param === "string") return param;
-  }
+const memoizedGetSortable = memoize((p: Expression) => {
+  const expressionParams = extractPaths(p);
+  if (expressionParams.length === 1) return expressionParams[0];
   return null;
 });
 
-const getDownloadUrl = memoize((filter, indexParameters) => {
-  const columns = {};
-  for (const p of indexParameters)
-    columns[store.evaluateExpression(p.label, null) as string] = stringify(
-      p.parameter,
-    );
-  return `api/devices.csv?${m.buildQueryString({
-    filter: stringify(filter),
-    columns: JSON.stringify(columns),
-  })}`;
-});
+const getDownloadUrl = memoize(
+  (
+    filter: Expression,
+    indexParameters: { label: string; parameter: Expression }[],
+  ) => {
+    const columns = {};
+    for (const p of indexParameters) columns[p.label] = p.parameter.toString();
+    return `api/devices.csv?${m.buildQueryString({
+      filter: filter.toString(),
+      columns: JSON.stringify(columns),
+    })}`;
+  },
+);
 
-const unpackSmartQuery = memoize((query) => {
-  return map(query, (e) => {
-    if (Array.isArray(e) && e[0] === "FUNC" && e[1] === "Q")
-      return smartQuery.unpack("devices", e[2], e[3]);
+const unpackSmartQuery = memoize((query: Expression) => {
+  return query.evaluate((e) => {
+    if (e instanceof Expression.FunctionCall) {
+      if (e.name === "Q") {
+        if (
+          e.args[0] instanceof Expression.Literal &&
+          e.args[1] instanceof Expression.Literal
+        ) {
+          return smartQuery.unpack(
+            "devices",
+            e.args[0].value as string,
+            e.args[1].value as string,
+          );
+        }
+      }
+    }
     return e;
   });
 });
 
-export function init(
-  args: Record<string, unknown>,
-): Promise<Record<string, unknown>> {
+export function init(args: Record<string, unknown>): Promise<Attrs> {
   return new Promise((resolve, reject) => {
     if (!window.authorizer.hasAccess("devices", 2))
       return void reject(new Error("You are not authorized to view this page"));
 
-    const filter = args.hasOwnProperty("filter") ? "" + args["filter"] : "";
-    const sort = args.hasOwnProperty("sort") ? "" + args["sort"] : "";
-    const indexParameters = Object.values(config.ui.index);
+    let filter: Expression = null;
+    let sort: Record<string, number> = null;
+    if (args.hasOwnProperty("filter"))
+      filter = Expression.parse(args["filter"] as string);
+    if (args.hasOwnProperty("sort")) sort = JSON.parse(args["sort"] as string);
+    const indexParameters = indexConfig;
     if (!indexParameters.length) {
       indexParameters.push({
         label: "ID",
-        parameter: ["PARAM", "DeviceID.ID"],
+        parameter: Expression.parse("DeviceID.ID"),
+        unsortable: false,
+        raw: {},
       });
     }
     resolve({ filter, indexParameters, sort });
@@ -220,11 +229,17 @@ function renderActions(selected: Set<string>): Children {
   return buttons;
 }
 
-export const component: ClosureComponent = (): Component => {
+interface Attrs {
+  indexParameters: typeof indexConfig;
+  filter?: Expression;
+  sort?: Record<string, number>;
+}
+
+export const component: ClosureComponent<Attrs> = () => {
   return {
     view: (vnode) => {
       document.title = "Devices - GenieACS";
-      const attributes = vnode.attrs["indexParameters"];
+      const attributes = vnode.attrs.indexParameters;
 
       function showMore(): void {
         vnode.state["showCount"] =
@@ -232,22 +247,22 @@ export const component: ClosureComponent = (): Component => {
         m.redraw();
       }
 
-      function onFilterChanged(filter): void {
-        const ops = { filter };
-        if (vnode.attrs["sort"]) ops["sort"] = vnode.attrs["sort"];
+      function onFilterChanged(filter: Expression): void {
+        const ops = {};
+        if (!(filter instanceof Expression.Literal && filter.value))
+          ops["filter"] = filter.toString();
+        if (vnode.attrs.sort) ops["sort"] = vnode.attrs.sort;
         m.route.set("/devices", ops);
       }
 
-      const sort = vnode.attrs["sort"]
-        ? memoizedJsonParse(vnode.attrs["sort"])
-        : {};
+      const sort = vnode.attrs.sort || {};
 
       const sortAttributes = {};
       for (let i = 0; i < attributes.length; i++) {
         const attr = attributes[i];
         if (attr.unsortable) continue;
         const param = memoizedGetSortable(attr.parameter);
-        if (param) sortAttributes[i] = sort[param] || 0;
+        if (param) sortAttributes[i] = sort[param.toString()] || 0;
       }
 
       function onSortChange(sortedAttrs): void {
@@ -256,17 +271,16 @@ export const component: ClosureComponent = (): Component => {
           const param = memoizedGetSortable(
             attributes[Math.abs(index) - 1].parameter,
           );
-          _sort[param] = Math.sign(index);
+          _sort[param.toString()] = Math.sign(index);
         }
         const ops = { sort: JSON.stringify(_sort) };
         if (vnode.attrs["filter"]) ops["filter"] = vnode.attrs["filter"];
         m.route.set("/devices", ops);
       }
 
-      let filter = vnode.attrs["filter"]
-        ? memoizedParse(vnode.attrs["filter"])
-        : true;
-      filter = unpackSmartQuery(filter);
+      const filter = unpackSmartQuery(
+        vnode.attrs["filter"] ?? new Expression.Literal(true),
+      );
 
       const devs = store.fetch("devices", filter, {
         limit: vnode.state["showCount"] || PAGE_SIZE,
@@ -280,15 +294,15 @@ export const component: ClosureComponent = (): Component => {
         return m.context(
           { device: device, parameter: attr.parameter },
           attr.type || "parameter",
-          attr,
+          attr.raw,
         );
       };
 
       const attrs = {};
       attrs["attributes"] = attributes.map((a) => ({
         ...a,
-        label: store.evaluateExpression(a.label, null),
-        type: store.evaluateExpression(a.type, null),
+        label: a.label,
+        type: a.type,
       }));
       attrs["data"] = devs.value;
       attrs["total"] = count.value;
@@ -301,9 +315,7 @@ export const component: ClosureComponent = (): Component => {
         return m(
           "a.text-cyan-700 hover:text-cyan-900",
           {
-            href: `#!/devices/${encodeURIComponent(
-              device["DeviceID.ID"].value[0],
-            )}`,
+            href: `#!/devices/${encodeURIComponent(device["DeviceID.ID"])}`,
           },
           "Show",
         );

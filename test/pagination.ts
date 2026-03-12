@@ -1,13 +1,12 @@
 import test from "node:test";
 import assert from "node:assert";
 import initSqlJs from "sql.js/dist/sql-asm.js";
-import { parse, stringify } from "../lib/common/expression/parser.ts";
 import {
   bookmarkToExpression,
   paginate,
   toBookmark,
 } from "../lib/common/expression/pagination.ts";
-import { Expression } from "../lib/types.ts";
+import Expression from "../lib/common/expression.ts";
 import { covers, minimize } from "../lib/common/expression/synth.ts";
 
 const VALUES = [null, -1, false, "a"];
@@ -79,15 +78,15 @@ async function testPaginate(
     .map(([k, v]) => `${k} ${v > 0 ? "ASC" : "DESC"}`)
     .join(", ");
 
-  const allMatches = await query(`${stringify(q2)} ORDER BY ${orderBy}`);
+  const allMatches = await query(`${q2.toString()} ORDER BY ${orderBy}`);
   const [fulfilled, diff] = paginate(q1, q2, sort);
   assert.ok(covers(q1, fulfilled));
 
   const fulfilledMatches = await query(
-    `${stringify(fulfilled)} ORDER BY ${orderBy}`,
+    `${fulfilled.toString()} ORDER BY ${orderBy}`,
   );
 
-  const diffMatches = await query(`${stringify(diff)} ORDER BY ${orderBy}`);
+  const diffMatches = await query(`${diff.toString()} ORDER BY ${orderBy}`);
   assert.deepStrictEqual(allMatches, [...fulfilledMatches, ...diffMatches]);
 
   if (allMatches.length === fulfilledMatches.length) return;
@@ -98,14 +97,14 @@ async function testPaginate(
   );
   const bookmark = toBookmark(sort, nextMatches[nextMatches.length - 1]);
   const bookmarkFilter = bookmarkToExpression(bookmark, sort);
-  const capped = ["AND", q2, bookmarkFilter];
+  const capped = Expression.and(q2, bookmarkFilter);
 
   assert.ok(!covers(q1, capped));
   const cappedMatches = await query(
-    `(${stringify(capped)}) ORDER BY ${orderBy}`,
+    `(${capped.toString()}) ORDER BY ${orderBy}`,
   );
   assert.deepStrictEqual(cappedMatches, [...fulfilledMatches, ...nextMatches]);
-  const min = minimize(["OR", q1, capped]);
+  const min = minimize(Expression.or(q1, capped));
   await testPaginate(min, q2, sort);
 }
 
@@ -115,6 +114,7 @@ void test("paginate", async () => {
   const sortOrders = getAllSortOrders(params);
 
   for (const [q1, q2] of cases)
-    for (const sort of sortOrders)
-      await testPaginate(parse(q1), parse(q2), sort);
+    for (const sort of sortOrders) {
+      await testPaginate(Expression.parse(q1), Expression.parse(q2), sort);
+    }
 });

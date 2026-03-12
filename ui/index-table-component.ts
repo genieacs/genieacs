@@ -63,7 +63,7 @@ function renderTable(
         checked: records.length && selected.size === records.length,
         onchange: (e) => {
           for (const record of records) {
-            const id = record["_id"] || record["DeviceID.ID"].value[0];
+            const id = record["_id"] ?? record["DeviceID.ID"];
             if (e.target.checked) selected.add(id);
             else selected.delete(id);
           }
@@ -148,7 +148,7 @@ function renderTable(
   // Table rows
   const rows = [];
   for (const record of records) {
-    const id = record["_id"] || record["DeviceID.ID"].value[0];
+    const id = record["_id"] ?? record["DeviceID.ID"];
     const tds = [];
     const isSelected = selected.has(id);
     if (buttons.length) {
@@ -224,7 +224,7 @@ function renderTable(
         {
           class: isSelected ? "bg-stone-50" : "",
           onclick: (e) => {
-            if (["INPUT", "BUTTON", "A"].includes(e.target.nodeName)) {
+            if (e.target.closest("input, button, a")) {
               e.redraw = false;
               return;
             }
@@ -339,7 +339,7 @@ const component: ClosureComponent = (): Component => {
 
       const _selected = new Set<string>();
       for (const record of data) {
-        const id = record["_id"] || record["DeviceID.ID"].value[0];
+        const id = record["_id"] ?? record["DeviceID.ID"];
         if (selected.has(id)) _selected.add(id);
       }
 

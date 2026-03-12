@@ -1,7 +1,7 @@
 import { espresso, complement, tautology } from "espresso-iisojs";
-import { Expression } from "../../types.ts";
+import Expression from "../expression.ts";
+import { parseLikePattern } from "./parser.ts";
 import normalize from "./normalize.ts";
-import { map, parseLikePattern } from "./parser.ts";
 
 type Minterm = number[];
 
@@ -27,7 +27,7 @@ export abstract class SynthContextBase<
     return this.clauses.get(v);
   }
 
-  abstract getMinterms(exp: T, res: true | false | null): Minterm[];
+  abstract getMinterms(exp: T, res: number): Minterm[];
   abstract getDcSet(minterms: Minterm[]): Minterm[];
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   canRaise(idx: number, set: Set<number>): boolean {
@@ -67,36 +67,34 @@ export abstract class SynthContextBase<
 }
 
 function* findIsNullDeps(exp: Expression): IterableIterator<Expression> {
-  if (!Array.isArray(exp)) return;
-  const op = exp[0];
-  if (op === "IS NULL" || op === "IS NOT NULL") return;
-
-  if (op === "FUNC") {
-    if (exp[1] === "NOW") {
-      return;
-    } else if (exp[1] === "LOWER" || exp[1] === "UPPER") {
-      yield* findIsNullDeps(exp[2]);
-    } else if (exp[1] === "ROUND") {
-      for (const e of exp.slice(2, 4)) yield* findIsNullDeps(e);
-      return;
+  if (exp instanceof Expression.Literal) return;
+  else if (exp instanceof Expression.Unary) {
+    if (exp.operator === "IS NULL" || exp.operator === "IS NOT NULL") return;
+    yield* findIsNullDeps(exp.operand);
+  } else if (exp instanceof Expression.Binary) {
+    yield* findIsNullDeps(exp.left);
+    yield* findIsNullDeps(exp.right);
+  } else if (exp instanceof Expression.FunctionCall) {
+    if (exp.name === "NOW") return;
+    else if (exp.name === "LOWER" || exp.name === "UPPER")
+      yield* findIsNullDeps(exp.args[0]);
+    else if (exp.name === "ROUND") {
+      for (const e of exp.args.slice(0, 2)) yield* findIsNullDeps(e);
     }
-  } else if (op !== "PARAM") {
-    for (const e of exp.slice(1)) yield* findIsNullDeps(e);
-    return;
-  }
-  yield exp;
+  } else yield exp;
 }
 
 export abstract class Clause {
   private _isNullable: Set<string>;
   protected _expression: Expression;
-  abstract true(context: SynthContextBase<Clause>): Minterm[];
-  abstract false(context: SynthContextBase<Clause>): Minterm[];
-  abstract null(context: SynthContextBase<Clause>): Minterm[];
+  abstract getMinterms(
+    context: SynthContextBase<Clause>,
+    res: number,
+  ): Minterm[];
   expression(): Expression {
     if (this._expression !== undefined) return this._expression;
     const context = createSynthContext();
-    const minterms = this.true(context);
+    const minterms = this.getMinterms(context, 0b100);
     const minimized = context.minimize(minterms);
     this._expression = context.toExpression(minimized) as Expression;
     return this._expression;
@@ -120,7 +118,7 @@ export abstract class Clause {
     }
   }
   toString(): string {
-    return JSON.stringify(this.expression());
+    return this.expression().toString();
   }
 }
 
@@ -130,68 +128,11 @@ export namespace Clause {
     constructor(public operand: Clause) {
       super();
     }
-    true(context: SynthContextBase<Clause>): Minterm[] {
-      return this.operand.false(context);
-    }
-    false(context: SynthContextBase<Clause>): Minterm[] {
-      return this.operand.true(context);
-    }
-    null(context: SynthContextBase<Clause>): Minterm[] {
-      return this.operand.null(context);
-    }
-  }
-
-  export class Or extends Clause {
-    constructor(public operands: Clause[]) {
-      super();
-    }
-    true(context: SynthContextBase<Clause>): Minterm[] {
-      const minterms: Minterm[] = [];
-      for (const s of this.operands) {
-        const m = s.true(context);
-        if (m.length === 1 && !m[0].length) return [[]];
-        minterms.push(...m);
-      }
-      return minterms;
-    }
-    false(context: SynthContextBase<Clause>): Minterm[] {
-      const minterms: Minterm[][] = [];
-      const operands = [...this.operands];
-      for (const e of operands) {
-        if (e instanceof Or) {
-          operands.push(...e.operands);
-          continue;
-        }
-        const m = e.false(context);
-        if (!m.length) return [];
-        minterms.push(m);
-      }
-      if (!minterms.length) return [[]];
-      if (minterms.length === 1) return minterms[0];
-      return complement(minterms.map((m) => complement(m)).flat());
-    }
-    null(context: SynthContextBase<Clause>): Minterm[] {
-      const trueMinterms: Minterm[] = [];
-      const operands = [...this.operands];
-      for (const s of operands) {
-        if (s instanceof Or) {
-          operands.push(...s.operands);
-          continue;
-        }
-        const t = s.true(context);
-        if (t.length === 1 && !t[0].length) return [];
-        trueMinterms.push(...t);
-      }
-
-      const nullMinterms: Minterm[] = [];
-      for (const s of operands) {
-        const n = s.null(context);
-        if (n.length === 1 && !n[0].length && !trueMinterms.length) return [[]];
-        nullMinterms.push(...n);
-      }
-
-      if (!trueMinterms.length) return nullMinterms;
-      return complement([...complement(nullMinterms), ...trueMinterms]);
+    getMinterms(context: SynthContextBase<Clause>, res: number): Minterm[] {
+      let r = res & 0b001;
+      if (res & 0b010) r |= 0b100;
+      if (res & 0b100) r |= 0b010;
+      return this.operand.getMinterms(context, r);
     }
   }
 
@@ -199,175 +140,43 @@ export namespace Clause {
     constructor(public operands: Clause[]) {
       super();
     }
-    true(context: SynthContextBase<Clause>): Minterm[] {
-      const minterms: Minterm[][] = [];
-      const operands = [...this.operands];
-      for (const s of operands) {
-        if (s instanceof And) {
-          operands.push(...s.operands);
-          continue;
-        }
-        const m = s.true(context);
-        if (!m.length) return [];
-        if (m.length === 1 && !m[0].length) continue;
-        minterms.push(m);
-      }
-      if (!minterms.length) return [[]];
-      if (minterms.length === 1) return minterms[0];
-      return complement(minterms.map((m) => complement(m)).flat());
-    }
-    false(context: SynthContextBase<Clause>): Minterm[] {
+    getMinterms(context: SynthContextBase<Clause>, res: number): Minterm[] {
+      res = res & 0b111;
+      if (!res) return [];
+      if (res === 0b111) return [[]];
+
+      if (res === 0b110)
+        return [
+          ...this.getMinterms(context, 0b010),
+          ...this.getMinterms(context, 0b100),
+        ];
+
+      if (!(res & 0b010)) return complement(this.getMinterms(context, ~res));
+
       const minterms: Minterm[] = [];
-      for (const s of this.operands) {
-        const m = s.false(context);
+      for (const o of this.operands) {
+        const m = o.getMinterms(context, res);
         if (m.length === 1 && !m[0].length) return [[]];
         minterms.push(...m);
       }
-      return minterms;
-    }
-    null(context: SynthContextBase<Clause>): Minterm[] {
-      const falseMinterms: Minterm[] = [];
-      const operands = [...this.operands];
-      for (const s of operands) {
-        if (s instanceof And) {
-          operands.push(...s.operands);
-          continue;
-        }
-        const f = s.false(context);
-        if (f.length === 1 && !f[0].length) return [];
-        falseMinterms.push(...f);
-      }
 
-      const nullMinterms: Minterm[] = [];
-      for (const s of operands) {
-        const n = s.null(context);
-        if (n.length === 1 && !n[0].length && !falseMinterms.length)
-          return [[]];
-        nullMinterms.push(...n);
-      }
-
-      if (!falseMinterms.length) return nullMinterms;
-      return complement([...complement(nullMinterms), ...falseMinterms]);
-    }
-  }
-
-  export class Case extends Clause {
-    constructor(public clauses: Clause[]) {
-      super();
-    }
-    true(context: SynthContextBase<Clause>): Minterm[] {
-      const minterms: Minterm[] = [];
-      const cumulative: Minterm[] = [];
-      for (let i = 0; i < this.clauses.length; i += 2) {
-        const w = this.clauses[i].true(context);
-        const t = this.clauses[i + 1].true(context);
-        minterms.push(
-          ...complement([...cumulative, ...complement(w), ...complement(t)]),
-        );
-        if (i < this.clauses.length - 2) {
-          cumulative.push(
-            ...complement([
-              ...this.clauses[i].false(context),
-              ...this.clauses[i].null(context),
-            ]),
-          );
-        }
-      }
       return minterms;
-    }
-    false(context: SynthContextBase<Clause>): Minterm[] {
-      const minterms: Minterm[] = [];
-      const cumulative: Minterm[] = [];
-      for (let i = 0; i < this.clauses.length; i += 2) {
-        const w = this.clauses[i].true(context);
-        const t = this.clauses[i + 1].false(context);
-        minterms.push(
-          ...complement([...cumulative, ...complement(w), ...complement(t)]),
-        );
-        if (i < this.clauses.length - 2) {
-          cumulative.push(
-            ...complement([
-              ...this.clauses[i].false(context),
-              ...this.clauses[i].null(context),
-            ]),
-          );
-        }
-      }
-      return minterms;
-    }
-    null(context: SynthContextBase<Clause>): Minterm[] {
-      const minterms: Minterm[] = [];
-      const cumulative: Minterm[] = [];
-      for (let i = 0; i < this.clauses.length; i += 2) {
-        const w = this.clauses[i].true(context);
-        const t = this.clauses[i + 1].null(context);
-        minterms.push(
-          ...complement([...cumulative, ...complement(w), ...complement(t)]),
-        );
-        cumulative.push(
-          ...complement([
-            ...this.clauses[i].false(context),
-            ...this.clauses[i].null(context),
-          ]),
-        );
-      }
-      minterms.push(...complement([...cumulative]));
-      return minterms;
-    }
-    expression(): Expression {
-      if (this._expression != null) return this._expression;
-      if (this.isBoolean()) {
-        this._expression = new Clause.Not(new Clause.Not(this)).expression();
-        return this._expression;
-      }
-      const context = createSynthContext();
-      const cases: { when: Minterm[]; then: Expression }[] = [];
-      for (let i = 0; i < this.clauses.length; i += 2) {
-        let minterms = this.clauses[i].true(context);
-        const then = this.clauses[i + 1].expression();
-        if (
-          cases.length &&
-          JSON.stringify(then) === JSON.stringify(cases[cases.length - 1].then)
-        )
-          minterms.push(...cases.pop().when);
-        minterms = context.minimize(
-          minterms,
-          cases.flatMap((c) => c.when),
-        );
-        if (!minterms.length) continue;
-        cases.push({ when: minterms, then });
-        if (minterms.length === 1 && !minterms[0].length) break;
-      }
-      while (cases[cases.length - 1].then == null) cases.pop();
-      if (!cases.length) return null;
-      this._expression = [
-        "CASE",
-        ...cases.flatMap((c) => [context.toExpression(c.when), c.then]),
-      ];
-      return this._expression;
-    }
-
-    isBoolean(): boolean {
-      for (let i = 1; i < this.clauses.length; i += 2)
-        if (!this.clauses[i].isBoolean()) return false;
-      return true;
     }
   }
 
   export class IsNull extends Clause {
-    private _boolean: Clause;
     constructor(public operand: Clause) {
       super();
-      this._boolean = new Not(new Not(this));
     }
-    true(context: SynthContextBase<Clause>): Minterm[] {
-      return this.operand.null(context);
-    }
-    false(context: SynthContextBase<Clause>): Minterm[] {
-      return complement(this.true(context));
-    }
-    null(): Minterm[] {
-      return [];
+    getMinterms(context: SynthContextBase<Clause>, res: number): Minterm[] {
+      res = res & 0b111;
+      const minterms: Minterm[] = [];
+      if ((res & 0b110) === 0b110) return [[]];
+      if (res & 0b100)
+        minterms.push(...this.operand.getMinterms(context, 0b001));
+      if (res & 0b010)
+        minterms.push(...this.operand.getMinterms(context, 0b110));
+      return minterms;
     }
     isBoolean(): boolean {
       return true;
@@ -378,7 +187,7 @@ export namespace Clause {
     expression(): Expression {
       const nullables = [...this.operand.getNullables()];
       if (nullables.length === 1 && nullables[0].operand === this.operand)
-        return ["IS NULL", this.operand.expression()];
+        return new Expression.Unary("IS NULL", this.operand.expression());
       return super.expression();
     }
   }
@@ -387,26 +196,26 @@ export namespace Clause {
     constructor(public exp: Expression) {
       super();
     }
-    true(context: SynthContextBase<Clause>): Minterm[] {
-      if (Array.isArray(this.exp)) return context.getMinterms(this, true);
-      if (this.exp) return [[]];
-      return [];
-    }
-    false(context: SynthContextBase<Clause>): Minterm[] {
-      if (Array.isArray(this.exp)) return context.getMinterms(this, false);
-      if (!this.exp && this.exp != null) return [[]];
-      return [];
-    }
-    null(context: SynthContextBase<Clause>): Minterm[] {
-      if (Array.isArray(this.exp)) return context.getMinterms(this, null);
-      if (this.exp == null) return [[]];
+    getMinterms(context: SynthContextBase<Clause>, res: number): Minterm[] {
+      if (!(this.exp instanceof Expression.Literal))
+        return context.getMinterms(this, res);
+      if (this.exp.value == null) return res & 0b001 ? [[]] : [];
+      if (this.exp.value && res & 0b100) return [[]];
+      if (!this.exp.value && res & 0b010) return [[]];
       return [];
     }
     expression(): Expression {
       return this.exp;
     }
     isBoolean(): boolean {
-      return this.exp === true || this.exp === false || this.exp == null;
+      if (this.exp instanceof Expression.Literal) {
+        return (
+          this.exp.value === true ||
+          this.exp.value === false ||
+          this.exp.value == null
+        );
+      }
+      return false;
     }
   }
 
@@ -418,14 +227,13 @@ export namespace Clause {
     ) {
       super();
     }
-    true(context: SynthContextBase<Clause>): Minterm[] {
-      return context.getMinterms(this, true);
-    }
-    false(context: SynthContextBase<Clause>): Minterm[] {
-      return context.getMinterms(this, false);
-    }
-    null(context: SynthContextBase<Clause>): Minterm[] {
-      return this.lhs.null(context);
+    getMinterms(context: SynthContextBase<Clause>, res: number): Minterm[] {
+      res = res & 0b111;
+      if (!res) return [];
+      if (res === 0b111) return [[]];
+      if (res === 0b001 || res === 0b110)
+        return this.lhs.getMinterms(context, res);
+      return context.getMinterms(this, res);
     }
     *getNullables(): IterableIterator<IsNull> {
       yield* this.lhs.getNullables();
@@ -434,7 +242,11 @@ export namespace Clause {
       return true;
     }
     expression(): Expression {
-      return [this.op, this.lhs.expression(), this.rhs];
+      return new Expression.Binary(
+        this.op,
+        this.lhs.expression(),
+        new Expression.Literal(this.rhs),
+      );
     }
   }
 
@@ -453,15 +265,13 @@ export namespace Clause {
       const exp = lhs.expression();
       let caseSensitive = true;
       let contradiction = false;
-      if (Array.isArray(exp)) {
-        if (exp[0] === "FUNC") {
-          const func = exp[1];
-          if (func === "UPPER" || func === "LOWER") {
-            const p = func === "UPPER" ? rhs.toUpperCase() : rhs.toLowerCase();
-            if (p === rhs) caseSensitive = false;
-            else contradiction = true;
-            lhs = new Exp(exp[2]);
-          }
+      if (exp instanceof Expression.FunctionCall) {
+        if (exp.name === "UPPER" || exp.name === "LOWER") {
+          const p =
+            exp.name === "UPPER" ? rhs.toUpperCase() : rhs.toLowerCase();
+          if (p === rhs) caseSensitive = false;
+          else contradiction = true;
+          lhs = new Exp(exp.args[0]);
         }
       }
       this.lhs = lhs;
@@ -469,14 +279,13 @@ export namespace Clause {
       this.caseSensitive = caseSensitive;
       this.contradiction = contradiction;
     }
-    true(context: SynthContextBase<Clause>): Minterm[] {
-      return context.getMinterms(this, true);
-    }
-    false(context: SynthContextBase<Clause>): Minterm[] {
-      return context.getMinterms(this, false);
-    }
-    null(context: SynthContextBase<Clause>): Minterm[] {
-      return this.lhs.null(context);
+    getMinterms(context: SynthContextBase<Clause>, res: number): Minterm[] {
+      res = res & 0b111;
+      if (!res) return [];
+      if (res === 0b111) return [[]];
+      if (res === 0b001 || res === 0b110)
+        return this.lhs.getMinterms(context, res);
+      return context.getMinterms(this, res);
     }
     isBoolean(): boolean {
       return true;
@@ -491,67 +300,157 @@ export namespace Clause {
       let lhs = this.lhs.expression();
       if (this.contradiction) {
         if (this.rhs === this.rhs.toLocaleUpperCase())
-          lhs = ["FUNC", "LOWER", lhs];
-        else lhs = ["FUNC", "UPPER", lhs];
+          lhs = new Expression.FunctionCall("LOWER", [lhs]);
+        else lhs = new Expression.FunctionCall("UPPER", [lhs]);
       } else if (!this.caseSensitive) {
         if (this.rhs === this.rhs.toLocaleUpperCase())
-          lhs = ["FUNC", "UPPER", lhs];
-        else lhs = ["FUNC", "LOWER", lhs];
+          lhs = new Expression.FunctionCall("UPPER", [lhs]);
+        else lhs = new Expression.FunctionCall("LOWER", [lhs]);
       }
-      return ["LIKE", lhs, this.rhs, ...(this.esc ? [this.esc] : [])];
+      return new Expression.Binary(
+        "LIKE",
+        lhs,
+        new Expression.Literal(this.rhs),
+      );
+    }
+  }
+
+  export class Conditional extends Clause {
+    constructor(
+      public condition: Clause,
+      public then: Clause,
+      public otherwise: Clause,
+    ) {
+      super();
+    }
+    getMinterms(context: SynthContextBase<Clause>, res: number): Minterm[] {
+      const condition = this.condition.getMinterms(context, 0b011);
+      if (!condition.length) return this.then.getMinterms(context, res);
+      return [
+        ...complement([...condition, ...this.then.getMinterms(context, ~res)]),
+        ...complement([
+          ...complement(condition),
+          ...this.otherwise.getMinterms(context, ~res),
+        ]),
+      ];
+    }
+    expression(): Expression {
+      if (this._expression != null) return this._expression;
+      if (this.isBoolean()) {
+        this._expression = new Clause.Not(new Clause.Not(this)).expression();
+        return this._expression;
+      }
+      const context = createSynthContext();
+      const cases: { when: Minterm[]; then: Expression }[] = [];
+      let clause = this as Conditional;
+
+      for (;;) {
+        let minterms = clause.condition.getMinterms(context, 0b100);
+        const then = clause.then.expression();
+        if (
+          cases.length &&
+          then.toString() === cases[cases.length - 1].then.toString()
+        )
+          minterms.push(...cases.pop().when);
+        minterms = context.minimize(
+          minterms,
+          cases.flatMap((c) => c.when),
+        );
+        if (!minterms.length) continue;
+        cases.push({ when: minterms, then });
+        if (minterms.length === 1 && !minterms[0].length) break;
+        if (clause.otherwise instanceof Conditional) clause = clause.otherwise;
+        else
+          clause = new Conditional(
+            new Exp(new Expression.Literal(true)),
+            clause.otherwise,
+            new Exp(new Expression.Literal(null)),
+          );
+      }
+      while (
+        cases[cases.length - 1].then instanceof Expression.Literal &&
+        (cases[cases.length - 1].then as Expression.Literal).value == null
+      )
+        cases.pop();
+      let res: Expression = new Expression.Literal(null);
+      while (cases.length) {
+        const c = cases.pop();
+        if (c.when.length === 1 && !c.when[0].length) {
+          res = c.then;
+        } else {
+          res = new Expression.Conditional(
+            context.toExpression(c.when),
+            c.then,
+            res,
+          );
+        }
+      }
+
+      this._expression = res;
+      return this._expression;
+    }
+
+    isBoolean(): boolean {
+      return this.then.isBoolean() && this.otherwise.isBoolean();
     }
   }
 
   export function fromExpression(exp: Expression): Clause {
-    const res = map(exp, (e) => {
-      if (!Array.isArray(e)) return new Clause.Exp(e);
-      let op = e[0];
-      let negate = true;
+    let res: Clause;
+    let negate = false;
+    if (exp instanceof Expression.Unary) {
+      let op = exp.operator;
+      negate = true;
+      if (op === "IS NOT NULL") op = "IS NULL";
+      else negate = false;
+      if (op === "NOT") res = new Clause.Not(fromExpression(exp.operand));
+      else if (op === "IS NULL") res = new IsNull(fromExpression(exp.operand));
+    } else if (exp instanceof Expression.Binary) {
+      let op = exp.operator;
+      negate = true;
       if (op === "NOT LIKE") op = "LIKE";
-      else if (op === "IS NOT NULL") op = "IS NULL";
       else if (op === "<>") op = "=";
       else if (op === ">=") op = "<";
       else if (op === "<=") op = ">";
       else negate = false;
 
-      let clause: Clause;
-      if (op === "IS NULL") {
-        clause = new Clause.IsNull(e[1]);
-      } else if (op === "NOT") {
-        clause = new Clause.Not(e[1]);
+      if (op === "AND") {
+        res = new Clause.And([
+          fromExpression(exp.left),
+          fromExpression(exp.right),
+        ]);
       } else if (op === "OR") {
-        clause = new Clause.Or(e.slice(1));
-      } else if (op === "AND") {
-        clause = new Clause.And(e.slice(1));
-      } else if (op === "CASE") {
-        clause = new Clause.Case(e.slice(1));
-      } else if (op === "LIKE") {
-        const rhs = e[2] instanceof Exp ? e[2].expression() : null;
-        const esc = e[3] instanceof Exp ? e[3].expression() : null;
-        if (typeof rhs === "string" && typeof esc === "string")
-          clause = new Clause.Like(e[1], rhs, esc);
-        else if (typeof rhs === "string" && esc == null)
-          clause = new Clause.Like(e[1], rhs);
-      } else if (op === ">" || op === "<" || op === "=") {
-        const rhs = e[2] instanceof Exp ? e[2].expression() : null;
-        if (["boolean", "number", "string"].includes(typeof rhs)) {
-          clause = new Clause.Compare(
-            e[1],
-            op,
-            rhs as boolean | number | string,
-          );
+        negate = true;
+        res = new Clause.And([
+          new Clause.Not(fromExpression(exp.left)),
+          new Clause.Not(fromExpression(exp.right)),
+        ]);
+      } else if (exp.right instanceof Expression.Literal) {
+        if (["=", ">", "<"].includes(op)) {
+          if (
+            ["boolean", "number", "string"].includes(typeof exp.right.value)
+          ) {
+            res = new Compare(
+              fromExpression(exp.left),
+              op as ">" | "<" | "=",
+              exp.right.value,
+            );
+          }
+        } else if (op === "LIKE") {
+          if (typeof exp.right.value === "string")
+            res = new Like(fromExpression(exp.left), exp.right.value);
         }
       }
+    } else if (exp instanceof Expression.Conditional) {
+      res = new Conditional(
+        fromExpression(exp.condition),
+        fromExpression(exp.then),
+        fromExpression(exp.otherwise),
+      );
+    }
 
-      if (!clause) {
-        const args = e.slice(1).map((a) => (a as Clause).expression());
-        clause = new Clause.Exp([op, ...args]);
-      }
-
-      if (negate) clause = new Clause.Not(clause);
-      return clause;
-    });
-
+    if (!res) res = new Exp(exp);
+    if (negate) res = new Not(res);
     return res;
   }
 }
@@ -576,11 +475,24 @@ export class SynthContext extends SynthContextBase<Clause, Clause> {
     super();
   }
 
-  getMinterms(clause: Clause, res: true | false | null): number[][] {
+  getMinterms(clause: Clause, res: number): number[][] {
     const v = this.getVar(clause);
-    if (res === true) return [[(v << 2) ^ 3]];
-    else if (res === false) return [[(v << 2) ^ 1]];
-    else return [[v << 2, (v << 2) ^ 2]];
+    switch (res & 0b111) {
+      case 0b100:
+        return [[(v << 2) ^ 3]];
+      case 0b010:
+        return [[(v << 2) ^ 1]];
+      case 0b001:
+        return [[v << 2, (v << 2) ^ 2]];
+      case 0b110:
+        return [[(v << 2) ^ 3], [(v << 2) ^ 1]];
+      case 0b101:
+        return [[(v << 2) ^ 3], [v << 2, (v << 2) ^ 2]];
+      case 0b011:
+        return [[(v << 2) ^ 1], [v << 2, (v << 2) ^ 2]];
+      default:
+        throw new Error("Invalid minterms");
+    }
   }
 
   getDcSet(minterms: Minterm[]): number[][] {
@@ -594,9 +506,7 @@ export class SynthContext extends SynthContextBase<Clause, Clause> {
     ) as Clause.Compare[];
 
     // Comparisons
-    for (const [, clauses] of groupBy(comparisons, (c) =>
-      JSON.stringify(c.lhs),
-    )) {
+    for (const [, clauses] of groupBy(comparisons, (c) => c.lhs.toString())) {
       const lhs = clauses[0].lhs;
       const values = new Set(clauses.map((c) => c.rhs));
       const valuesSorted = [...values].sort((a, b) => {
@@ -657,7 +567,7 @@ export class SynthContext extends SynthContextBase<Clause, Clause> {
       (c) => c instanceof Clause.Like,
     ) as Clause.Like[];
 
-    for (const [, clauses] of groupBy(likes, (c) => JSON.stringify(c.lhs))) {
+    for (const [, clauses] of groupBy(likes, (c) => c.lhs.toString())) {
       for (let i1 = 0; i1 < clauses.length; ++i1) {
         const l1 = clauses[i1];
         if (l1.contradiction) {
@@ -724,9 +634,13 @@ export class SynthContext extends SynthContextBase<Clause, Clause> {
       }
 
       if (clause instanceof Clause.IsNull) {
-        const str = clause.operand.toString();
-        if (str === '["PARAM","DeviceID.ID"]' || str === '["PARAM","_id"]')
-          dcSet.push([(v << 2) ^ 3]);
+        if (clause.operand instanceof Clause.Exp) {
+          if (clause.operand.exp instanceof Expression.Parameter) {
+            const str = clause.operand.exp.path.toString();
+            if (str === "DeviceID.ID" || str === "_id")
+              dcSet.push([(v << 2) ^ 3]);
+          }
+        }
       }
     }
     return dcSet.filter((m) => m.every((v) => whitelist.has(v >> 2)));
@@ -808,11 +722,9 @@ export class SynthContext extends SynthContextBase<Clause, Clause> {
   }
 
   toExpression(sop: number[][]): Expression {
-    if (!sop.length) return false;
-    const res: Expression[] = [];
+    let res: Expression = new Expression.Literal(false);
     for (const s of sop) {
-      if (!s.length) return true;
-      const conjs: Expression[] = [];
+      let conjs: Expression = new Expression.Literal(true);
       for (const i of s) {
         const clause = this.getClause(i >>> 2);
         if (!clause) throw new Error("Invalid literal");
@@ -823,7 +735,8 @@ export class SynthContext extends SynthContextBase<Clause, Clause> {
           const isNullVars = [...clause.getNullables()].map((c) =>
             this.getVar(c),
           );
-          conjs.push(
+          conjs = Expression.and(
+            conjs,
             this.toExpression([
               [i ^ 3],
               ...isNullVars.map((n) => [(n << 2) ^ 3]),
@@ -832,31 +745,38 @@ export class SynthContext extends SynthContextBase<Clause, Clause> {
           continue;
         }
 
-        let expr = clause.expression() as Expression;
-        if (!(i & 1) !== !(i & 2)) expr = ["NOT", expr];
-        if (
-          Array.isArray(expr) &&
-          expr[0] === "NOT" &&
-          Array.isArray(expr[1])
-        ) {
-          const e: Expression[] = expr[1];
-          if (e[0] === "IS NULL") expr = ["IS NOT NULL", ...e.slice(1)];
-          else if (e[0] === "LIKE") expr = ["NOT LIKE", ...e.slice(1)];
-          else if (e[0] === "=") expr = ["<>", ...e.slice(1)];
-          else if (e[0] === "<>") expr = ["=", ...e.slice(1)];
-          else if (e[0] === ">") expr = ["<=", ...e.slice(1)];
-          else if (e[0] === ">=") expr = ["<", ...e.slice(1)];
-          else if (e[0] === "<") expr = [">=", ...e.slice(1)];
-          else if (e[0] === "<=") expr = [">", ...e.slice(1)];
-          else if (e[0] === "NOT") expr = e[1];
+        let expr = clause.expression();
+        if (!(i & 1) !== !(i & 2)) expr = new Expression.Unary("NOT", expr);
+        if (expr instanceof Expression.Unary && expr.operator === "NOT") {
+          const e = expr.operand;
+          if (e instanceof Expression.Unary) {
+            if (e.operator === "IS NULL")
+              expr = new Expression.Unary("IS NOT NULL", e.operand);
+            else if (e.operator === "IS NOT NULL")
+              expr = new Expression.Unary("IS NULL", e.operand);
+            else if (e.operator === "NOT") expr = e.operand;
+          } else if (e instanceof Expression.Binary) {
+            if (e.operator === "LIKE")
+              expr = new Expression.Binary("NOT LIKE", e.left, e.right);
+            else if (e.operator === "=")
+              expr = new Expression.Binary("<>", e.left, e.right);
+            else if (e.operator === "<>")
+              expr = new Expression.Binary("=", e.left, e.right);
+            else if (e.operator === ">")
+              expr = new Expression.Binary("<=", e.left, e.right);
+            else if (e.operator === ">=")
+              expr = new Expression.Binary("<", e.left, e.right);
+            else if (e.operator === "<")
+              expr = new Expression.Binary(">=", e.left, e.right);
+            else if (e.operator === "<=")
+              expr = new Expression.Binary(">", e.left, e.right);
+          }
         }
-        conjs.push(expr);
+        conjs = Expression.and(conjs, expr);
       }
-      if (conjs.length > 1) res.push(["AND", ...conjs]);
-      else res.push(conjs[0]);
+      res = Expression.or(res, conjs);
     }
-    if (res.length > 1) return ["OR", ...res];
-    return res[0];
+    return res;
   }
 }
 
@@ -925,11 +845,12 @@ export function unionDiff(
 ): [Expression, Expression] {
   expr2 = normalize(expr2);
 
-  if (!expr2) return [expr1, false];
+  if (expr2 instanceof Expression.Literal && !expr2.value)
+    return [expr1, new Expression.Literal(false)];
 
   const synth2 = Clause.fromExpression(expr2);
 
-  if (!expr1) {
+  if (expr1 instanceof Expression.Literal && !expr1.value) {
     const e = synth2.expression();
     return [e, e];
   }
@@ -939,8 +860,8 @@ export function unionDiff(
 
   const context = new SynthContext();
 
-  const expr2Minterms = synth2.true(context);
-  const expr1Minterms = synth1.true(context);
+  const expr2Minterms = synth2.getMinterms(context, 0b100);
+  const expr1Minterms = synth1.getMinterms(context, 0b100);
 
   const union = context.minimize([...expr1Minterms, ...expr2Minterms]);
 
@@ -953,16 +874,16 @@ export function unionDiff(
 
 export function covers(expr1: Expression, expr2: Expression): boolean {
   expr2 = normalize(expr2);
-  if (!expr2) return true;
+  if (expr2 instanceof Expression.Literal && !expr2.value) return true;
   expr1 = normalize(expr1);
-  if (!Array.isArray(expr1) && expr1) return true;
+  if (expr1 instanceof Expression.Literal && expr1.value) return true;
 
   const synt1 = Clause.fromExpression(expr1);
   const synt2 = Clause.fromExpression(expr2);
 
   const context = new SynthContext();
-  const expr1Minterms = synt1.true(context);
-  const expr2Minterms = synt2.true(context);
+  const expr1Minterms = synt1.getMinterms(context, 0b100);
+  const expr2Minterms = synt2.getMinterms(context, 0b100);
 
   return tautology([
     ...context.sanitizeMinterms(complement(expr2Minterms)),

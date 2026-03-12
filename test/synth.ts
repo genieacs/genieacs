@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert";
 import initSqlJs from "sql.js/dist/sql-asm.js";
 import { covers, minimize, unionDiff } from "../lib/common/expression/synth.ts";
-import { parse, stringify } from "../lib/common/expression/parser.ts";
+import Expression from "../lib/common/expression.ts";
 
 const STRING_VALUES = [null, "", "a", "ab", "ab10", "ab-10"];
 const DECIMAL_VALUES = [null, 0, -10, 10];
@@ -86,7 +86,7 @@ void test("minimize", async () => {
 
   for (const c of cases) {
     const res1 = await query(c);
-    const min = stringify(minimize(parse(c), true));
+    const min = minimize(Expression.parse(c), true).toString();
     const res2 = await query(min);
     assert.strictEqual(setsEqual(res1, res2), true);
   }
@@ -104,9 +104,9 @@ void test("unionDiff", async () => {
   for (const [c1, c2] of getPermutations(cases, cases)) {
     const res1 = await query(c1);
     const res2 = await query(c2);
-    const [union, diff] = unionDiff(parse(c1), parse(c2));
-    const res3 = await query(stringify(union));
-    const res4 = await query(stringify(diff));
+    const [union, diff] = unionDiff(Expression.parse(c1), Expression.parse(c2));
+    const res3 = await query(union.toString());
+    const res4 = await query(diff.toString());
 
     const unionSet = new Set([...res1, ...res2]);
     const diffSet = new Set(Array.from(res2).filter((r) => !res1.has(r)));
@@ -117,15 +117,35 @@ void test("unionDiff", async () => {
 });
 
 void test("covers", async () => {
-  assert.strictEqual(covers(false, false), true);
-  assert.strictEqual(covers(false, parse("decimal > 5 AND decimal < 3")), true);
-  assert.strictEqual(covers(parse("true"), parse("decimal > 0")), true);
-  assert.strictEqual(covers(parse("true"), parse("false")), true);
-  assert.strictEqual(covers(parse("false"), parse("false")), true);
-  assert.strictEqual(covers(parse("false"), parse("decimal > 0")), false);
-  assert.strictEqual(covers(parse("decimal >= 0"), parse("decimal > 0")), true);
   assert.strictEqual(
-    covers(parse("decimal > 0"), parse("decimal >= 0")),
+    covers(Expression.parse("false"), Expression.parse("false")),
+    true,
+  );
+  assert.strictEqual(
+    covers(
+      Expression.parse("false"),
+      Expression.parse("decimal > 5 AND decimal < 3"),
+    ),
+    true,
+  );
+  assert.strictEqual(
+    covers(Expression.parse("true"), Expression.parse("decimal > 0")),
+    true,
+  );
+  assert.strictEqual(
+    covers(Expression.parse("true"), Expression.parse("false")),
+    true,
+  );
+  assert.strictEqual(
+    covers(Expression.parse("false"), Expression.parse("decimal > 0")),
+    false,
+  );
+  assert.strictEqual(
+    covers(Expression.parse("decimal >= 0"), Expression.parse("decimal > 0")),
+    true,
+  );
+  assert.strictEqual(
+    covers(Expression.parse("decimal > 0"), Expression.parse("decimal >= 0")),
     false,
   );
 
@@ -139,7 +159,7 @@ void test("covers", async () => {
   for (const [c1, c2] of cases) {
     const res1 = await query(c1);
     const res2 = await query(c2);
-    const coversResult = covers(parse(c1), parse(c2));
+    const coversResult = covers(Expression.parse(c1), Expression.parse(c2));
     const actuallyCovers = Array.from(res2).every((r) => res1.has(r));
 
     assert.strictEqual(

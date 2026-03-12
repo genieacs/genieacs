@@ -1,8 +1,7 @@
 import * as crypto from "node:crypto";
 import * as dgram from "node:dgram";
 import * as http from "node:http";
-import { evaluateAsync } from "./common/expression/util.ts";
-import { Expression } from "./types.ts";
+import Expression, { Value } from "./common/expression.ts";
 import * as auth from "./auth.ts";
 import * as extensions from "./extensions.ts";
 import * as debug from "./debug.ts";
@@ -13,29 +12,33 @@ import * as logger from "../lib/logger.ts";
 
 async function extractAuth(
   exp: Expression,
-  dflt: any,
+  dflt: Value,
 ): Promise<[string, string, Expression]> {
-  let username, password;
-  const _exp = await evaluateAsync(
-    exp,
-    {},
-    0,
+  let username: string, password: string;
+  const _exp = await exp.evaluateAsync(
     async (e: Expression): Promise<Expression> => {
-      if (!username && Array.isArray(e) && e[0] === "FUNC") {
-        if (e[1] === "EXT") {
-          if (typeof e[2] !== "string" || typeof e[3] !== "string") return null;
+      if (e instanceof Expression.Parameter)
+        return new Expression.Literal(null);
+      if (e instanceof Expression.FunctionCall) {
+        if (e.name === "NOW") return new Expression.Literal(0);
+        if (!username) {
+          if (e.name === "EXT") {
+            if (!e.args.every((a) => a instanceof Expression.Literal))
+              return new Expression.Literal(null);
+            const args = e.args.map((a) => a.value.toString());
+            if (typeof args[0] !== "string" || typeof args[1] !== "string")
+              return new Expression.Literal(null);
 
-          for (let i = 4; i < e.length; i++)
-            if (Array.isArray(e[i])) return null;
-
-          const { fault, value } = await extensions.run(e.slice(2));
-          return fault ? null : value;
-        } else if (e[1] === "AUTH") {
-          if (!Array.isArray(e[2]) && !Array.isArray(e[3])) {
-            username = e[2] || "";
-            password = e[3] || "";
+            const { fault, value } = await extensions.run(args);
+            if (fault) return new Expression.Literal(null);
+            return new Expression.Literal(value);
+          } else if (e.name === "AUTH") {
+            if (e.args.every((a) => a instanceof Expression.Literal)) {
+              username = `${e.args[0].value ?? ""}`;
+              password = `${e.args[1].value ?? ""}`;
+            }
+            return new Expression.Literal(dflt);
           }
-          return dflt;
         }
       }
       return e;

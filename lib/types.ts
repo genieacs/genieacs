@@ -4,8 +4,7 @@ import Path from "./common/path.ts";
 import PathSet from "./common/path-set.ts";
 import VersionedMap from "./versioned-map.ts";
 import InstanceSet from "./instance-set.ts";
-
-export type Expression = string | number | boolean | null | any[];
+import Expression, { Value } from "./common/expression.ts";
 
 export interface Fault {
   code: string;
@@ -160,7 +159,7 @@ export interface Task {
   fileName?: string;
   targetFileName?: string;
   expiry?: number;
-  provisions?: [string, ...Expression[]][];
+  provisions?: [string, ...Value[]][];
 }
 
 export interface Operation {
@@ -470,7 +469,7 @@ export interface Permissions {
       [resource: string]: {
         access: number;
         filter: Expression;
-        validate?: Expression;
+        validate: Expression;
       };
     };
   };
@@ -479,7 +478,7 @@ export interface Permissions {
 export type PermissionSet = {
   [resource: string]: {
     access: number;
-    validate?: Expression;
+    validate: Expression;
     filter: Expression;
   };
 }[];
@@ -488,16 +487,7 @@ export interface Config {
   [name: string]: Expression;
 }
 
-export interface UiConfig {
-  filters: Record<string, unknown>;
-  device: Record<string, unknown>;
-  index: Record<string, unknown>;
-  overview: {
-    charts?: Record<string, unknown>;
-    groups?: Record<string, unknown>;
-  };
-  pageSize?: Expression;
-}
+export type UiConfig = Record<string, string>;
 
 export interface SoapMessage {
   id: string;

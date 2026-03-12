@@ -183,4 +183,12 @@ export default class VersionedMap<K, V> {
         this.map.delete(k);
     }
   }
+
+  public *[Symbol.iterator](): IterableIterator<[K, V]> {
+    for (const [key, revisions] of this.map) {
+      const last = revisions[revisions.length - 1];
+      if (last === NONEXISTENT) continue;
+      yield [key, last as V];
+    }
+  }
 }

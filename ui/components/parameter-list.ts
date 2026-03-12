@@ -2,7 +2,7 @@ import { ClosureComponent, VnodeDOM } from "mithril";
 import { m } from "../components.ts";
 import { QueryResponse, evaluateExpression } from "../store.ts";
 import { FlatDevice } from "../../lib/ui/db.ts";
-import { Expression } from "../../lib/types.ts";
+import Expression from "../../lib/common/expression.ts";
 
 interface Attrs {
   device: FlatDevice;
@@ -19,7 +19,11 @@ const component: ClosureComponent<Attrs> = () => {
       const device = vnode.attrs.device;
 
       const rows = Object.values(vnode.attrs.parameters).map((parameter) => {
-        const type = evaluateExpression(parameter.type, device);
+        let type = "parameter";
+        if (parameter.type) {
+          const t = evaluateExpression(parameter.type, device);
+          if (typeof t.value === "string") type = t.value;
+        }
         const p = m.context(
           {
             device: device,
@@ -45,7 +49,7 @@ const component: ClosureComponent<Attrs> = () => {
           },
           m(
             "dt.text-sm font-medium text-stone-500",
-            evaluateExpression(parameter["label"], device),
+            evaluateExpression(parameter["label"], device).value,
           ),
           m("dd.text-sm text-stone-900 col-span-2", p),
         );

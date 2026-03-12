@@ -46,6 +46,7 @@ connect to MongoDB and start an HTTP(S) server.
 bin/                        Service entry points (5 executables)
 lib/                        All backend logic
   common/                   Shared utilities (expression engine, Path, errors)
+    expression.ts           Expression class hierarchy (base + subclasses)
     expression/             Expression parser, evaluator, normalizer, minimizer
   cwmp/                     CWMP-service-specific DB and caching
   db/                       Database layer (MongoDB collections, query synthesis)
@@ -78,15 +79,18 @@ MongoDB and start the HTTP server in each worker.
   by the extensions subsystem. It communicates with its parent via IPC,
   executing user-defined extension scripts in isolation.
 
-### The Expression System (`lib/common/expression/`)
+### The Expression System (`lib/common/expression.ts`, `lib/common/expression/`)
 
-The `Expression` type (`string | number | boolean | null | any[]`) is the most
-important abstraction in the codebase. It is a recursive, Lisp-like S-expression
-where scalars are literal values and arrays are operations (the operator at
-index 0, operands following). For example:
+The `Expression` class (defined in `lib/common/expression.ts`) is the most
+important abstraction in the codebase. It uses a typed class hierarchy:
+`Expression.Literal` (wraps `string | number | boolean | null`),
+`Expression.Parameter` (wraps a `Path`), `Expression.Binary` (operator +
+left/right), `Expression.Unary` (operator + operand), `Expression.FunctionCall`
+(name + args), and `Expression.Conditional` (condition/then/otherwise). For
+example, in the SQL-like text syntax:
 
 ```
-["AND", ["=", ["PARAM", "Device.ModelName"], "BrandX"], [">", ["PARAM", "Events.Inform"], 1000]]
+Device.ModelName = "BrandX" AND Events.Inform > 1000
 ```
 
 Expressions are used pervasively:
@@ -101,23 +105,28 @@ Expressions are used pervasively:
 
 The expression pipeline flows through four modules:
 
-1. `parser.ts` -- Parses a SQL-like text syntax into the AST (uses Parsimmon).
-   Also provides `map()` / `mapAsync()` tree-walking primitives and
-   `stringify()` for serialization.
+1. `parser.ts` -- Parses a SQL-like text syntax into the AST using a hand-rolled
+   recursive descent parser with a `Cursor`-based scanner. Also provides
+   `stringifyExpression()` for serialization. The `map()` / `mapAsync()`
+   tree-walking primitives are abstract methods on the `Expression` class, and
+   `stringify()` is now `Expression.toString()`.
 2. `normalize.ts` -- Algebraic normalization using exact rational polynomial
-   arithmetic over bigints. Ensures equivalent expressions have the same
-   canonical form (e.g., `a + 2 > b` and `a > b - 2` normalize identically).
+   arithmetic over native `bigint` values. The `Polynomial` class extends
+   `Expression` as an intermediate representation. Ensures equivalent
+   expressions have the same canonical form (e.g., `a + 2 > b` and `a > b - 2`
+   normalize identically).
 3. `synth.ts` -- Boolean logic minimization via the Espresso algorithm
    (espresso-iisojs). Converts expressions to minimal sum-of-products form with
    three-valued logic (true/false/null). Handles domain-specific constraints
    like comparison ordering and LIKE pattern relationships.
-4. `util.ts` -- Runtime evaluation. Resolves `PARAM` references against concrete
-   data, evaluates operators, and supports partial evaluation (returns a reduced
-   expression if some values are unknown).
+4. `evaluate.ts` -- Runtime evaluation. The `reduce()` function evaluates
+   operators on literal values and supports partial evaluation (returns a
+   reduced expression if some values are unknown). Parameter resolution is
+   handled by the `Expression.evaluate()` method (in `lib/common/expression.ts`)
+   which calls `reduce()` after mapping children via a user-supplied callback.
 
-`bigint.ts` provides a named-function wrapper around native bigint operations
-for readability. `pagination.ts` implements cursor-based pagination by
-generating filter expressions from sort-key bookmarks.
+`pagination.ts` implements cursor-based pagination by generating filter
+expressions from sort-key bookmarks.
 
 ### The Path System (`lib/common/path.ts`, `lib/common/path-set.ts`)
 
@@ -127,17 +136,22 @@ query-based addressing.
 
 Key design decisions:
 
-- **Interned/flyweight** -- All `Path` instances are cached. `Path.parse()` is
-  the only way to create them; the constructor is protected. Two-generation LRU
-  cache rotated every 120 seconds.
+- **Cached** -- `Path.parse()` caches instances in a two-generation LRU cache
+  rotated every 120 seconds. The constructor is public (used directly by the
+  parser and by methods like `slice()`, `concat()`, and `stripAlias()`).
 - **Bitmask encoding** -- The `wildcard` and `alias` fields are bitfields for
-  O(1) segment-type checking. This limits paths to 32 segments.
+  O(1) segment-type checking. This limits paths to 32 segments. A `colon` field
+  tracks the number of attribute path segments (after a `:` separator), enabling
+  `paramLength` and `attrLength` accessors.
 - **Immutable** -- Segment arrays are `Object.freeze()`-d.
 
 `PathSet` is a multi-indexed collection of paths supporting pattern-matching
-queries. It indexes paths by length, by segment-at-position, and by string
-representation. The `find()` method uses set intersection to efficiently match
-wildcard patterns.
+queries. It maintains separate `paramSegmentIndex` and `attrSegmentIndex` arrays
+(one `Map<string, Set<Path>>` per position), plus a `stringIndex` map. The
+`find()` method takes bitmasks to control which segments require exact matches
+vs. wildcard compatibility, then uses set intersection across the smallest index
+sets. A higher-level `findCompat()` method computes the appropriate bitmasks for
+superset/subset matching.
 
 ### CWMP Protocol Layer (`lib/cwmp.ts`, `lib/soap.ts`, `lib/xml-parser.ts`)
 
@@ -272,13 +286,17 @@ and CSV export.
 `lib/ui/db.ts` translates between the UI's flat parameter representation and
 MongoDB's nested document structure. The `flattenDevice()` function is the key
 transformation: it recursively walks the nested device document and produces a
-flat key-value map (e.g.,
-`Device.WiFi.SSID.1.Name -> {value: [...], writable: true}`).
+flat key-value map with colon-delimited attribute keys (e.g.,
+`"Device.WiFi.SSID.1.Name" -> value`,
+`"Device.WiFi.SSID.1.Name:type" -> "xsd:string"`,
+`"Device.WiFi.SSID.1.Name:writable" -> true`). The `FlatDevice` type is
+`Record<string, Value>` where `Value = string | number | boolean | null`.
 
 `lib/ui/local-cache.ts` caches permissions, users, and config in-process with
-hash-based revision tracking. The `getConfig()` function resolves config
-expressions with dynamic context and backward compatibility for legacy config
-keys.
+hash-based revision tracking. The `getConfig()` function uses typed overloads --
+it takes a typed default value (`string`, `number`, or `boolean`) and an
+expression evaluation callback, returning a value of the same type as the
+default.
 
 ### Database Layer (`lib/db/`)
 

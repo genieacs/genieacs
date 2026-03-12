@@ -2,54 +2,52 @@ import { ClosureComponent, Component, VnodeDOM } from "mithril";
 import { m } from "../components.ts";
 import * as taskQueue from "../task-queue.ts";
 import * as store from "../store.ts";
-import { evaluate } from "../../lib/common/expression/util.ts";
+import Expression, { Value } from "../../lib/common/expression.ts";
 import memoize from "../../lib/common/memoize.ts";
 import timeAgo from "../timeago.ts";
 import { icon } from "../tailwind-utility-components.ts";
 
-const evaluateParam = memoize((exp, obj, now: number) => {
-  let timestamp = now;
-  exp = evaluate(exp, null, now, (e) => {
-    if (!Array.isArray(e)) return e;
-    for (let i = 1; i < e.length; ++i) {
-      if (
-        Array.isArray(e[i]) &&
-        e[i][0] === "PARAM" &&
-        !Array.isArray(e[i][1])
-      ) {
-        let v = null;
-        const p = obj[e[i][1]];
-        if (p?.value) {
-          v = p.value[0];
-          timestamp = Math.min(timestamp, p.valueTimestamp);
+const evaluateParam = memoize(
+  (
+    exp: Expression,
+    obj: any,
+    now: number,
+  ): { value: Value; timestamp: number; parameter: string } => {
+    let timestamp = now;
+    const valueMap: Map<Expression.Literal, string> = new Map();
+    const lit = exp.evaluate((e): Expression.Literal => {
+      if (e instanceof Expression.Literal) return e;
+      if (e instanceof Expression.Parameter) {
+        let v = obj[e.path.toString()];
+        if (v) {
+          timestamp = Math.min(
+            timestamp,
+            obj[e.path.toString() + ":valueTimestamp"] ?? 0,
+          );
+          const t = obj[e.path.toString() + ":type"];
+          if (t === "xsd:dateTime" && typeof v === "number")
+            v = new Date(v).toLocaleString();
+          const val = new Expression.Literal(v);
+          valueMap.set(val, e.path.toString());
+          return val;
         }
-        e = e.slice();
-        e[i] = v;
+      } else if (e instanceof Expression.FunctionCall) {
+        if (e.name === "NOW") return new Expression.Literal(now);
+        else if (e.name === "DATE_STRING") {
+          const v = e.args[0];
+          if (v instanceof Expression.Literal) {
+            return new Expression.Literal(
+              new Date(v.value as string | number).toLocaleString(),
+            );
+          }
+        }
       }
-    }
-    if (e[0] === "FUNC" && e[1] === "DATE_STRING" && !Array.isArray(e[2]))
-      return new Date(e[2]).toLocaleString();
-    return e;
-  });
+      return new Expression.Literal(null);
+    });
 
-  let parameter = null;
-  let value = null;
-
-  if (!Array.isArray(exp)) {
-    value = exp;
-  } else if (exp[0] === "PARAM") {
-    const p = obj[exp[1]];
-    if (p?.value) {
-      timestamp = p.valueTimestamp;
-      value = p.value[0];
-      parameter = exp[1];
-      if (p.value[1] === "xsd:dateTime" && typeof value === "number")
-        value = new Date(value).toLocaleString();
-    }
-  }
-
-  return { value, timestamp, parameter };
-});
+    return { value: lit.value, timestamp, parameter: valueMap.get(lit) };
+  },
+);
 
 const component: ClosureComponent = (): Component => {
   return {
@@ -65,7 +63,7 @@ const component: ClosureComponent = (): Component => {
       if (value == null) return null;
 
       let edit;
-      if (device[parameter]?.writable) {
+      if (device[parameter + ":writable"]) {
         edit = m(
           "button",
           {
@@ -73,13 +71,9 @@ const component: ClosureComponent = (): Component => {
             onclick: () => {
               taskQueue.stageSpv({
                 name: "setParameterValues",
-                devices: [device["DeviceID.ID"].value[0]],
+                devices: [device["DeviceID.ID"]],
                 parameterValues: [
-                  [
-                    parameter,
-                    device[parameter].value[0],
-                    device[parameter].value[1],
-                  ],
+                  [parameter, device[parameter], device[parameter + ":type"]],
                 ],
               });
             },

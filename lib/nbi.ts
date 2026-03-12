@@ -14,6 +14,7 @@ import { flattenDevice } from "./ui/db.ts";
 import { getRequestOrigin } from "./forwarded.ts";
 import { acquireLock, releaseLock } from "./lock.ts";
 import { ResourceLockedError } from "./common/errors.ts";
+import Expression from "./common/expression.ts";
 
 const DEVICE_TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-_%]+)\/tasks\/?$/;
 const TASKS_REGEX = /^\/tasks\/([a-zA-Z0-9\-_%]+)(\/[a-zA-Z_]*)?$/;
@@ -349,6 +350,24 @@ async function handler(
       const lastInform = (dev["_lastInform"] as Date).getTime();
       const device = flattenDevice(dev);
 
+      const configCallback = (e: Expression): Expression.Literal => {
+        if (e instanceof Expression.Literal) return e;
+        else if (e instanceof Expression.Parameter) {
+          const p = device[e.path.toString()];
+          if (p != null) return new Expression.Literal(p);
+        } else if (e instanceof Expression.FunctionCall) {
+          if (e.name === "NOW") return new Expression.Literal(Date.now());
+          if (e.name === "REMOTE_ADDRESS") {
+            for (const root of ["InternetGatewayDevice", "Device"]) {
+              const p = device[`${root}.ManagementServer.ConnectionRequestURL`];
+              if (p != null)
+                return new Expression.Literal(new URL(p as string).hostname);
+            }
+          }
+        }
+        return new Expression.Literal(null);
+      };
+
       let onlineThreshold: number;
       if (url.searchParams.has("timeout")) {
         onlineThreshold = parseInt(url.searchParams.get("timeout"));
@@ -357,26 +376,9 @@ async function handler(
         onlineThreshold = getConfig(
           revision,
           "cwmp.deviceOnlineThreshold",
-          {},
-          Date.now(),
-          (exp) => {
-            if (!Array.isArray(exp)) return exp;
-            if (exp[0] === "PARAM") {
-              const p = device[exp[1]];
-              if (p?.value) return p.value[0];
-            } else if (exp[0] === "FUNC") {
-              if (exp[1] === "REMOTE_ADDRESS") {
-                for (const root of ["InternetGatewayDevice", "Device"]) {
-                  const p =
-                    device[`${root}.ManagementServer.ConnectionRequestURL`];
-                  if (p?.value) return new URL(p.value[0] as string).hostname;
-                }
-                return null;
-              }
-            }
-            return exp;
-          },
-        ) as number;
+          4000,
+          configCallback,
+        );
       }
 
       let status = await apiFunctions.connectionRequest(deviceId, device);

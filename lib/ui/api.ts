@@ -3,11 +3,11 @@ import Router from "@koa/router";
 import { ObjectId } from "mongodb";
 import * as db from "./db.ts";
 import * as apiFunctions from "../api-functions.ts";
-import { evaluate, and, extractParams } from "../common/expression/util.ts";
-import { parse } from "../common/expression/parser.ts";
+import Expression, { extractPaths } from "../common/expression.ts";
+import Path from "../common/path.ts";
 import * as logger from "../logger.ts";
 import { getConfig } from "../ui/local-cache.ts";
-import { Expression, Task } from "../types.ts";
+import { Task } from "../types.ts";
 import { generateSalt, hashPassword } from "../auth.ts";
 import { del } from "../cache.ts";
 import Authorizer from "../common/authorizer.ts";
@@ -67,11 +67,14 @@ router.get(`/devices/:id.csv`, async (ctx) => {
     id: ctx.params.id,
   };
 
-  const filter = and(authorizer.getFilter("devices", 2), [
-    "=",
-    ["PARAM", RESOURCE_IDS.devices],
-    ctx.params.id,
-  ]);
+  const filter = Expression.and(
+    authorizer.getFilter("devices", 2),
+    new Expression.Binary(
+      "=",
+      new Expression.Parameter(Path.parse(RESOURCE_IDS.devices)),
+      new Expression.Literal(ctx.params.id),
+    ),
+  );
 
   if (!authorizer.hasAccess("devices", 2)) {
     logUnauthorizedWarning(log);
@@ -89,36 +92,51 @@ router.get(`/devices/:id.csv`, async (ctx) => {
   );
 
   const lines: string[] = [
-    "Parameter,Object,Object timestamp,Writable,Writable timestamp,Value,Value type,Value timestamp,Notification,Notification timestamp,Access list,Access list timestamp",
+    "Parameter,Object,Writable,Value,Value type,Timestamp,Value timestamp,Notification,Access list,Attributes timestamp",
   ];
 
-  for (const k of Object.keys(device).sort()) {
-    const p = device[k];
-    let value = "";
-    let type = "";
-    if (p.value) {
-      value = p.value[0];
-      type = p.value[1];
-      if (type === "xsd:dateTime" && typeof value === "number")
-        value = new Date(value).toJSON();
-    }
+  const keys = Object.keys(device).sort();
+  let prevParam = "";
+  let attrs: Record<string, string | number | boolean | null> = {};
+
+  function flushRow(): void {
+    if (!prevParam) return;
+    let value: string | number | boolean | null = attrs["value"] ?? "";
+    if (attrs["type"] === "xsd:dateTime" && typeof value === "number")
+      value = new Date(value).toJSON();
 
     const row = [
-      k,
-      p.object,
-      new Date(p.objectTimestamp).toJSON(),
-      p.writable,
-      new Date(p.writableTimestamp).toJSON(),
+      prevParam,
+      attrs["object"] ?? "",
+      attrs["writable"] ?? "",
       `"${String(value).replace(/"/g, '""')}"`,
-      type,
-      new Date(p.valueTimestamp).toJSON(),
-      p.notification,
-      new Date(p.notificationTimestamp).toJSON(),
-      p.accessList ? p.accessList.join(", ") : "",
-      new Date(p.accessListTimestamp).toJSON(),
+      attrs["type"] ?? "",
+      attrs["timestamp"] != null ? new Date(+attrs["timestamp"]).toJSON() : "",
+      attrs["valueTimestamp"] != null
+        ? new Date(+attrs["valueTimestamp"]).toJSON()
+        : "",
+      attrs["notification"] ?? "",
+      attrs["accessList"] ?? "",
+      attrs["attributesTimestamp"] != null
+        ? new Date(+attrs["attributesTimestamp"]).toJSON()
+        : "",
     ];
     lines.push(row.map((r) => (r != null ? r : "")).join(","));
   }
+
+  for (const k of keys) {
+    const colonIdx = k.lastIndexOf(":");
+    const param = colonIdx === -1 ? k : k.slice(0, colonIdx);
+    const attr = colonIdx === -1 ? "value" : k.slice(colonIdx + 1);
+
+    if (param !== prevParam) {
+      flushRow();
+      prevParam = param;
+      attrs = {};
+    }
+    attrs[attr] = device[k];
+  }
+  flushRow();
   ctx.body = lines.join("\n");
   logger.accessInfo(log);
 });
@@ -128,7 +146,10 @@ for (const [resource, flags] of Object.entries(resources)) {
     const authorizer: Authorizer = ctx.state.authorizer;
     let filter: Expression = authorizer.getFilter(resource, 1);
     if (ctx.request.query.filter)
-      filter = and(filter, parse(singleParam(ctx.request.query.filter)));
+      filter = Expression.and(
+        filter,
+        Expression.parse(singleParam(ctx.request.query.filter)),
+      );
 
     const log = {
       message: `Count ${resource}`,
@@ -144,11 +165,18 @@ for (const [resource, flags] of Object.entries(resources)) {
 
     // Exclude temporary tasks and faults
     if (resource === "tasks" || resource === "faults") {
-      filter = and(filter, [
-        "OR",
-        [">=", ["PARAM", "expiry"], Date.now() + 60000],
-        ["IS NULL", ["PARAM", "expiry"]],
-      ]);
+      const p = new Expression.Parameter(Path.parse("expiry"));
+      filter = Expression.and(
+        filter,
+        Expression.or(
+          new Expression.Binary(
+            ">=",
+            p,
+            new Expression.Literal(Date.now() + 60000),
+          ),
+          new Expression.Unary("IS NULL", p),
+        ),
+      );
     }
 
     const count = await db.count(resource, filter);
@@ -165,7 +193,10 @@ for (const [resource, flags] of Object.entries(resources)) {
     const options: Parameters<typeof db.query>[2] = {};
     let filter: Expression = authorizer.getFilter(resource, 2);
     if (ctx.request.query.filter)
-      filter = and(filter, parse(singleParam(ctx.request.query.filter)));
+      filter = Expression.and(
+        filter,
+        Expression.parse(singleParam(ctx.request.query.filter)),
+      );
     if (ctx.request.query.limit) options.limit = +ctx.request.query.limit;
     if (ctx.request.query.skip) options.skip = +ctx.request.query.skip;
     if (ctx.request.query.sort)
@@ -193,11 +224,18 @@ for (const [resource, flags] of Object.entries(resources)) {
 
     // Exclude temporary tasks and faults
     if (resource === "tasks" || resource === "faults") {
-      filter = and(filter, [
-        "OR",
-        [">=", ["PARAM", "expiry"], Date.now() + 60000],
-        ["IS NULL", ["PARAM", "expiry"]],
-      ]);
+      const p = new Expression.Parameter(Path.parse("expiry"));
+      filter = Expression.and(
+        filter,
+        Expression.or(
+          new Expression.Binary(
+            ">=",
+            p,
+            new Expression.Literal(Date.now() + 60000),
+          ),
+          new Expression.Unary("IS NULL", p),
+        ),
+      );
     }
 
     logger.accessInfo(log);
@@ -219,7 +257,10 @@ for (const [resource, flags] of Object.entries(resources)) {
     const options: Parameters<typeof db.query>[2] = { projection: {} };
     let filter: Expression = authorizer.getFilter(resource, 2);
     if (ctx.request.query.filter)
-      filter = and(filter, parse(singleParam(ctx.request.query.filter)));
+      filter = Expression.and(
+        filter,
+        Expression.parse(singleParam(ctx.request.query.filter)),
+      );
     if (ctx.request.query.limit) options.limit = +ctx.request.query.limit;
     if (ctx.request.query.skip) options.skip = +ctx.request.query.skip;
     if (ctx.request.query.sort)
@@ -239,25 +280,38 @@ for (const [resource, flags] of Object.entries(resources)) {
       return void (ctx.status = 403);
     }
 
-    const columns: Record<string, Expression> = JSON.parse(
+    const columnsStr: Record<string, string> = JSON.parse(
       singleParam(ctx.request.query.columns),
     );
-    const now = Date.now();
 
-    for (const [k, v] of Object.entries(columns)) {
-      const e = evaluate(parse(v as string), null, now);
-      columns[k] = e;
-      for (const p of extractParams(e))
-        if (typeof p === "string") options.projection[p] = 1;
-    }
+    const now = Date.now();
+    const columns: Record<string, Expression> = Object.fromEntries(
+      Object.entries(columnsStr).map(([k, v]) => {
+        let exp = Expression.parse(v);
+        exp = exp.evaluate((e) => {
+          if (e instanceof Expression.FunctionCall && e.name === "NOW")
+            return new Expression.Literal(now);
+          return e;
+        });
+        for (const p of extractPaths(exp)) options.projection[p.toString()] = 1;
+        return [k, exp];
+      }),
+    );
 
     // Exclude temporary tasks and faults
     if (resource === "tasks" || resource === "faults") {
-      filter = and(filter, [
-        "OR",
-        [">=", ["PARAM", "expiry"], Date.now() + 60000],
-        ["IS NULL", ["PARAM", "expiry"]],
-      ]);
+      const p = new Expression.Parameter(Path.parse("expiry"));
+      filter = Expression.and(
+        filter,
+        Expression.or(
+          new Expression.Binary(
+            ">=",
+            p,
+            new Expression.Literal(Date.now() + 60000),
+          ),
+          new Expression.Unary("IS NULL", p),
+        ),
+      );
     }
 
     logger.accessInfo(log);
@@ -272,45 +326,40 @@ for (const [resource, flags] of Object.entries(resources)) {
           "\n";
         for await (const obj of db.query(resource, filter, options)) {
           const arr = Object.values(columns).map((exp) => {
-            const v = evaluate(exp, obj, null, (e) => {
-              if (Array.isArray(e)) {
-                if (e[0] === "PARAM") {
-                  if (resource === "devices") {
-                    if (e[1] === "Tags") {
-                      const tags = [];
-                      for (const p in obj)
-                        if (p.startsWith("Tags."))
-                          tags.push(decodeTag(p.slice(5)));
-
-                      return tags.join(", ");
-                    }
-                    if (e === exp) {
-                      const p = obj[e[1]];
-                      if (
-                        p &&
-                        p.value &&
-                        p.value[1] === "xsd:dateTime" &&
-                        typeof p.value[0] === "number"
-                      )
-                        return new Date(p.value[0]).toJSON();
-                    }
-                  } else if (resource === "faults") {
-                    if (e[1] === "detail") return yamlStringify(obj["detail"]);
-                  }
-                } else if (e[0] === "FUNC") {
-                  if (e[1] === "DATE_STRING") {
-                    if (e[2] && !Array.isArray(e[2]))
-                      return new Date(e[2]).toJSON();
-                  }
+            return exp.evaluate((e) => {
+              if (e instanceof Expression.Literal) return e;
+              else if (e instanceof Expression.FunctionCall) {
+                if (e.name === "NOW") return new Expression.Literal(now);
+                if (e.name === "DATE_STRING") {
+                  if (e.args[0] instanceof Expression.Literal)
+                    return new Expression.Literal(
+                      new Date(e.args[0].value as number).toJSON(),
+                    );
                 }
+              } else if (e instanceof Expression.Parameter) {
+                let v = obj[e.path.toString()];
+                if (resource === "devices") {
+                  if (e.path.toString() === "Tags") {
+                    const tags = [];
+                    for (const p in obj)
+                      if (p.startsWith("Tags.") && p.lastIndexOf(":") === -1)
+                        tags.push(decodeTag(p.slice(5)));
+                    v = tags.join(", ");
+                  }
+                  if (e === exp) {
+                    const type = obj[e.path.toString() + ":type"];
+                    if (type === "xsd:dateTime" && typeof v === "number")
+                      v = new Date(v).toJSON();
+                  }
+                } else if (resource === "faults") {
+                  if (e.path.toString() === "detail") v = yamlStringify(v);
+                }
+
+                if (typeof v === "string") v = `"${v.replace(/"/g, '""')}"`;
+                if (v != null) return new Expression.Literal(v);
               }
-
-              return e;
-            });
-
-            if (Array.isArray(v) || v == null) return "";
-            if (typeof v === "string") return `"${v.replace(/"/g, '""')}"`;
-            return v;
+              return new Expression.Literal(null);
+            }).value;
           });
           yield arr.join(",") + "\n";
         }
@@ -326,11 +375,15 @@ for (const [resource, flags] of Object.entries(resources)) {
       filter: `${RESOURCE_IDS[resource]} = "${ctx.params.id}"`,
     };
 
-    const filter = and(authorizer.getFilter(resource, 2), [
-      "=",
-      ["PARAM", RESOURCE_IDS[resource]],
-      ctx.params.id,
-    ]);
+    const filter = Expression.and(
+      authorizer.getFilter(resource, 2),
+      new Expression.Binary(
+        "=",
+        new Expression.Parameter(Path.parse(RESOURCE_IDS[resource])),
+        new Expression.Literal(ctx.params.id),
+      ),
+    );
+
     if (!authorizer.hasAccess(resource, 2)) {
       logUnauthorizedWarning(log);
       return void (ctx.status = 403);
@@ -352,11 +405,14 @@ for (const [resource, flags] of Object.entries(resources)) {
       filter: `${RESOURCE_IDS[resource]} = "${ctx.params.id}"`,
     };
 
-    const filter = and(authorizer.getFilter(resource, 2), [
-      "=",
-      ["PARAM", RESOURCE_IDS[resource]],
-      ctx.params.id,
-    ]);
+    const filter = Expression.and(
+      authorizer.getFilter(resource, 2),
+      new Expression.Binary(
+        "=",
+        new Expression.Parameter(Path.parse(RESOURCE_IDS[resource])),
+        new Expression.Literal(ctx.params.id),
+      ),
+    );
     if (!authorizer.hasAccess(resource, 2)) {
       logUnauthorizedWarning(log);
       return void (ctx.status = 403);
@@ -379,11 +435,14 @@ for (const [resource, flags] of Object.entries(resources)) {
         id: ctx.params.id,
       };
 
-      const filter = and(authorizer.getFilter(resource, 3), [
-        "=",
-        ["PARAM", RESOURCE_IDS[resource]],
-        ctx.params.id,
-      ]);
+      const filter = Expression.and(
+        authorizer.getFilter(resource, 3),
+        new Expression.Binary(
+          "=",
+          new Expression.Parameter(Path.parse(RESOURCE_IDS[resource])),
+          new Expression.Literal(ctx.params.id),
+        ),
+      );
       if (!authorizer.hasAccess(resource, 3)) {
         logUnauthorizedWarning(log);
         return void (ctx.status = 403);
@@ -467,11 +526,14 @@ router.get("/blob/files/:id", async (ctx) => {
     id: id,
   };
 
-  const filter = and(authorizer.getFilter(resource, 2), [
-    "=",
-    ["PARAM", RESOURCE_IDS[resource]],
-    ctx.params.id,
-  ]);
+  const filter = Expression.and(
+    authorizer.getFilter(resource, 2),
+    new Expression.Binary(
+      "=",
+      new Expression.Parameter(Path.parse(RESOURCE_IDS[resource])),
+      new Expression.Literal(ctx.params.id),
+    ),
+  );
 
   if (!authorizer.hasAccess(resource, 2)) {
     logUnauthorizedWarning(log);
@@ -566,11 +628,14 @@ router.post("/devices/:id/tasks", async (ctx) => {
   let statuses: { _id: string; status: string }[];
 
   try {
-    const filter = and(authorizer.getFilter("devices", 3), [
-      "=",
-      ["PARAM", "DeviceID.ID"],
-      deviceId,
-    ]);
+    const filter = Expression.and(
+      authorizer.getFilter("devices", 3),
+      new Expression.Binary(
+        "=",
+        new Expression.Parameter(Path.parse(RESOURCE_IDS["devices"])),
+        new Expression.Literal(ctx.params.id),
+      ),
+    );
     device = (await db.query("devices", filter).next()).value;
     if (!device) return void (ctx.status = 404);
 
@@ -596,30 +661,31 @@ router.post("/devices/:id/tasks", async (ctx) => {
     await releaseLock(`cwmp_session_${deviceId}`, token);
   }
 
+  const now = Date.now();
+
   const onlineThreshold = getConfig(
     ctx.state.configSnapshot,
     "cwmp.deviceOnlineThreshold",
-    {},
-    Date.now(),
+    4000,
     (exp) => {
-      if (!Array.isArray(exp)) return exp;
-      if (exp[0] === "PARAM") {
-        const p = device[exp[1]];
-        if (p?.value) return p.value[0];
-      } else if (exp[0] === "FUNC") {
-        if (exp[1] === "REMOTE_ADDRESS") {
+      if (exp instanceof Expression.Literal) return exp;
+      else if (exp instanceof Expression.Parameter) {
+        const p = device[exp.path.toString()];
+        if (p != null) return new Expression.Literal(p);
+      } else if (exp instanceof Expression.FunctionCall) {
+        if (exp.name === "NOW") return new Expression.Literal(now);
+        if (exp.name === "REMOTE_ADDRESS") {
           for (const root of ["InternetGatewayDevice", "Device"]) {
             const p = device[`${root}.ManagementServer.ConnectionRequestURL`];
-            if (p?.value) return new URL(p.value[0]).hostname;
+            if (p != null) return new Expression.Literal(new URL(p).hostname);
           }
-          return null;
         }
       }
-      return exp;
+      return new Expression.Literal(null);
     },
-  ) as number;
+  );
 
-  const lastInform = device["Events.Inform"].value[0] as number;
+  const lastInform = device["Events.Inform"] as number;
 
   let status = await apiFunctions.connectionRequest(deviceId, device);
   if (!status) {
@@ -667,11 +733,14 @@ router.post("/devices/:id/tags", async (ctx) => {
     tags: ctx.request.body,
   };
 
-  const filter = and(authorizer.getFilter("devices", 3), [
-    "=",
-    ["PARAM", "DeviceID.ID"],
-    ctx.params.id,
-  ]);
+  const filter = Expression.and(
+    authorizer.getFilter("devices", 3),
+    new Expression.Binary(
+      "=",
+      new Expression.Parameter(Path.parse(RESOURCE_IDS["devices"])),
+      new Expression.Literal(ctx.params.id),
+    ),
+  );
   if (!authorizer.hasAccess("devices", 3)) {
     logUnauthorizedWarning(log);
     return void (ctx.status = 403);
@@ -745,11 +814,14 @@ router.put("/users/:id/password", async (ctx) => {
   const newPassword = ctx.request.body.newPassword;
 
   if (ctx.state.user) {
-    const filter = and(authorizer.getFilter("users", 3), [
-      "=",
-      ["PARAM", RESOURCE_IDS.users],
-      username,
-    ]);
+    const filter = Expression.and(
+      authorizer.getFilter("users", 3),
+      new Expression.Binary(
+        "=",
+        new Expression.Parameter(Path.parse(RESOURCE_IDS["users"])),
+        new Expression.Literal(username),
+      ),
+    );
     const { value: res } = await db.query("users", filter).next();
     if (!res) return void (ctx.status = 404);
     const validate = authorizer.getValidator("users", res);

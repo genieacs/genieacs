@@ -4,7 +4,7 @@ import * as notifications from "../notifications.ts";
 import * as store from "../store.ts";
 import { icon } from "../tailwind-utility-components.ts";
 import { decodeTag } from "../../lib/util.ts";
-import { Expression } from "../../lib/types.ts";
+import Expression from "../../lib/common/expression.ts";
 import { FlatDevice } from "../../lib/ui/db.ts";
 
 interface Attrs {
@@ -22,7 +22,8 @@ const component: ClosureComponent<Attrs> = () => {
 
       const tags = [];
       for (const p of Object.keys(device))
-        if (p.startsWith("Tags.")) tags.push(decodeTag(p.slice(5)));
+        if (p.startsWith("Tags.") && p.lastIndexOf(":") === -1)
+          tags.push(decodeTag(p.slice(5)));
 
       tags.sort();
 
@@ -60,7 +61,7 @@ const component: ClosureComponent<Attrs> = () => {
                   "flex-shrink-0 ml-0.5 h-4 w-4 rounded-full inline-flex items-center justify-center text-yellow-400 hover:bg-yellow-200 hover:text-yellow-500 focus:outline-hidden focus:bg-yellow-500 focus:text-white",
                 onclick: (e) => {
                   e.target.disabled = true;
-                  const deviceId = device["DeviceID.ID"].value[0] as string;
+                  const deviceId = device["DeviceID.ID"] as string;
                   store
                     .updateTags(deviceId, { [tag]: false })
                     .then(() => {
@@ -103,7 +104,7 @@ const component: ClosureComponent<Attrs> = () => {
                 "flex-shrink-0 h-4 w-4 rounded-full inline-flex items-center justify-center text-yellow-400 hover:bg-yellow-200 hover:text-yellow-500 focus:outline-hidden focus:bg-yellow-500 focus:text-white",
               onclick: (e) => {
                 e.target.disabled = true;
-                const deviceId = device["DeviceID.ID"].value[0] as string;
+                const deviceId = device["DeviceID.ID"] as string;
                 const tag = prompt(`Enter tag to assign to device:`);
                 if (!tag) {
                   e.target.disabled = false;

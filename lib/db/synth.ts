@@ -1,7 +1,8 @@
 import { Filter } from "mongodb";
 import { EJSON } from "bson";
+import { complement } from "espresso-iisojs";
 import { parseLikePattern } from "../common/expression/parser.ts";
-import { Expression } from "../types.ts";
+import Expression from "../common/expression.ts";
 import { decodeTag } from "../util.ts";
 import {
   SynthContextBase,
@@ -10,21 +11,14 @@ import {
   Clause,
 } from "../common/expression/synth.ts";
 import normalize from "../common/expression/normalize.ts";
-import * as BI from "../common/expression/bigint.ts";
 
 type Minterm = number[];
 
 function getParam(exp: Expression, collection: string): string {
-  if (!Array.isArray(exp))
+  if (!(exp instanceof Expression.Parameter))
     throw new Error("Left-hand operand must be a parameter");
 
-  if (exp[0] !== "PARAM")
-    throw new Error("Left-hand operand must be a parameter");
-
-  if (typeof exp[1] !== "string")
-    throw new Error("Left-hand operand must be a parameter");
-
-  const p = exp[1];
+  const p = exp.path.toString();
   if (collection === "devices") {
     if (p === "DeviceID.ID") return "_id";
     else if (p === "DeviceID") return "_deviceId";
@@ -117,12 +111,12 @@ function getTypes(parameter: string, collection: string): string[] {
 
 function roundOid(oid: string, roundUp: boolean): string {
   const match = (oid.match(/^[0-9a-f]*/)?.[0] ?? "").slice(0, 24);
-  let num = BI.BigInt("0x0" + match);
+  let num = BigInt("0x0" + match);
   let lastChar = 0;
   if (oid.length > match.length) lastChar += oid.charCodeAt(match.length);
   if (match.length < 24) lastChar -= 48;
   if (lastChar > 0 && roundUp) num++;
-  num <<= BI.BigInt(4 * (24 - match.length));
+  num <<= BigInt(4 * (24 - match.length));
   if (lastChar < 0 && !roundUp) --num;
   const str = num.toString(16);
   if (str.length > 24 || str.startsWith("-")) return null;
@@ -259,11 +253,12 @@ class MongoSynthContext extends SynthContextBase<Clause, MongoClause> {
     super();
   }
 
-  getMinterms(clause: Clause, res: true | false | null): number[][] {
-    const exp = clause.expression();
-    if (!Array.isArray(exp)) throw new Error("Invalid query expression");
+  getMinterms(clause: Clause, res: number): number[][] {
+    res = res & 0b111;
+    if (res & (res - 1)) return complement(this.getMinterms(clause, ~res));
 
-    if (res === null) {
+    const exp = clause.expression();
+    if (res === 0b001) {
       const minterms: number[][] = [];
       for (const dep of clause.getNullables()) {
         const e = dep.operand.expression();
@@ -280,36 +275,42 @@ class MongoSynthContext extends SynthContextBase<Clause, MongoClause> {
       return minterms;
     }
 
-    if ([">", "<", "="].includes(exp[0])) {
-      const param = getParam(exp[1], this.collection);
+    if (!(exp instanceof Expression.Binary))
+      throw new Error("Invalid query expression");
 
-      let rhs = exp[2];
-      if (typeof rhs === "boolean") rhs = +rhs;
-      else if (typeof rhs !== "string" && typeof rhs !== "number")
+    const truthy = res === 0b100;
+
+    if ([">", "<", "="].includes(exp.operator)) {
+      const param = getParam(exp.left, this.collection);
+
+      if (!(exp.right instanceof Expression.Literal))
         throw new Error(`Right-hand operand must be a literal value`);
+
+      let rhs = exp.right.value;
+      if (typeof rhs === "boolean") rhs = +rhs;
 
       if (
         param.startsWith("Tags.") &&
         this.collection === "devices" &&
-        exp[0] === "="
+        exp.operator === "="
       ) {
         const t = decodeTag(param.slice(5));
         const c = new MongoClauseArray("_tags", t);
         if (typeof rhs === "string") rhs = 2;
-        if (exp[0] === "=") {
-          if ((rhs === 1) !== res) return [];
-        } else if (exp[0] === ">") {
-          if ((res && rhs >= 1) || (!res && rhs < 1)) return [];
-        } else if (exp[0] === "<") {
-          if ((res && rhs <= 1) || (!res && rhs > 1)) return [];
+        if (exp.operator === "=") {
+          if ((rhs === 1) !== truthy) return [];
+        } else if (exp.operator === ">") {
+          if ((truthy && rhs >= 1) || (!truthy && rhs < 1)) return [];
+        } else if (exp.operator === "<") {
+          if ((truthy && rhs <= 1) || (!truthy && rhs > 1)) return [];
         }
         return [[(this.getVar(c) << 1) ^ 1]];
       }
 
       let op: "$gt" | "$lt" | "$eq" | "$gte" | "$lte";
-      if (exp[0] === "=") op = "$eq";
-      else if (exp[0] === ">") op = res ? "$gt" : "$lte";
-      else if (exp[0] === "<") op = res ? "$lt" : "$gte";
+      if (exp.operator === "=") op = "$eq";
+      else if (exp.operator === ">") op = truthy ? "$gt" : "$lte";
+      else if (exp.operator === "<") op = truthy ? "$lt" : "$gte";
 
       const possibleTypes = new Set(getTypes(param, this.collection));
       const clauses: MongoClause[] = [];
@@ -333,7 +334,7 @@ class MongoSynthContext extends SynthContextBase<Clause, MongoClause> {
         }
       }
 
-      if (op === "$eq" && !res) {
+      if (op === "$eq" && !truthy) {
         clauses.push(new MongoClauseCompare(param, "$eq", null, ""));
         return [clauses.map((c) => this.getVar(c) << 1)];
       }
@@ -382,30 +383,35 @@ class MongoSynthContext extends SynthContextBase<Clause, MongoClause> {
       }
 
       return clauses.map((c) => [(this.getVar(c) << 1) ^ 1]);
-    } else if (exp[0] === "LIKE") {
-      const pat = exp[2];
-      if (typeof pat !== "string")
+    } else if (exp.operator === "LIKE") {
+      if (
+        !(
+          exp.right instanceof Expression.Literal &&
+          typeof exp.right.value === "string"
+        )
+      )
         throw new Error("Right-hand operand of 'LIKE' must be a string");
-      let p = exp[1];
+      const pat = exp.right.value;
+
+      let p = exp.left;
       let caseSensitive = true;
       if (
-        Array.isArray(p) &&
-        p[0] === "FUNC" &&
-        ["UPPER", "LOWER"].includes(p[1])
+        p instanceof Expression.FunctionCall &&
+        ["UPPER", "LOWER"].includes(p.name)
       ) {
-        if (p[1] === "UPPER" && pat !== pat.toUpperCase())
-          return res ? [] : [[]];
-        if (p[1] === "LOWER" && pat !== pat.toLowerCase())
-          return res ? [] : [[]];
+        if (p.name === "UPPER" && pat !== pat.toUpperCase())
+          return truthy ? [] : [[]];
+        if (p.name === "LOWER" && pat !== pat.toLowerCase())
+          return truthy ? [] : [[]];
         caseSensitive = false;
-        p = p[2];
+        p = p.args[0];
       }
 
       const param = getParam(p, this.collection);
-      const c = new MongoClauseLike(param, pat, exp[3], caseSensitive);
-      if (res) return [[(this.getVar(c) << 1) ^ 1]];
-      const typeClase = new MongoClauseType(param, "string");
-      const r = [[this.getVar(c) << 1, (this.getVar(typeClase) << 1) ^ 1]];
+      const c = new MongoClauseLike(param, pat, null, caseSensitive);
+      if (truthy) return [[(this.getVar(c) << 1) ^ 1]];
+      const typeClause = new MongoClauseCompare(param, "$gte", "", "string");
+      const r = [[this.getVar(c) << 1, (this.getVar(typeClause) << 1) ^ 1]];
       return r;
     } else {
       throw new Error("Invalid query expression");
@@ -641,7 +647,7 @@ export function toMongoQuery(
   exp = normalize(exp);
   const clause = Clause.fromExpression(normalize(exp));
   const context = new MongoSynthContext(resource);
-  const minterms = clause.true(context);
+  const minterms = clause.getMinterms(context, 0b100);
   const minimized = context.minimize(minterms);
   if (!minimized.length) return false;
   return EJSON.deserialize(context.toQuery(minimized));
@@ -650,5 +656,5 @@ export function toMongoQuery(
 export function validQuery(exp: Expression, resource: string): void {
   const clause = Clause.fromExpression(normalize(exp));
   const context = new MongoSynthContext(resource);
-  clause.true(context);
+  clause.getMinterms(context, 0b100);
 }

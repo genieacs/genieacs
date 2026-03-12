@@ -7,7 +7,6 @@ import {
   Task,
   Operation,
 } from "../types.ts";
-import Path from "../common/path.ts";
 import { collections } from "../db/db.ts";
 import { optimizeProjection } from "../db/util.ts";
 import * as MongoTypes from "../db/types.ts";
@@ -23,21 +22,17 @@ function compareAccessLists(list1: string[], list2: string[]): boolean {
 export async function fetchDevice(
   id: string,
   timestamp: number,
-): Promise<[Path, number, Attributes?][]> {
-  const res: [Path, number, Attributes?][] = [
+): Promise<[string, number, Attributes?][]> {
+  const res: [string, number, Attributes?][] = [
+    ["Events", timestamp, { object: [timestamp, 1], writable: [timestamp, 0] }],
     [
-      Path.parse("Events"),
-      timestamp,
-      { object: [timestamp, 1], writable: [timestamp, 0] },
-    ],
-    [
-      Path.parse("DeviceID"),
+      "DeviceID",
       timestamp,
       { object: [timestamp, 1], writable: [timestamp, 0] },
     ],
   ];
 
-  const device = await collections.devices.findOne({ _id: id });
+  const device = (await collections.devices.findOne({ _id: id })) as any;
   if (!device) return null;
 
   function storeParams(
@@ -77,7 +72,7 @@ export async function fetchDevice(
       attrs.accessList = [obj["_attributesTimestamp"] || 1, obj["_accessList"]];
 
     try {
-      res.push([Path.parse(path), t, attrs]);
+      res.push([path, t, attrs]);
     } catch {
       // The path parser is now more strict so we might be in a situation where
       // the database contains invalid paths from before this change So here we
@@ -86,7 +81,7 @@ export async function fetchDevice(
       splits[splits.length - 1] =
         encodeTag(splits[splits.length - 1]) + INVALID_PATH_SUFFIX;
       path = splits.join(".");
-      res.push([Path.parse(path), t, attrs]);
+      res.push([path, t, attrs]);
       return;
     }
 
@@ -98,17 +93,17 @@ export async function fetchDevice(
     }
 
     if (obj["_object"] && obj["_timestamp"])
-      res.push([Path.parse(path + ".*"), obj["_timestamp"]]);
+      res.push([path + ".*", obj["_timestamp"]]);
   }
 
   const ts: number = +device["_timestamp"] || 0;
-  if (ts) res.push([Path.parse("*"), ts]);
+  if (ts) res.push(["*", ts]);
 
   for (const [k, v] of Object.entries(device)) {
     switch (k) {
       case "_lastInform":
         res.push([
-          Path.parse("Events.Inform"),
+          "Events.Inform",
           +v,
           {
             object: [+v, 0],
@@ -119,7 +114,7 @@ export async function fetchDevice(
         break;
       case "_lastBoot":
         res.push([
-          Path.parse("Events.1_BOOT"),
+          "Events.1_BOOT",
           +v,
           {
             object: [+v, 0],
@@ -130,7 +125,7 @@ export async function fetchDevice(
         break;
       case "_lastBootstrap":
         res.push([
-          Path.parse("Events.0_BOOTSTRAP"),
+          "Events.0_BOOTSTRAP",
           +v,
           {
             object: [+v, 0],
@@ -142,7 +137,7 @@ export async function fetchDevice(
       case "_registered":
         // Use current timestamp for registered event attribute timestamps
         res.push([
-          Path.parse("Events.Registered"),
+          "Events.Registered",
           timestamp,
           {
             object: [timestamp, 0],
@@ -153,7 +148,7 @@ export async function fetchDevice(
         break;
       case "_id":
         res.push([
-          Path.parse("DeviceID.ID"),
+          "DeviceID.ID",
           timestamp,
           {
             object: [timestamp, 0],
@@ -165,7 +160,7 @@ export async function fetchDevice(
       case "_tags":
         if ((v as string[]).length) {
           res.push([
-            Path.parse("Tags"),
+            "Tags",
             timestamp,
             { object: [timestamp, 1], writable: [timestamp, 0] },
           ]);
@@ -173,7 +168,7 @@ export async function fetchDevice(
 
         for (const t of v as string[]) {
           res.push([
-            Path.parse("Tags." + encodeTag(t)),
+            "Tags." + encodeTag(t),
             timestamp,
             {
               object: [timestamp, 0],
@@ -186,7 +181,7 @@ export async function fetchDevice(
       case "_deviceId":
         if (v["_Manufacturer"] != null) {
           res.push([
-            Path.parse("DeviceID.Manufacturer"),
+            "DeviceID.Manufacturer",
             timestamp,
             {
               object: [timestamp, 0],
@@ -198,7 +193,7 @@ export async function fetchDevice(
 
         if (v["_OUI"] != null) {
           res.push([
-            Path.parse("DeviceID.OUI"),
+            "DeviceID.OUI",
             timestamp,
             {
               object: [timestamp, 0],
@@ -210,7 +205,7 @@ export async function fetchDevice(
 
         if (v["_ProductClass"] != null) {
           res.push([
-            Path.parse("DeviceID.ProductClass"),
+            "DeviceID.ProductClass",
             timestamp,
             {
               object: [timestamp, 0],
@@ -222,7 +217,7 @@ export async function fetchDevice(
 
         if (v["_SerialNumber"] != null) {
           res.push([
-            Path.parse("DeviceID.SerialNumber"),
+            "DeviceID.SerialNumber",
             timestamp,
             {
               object: [timestamp, 0],
@@ -257,7 +252,7 @@ export async function saveDevice(
     )
       continue;
 
-    const parent = deviceData.paths.get(diff[0].slice(0, -1));
+    const parent = deviceData.paths.get(diff[0].slice(0, -1).toString());
 
     // Param timestamps may be greater than session timestamp to track revisions
     if (diff[2] > sessionTimestamp) diff[2] = sessionTimestamp;

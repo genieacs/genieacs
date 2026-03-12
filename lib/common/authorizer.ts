@@ -1,5 +1,5 @@
-import { PermissionSet, Expression } from "../types.ts";
-import { evaluate, or } from "./expression/util.ts";
+import { PermissionSet } from "../types.ts";
+import Expression from "./expression.ts";
 
 export default class Authorizer {
   declare private permissionSets: PermissionSet[];
@@ -43,12 +43,12 @@ export default class Authorizer {
     if (this.getFilterCache.has(cacheKey))
       return this.getFilterCache.get(cacheKey);
 
-    let filter: Expression = null;
+    let filter: Expression = new Expression.Literal(false);
     for (const permissionSet of this.permissionSets) {
       for (const perm of permissionSet) {
         if (perm[resourceType]) {
           if (perm[resourceType].access >= access)
-            filter = or(filter, perm[resourceType].filter);
+            filter = Expression.or(filter, perm[resourceType].filter);
         }
       }
     }
@@ -64,7 +64,7 @@ export default class Authorizer {
     if (this.validatorCache.has(resource))
       return this.validatorCache.get(resource);
 
-    const validators: Expression[] = [];
+    let validators: Expression = new Expression.Literal(false);
 
     for (const permissionSet of this.permissionSets) {
       for (const perm of permissionSet) {
@@ -73,7 +73,7 @@ export default class Authorizer {
           perm[resourceType].access >= 3 &&
           perm[resourceType].validate
         )
-          validators.push(perm[resourceType].validate);
+          validators = Expression.or(validators, perm[resourceType].validate);
       }
     }
 
@@ -82,8 +82,6 @@ export default class Authorizer {
       mutation: any,
       any: any,
     ): boolean => {
-      if (!validators.length) return false;
-
       const object = {
         mutationType,
         mutation,
@@ -92,31 +90,33 @@ export default class Authorizer {
         options: any,
       };
 
-      const valueFunction = (paramName): any => {
-        const entry = paramName.split(".", 1)[0];
-        paramName = paramName.slice(entry.length + 1);
-        let value = null;
-        if (["mutation", "options"].includes(entry)) {
-          value = object[entry];
-          for (const seg of paramName.split(".")) {
-            if (value == null) break;
-            if (typeof value !== "object") value = null;
-            else value = value[seg];
+      const now = Date.now();
+      const res = validators.evaluate((exp) => {
+        if (exp instanceof Expression.Literal) return exp;
+        if (exp instanceof Expression.Parameter) {
+          if (exp.path.colon) return new Expression.Literal(null);
+          const entry = exp.path.segments[0] as string;
+          const paramName = exp.path.slice(1);
+          let value = null;
+          if (["mutation", "options"].includes(entry)) {
+            value = object[entry];
+            for (const seg of paramName.segments) {
+              if (value == null) break;
+              if (typeof value !== "object") value = null;
+              else value = value[seg as string];
+            }
+          } else if (object[entry]) {
+            if (paramName.length) value = object[entry][paramName.toString()];
+            else value = object[entry];
           }
-        } else if (object[entry]) {
-          if (paramName) value = object[entry][paramName];
-          else value = object[entry];
+          return new Expression.Literal(value);
+        } else if (exp instanceof Expression.FunctionCall) {
+          if (exp.name === "NOW") return new Expression.Literal(now);
         }
+        return new Expression.Literal(null);
+      }).value;
 
-        return value;
-      };
-
-      const res = evaluate(
-        validators.length > 1 ? ["OR", validators] : validators[0],
-        valueFunction,
-        Date.now(),
-      );
-      return !Array.isArray(res) && !!res;
+      return !!res;
     };
 
     this.validatorCache.set(resource, validator);
