@@ -1,5 +1,12 @@
 # Change Log
 
+## 1.2.14 (2026-03-12)
+
+- Prevent UI crash when a malformed URL is sent to the server.
+
+- Fix potential edge-case bugs in expression evaluation and session
+  serialization.
+
 ## 1.2.13 (2024-06-06)
 
 - Increase connection timeout for UI and NBI from 30 to 120 seconds to avoid
