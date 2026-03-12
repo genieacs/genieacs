@@ -2,13 +2,13 @@ import { PermissionSet, Expression } from "../types.ts";
 import { evaluate, or } from "./expression/util.ts";
 
 export default class Authorizer {
-  private declare permissionSets: PermissionSet[];
-  private declare validatorCache: WeakMap<
+  declare private permissionSets: PermissionSet[];
+  declare private validatorCache: WeakMap<
     any,
     (mutationType, mutation, any) => boolean
   >;
-  private declare hasAccessCache: Map<string, boolean>;
-  private declare getFilterCache: Map<string, Expression>;
+  declare private hasAccessCache: Map<string, boolean>;
+  declare private getFilterCache: Map<string, Expression>;
 
   public constructor(permissionSets: PermissionSet[]) {
     this.permissionSets = permissionSets;

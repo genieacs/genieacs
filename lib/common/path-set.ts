@@ -1,9 +1,9 @@
 import Path from "./path.ts";
 
 export default class PathSet {
-  private declare lengthIndex: Set<Path>[];
-  private declare fragmentIndex: Map<string, Set<Path>>[];
-  private declare stringIndex: Map<string, Path>;
+  declare private lengthIndex: Set<Path>[];
+  declare private fragmentIndex: Map<string, Set<Path>>[];
+  declare private stringIndex: Map<string, Path>;
 
   public constructor() {
     this.lengthIndex = [];

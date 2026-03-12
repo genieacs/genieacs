@@ -9,8 +9,8 @@ const TWO = BI.BigInt(2);
 const NEGATIVE_ONE = BI.BigInt(-1);
 
 class Indeterminates {
-  public declare map: Map<string, number>;
-  public declare sortedKeys: string[];
+  declare public map: Map<string, number>;
+  declare public sortedKeys: string[];
 
   public constructor(str?: string) {
     this.map = new Map();
@@ -98,7 +98,7 @@ function findGcd(a: BI.bigint, b: BI.bigint): BI.bigint {
 }
 
 class Polynomial {
-  public declare terms: Term[];
+  declare public terms: Term[];
 
   public constructor(terms: Term[]) {
     this.terms = terms;

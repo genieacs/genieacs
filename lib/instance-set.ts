@@ -3,7 +3,7 @@ interface Instance {
 }
 
 export default class InstanceSet {
-  private declare set: Set<Instance>;
+  declare private set: Set<Instance>;
 
   public constructor() {
     this.set = new Set();

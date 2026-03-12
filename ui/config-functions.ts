@@ -79,7 +79,7 @@ export function structureConfig(config: Config[]): any {
         if (idx >= 0 && idx < MAX_ARRAY_SIZE && String(idx) === key) {
           const pos = Math.floor(idx / MAX_BITS);
           if (!indexes[pos]) indexes[pos] = 0;
-          indexes[pos] |= 1 << idx % MAX_BITS;
+          indexes[pos] |= 1 << (idx % MAX_BITS);
         } else {
           indexes = [];
           break;

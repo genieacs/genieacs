@@ -7,10 +7,10 @@ interface Revisions<V> {
 }
 
 export default class VersionedMap<K, V> {
-  private declare _sizeDiff: number[];
-  private declare _revision: number;
-  private declare map: Map<K, (V | symbol)[]>;
-  public declare dirty: number;
+  declare private _sizeDiff: number[];
+  declare private _revision: number;
+  declare private map: Map<K, (V | symbol)[]>;
+  declare public dirty: number;
 
   public constructor() {
     this._sizeDiff = [0];
