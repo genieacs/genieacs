@@ -5,7 +5,7 @@ const execPromise = promisify(exec);
 
 async function runEslint(): Promise<string> {
   const CMD =
-    "eslint 'bin/*.ts' 'lib/**/*.ts' 'ui/**/*.ts' 'test/**/*.ts' 'build/**/*.ts'";
+    "eslint 'bin/*.ts' 'lib/**/*.ts' 'ui/**/*.ts' 'test/**/*.ts' 'build/**/*.ts' 'seed/*'";
   const env = {
     ...(process.stdout.isTTY && { FORCE_COLOR: "1" }),
     ...process.env,
@@ -21,7 +21,7 @@ async function runEslint(): Promise<string> {
 }
 
 async function runTsc(): Promise<string> {
-  const CMD = "tsc --noEmit";
+  const CMD = "tsc --noEmit && tsc -p seed/tsconfig.json";
   const env = {
     ...(process.stdout.isTTY && { FORCE_COLOR: "1" }),
     ...process.env,

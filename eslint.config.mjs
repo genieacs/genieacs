@@ -51,4 +51,27 @@ export default defineConfig(
       },
     },
   },
+  {
+    files: ["seed/*.js"],
+    languageOptions: {
+      parserOptions: {
+        project: null,
+      },
+      globals: {
+        declare: "readonly",
+        clear: "readonly",
+        commit: "readonly",
+        ext: "readonly",
+        log: "readonly",
+        args: "readonly",
+      },
+    },
+    rules: {
+      "@typescript-eslint/explicit-function-return-type": "off",
+      "@typescript-eslint/no-floating-promises": "off",
+      "@typescript-eslint/no-misused-promises": "off",
+      "@typescript-eslint/no-shadow": "off",
+      "no-shadow": ["error", { allow: ["err", "total"] }],
+    },
+  },
 );

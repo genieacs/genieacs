@@ -92,6 +92,19 @@ const assetsPlugin = {
   },
 } as esbuild.Plugin;
 
+const seedPlugin = {
+  name: "seed",
+  setup(build) {
+    build.onLoad({ filter: /\/seed\// }, (args) => {
+      if (args.with?.["type"] !== "text") return undefined;
+      let contents = fs.readFileSync(args.path, "utf8");
+      // Strip TypeScript directives that are only needed for type-checking
+      contents = contents.replace(/^\s*\/\/\s*@ts-.*\n/gm, "");
+      return { contents, loader: "text" };
+    });
+  },
+} as esbuild.Plugin;
+
 const packageDotJsonPlugin = {
   name: "packageDotJson",
   setup(build) {
@@ -295,7 +308,7 @@ async function generateBackendJs(): Promise<void> {
     banner: { js: "#!/usr/bin/env node" },
     entryPoints: services.map((s) => `bin/${s}.ts`),
     outdir: path.join(OUTPUT_DIR, "bin"),
-    plugins: [packageDotJsonPlugin, assetsPlugin],
+    plugins: [packageDotJsonPlugin, assetsPlugin, seedPlugin],
   });
 
   for (const bin of services) {

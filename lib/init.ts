@@ -9,6 +9,9 @@ import {
   putUser,
 } from "./ui/db.ts";
 import { del } from "./cache.ts";
+import BOOTSTRAP_SCRIPT from "../seed/bootstrap.js" with { type: "text" };
+import DEFAULT_SCRIPT from "../seed/default.js" with { type: "text" };
+import INFORM_SCRIPT from "../seed/inform.js" with { type: "text" };
 
 interface Status {
   users: boolean;
@@ -18,58 +21,6 @@ interface Status {
   index: boolean;
   overview: boolean;
 }
-
-const BOOTSTRAP_SCRIPT = `
-const now = Date.now();
-
-// Clear cached data model to force a refresh
-clear("Device", now);
-clear("InternetGatewayDevice", now);
-`.trim();
-
-const DEFAULT_SCRIPT = `
-const hourly = Date.now(3600000);
-
-// Refresh basic parameters hourly
-declare("InternetGatewayDevice.DeviceInfo.HardwareVersion", {path: hourly, value: hourly});
-declare("InternetGatewayDevice.DeviceInfo.SoftwareVersion", {path: hourly, value: hourly});
-declare("InternetGatewayDevice.WANDevice.*.WANConnectionDevice.*.WANIPConnection.*.MACAddress", {path: hourly, value: hourly});
-declare("InternetGatewayDevice.WANDevice.*.WANConnectionDevice.*.WANIPConnection.*.ExternalIPAddress", {path: hourly, value: hourly});
-declare("InternetGatewayDevice.LANDevice.*.WLANConfiguration.*.SSID", {path: hourly, value: hourly});
-// Don't refresh password field periodically because CPEs always report blank passowrds for security reasons
-declare("InternetGatewayDevice.LANDevice.*.WLANConfiguration.*.KeyPassphrase", {path: hourly, value: 1});
-declare("InternetGatewayDevice.LANDevice.*.Hosts.Host.*.HostName", {path: hourly, value: hourly});
-declare("InternetGatewayDevice.LANDevice.*.Hosts.Host.*.IPAddress", {path: hourly, value: hourly});
-declare("InternetGatewayDevice.LANDevice.*.Hosts.Host.*.MACAddress", {path: hourly, value: hourly});
-`.trim();
-
-const INFORM_SCRIPT = `
-// Device ID as user name
-const username = declare("DeviceID.ID", {value: 1}).value[0]
-
-// Password will be fixed for a given device because Math.random() is seeded with device ID by default.
-const password = Math.trunc(Math.random() * Number.MAX_SAFE_INTEGER).toString(36);
-
-const informInterval = 300;
-
-// Refresh values daily
-const daily = Date.now(86400000);
-
-// Unique inform offset per device for better load distribution
-const informTime = daily % 86400000;
-
-declare("InternetGatewayDevice.ManagementServer.ConnectionRequestUsername", {value: daily}, {value: username});
-declare("InternetGatewayDevice.ManagementServer.ConnectionRequestPassword", {value: daily}, {value: password});
-declare("InternetGatewayDevice.ManagementServer.PeriodicInformEnable", {value: daily}, {value: true});
-declare("InternetGatewayDevice.ManagementServer.PeriodicInformInterval", {value: daily}, {value: informInterval});
-declare("InternetGatewayDevice.ManagementServer.PeriodicInformTime", {value: daily}, {value: informTime});
-
-declare("Device.ManagementServer.ConnectionRequestUsername", {value: daily}, {value: username});
-declare("Device.ManagementServer.ConnectionRequestPassword", {value: daily}, {value: password});
-declare("Device.ManagementServer.PeriodicInformEnable", {value: daily}, {value: true});
-declare("Device.ManagementServer.PeriodicInformInterval", {value: daily}, {value: informInterval});
-declare("Device.ManagementServer.PeriodicInformTime", {value: daily}, {value: informTime});
-`.trim();
 
 export async function getStatus(): Promise<Status> {
   const [configSnapshot, presetCount] = await Promise.all([
