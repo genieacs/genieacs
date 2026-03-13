@@ -617,6 +617,78 @@ export class SynthContext extends SynthContextBase<Clause, Clause> {
       }
     }
 
+    for (const [lhsKey, likeGroup] of groupBy(likes, (c) => c.lhs.toString())) {
+      const compareGroupAll = comparisons.filter(
+        (c) => c.lhs.toString() === lhsKey,
+      );
+
+      for (const like of likeGroup) {
+        if (like.contradiction) continue;
+
+        const pattern = like.caseSensitive
+          ? like.pattern
+          : like.pattern.map((c) => c.toLowerCase());
+
+        const likeVar = this.getVar(like);
+
+        for (const compare of compareGroupAll.filter((c) => c.op === "=")) {
+          if (typeof compare.rhs !== "string") continue;
+
+          const value = like.caseSensitive
+            ? compare.rhs
+            : compare.rhs.toLowerCase();
+
+          const matches = likeMatches(pattern, value, true);
+          const eqVar = this.getVar(compare);
+
+          if (matches) {
+            dcSet.push([(eqVar << 2) ^ 3, (likeVar << 2) ^ 1]);
+            // Don't add eq=true AND like=null as DC; combined with eq=true AND
+            // like=false, espresso would treat LIKE as don't-care when eq=true
+          } else {
+            dcSet.push([(eqVar << 2) ^ 3, (likeVar << 2) ^ 3]);
+          }
+        }
+
+        // Prefix patterns like 'abc%' match strings in range [prefix, upperBound)
+        const prefix = getPureLikePrefix(pattern);
+        if (prefix) {
+          const upperBound = getLikePrefixUpperBound(prefix);
+
+          // string < prefix means it can't match the pattern
+          for (const compare of compareGroupAll.filter((c) => c.op === "<")) {
+            if (typeof compare.rhs !== "string") continue;
+
+            const value = like.caseSensitive
+              ? compare.rhs
+              : compare.rhs.toLowerCase();
+            const ltVar = this.getVar(compare);
+
+            if (value <= prefix) {
+              dcSet.push([(ltVar << 2) ^ 3, (likeVar << 2) ^ 3]);
+            }
+          }
+
+          // string > upperBound means it can't match the pattern
+          // (string > prefix could still match, e.g., 'abcd' > 'abc' matches 'abc%')
+          if (upperBound) {
+            for (const compare of compareGroupAll.filter((c) => c.op === ">")) {
+              if (typeof compare.rhs !== "string") continue;
+
+              const value = like.caseSensitive
+                ? compare.rhs
+                : compare.rhs.toLowerCase();
+              const gtVar = this.getVar(compare);
+
+              if (value >= upperBound) {
+                dcSet.push([(gtVar << 2) ^ 3, (likeVar << 2) ^ 3]);
+              }
+            }
+          }
+        }
+      }
+    }
+
     for (const v of whitelist) {
       const clause = this.getClause(v);
       const nullables = [...clause.getNullables()].map((c) => this.getVar(c));
@@ -784,6 +856,88 @@ export class SynthContext extends SynthContextBase<Clause, Clause> {
 // create a new SynthContext instance from inside the Clause class.
 export function createSynthContext(): SynthContext {
   return new SynthContext();
+}
+
+function likeMatches(
+  pattern: string[],
+  value: string,
+  caseSensitive: boolean,
+): boolean {
+  if (!caseSensitive) {
+    value = value.toLowerCase();
+    pattern = pattern.map((c) =>
+      c === "\\%" || c === "\\_" ? c : c.toLowerCase(),
+    );
+  }
+
+  let pi = 0;
+  let vi = 0;
+  let backtrackPi = -1;
+  let backtrackVi = -1;
+
+  while (vi < value.length) {
+    if (pi < pattern.length && pattern[pi] === "\\%") {
+      backtrackPi = pi;
+      backtrackVi = vi;
+      pi++;
+    } else if (
+      pi < pattern.length &&
+      (pattern[pi] === "\\_" || pattern[pi] === value[vi])
+    ) {
+      pi++;
+      vi++;
+    } else if (backtrackPi >= 0) {
+      pi = backtrackPi + 1;
+      backtrackVi++;
+      vi = backtrackVi;
+    } else {
+      return false;
+    }
+  }
+
+  while (pi < pattern.length && pattern[pi] === "\\%") pi++;
+
+  return pi === pattern.length;
+}
+
+function getLikePrefixUpperBound(prefix: string): string | null {
+  if (!prefix) return null;
+
+  for (let i = prefix.length - 1; i >= 0; i--) {
+    const charCode = prefix.charCodeAt(i);
+    // 0x10ffff is max Unicode code point; sufficient for practical strings
+    if (charCode < 0x10ffff) {
+      return prefix.slice(0, i) + String.fromCodePoint(charCode + 1);
+    }
+  }
+  return null;
+}
+
+function getPureLikePrefix(pattern: string[]): string | null {
+  if (pattern.length === 0) return null;
+
+  let hasTrailingPercent = false;
+  let prefix = "";
+
+  for (let i = 0; i < pattern.length; i++) {
+    const c = pattern[i];
+    if (c === "\\%") {
+      for (let j = i; j < pattern.length; j++) {
+        if (pattern[j] !== "\\%") return null;
+      }
+      hasTrailingPercent = true;
+      break;
+    } else if (c === "\\_") {
+      return null;
+    } else {
+      prefix += c;
+    }
+  }
+
+  if (!hasTrailingPercent) return null;
+  if (!prefix) return null;
+
+  return prefix;
 }
 
 export function likeImplies(pat1: string[], pat2: string[]): boolean {

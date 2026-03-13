@@ -4,6 +4,10 @@ import initSqlJs from "sql.js/dist/sql-asm.js";
 import { covers, minimize, unionDiff } from "../lib/common/expression/synth.ts";
 import Expression from "../lib/common/expression.ts";
 
+function isFalse(expr: Expression): boolean {
+  return expr instanceof Expression.Literal && expr.value === false;
+}
+
 const STRING_VALUES = [null, "", "a", "ab", "ab10", "ab-10"];
 const DECIMAL_VALUES = [null, 0, -10, 10];
 
@@ -168,4 +172,64 @@ void test("covers", async () => {
       `covers(${c1}, ${c2}) should match actual coverage`,
     );
   }
+});
+
+void test("LIKE-Compare DC set relationships", () => {
+  const likeExpr = Expression.parse("string LIKE 'a%'");
+
+  const eqExpr = Expression.parse("string = 'a'");
+  const conjExpr: Expression = new Expression.Binary("AND", eqExpr, likeExpr);
+  assert.strictEqual(
+    isFalse(minimize(conjExpr, true)),
+    false,
+    "(string = 'a') AND (string LIKE 'a%') should NOT minimize to false",
+  );
+
+  const nonMatchingExpr = Expression.parse("string = 'b'");
+  const conjNonMatch: Expression = new Expression.Binary(
+    "AND",
+    nonMatchingExpr,
+    likeExpr,
+  );
+  assert.strictEqual(
+    isFalse(minimize(conjNonMatch, true)),
+    true,
+    "(string = 'b') AND (string LIKE 'a%') should minimize to false",
+  );
+});
+
+void test("LIKE-Compare DC set with range operators", () => {
+  const likeExpr = Expression.parse("string LIKE 'abc%'");
+
+  const ltExpr = Expression.parse("string < 'abc'");
+  const ltConj: Expression = new Expression.Binary("AND", ltExpr, likeExpr);
+  assert.strictEqual(
+    isFalse(minimize(ltConj, true)),
+    true,
+    "(string < 'abc') AND (string LIKE 'abc%') should be false",
+  );
+
+  const ltExpr2 = Expression.parse("string < 'abd'");
+  const ltConj2: Expression = new Expression.Binary("AND", ltExpr2, likeExpr);
+  assert.strictEqual(
+    isFalse(minimize(ltConj2, true)),
+    false,
+    "(string < 'abd') AND (string LIKE 'abc%') should NOT be false",
+  );
+
+  const gtExpr = Expression.parse("string > 'abd'");
+  const gtConj: Expression = new Expression.Binary("AND", gtExpr, likeExpr);
+  assert.strictEqual(
+    isFalse(minimize(gtConj, true)),
+    true,
+    "(string > 'abd') AND (string LIKE 'abc%') should be false",
+  );
+
+  const gtExpr2 = Expression.parse("string > 'abc'");
+  const gtConj2: Expression = new Expression.Binary("AND", gtExpr2, likeExpr);
+  assert.strictEqual(
+    isFalse(minimize(gtConj2, true)),
+    false,
+    "(string > 'abc') AND (string LIKE 'abc%') should NOT be false",
+  );
 });
