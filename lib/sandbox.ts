@@ -1095,6 +1095,7 @@ Object.defineProperty(context, "setValue", { value: setValue });
 Object.defineProperty(context, "addObject", { value: addObject });
 Object.defineProperty(context, "deleteObject", { value: deleteObject });
 Object.defineProperty(context, "init", { value: init });
+Object.defineProperty(context, "updateFirmware", { value: updateFirmware });
 
 // Monkey-patch Math.random() to make it deterministic
 context.random = random;
