@@ -781,66 +781,79 @@ export function deleteObject(
  * @throws {UPGRADE} To skip the provision and execute the firmware upgrade
  * command on the device. 
  */
-export async function updateFirmware(version: string): Promise<void> {
+export function updateFirmware(version: string): void {
   // If not initialized, throw an error
   if (!state.sessionContext.customScriptInfo?.initialized)
     throw new Error("updateFirmware: Sandbox not initialized");
 
   const acsId = state.sessionContext.deviceId;
-  const productClass = declare('DeviceID.ProductClass', {value: 1}, null);
+  const productClass = (declare('DeviceID.ProductClass', {value: 1}, null) as {
+    value?: [boolean | number | string, string];
+  })?.value?.[0];
 
-  // Get the firmware filename from Flashman. Cannot be async as we must execute
-  // it in the same session
-  let firmwareNameResponse;
-  try {
-    firmwareNameResponse = await fetch(
-      `${FLASHMAN_URL}/acs/product-class/${productClass}/` +
-        `version/${version}/firmware`,
-      { method: 'GET' }
-    );
-  } catch (error) {
+  if (!productClass) {
     ferror(
-      `Error fetching firmware information from Flashman: ${error.message}`,
+      `Unable to determine the product class of the device ${acsId}. ` +
+        `Cannot proceed with firmware update.`
     );
     throw new Error(
-      `Error fetching firmware information from Flashman: ${error.message}`,
+      `Unable to determine the product class of the device ${acsId}. ` +
+        `Cannot proceed with firmware update.`
     );
   }
 
-  // If no firmware in Flashman throw the error and return
-  if (
-    firmwareNameResponse.status === 404 ||
-    !firmwareNameResponse.body?.filename
-  ) {
+  // If the version is not a string or an empty string, return an error
+  if (typeof version !== "string" || version.trim().length === 0) {
+    ferror(`updateFirmware() called with an invalid version: ${version}`);
+    throw new Error(
+      `updateFirmware() called with an invalid version: ${version}`,
+    );
+  }
+
+  // Use ext(...) synchronously so declares execute in this session
+  // before we throw UPGRADE. ext will be handled by the runner.
+  const hashIndex = SandboxDate.now(null, null).toString() + acsId;
+  const fmResp: any = ext(
+    'flashman-api',
+    'getFirmwareFile',
+    JSON.stringify({ productClass: productClass, version: version, acsId }),
+    hashIndex,
+  );
+
+  // Validate extension response
+  if (!fmResp) {
+    ferror(
+      `Error updating firmware information from Flashman: no response`,
+    );
+    throw new Error(
+      `Error updating firmware information from Flashman: no response`,
+    );
+  }
+
+  if (!fmResp.success) {
+    ferror(
+      'Failed to fetch firmware information from Flashman. ' +
+        `Response: ${JSON.stringify(fmResp)}`
+    );
+    throw new Error(
+      'Failed to fetch firmware information from Flashman. ' +
+        `Response: ${JSON.stringify(fmResp)}`
+    );
+  }
+
+  if (!fmResp.filename) {
     ferror(
       `Firmware version ${version} for device ${acsId} not found in Flashman.`
     );
     throw new Error(
       `Firmware version ${version} for device ${acsId} not found in Flashman.`
-    );
-  }
-
-  // If the request failed for any other reason, throw an error
-  if (
-    !firmwareNameResponse.ok || firmwareNameResponse.status !== 200 ||
-    !firmwareNameResponse.body.success
-  ) {
-    ferror(
-      'Failed to fetch firmware information from Flashman. ' +
-      `Status: ${firmwareNameResponse.status}, ` +
-      `Body: ${JSON.stringify(firmwareNameResponse.body)}`
-    );
-    throw new Error(
-      'Failed to fetch firmware information from Flashman. ' +
-      `Status: ${firmwareNameResponse.status}, ` +
-      `Body: ${JSON.stringify(firmwareNameResponse.body)}`
     );
   }
 
   // Send the firmware update command to the device
   flog(
     'Initiating firmware update to version', version,
-    'with firmware file', firmwareNameResponse.body.filename,
+    'with firmware file', fmResp.filename,
     'for device', acsId + '.',
     'Exiting script to execute firmware upgrade command on the device.'
   );
@@ -853,7 +866,7 @@ export async function updateFirmware(version: string): Promise<void> {
   declare(
     'Downloads.[FileType:1 Firmware Upgrade Image].FileName',
     {value: 1},
-    {value: firmwareNameResponse.body.filename},
+    {value: fmResp.filename},
   );
   declare(
     'Downloads.[FileType:1 Firmware Upgrade Image].Download',
