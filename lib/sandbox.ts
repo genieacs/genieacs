@@ -628,7 +628,7 @@ export function setValue(
  * Adds objects at the specified path.
  *
  * @param {string} path - The path where the object should be added.
- * @return {number|undefined} The instance number of the added object, or
+ * @return {number|undefined} The new size of the objects at the path, or
  * undefined if the operation failed.
  */
 export function addObject(
@@ -686,25 +686,13 @@ export function addObject(
   audit(ActionType.ADD_OBJECT, path, newSize);
 
   // Create the new object
-  const objectCreated = declare(
+  declare(
     path,
     { path: SandboxDate.now(null, null) },
     { path: newSize },
   ) as { path?: string };
 
-  // The path of the new object added
-  const newObjectPath = objectCreated.path;
-
-  // If newObjectPath is undefined, return an error
-  if (typeof newObjectPath !== 'string') {
-    ferror(
-      'Unable to determine the path of the newly added object at' +
-        ` ${path}.`,
-    );
-    return UNDEFINED;
-  }
-
-  return parseInt(newObjectPath.split(".").pop() ?? "", 10);
+  return newSize;
 }
 
 /**
