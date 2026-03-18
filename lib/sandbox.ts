@@ -810,8 +810,8 @@ export function updateFirmware(version: string): void {
     );
   }
 
-  // Use ext(...) synchronously so declares execute in this session
-  // before we throw UPGRADE. ext will be handled by the runner.
+  // Use ext(...) synchronously so declares execute in this session before we
+  // throw UPGRADE
   const hashIndex = SandboxDate.now(null, null).toString() + acsId;
   const fmResp: any = ext(
     'flashman-api',
