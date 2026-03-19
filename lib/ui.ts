@@ -163,8 +163,13 @@ koa.use(async (ctx, next) => {
 koa.use(koaBodyParser());
 router.use("/api", api.routes(), api.allowedMethods());
 
-router.get("/status", (ctx) => {
-  ctx.body = "OK";
+router.get("/health", (ctx) => {
+  ctx.body = {
+    status: "OK",
+    timestamp: Date.now(),
+    configSnapshot: ctx.state.configSnapshot,
+    version: VERSION,
+  };
 });
 
 router.get("/init", async (ctx) => {
@@ -238,8 +243,11 @@ router.get("/", async (ctx) => {
       <link rel="stylesheet" href="${APP_CSS}">
     </head>
     <body class="h-full bg-stone-100">
-    <noscript>GenieACS UI requires JavaScript to work. Please enable JavaScript in your browser.</noscript>
+      <noscript>GenieACS UI requires JavaScript to work. Please enable JavaScript in your browser.</noscript>
       <script>
+        window.clockSkew = ${Date.now()} - Date.now();
+        if (Math.abs(window.clockSkew) > 5000)
+          console.warn("System and server clocks are out of sync by " + window.clockSkew + "ms");
         window.clientConfig = ${JSON.stringify(localCache.getUiConfig(ctx.state.configSnapshot))};
         window.configSnapshot = ${JSON.stringify(ctx.state.configSnapshot)};
         window.genieacsVersion = ${JSON.stringify(VERSION)};

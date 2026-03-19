@@ -32,6 +32,7 @@ declare global {
     clientConfig: UiConfig;
     configSnapshot: string;
     genieacsVersion: string;
+    clockSkew: number;
   }
 }
 

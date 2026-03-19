@@ -13,6 +13,7 @@ import {
   paginate,
   toBookmark,
 } from "../lib/common/expression/pagination.ts";
+import { getClockSkew } from "./skewed-date.ts";
 
 function evaluate(exp: Expression, timestamp: number): Expression;
 function evaluate(
@@ -41,9 +42,10 @@ function evaluate(
 const memoizedEvaluate = memoize(evaluate);
 
 let fulfillTimestamp = 0;
-let connectionNotification, configNotification, versionNotification;
-
-let clockSkew = 0;
+let connectionNotification,
+  configNotification,
+  versionNotification,
+  skewNotification;
 
 const queries = {
   filter: new WeakMap(),
@@ -104,13 +106,11 @@ export class QueryResponse {
 }
 
 function checkConnection(): void {
-  const now1 = Date.now();
   m.request({
-    url: "status",
+    url: "health",
     method: "GET",
     background: true,
     extract: (xhr) => {
-      const now2 = Date.now();
       if (xhr.status !== 200) {
         if (!connectionNotification) {
           connectionNotification = notifications.push(
@@ -119,64 +119,69 @@ function checkConnection(): void {
             {},
           );
         }
-      } else {
-        if (connectionNotification) {
-          notifications.dismiss(connectionNotification);
-          connectionNotification = null;
-        }
+        return;
+      }
 
-        try {
-          const nowAvg = Math.trunc((now1 + now2) / 2);
-          const skew = Date.parse(xhr.getResponseHeader("Date")) - nowAvg;
-          if (Math.abs(skew - clockSkew) > 5000 && now2 - now1 < 1000) {
-            clockSkew = skew;
-            console.warn(
-              `System and server clocks are out of sync. Adding ${clockSkew}ms offset to any client-side time relative calculations.`,
-            );
-            setTimestamp(now2);
-            m.redraw();
-          }
-        } catch {
-          // Ignore in case of missing or invalid Date header
-        }
+      if (connectionNotification) {
+        notifications.dismiss(connectionNotification);
+        connectionNotification = null;
+      }
 
-        const configChanged =
-          xhr.getResponseHeader("x-config-snapshot") !== configSnapshot;
-        const versionChanged =
-          xhr.getResponseHeader("genieacs-version") !== genieacsVersion;
+      const body = JSON.parse(xhr.responseText);
 
-        if (!configNotification !== !configChanged) {
-          if (configNotification) {
-            notifications.dismiss(configNotification);
-            configNotification = null;
-          } else {
-            configNotification = notifications.push(
-              "warning",
-              "Configuration has been modified, please reload the page",
-              {
-                Reload: () => {
-                  window.location.reload();
-                },
+      const skew = body.timestamp - Date.now();
+      const skewDrifted = Math.abs(skew - getClockSkew()) > 5000;
+      if (!skewNotification !== !skewDrifted) {
+        if (skewNotification) {
+          notifications.dismiss(skewNotification);
+          skewNotification = null;
+        } else {
+          skewNotification = notifications.push(
+            "warning",
+            "Clock drift detected, please reload the page",
+            {
+              Reload: () => {
+                window.location.reload();
               },
-            );
-          }
+            },
+          );
         }
+      }
 
-        if (!versionNotification !== !versionChanged) {
-          if (versionNotification) {
-            notifications.dismiss(versionNotification);
-            versionNotification = null;
-          } else {
-            versionNotification = notifications.push(
-              "warning",
-              "Server has been updated, please reload the page",
-              {
-                Reload: () => {
-                  window.location.reload();
-                },
+      const configChanged = body.configSnapshot !== configSnapshot;
+      const versionChanged = body.version !== genieacsVersion;
+
+      if (!configNotification !== !configChanged) {
+        if (configNotification) {
+          notifications.dismiss(configNotification);
+          configNotification = null;
+        } else {
+          configNotification = notifications.push(
+            "warning",
+            "Configuration has been modified, please reload the page",
+            {
+              Reload: () => {
+                window.location.reload();
               },
-            );
-          }
+            },
+          );
+        }
+      }
+
+      if (!versionNotification !== !versionChanged) {
+        if (versionNotification) {
+          notifications.dismiss(versionNotification);
+          versionNotification = null;
+        } else {
+          versionNotification = notifications.push(
+            "warning",
+            "Server has been updated, please reload the page",
+            {
+              Reload: () => {
+                window.location.reload();
+              },
+            },
+          );
         }
       }
     },
@@ -238,7 +243,7 @@ export async function xhrRequest(
 }
 
 export function unpackExpression(exp: Expression): Expression {
-  return memoizedEvaluate(exp, fulfillTimestamp + clockSkew);
+  return memoizedEvaluate(exp, fulfillTimestamp + getClockSkew());
 }
 
 export function count(resourceType: string, filter: Expression): QueryResponse {
@@ -292,7 +297,7 @@ function compareFunction(sort: {
 function findMatches(resourceType, filter, sort, limit): any[] {
   let value = [];
   for (const obj of resources[resourceType].objects.values())
-    if (evaluate(filter, fulfillTimestamp + clockSkew, obj).value)
+    if (evaluate(filter, fulfillTimestamp + getClockSkew(), obj).value)
       value.push(obj);
 
   value = value.sort(compareFunction(sort));
@@ -447,7 +452,7 @@ export function fulfill(accessTimestamp: number): void {
 
         for (const queryResponse of toFetch) {
           let filter = queries.filter.get(queryResponse);
-          filter = memoizedEvaluate(filter, fulfillTimestamp + clockSkew);
+          filter = memoizedEvaluate(filter, fulfillTimestamp + getClockSkew());
           const bookmark = queries.bookmark.get(queryResponse);
           const sort = queries.sort.get(queryResponse);
           if (bookmark)
@@ -466,7 +471,10 @@ export function fulfill(accessTimestamp: number): void {
         if (diff instanceof Expression.Literal && !diff.value) {
           for (const queryResponse of toFetch) {
             let filter = queries.filter.get(queryResponse);
-            filter = memoizedEvaluate(filter, fulfillTimestamp + clockSkew);
+            filter = memoizedEvaluate(
+              filter,
+              fulfillTimestamp + getClockSkew(),
+            );
             const limit = queries.limit.get(queryResponse);
             const bookmark = queries.bookmark.get(queryResponse);
             const sort = queries.sort.get(queryResponse);
@@ -488,11 +496,8 @@ export function fulfill(accessTimestamp: number): void {
         }
 
         let deleted = new Set<string>();
-        if (
-          resources[resourceType].combinedFilter instanceof
-            Expression.Literal &&
-          !resources[resourceType].combinedFilter.value
-        )
+        const cf = resources[resourceType].combinedFilter;
+        if (cf instanceof Expression.Literal && !cf.value)
           deleted = new Set(resources[resourceType].objects.keys());
 
         const combinedFilterDiff = diff;
@@ -517,8 +522,11 @@ export function fulfill(accessTimestamp: number): void {
             for (const d of deleted) {
               const obj = resources[resourceType].objects.get(d);
               if (
-                evaluate(combinedFilterDiff, fulfillTimestamp + clockSkew, obj)
-                  .value
+                evaluate(
+                  combinedFilterDiff,
+                  fulfillTimestamp + getClockSkew(),
+                  obj,
+                ).value
               )
                 resources[resourceType].objects.delete(d);
             }
@@ -563,10 +571,6 @@ export function setTimestamp(t: number): void {
     for (const resource of Object.values(resources))
       resource.combinedFilter = new Expression.Literal(false);
   }
-}
-
-export function getClockSkew(): number {
-  return clockSkew;
 }
 
 export function postTasks(
@@ -685,7 +689,7 @@ export function evaluateExpression(
   exp: Expression,
   obj?: Record<string, unknown>,
 ): Expression {
-  return memoizedEvaluate(exp, fulfillTimestamp + clockSkew, obj);
+  return memoizedEvaluate(exp, fulfillTimestamp + getClockSkew(), obj);
 }
 
 export function changePassword(

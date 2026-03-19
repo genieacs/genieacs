@@ -1,7 +1,8 @@
 import { ClosureComponent, Component, VnodeDOM } from "mithril";
 import { m } from "../components.ts";
 import * as taskQueue from "../task-queue.ts";
-import * as store from "../store.ts";
+import { getTimestamp } from "../store.ts";
+import { getClockSkew } from "../skewed-date.ts";
 import Expression, { Value } from "../../lib/common/expression.ts";
 import memoize from "../../lib/common/memoize.ts";
 import timeAgo from "../timeago.ts";
@@ -57,7 +58,7 @@ const component: ClosureComponent = (): Component => {
       const { value, timestamp, parameter } = evaluateParam(
         vnode.attrs["parameter"],
         device,
-        store.getTimestamp() + store.getClockSkew(),
+        getTimestamp() + getClockSkew(),
       );
 
       if (value == null) return null;
@@ -94,7 +95,7 @@ const component: ClosureComponent = (): Component => {
             e.redraw = false;
             // Don't update any child element
             if (e.target === (el as VnodeDOM).dom) {
-              const now = Date.now() + store.getClockSkew();
+              const now = Date.now() + getClockSkew();
               const localeString = new Date(timestamp).toLocaleString();
               e.target.title = `${localeString} (${timeAgo(now - timestamp)})`;
             }
