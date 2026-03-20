@@ -1,6 +1,7 @@
 import m, { RouteResolver } from "mithril";
 import layout from "./layout.tsx";
 import * as store from "./store.ts";
+import { invalidate } from "./reactive-store.ts";
 import * as wizardPage from "./wizard-page.ts";
 import * as loginPage from "./login-page.tsx";
 import * as overviewPage from "./overview-page.ts";
@@ -78,6 +79,7 @@ function pagify(pageName, page): RouteResolver {
 
   component.onmatch = (args, requestedPath) => {
     store.setTimestamp(Date.now());
+    invalidate(Date.now());
     if (!page.init) {
       state = null;
       return null;

@@ -1,6 +1,7 @@
 import { ClosureComponent, Component } from "mithril";
 import { m } from "../components.ts";
 import * as store from "../store.ts";
+import { invalidate } from "../reactive-store.ts";
 import * as notifications from "../notifications.ts";
 import { stringify } from "../../lib/common/yaml.ts";
 import Expression from "../../lib/common/expression.ts";
@@ -95,11 +96,13 @@ const component: ClosureComponent = (): Component => {
                       .then(() => {
                         notifications.push("success", "Fault deleted");
                         store.setTimestamp(Date.now());
+                        invalidate(Date.now());
                         m.redraw();
                       })
                       .catch((err) => {
                         notifications.push("error", err.message);
                         store.setTimestamp(Date.now());
+                        invalidate(Date.now());
                       });
                   },
                 },

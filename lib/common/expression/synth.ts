@@ -1045,3 +1045,70 @@ export function covers(expr1: Expression, expr2: Expression): boolean {
     ...context.sanitizeMinterms(expr1Minterms),
   ]);
 }
+
+export function areEquivalent(expr1: Expression, expr2: Expression): boolean {
+  expr1 = normalize(expr1);
+  expr2 = normalize(expr2);
+
+  // Both are trivial (true/false)
+  if (
+    expr1 instanceof Expression.Literal &&
+    expr2 instanceof Expression.Literal
+  ) {
+    return !!expr1.value === !!expr2.value;
+  }
+
+  const synth1 = Clause.fromExpression(expr1);
+  const synth2 = Clause.fromExpression(expr2);
+
+  const context = new SynthContext();
+  const expr1Minterms = synth1.getMinterms(context, 0b100);
+  const expr2Minterms = synth2.getMinterms(context, 0b100);
+  const dcSet = context.getDcSet([...expr1Minterms, ...expr2Minterms]);
+
+  // Equivalent iff expr1 covers expr2 AND expr2 covers expr1
+  // expr1 covers expr2: NOT(expr2) OR expr1 is tautology
+  // expr2 covers expr1: NOT(expr1) OR expr2 is tautology
+  const notExpr1 = complement(expr1Minterms);
+  const notExpr2 = complement(expr2Minterms);
+
+  return (
+    tautology([
+      ...context.sanitizeMinterms([...notExpr2, ...expr1Minterms]),
+      ...dcSet,
+    ]) &&
+    tautology([
+      ...context.sanitizeMinterms([...notExpr1, ...expr2Minterms]),
+      ...dcSet,
+    ])
+  );
+}
+
+// Returns expr2 - expr1 (what's in expr2 but not in expr1)
+export function subtract(expr1: Expression, expr2: Expression): Expression {
+  expr2 = normalize(expr2);
+  if (expr2 instanceof Expression.Literal && !expr2.value)
+    return new Expression.Literal(false);
+
+  expr1 = normalize(expr1);
+  if (expr1 instanceof Expression.Literal && !expr1.value) {
+    const synth2 = Clause.fromExpression(expr2);
+    return synth2.expression();
+  }
+
+  if (expr1 instanceof Expression.Literal && expr1.value)
+    return new Expression.Literal(false);
+
+  const synth1 = Clause.fromExpression(expr1);
+  const synth2 = Clause.fromExpression(expr2);
+
+  const context = new SynthContext();
+  const expr1Minterms = synth1.getMinterms(context, 0b100);
+  const expr2Minterms = synth2.getMinterms(context, 0b100);
+
+  const diff = context.minimize(
+    complement([...expr1Minterms, ...complement(expr2Minterms)]),
+  );
+
+  return context.toExpression(diff);
+}

@@ -1,7 +1,13 @@
 import test from "node:test";
 import assert from "node:assert";
 import initSqlJs from "sql.js/dist/sql-asm.js";
-import { covers, minimize, unionDiff } from "../lib/common/expression/synth.ts";
+import {
+  covers,
+  minimize,
+  unionDiff,
+  subtract,
+  areEquivalent,
+} from "../lib/common/expression/synth.ts";
 import Expression from "../lib/common/expression.ts";
 
 function isFalse(expr: Expression): boolean {
@@ -231,5 +237,108 @@ void test("LIKE-Compare DC set with range operators", () => {
     isFalse(minimize(gtConj2, true)),
     false,
     "(string > 'abc') AND (string LIKE 'abc%') should NOT be false",
+  );
+});
+
+void test("subtract returns same result as unionDiff diff", async () => {
+  const cases = [
+    "true",
+    "decimal > 0",
+    "decimal > 10",
+    "UPPER(string || decimal) LIKE 'AB10'",
+    "COALESCE(string, decimal) = 0",
+  ];
+
+  for (const [c1, c2] of getPermutations(cases, cases)) {
+    const res1 = await query(c1);
+    const res2 = await query(c2);
+    const diffExpr = subtract(Expression.parse(c1), Expression.parse(c2));
+    const resDiff = await query(diffExpr.toString());
+
+    const expectedDiff = new Set(Array.from(res2).filter((r) => !res1.has(r)));
+    assert.strictEqual(
+      setsEqual(resDiff, expectedDiff),
+      true,
+      `subtract(${c1}, ${c2}) should equal expr2 - expr1`,
+    );
+  }
+});
+
+void test("areEquivalent", async () => {
+  // Equivalent expressions
+  assert.strictEqual(
+    areEquivalent(Expression.parse("true"), Expression.parse("true")),
+    true,
+  );
+  assert.strictEqual(
+    areEquivalent(Expression.parse("false"), Expression.parse("false")),
+    true,
+  );
+  assert.strictEqual(
+    areEquivalent(
+      Expression.parse("decimal > 0"),
+      Expression.parse("decimal > 0"),
+    ),
+    true,
+  );
+
+  // Logically equivalent but syntactically different
+  assert.strictEqual(
+    areEquivalent(
+      Expression.parse("NOT decimal <= 0"),
+      Expression.parse("decimal > 0"),
+    ),
+    true,
+  );
+  assert.strictEqual(
+    areEquivalent(
+      Expression.parse("decimal > 0 OR decimal = 0"),
+      Expression.parse("decimal >= 0"),
+    ),
+    true,
+  );
+
+  // Non-equivalent expressions
+  assert.strictEqual(
+    areEquivalent(
+      Expression.parse("decimal > 0"),
+      Expression.parse("decimal >= 0"),
+    ),
+    false,
+  );
+  assert.strictEqual(
+    areEquivalent(Expression.parse("true"), Expression.parse("false")),
+    false,
+  );
+
+  // Nullable expression tests - these test sanitization
+  // decimal > 0 implies decimal IS NOT NULL
+  assert.strictEqual(
+    areEquivalent(
+      Expression.parse("decimal > 0"),
+      Expression.parse("decimal > 0 AND decimal IS NOT NULL"),
+    ),
+    true,
+    "decimal > 0 should be equivalent to (decimal > 0 AND decimal IS NOT NULL)",
+  );
+
+  // Non-equivalent nullable expressions
+  assert.strictEqual(
+    areEquivalent(
+      Expression.parse("decimal > 0"),
+      Expression.parse("decimal > 0 OR decimal IS NULL"),
+    ),
+    false,
+    "decimal > 0 should NOT be equivalent to (decimal > 0 OR decimal IS NULL)",
+  );
+
+  // Complex nullable expression - De Morgan with nullable
+  assert.strictEqual(
+    areEquivalent(
+      Expression.parse("NOT (decimal > 0 OR decimal IS NULL)"),
+      Expression.parse("decimal <= 0 AND decimal IS NOT NULL"),
+    ),
+    true,
+    "De Morgan with nullable should work",
   );
 });

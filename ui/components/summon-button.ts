@@ -2,6 +2,7 @@ import { ClosureComponent } from "mithril";
 import { m } from "../components.ts";
 import * as taskQueue from "../task-queue.ts";
 import * as store from "../store.ts";
+import { invalidate } from "../reactive-store.ts";
 import * as notifications from "../notifications.ts";
 import Expression from "../../lib/common/expression.ts";
 import { FlatDevice } from "../../lib/ui/db.ts";
@@ -70,6 +71,7 @@ const component: ClosureComponent<Attrs> = () => {
               .then(() => {
                 e.target.disabled = false;
                 store.setTimestamp(Date.now());
+                invalidate(Date.now());
               })
               .catch((err) => {
                 e.target.disabled = false;

@@ -73,7 +73,7 @@
     "node": ">=12.13.0"
   },
   "scripts": {
-    "test": "esbuild --log-level=warning --bundle --platform=node --target=node18 --packages=external --sourcemap=inline --outdir=test test/*.ts && node --test --enable-source-maps test/*.js && rm test/*.js",
+    "test": "esbuild build/test.ts --bundle --platform=node --target=node18 --packages=external | node && node --test --enable-source-maps test/*.js && rm test/*.js",
     "lint": "esbuild build/lint.ts --bundle --platform=node --target=node16 --packages=external | node",
     "build": "esbuild build/build.ts --bundle --platform=node --target=node12 --packages=external | node"
   }

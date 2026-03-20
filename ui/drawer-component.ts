@@ -6,6 +6,7 @@ import m, {
   VnodeDOM,
 } from "mithril";
 import * as store from "./store.ts";
+import { invalidate } from "./reactive-store.ts";
 import * as notifications from "./notifications.ts";
 import { icon } from "./tailwind-utility-components.ts";
 import {
@@ -568,6 +569,7 @@ const component: ClosureComponent = (): Component => {
                 )
                   .then(() => {
                     store.setTimestamp(Date.now());
+                    invalidate(Date.now());
                   })
                   .catch((err) => {
                     notifications.push("error", err.message);

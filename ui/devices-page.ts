@@ -4,6 +4,7 @@ import { pageSize as PAGE_SIZE, index as indexConfig } from "./config.ts";
 import indexTableComponent from "./index-table-component.ts";
 import filterComponent from "./filter-component.ts";
 import * as store from "./store.ts";
+import { invalidate } from "./reactive-store.ts";
 import { queueTask, stageDownload } from "./task-queue.ts";
 import * as notifications from "./notifications.ts";
 import Expression, { extractPaths } from "../lib/common/expression.ts";
@@ -146,14 +147,23 @@ function renderActions(selected: Set<string>): Children {
               .deleteResource("devices", id)
               .then(() => {
                 notifications.push("success", `${id}: Deleted`);
-                if (--counter === 0) store.setTimestamp(Date.now());
+                if (--counter === 0) {
+                  store.setTimestamp(Date.now());
+                  invalidate(Date.now());
+                }
               })
               .catch((err) => {
                 notifications.push("error", `${id}: ${err.message}`);
-                if (--counter === 0) store.setTimestamp(Date.now());
+                if (--counter === 0) {
+                  store.setTimestamp(Date.now());
+                  invalidate(Date.now());
+                }
               });
           }
-          if (--counter === 0) store.setTimestamp(Date.now());
+          if (--counter === 0) {
+            store.setTimestamp(Date.now());
+            invalidate(Date.now());
+          }
         },
       },
       "Delete",
@@ -178,14 +188,23 @@ function renderActions(selected: Set<string>): Children {
               .updateTags(id, { [tag]: true })
               .then(() => {
                 notifications.push("success", `${id}: Tags updated`);
-                if (--counter === 0) store.setTimestamp(Date.now());
+                if (--counter === 0) {
+                  store.setTimestamp(Date.now());
+                  invalidate(Date.now());
+                }
               })
               .catch((err) => {
                 notifications.push("error", `${id}: ${err.message}`);
-                if (--counter === 0) store.setTimestamp(Date.now());
+                if (--counter === 0) {
+                  store.setTimestamp(Date.now());
+                  invalidate(Date.now());
+                }
               });
           }
-          if (--counter === 0) store.setTimestamp(Date.now());
+          if (--counter === 0) {
+            store.setTimestamp(Date.now());
+            invalidate(Date.now());
+          }
         },
       },
       "Tag",
@@ -212,14 +231,23 @@ function renderActions(selected: Set<string>): Children {
               .updateTags(id, { [tag]: false })
               .then(() => {
                 notifications.push("success", `${id}: Tags updated`);
-                if (--counter === 0) store.setTimestamp(Date.now());
+                if (--counter === 0) {
+                  store.setTimestamp(Date.now());
+                  invalidate(Date.now());
+                }
               })
               .catch((err) => {
                 notifications.push("error", `${id}: ${err.message}`);
-                if (--counter === 0) store.setTimestamp(Date.now());
+                if (--counter === 0) {
+                  store.setTimestamp(Date.now());
+                  invalidate(Date.now());
+                }
               });
           }
-          if (--counter === 0) store.setTimestamp(Date.now());
+          if (--counter === 0) {
+            store.setTimestamp(Date.now());
+            invalidate(Date.now());
+          }
         },
       },
       "Untag",
