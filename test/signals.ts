@@ -5,6 +5,7 @@ import {
   SignalBase,
   StateSignal,
   ComputedSignal,
+  Watcher,
   setTimeout,
   setInterval,
 } from "../ui/signals.ts";
@@ -693,4 +694,100 @@ void test("Disposal cascades to nested signals of all types", () => {
   assert.throws(() => innerComputed!.get(), {
     message: "Cannot read disposed signal",
   });
+});
+
+// =============================================================================
+// Watcher Tests
+// =============================================================================
+
+void test("Watcher notifies on state change and at most once per batch", () => {
+  const state = new StateSignal(1);
+  let notifyCount = 0;
+  const watcher = new Watcher(() => {
+    notifyCount++;
+  });
+  watcher.watch(state);
+
+  // Fires on change
+  state.set(2);
+  assert.strictEqual(notifyCount, 1);
+
+  // At-most-once: second change in same batch does not fire again
+  state.set(3);
+  assert.strictEqual(notifyCount, 1);
+
+  // watch() resets the flag, allowing notification again
+  watcher.watch(state);
+  state.set(4);
+  assert.strictEqual(notifyCount, 2);
+
+  watcher[Symbol.dispose]();
+});
+
+void test("Watcher notifies on transitive dependency change", () => {
+  const state = new StateSignal(1);
+  const computed = new ComputedSignal(() => state.get() * 2);
+  let notifyCount = 0;
+  const watcher = new Watcher(() => {
+    notifyCount++;
+  });
+
+  // Prime the computed so it registers dependencies and is Clean
+  computed.get();
+  watcher.watch(computed);
+
+  // Changing the root state propagates through the computed to the watcher
+  state.set(2);
+  assert.strictEqual(notifyCount, 1);
+
+  watcher[Symbol.dispose]();
+});
+
+void test("Watcher unwatch and disposal stop notifications", () => {
+  const a = new StateSignal(1);
+  const b = new StateSignal(1);
+  let notifyCount = 0;
+  const watcher = new Watcher(() => {
+    notifyCount++;
+  });
+  watcher.watch(a, b);
+
+  // Unwatch a, changes to a no longer notify
+  watcher.unwatch(a);
+  a.set(2);
+  assert.strictEqual(notifyCount, 0);
+
+  // b still notifies
+  b.set(2);
+  assert.strictEqual(notifyCount, 1);
+
+  // After disposal, nothing notifies
+  watcher.watch(b); // reset notified flag
+  watcher[Symbol.dispose]();
+  b.set(3);
+  assert.strictEqual(notifyCount, 1);
+});
+
+void test("Watcher getPending returns dirty computed signals", () => {
+  const state = new StateSignal(1);
+  const computed = new ComputedSignal(() => state.get() * 2);
+
+  // Prime the computed so it has registered dependencies
+  computed.get();
+
+  const watcher = new Watcher(() => {});
+  watcher.watch(computed);
+
+  // Before any change, nothing is pending
+  assert.deepStrictEqual(watcher.getPending(), []);
+
+  // After change, computed is pending
+  state.set(2);
+  assert.deepStrictEqual(watcher.getPending(), [computed]);
+
+  // After reading, no longer pending
+  computed.get();
+  assert.deepStrictEqual(watcher.getPending(), []);
+
+  watcher[Symbol.dispose]();
 });

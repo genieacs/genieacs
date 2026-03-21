@@ -64,13 +64,23 @@ function runCleanups(signal: ComputedSignal<unknown>): void {
   signal._cleanups.clear();
 }
 
-function markSinksChecking(sinks: Set<WeakRef<ComputedSignal<unknown>>>): void {
+// Type for sinks: can be ComputedSignal or Watcher.
+type Sink = ComputedSignal<unknown> | Watcher;
+
+function markSinksChecking(sinks: Set<WeakRef<Sink>>): void {
   for (const weakRef of sinks) {
     const sink = weakRef.deref();
     if (sink === undefined) {
       sinks.delete(weakRef);
       continue;
     }
+
+    // eslint-disable-next-line @typescript-eslint/no-use-before-define
+    if (sink instanceof Watcher) {
+      sink._notify();
+      continue;
+    }
+
     // Only promote Clean to Checking (Dirty/Checking stay as-is)
     if (sink._state === ComputedState.Clean) {
       sink._state = ComputedState.Checking;
@@ -79,13 +89,20 @@ function markSinksChecking(sinks: Set<WeakRef<ComputedSignal<unknown>>>): void {
   }
 }
 
-function markSinksDirty(sinks: Set<WeakRef<ComputedSignal<unknown>>>): void {
+function markSinksDirty(sinks: Set<WeakRef<Sink>>): void {
   for (const weakRef of sinks) {
     const sink = weakRef.deref();
     if (sink === undefined) {
       sinks.delete(weakRef);
       continue;
     }
+
+    // eslint-disable-next-line @typescript-eslint/no-use-before-define
+    if (sink instanceof Watcher) {
+      sink._notify();
+      continue;
+    }
+
     // Promote Clean or Checking to Dirty
     if (
       sink._state === ComputedState.Clean ||
@@ -99,7 +116,7 @@ function markSinksDirty(sinks: Set<WeakRef<ComputedSignal<unknown>>>): void {
 }
 
 export abstract class SignalBase<T = unknown> implements Disposable {
-  declare _sinks: Set<WeakRef<ComputedSignal<unknown>>>;
+  declare _sinks: Set<WeakRef<Sink>>;
   _disposed: boolean = false;
 
   abstract get(): T;
@@ -280,6 +297,69 @@ export class ComputedSignal<T> extends SignalBase<T> {
     // Release references for GC
     this._value = undefined;
     this._error = undefined;
+  }
+}
+
+// Observes signal changes from outside the reactive graph.
+// Based on the TC39 Signals proposal's Signal.subtle.Watcher.
+// The notify callback fires synchronously and should be lightweight
+// (e.g., just schedule a redraw).
+export class Watcher implements Disposable {
+  private _callback: () => void;
+  private _notified: boolean = false;
+  private _disposed: boolean = false;
+  private _watching: Set<SignalBase<unknown>> = new Set();
+  readonly _selfRef: WeakRef<Watcher>;
+
+  constructor(notify: () => void) {
+    this._callback = notify;
+    this._selfRef = new WeakRef(this);
+  }
+
+  // Also resets the notified flag, allowing the callback to fire again.
+  watch(...signals: SignalBase<unknown>[]): void {
+    for (const signal of signals) {
+      if (!signal._sinks) continue; // ConstSignal has no sinks
+      signal._sinks.add(this._selfRef);
+      this._watching.add(signal);
+    }
+    this._notified = false;
+  }
+
+  unwatch(...signals: SignalBase<unknown>[]): void {
+    for (const signal of signals) {
+      if (!signal._sinks) continue;
+      signal._sinks.delete(this._selfRef);
+      this._watching.delete(signal);
+    }
+  }
+
+  // Only ComputedSignals can be dirty/checking; StateSignals are always current.
+  getPending(): SignalBase<unknown>[] {
+    const pending: SignalBase<unknown>[] = [];
+    for (const signal of this._watching) {
+      if (signal instanceof ComputedSignal) {
+        if (signal._state !== ComputedState.Clean) {
+          pending.push(signal);
+        }
+      }
+    }
+    return pending;
+  }
+
+  _notify(): void {
+    if (this._disposed || this._notified) return;
+    this._notified = true;
+    this._callback();
+  }
+
+  [Symbol.dispose](): void {
+    if (this._disposed) return;
+    this._disposed = true;
+    for (const signal of this._watching) {
+      signal._sinks?.delete(this._selfRef);
+    }
+    this._watching.clear();
   }
 }
 

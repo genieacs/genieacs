@@ -3,6 +3,7 @@ import {
   SignalBase,
   ComputedSignal,
   ComputedState,
+  Watcher,
   registerDependency,
 } from "./signals.ts";
 import { xhrRequest } from "./store.ts";
@@ -88,7 +89,7 @@ export class Bookmark {
 }
 
 export class QuerySignal<T> extends SignalBase<QueryState<T>> {
-  declare _sinks: Set<globalThis.WeakRef<ComputedSignal<unknown>>>;
+  declare _sinks: Set<globalThis.WeakRef<ComputedSignal<unknown> | Watcher>>;
   private _state: QueryState<T>;
 
   constructor(initialValue: T) {
@@ -132,14 +133,17 @@ export class QuerySignal<T> extends SignalBase<QueryState<T>> {
         this._sinks.delete(weakRef);
         continue;
       }
-      (sink as unknown as { _state: ComputedState })._state =
-        ComputedState.Dirty;
+      if (sink instanceof Watcher) {
+        sink._notify();
+        continue;
+      }
+      sink._state = ComputedState.Dirty;
       this._markSinksChecking(sink._sinks);
     }
   }
 
   private _markSinksChecking(
-    sinks: Set<globalThis.WeakRef<ComputedSignal<unknown>>>,
+    sinks: Set<globalThis.WeakRef<ComputedSignal<unknown> | Watcher>>,
   ): void {
     for (const weakRef of sinks) {
       const sink = weakRef.deref();
@@ -147,13 +151,13 @@ export class QuerySignal<T> extends SignalBase<QueryState<T>> {
         sinks.delete(weakRef);
         continue;
       }
-      if (
-        (sink as unknown as { _state: ComputedState })._state ===
-        ComputedState.Clean
-      ) {
-        (sink as unknown as { _state: ComputedState })._state =
-          ComputedState.Checking;
-        this._markSinksChecking(sink._sinks);
+      if (sink instanceof Watcher) {
+        sink._notify();
+        continue;
+      }
+      if ((sink as { _state: ComputedState })._state === ComputedState.Clean) {
+        (sink as { _state: ComputedState })._state = ComputedState.Checking;
+        this._markSinksChecking((sink as ComputedSignal<unknown>)._sinks);
       }
     }
   }
