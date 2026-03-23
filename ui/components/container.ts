@@ -43,7 +43,8 @@ const component: ClosureComponent<Attrs> = () => {
     view: (vnode) => {
       const device = vnode.attrs.device;
       if ("filter" in vnode.attrs) {
-        if (!evaluateExpression(vnode.attrs.filter, device || {})) return null;
+        if (!evaluateExpression(vnode.attrs.filter, device || {}).value)
+          return null;
       }
 
       const children = Object.values(vnode.attrs.components).map((c) => {
@@ -71,7 +72,7 @@ const component: ClosureComponent<Attrs> = () => {
           );
         }
 
-        el = evaluateExpression(el["tag"], device || {});
+        el = evaluateExpression(el["tag"], device || {}).value;
       }
 
       return m(el, attrs, children);

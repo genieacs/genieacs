@@ -186,7 +186,7 @@ const component: ClosureComponent<Attrs> = () => {
 
       let label;
 
-      const l = evaluateExpression(vnode.attrs.label, device);
+      const l = evaluateExpression(vnode.attrs.label, device).value;
       if (l != null) label = m("h2", l);
 
       return [
