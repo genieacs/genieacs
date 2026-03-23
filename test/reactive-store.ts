@@ -171,14 +171,13 @@ void test("compareFunction handles mixed types with correct ordering", () => {
 
 void test("getObjectId extracts correct ID based on resource type", () => {
   const device = {
-    "DeviceID.ID": { value: ["device-123"] },
+    "DeviceID.ID": "device-123",
     _id: "should-not-use",
   };
   const preset = { _id: "preset-123", name: "My Preset" };
 
   assert.strictEqual(getObjectId("devices", device), "device-123");
   assert.strictEqual(getObjectId("presets", preset), "preset-123");
-  assert.strictEqual(getObjectId("devices", { "DeviceID.ID": {} }), "");
   assert.strictEqual(getObjectId("faults", {}), "");
 });
 

@@ -207,10 +207,8 @@ function compareFunction(
 
 function getObjectId(resourceType: string, obj: unknown): string {
   const record = obj as Record<string, unknown>;
-  if (resourceType === "devices") {
-    const deviceId = record["DeviceID.ID"] as { value?: unknown[] } | undefined;
-    return (deviceId?.value?.[0] as string) ?? "";
-  }
+  if (resourceType === "devices")
+    return (record["DeviceID.ID"] as string) ?? "";
   return (record["_id"] as string) ?? "";
 }
 
