@@ -1,14 +1,16 @@
 import * as crypto from "node:crypto";
 import { collections } from "../db/db.ts";
 import Expression, { Value } from "../common/expression.ts";
-import { Users, Permissions, Config, UiConfig } from "../types.ts";
+import { Users, Permissions, Config, UiConfig, Views } from "../types.ts";
 import { LocalCache } from "../local-cache.ts";
+import { bundleViews } from "../bundle-views.ts";
 
 interface Snapshot {
   permissions: Permissions;
   users: Users;
   config: Config;
   ui: UiConfig;
+  viewsBundle: string;
 }
 
 async function fetchPermissions(): Promise<[string, Permissions]> {
@@ -79,6 +81,19 @@ async function fetchConfig(): Promise<[string, Config, UiConfig]> {
   return [h, _config, ui];
 }
 
+async function fetchViews(): Promise<[string, Views]> {
+  const res = await collections.views.find().toArray();
+  const h = crypto.createHash("md5").update(JSON.stringify(res)).digest("hex");
+  const views: Views = {};
+  for (const r of res) {
+    views[r["_id"]] = {
+      md5: crypto.createHash("md5").update(r["script"]).digest("hex"),
+      script: r.script,
+    };
+  }
+  return [h, views];
+}
+
 const localCache = new LocalCache<Snapshot>("ui-local-cache-hash", refresh);
 
 async function refresh(): Promise<[string, Snapshot]> {
@@ -86,6 +101,7 @@ async function refresh(): Promise<[string, Snapshot]> {
     fetchPermissions(),
     fetchUsers(),
     fetchConfig(),
+    fetchViews(),
   ]);
 
   const h = crypto.createHash("md5");
@@ -96,6 +112,7 @@ async function refresh(): Promise<[string, Snapshot]> {
     users: res[1][1],
     config: res[2][1],
     ui: res[2][2],
+    viewsBundle: await bundleViews(res[3][1]),
   };
 
   return [h.digest("hex"), snapshot];
@@ -157,4 +174,9 @@ export function getPermissions(revision: string): Permissions {
 export function getUiConfig(revision: string): UiConfig {
   const snapshot = localCache.get(revision);
   return snapshot.ui;
+}
+
+export function getViewsBundle(revision: string): string {
+  const snapshot = localCache.get(revision);
+  return snapshot.viewsBundle;
 }

@@ -7,6 +7,7 @@ import {
   putPreset,
   putProvision,
   putUser,
+  putView,
 } from "./ui/db.ts";
 import { del } from "./cache.ts";
 import BOOTSTRAP_SCRIPT from "../seed/bootstrap.js" with { type: "text" };
@@ -41,9 +42,9 @@ export async function getStatus(): Promise<Status> {
 
   for (const k of Object.keys(ui)) {
     if (k.startsWith("filters.")) status.filters = false;
-    if (k.startsWith("device.")) status.device = false;
+    if (k === "device" || k.startsWith("device.")) status.device = false;
     if (k.startsWith("index.")) status.index = false;
-    if (k.startsWith("overview.")) status.overview = false;
+    if (k === "overview" || k.startsWith("overview.")) status.overview = false;
   }
 
   return status;
@@ -66,6 +67,12 @@ export async function seed(options: Record<string, boolean>): Promise<void> {
       {
         role: "admin",
         resource: "virtualParameters",
+        access: 3,
+        validate: "true",
+      },
+      {
+        role: "admin",
+        resource: "views",
         access: 3,
         validate: "true",
       },
@@ -367,6 +374,9 @@ export async function seed(options: Record<string, boolean>): Promise<void> {
 
   if (resources["presets"])
     for (const p of resources["presets"]) proms.push(putPreset(p["_id"], p));
+
+  if (resources["views"])
+    for (const v of resources["views"]) proms.push(putView(v["_id"], v));
 
   if (resources["config"])
     for (const c of resources["config"]) proms.push(putConfig(c["_id"], c));

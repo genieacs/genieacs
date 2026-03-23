@@ -10,6 +10,7 @@ import * as notifications from "./notifications.ts";
 import Expression, { extractPaths } from "../lib/common/expression.ts";
 import memoize from "../lib/common/memoize.ts";
 import * as smartQuery from "./smart-query.ts";
+import { ViewComponent } from "./views.ts";
 
 const memoizedGetSortable = memoize((p: Expression) => {
   const expressionParams = extractPaths(p);
@@ -319,11 +320,21 @@ export const component: ClosureComponent<Attrs> = () => {
       const downloadUrl = getDownloadUrl(filter, attributes);
 
       const valueCallback = (attr, device): Children => {
-        return m.context(
-          { device: device, parameter: attr.parameter },
-          attr.type || "parameter",
-          attr.raw,
-        );
+        if (!attr.type && !attr.components && attr.component) {
+          return m(ViewComponent, {
+            name: attr.component,
+            attrs: {
+              ...attr,
+              deviceId: device["DeviceID.ID"],
+            },
+          });
+        } else {
+          return m.context(
+            { device: device, parameter: attr.parameter },
+            attr.type || "parameter",
+            attr.raw,
+          );
+        }
       };
 
       const attrs = {};

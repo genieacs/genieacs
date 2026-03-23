@@ -95,6 +95,12 @@ const resources = {
       type: "string",
     },
   },
+  views: {
+    ID: {
+      parameter: new Expression.Parameter(Path.parse("_id")),
+      type: "string",
+    },
+  },
 };
 
 for (const v of filters) {

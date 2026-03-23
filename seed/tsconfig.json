@@ -4,7 +4,11 @@
     "checkJs": true,
     "noEmit": true,
     "target": "ES2022",
-    "types": []
+    "jsx": "react",
+    "jsxFactory": "h",
+    "jsxFragmentFactory": "Fragment",
+    "types": [],
+    "moduleDetection": "force"
   },
-  "include": ["./*.js", "./*.d.ts"]
+  "include": ["./*.js", "./*.jsx", "./*.d.ts"]
 }

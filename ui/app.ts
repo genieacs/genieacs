@@ -22,6 +22,10 @@ import { PermissionSet, UiConfig } from "../lib/types.ts";
 import drawerComponent from "./drawer-component.ts";
 import { render as renderOverlay } from "./overlay.ts";
 import Expression from "../lib/common/expression.ts";
+import * as viewsPage from "./views-page.ts";
+
+export { ViewNode } from "./views.ts";
+export { Signal } from "./signals.ts";
 
 declare global {
   interface Window {
@@ -118,6 +122,7 @@ m.route(document.body, "/overview", {
   "/config": pagify("config", configPage),
   "/users": pagify("users", usersPage),
   "/permissions": pagify("permissions", permissionsPage),
+  "/views": pagify("views", viewsPage),
   "/login": {
     render: () => [m(loginPage.component), renderOverlay(), m(drawerComponent)],
   },

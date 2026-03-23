@@ -1,8 +1,10 @@
 import { ClosureComponent } from "mithril";
 import { m } from "./components.ts";
-import { overview } from "./config.ts";
+import { overview, rawConf } from "./config.ts";
 import * as store from "./store.ts";
 import pieChartComponent from "./pie-chart-component.ts";
+import Expression from "../lib/common/expression.ts";
+import { ViewComponent } from "./views.ts";
 
 const GROUPS = overview.groups;
 const CHARTS: typeof overview.charts = {};
@@ -42,6 +44,15 @@ export const component: ClosureComponent<Attrs> = () => {
     view: (vnode) => {
       document.title = "Overview - GenieACS";
       const children = [];
+      if (
+        rawConf["overview"] instanceof Expression.Literal &&
+        typeof rawConf["overview"].value === "string"
+      ) {
+        return m(ViewComponent, {
+          name: rawConf["overview"].value,
+          attrs: {},
+        });
+      }
       for (const group of GROUPS) {
         if (group.label) {
           children.push(

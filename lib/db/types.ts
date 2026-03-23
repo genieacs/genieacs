@@ -29,6 +29,11 @@ interface TaskBase {
   device: string;
 }
 
+export interface View {
+  _id: string;
+  script: string;
+}
+
 interface TaskGetParameterValues extends TaskBase {
   name: "getParameterValues";
   parameterNames: string[];

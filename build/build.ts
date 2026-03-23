@@ -300,6 +300,9 @@ async function generateBackendJs(): Promise<void> {
     bundle: true,
     absWorkingDir: INPUT_DIR,
     minify: MODE === "production",
+    define: {
+      "process.env.NODE_ENV": JSON.stringify(MODE),
+    },
     sourcemap: "inline",
     sourcesContent: false,
     platform: "node",
@@ -340,7 +343,8 @@ async function generateFrontendJs(): Promise<void> {
 
   for (const [k, v] of Object.entries(res.metafile.outputs)) {
     for (const imp of v.imports)
-      if (imp.external) throw new Error(`External import found: ${imp.path}`);
+      if (imp.external && imp.path !== "views-bundle")
+        throw new Error(`External import found: ${imp.path}`);
 
     if (v.entryPoint === "ui/app.ts") {
       ASSETS.APP_JS = path.relative(

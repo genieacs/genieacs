@@ -74,4 +74,24 @@ export default defineConfig(
       "no-shadow": ["error", { allow: ["err", "total"] }],
     },
   },
+  {
+    files: ["seed/*.jsx"],
+    languageOptions: {
+      parserOptions: {
+        project: null,
+      },
+      globals: {
+        ...globals.browser,
+        node: "readonly",
+        Signal: "readonly",
+      },
+    },
+    rules: {
+      "@typescript-eslint/explicit-function-return-type": "off",
+      "@typescript-eslint/no-floating-promises": "off",
+      "@typescript-eslint/no-misused-promises": "off",
+      "@typescript-eslint/no-shadow": "off",
+      "no-shadow": ["error", { allow: ["err", "total"] }],
+    },
+  },
 );

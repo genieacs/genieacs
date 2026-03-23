@@ -111,3 +111,6 @@ if (conf["pageSize"] instanceof Expression.Literal)
   pageSize = +conf["pageSize"].value || 10;
 
 device = conf["device"] as NestedRecord;
+
+// Raw config values for checking if views are configured
+export const rawConf = conf;

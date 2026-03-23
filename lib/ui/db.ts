@@ -4,6 +4,7 @@ import { Collection, ObjectId, WithoutId } from "mongodb";
 import { encodeTag } from "../util.ts";
 import { Fault, Task } from "../types.ts";
 import { collections, filesBucket } from "../db/db.ts";
+import { validateViewScript } from "../bundle-views.ts";
 import { convertOldPrecondition, optimizeProjection } from "../db/util.ts";
 import * as MongoTypes from "../db/types.ts";
 import Expression, { parseList, Value } from "../common/expression.ts";
@@ -520,4 +521,20 @@ export async function deleteFault(id: string): Promise<void> {
 
 export async function deleteTask(id: ObjectId): Promise<void> {
   await collections.tasks.deleteOne({ _id: id });
+}
+
+export async function putView(
+  id: string,
+  object: { script: string },
+): Promise<void> {
+  if (!object.script) object.script = "";
+  const err = await validateViewScript(id, object.script);
+  if (err) throw new Error(err);
+  await collections.views.replaceOne({ _id: id }, object, {
+    upsert: true,
+  });
+}
+
+export async function deleteView(id: string): Promise<void> {
+  await collections.views.deleteOne({ _id: id });
 }

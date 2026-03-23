@@ -40,6 +40,7 @@ const RESOURCE_IDS = {
   users: "_id",
   faults: "_id",
   tasks: "_id",
+  views: "_id",
 };
 
 const resources = {
@@ -53,6 +54,7 @@ const resources = {
   users: 0 | RESOURCE_DELETE | RESOURCE_PUT,
   faults: 0 | RESOURCE_DELETE,
   tasks: 0,
+  views: 0 | RESOURCE_DELETE | RESOURCE_PUT,
 };
 
 function singleParam(p: string | string[]): string {

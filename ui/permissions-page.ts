@@ -30,6 +30,7 @@ const attributes = [
       "presets",
       "provisions",
       "virtualParameters",
+      "views",
     ],
   },
   { id: "filter", label: "Filter", type: "textarea" },

@@ -455,6 +455,10 @@ export interface VirtualParameters {
   [name: string]: { md5: string; script: Script };
 }
 
+export interface Views {
+  [name: string]: { md5: string; script: string };
+}
+
 export interface Files {
   [name: string]: { length: number };
 }

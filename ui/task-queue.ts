@@ -1,3 +1,4 @@
+import m from "mithril";
 import * as store from "./store.ts";
 import { Task } from "../lib/types.ts";
 import * as notifications from "./notifications.ts";
@@ -32,6 +33,7 @@ export function queueTask(...tasks: QueueTask[]): void {
     task.status = "queued";
     queue.add(task);
   }
+  m.redraw();
 }
 
 export function deleteTask(task: QueueTask): void {
@@ -60,6 +62,7 @@ export function stageSpv(task: StageTask): void {
     return;
   }
   staging.add(task);
+  m.redraw();
 }
 
 export function stageDownload(task: StageTask): void {
@@ -68,6 +71,7 @@ export function stageDownload(task: StageTask): void {
     return;
   }
   staging.add(task);
+  m.redraw();
 }
 
 export function commit(

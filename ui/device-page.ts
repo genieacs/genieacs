@@ -4,6 +4,7 @@ import { device as deviceConfig } from "./config.ts";
 import * as store from "./store.ts";
 import Expression from "../lib/common/expression.ts";
 import Path from "../lib/common/path.ts";
+import { ViewComponent } from "./views.ts";
 
 export function init(
   args: Record<string, unknown>,
@@ -50,6 +51,16 @@ export const component: ClosureComponent<Attrs> = () => {
       }
 
       const conf = deviceConfig;
+      if (
+        conf instanceof Expression.Literal &&
+        typeof conf.value === "string"
+      ) {
+        return m(ViewComponent, {
+          name: conf.value,
+          attrs: { deviceId: vnode.attrs["deviceId"] },
+        });
+      }
+
       const cmps = [];
 
       for (const c of Object.values(conf)) {

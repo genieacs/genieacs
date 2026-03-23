@@ -79,6 +79,7 @@ for (const r of [
   "config",
   "users",
   "permissions",
+  "views",
 ]) {
   resources[r] = {
     objects: new Map(),

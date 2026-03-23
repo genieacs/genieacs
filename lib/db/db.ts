@@ -19,6 +19,7 @@ export const collections = {
   config: null as Collection<MongoTypes.Config>,
   cache: null as Collection<MongoTypes.Cache>,
   locks: null as Collection<MongoTypes.Lock>,
+  views: null as Collection<MongoTypes.View>,
 };
 
 let clientPromise: Promise<MongoClient>;
@@ -43,6 +44,7 @@ export async function connect(): Promise<void> {
   collections.config = db.collection("config");
   collections.cache = db.collection("cache");
   collections.locks = db.collection("locks");
+  collections.views = db.collection("views");
   filesBucket = new GridFSBucket(db);
 
   await Promise.all([

@@ -10,6 +10,7 @@ const singular = {
   files: "file",
   users: "user",
   permissions: "permission",
+  views: "view",
 };
 
 function createField(current, attr, focus): Children {

@@ -95,6 +95,11 @@ const component: ClosureComponent<Attrs> = () => {
           href: "#!/users",
           enabled: window.authorizer.hasAccess("users", 2),
         },
+        {
+          name: "Views",
+          href: "#!/views",
+          enabled: window.authorizer.hasAccess("views", 2),
+        },
       ]
         .filter((item) => item.enabled)
         .map(({ name, href }) => {

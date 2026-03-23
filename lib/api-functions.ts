@@ -16,6 +16,8 @@ import {
   putProvision,
   putUser,
   putVirtualParameter,
+  putView,
+  deleteView,
 } from "./ui/db.ts";
 import * as common from "./util.ts";
 import * as cache from "./cache.ts";
@@ -432,6 +434,9 @@ export async function deleteResource(
   } else if (resource === "users") {
     await deleteUser(id);
     await cache.del("ui-local-cache-hash");
+  } else if (resource === "views") {
+    await deleteView(id);
+    await cache.del("ui-local-cache-hash");
   } else {
     throw new Error(`Unknown resource ${resource}`);
   }
@@ -465,6 +470,9 @@ export async function putResource(
     delete data["password"];
     delete data["salt"];
     await putUser(id, data);
+    await cache.del("ui-local-cache-hash");
+  } else if (resource === "views") {
+    await putView(id, data);
     await cache.del("ui-local-cache-hash");
   } else {
     throw new Error(`Unknown resource ${resource}`);
