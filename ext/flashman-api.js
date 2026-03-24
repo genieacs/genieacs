@@ -576,6 +576,160 @@ const getChosenWan = async function(args, callback) {
   callback(null, {wanChosenPath});
 };
 
+let cacheGetMACFieldIDX = '';
+let cacheGetMACFieldDATA = {};
+/**
+ * Calls Flashman to get the MAC field of a device.
+ *
+ * @param {array<object|string>} args - Array of objects with the arguments.
+ * @param {function|undefined} callback - Callback function.
+ *
+ * @return {any} - The result of the callback called with the result of what
+ * Flashman returns after the call or an object with success and message.
+ */
+const getMACField = async function(args, callback) {
+  let params;
+  let callidx = 0;
+
+  // If callback not defined, define a simple one
+  if (!callback) {
+    callback = (_arg1, arg2) => {
+      return arg2;
+    };
+  }
+
+  // Try to parse the arguments
+  try {
+    params = JSON.parse(args[0]);
+    callidx = args[1];
+  } catch (error) {
+    const toReturn = {
+      success: false,
+      message: 'Invalid JSON',
+    };
+    return callback(null, toReturn);
+  }
+
+  // Avoid call to flashman twice from provision, check if data is valid
+  if (
+    cacheGetMACFieldIDX === callidx &&
+    cacheGetMACFieldDATA &&
+    cacheGetMACFieldDATA.message
+  ) {
+    return callback(null, cacheGetMACFieldDATA);
+  }
+
+  // Check if params is valid
+  if (!params || !params.oui || !params.model) {
+    const toReturn = {
+      success: false,
+      message: 'Incomplete arguments',
+    };
+    return callback(null, toReturn);
+  }
+
+  // Call Flashman
+  let response = await sendFlashmanRequest(
+    'GET', 'device/mac', params,
+  );
+
+  if (!response || !response.data) {
+    cacheGetMACFieldIDX = callidx;
+    cacheGetMACFieldDATA = {
+      success: false,
+      message: 'Error contacting Flashman',
+      macField: null,
+    };
+    return callback(null, cacheGetMACFieldDATA);
+  }
+
+  cacheGetMACFieldIDX = callidx;
+  cacheGetMACFieldDATA = {
+    success: true,
+    message: 'OK',
+    macField: response.data.macField,
+  };
+  return callback(null, cacheGetMACFieldDATA);
+};
+
+let cacheGetFirmwareFileIDX = '';
+let cacheGetFirmwareFileDATA = {};
+/**
+ * Calls Flashman to get the firmware name of a device.
+ *
+ * @param {array<object|string>} args - Array of objects with the arguments.
+ * @param {function|undefined} callback - Callback function.
+ *
+ * @return {any} - The result of the callback called with the result of what
+ * Flashman returns after the call or an object with success and message.
+ */
+const getFirmwareFile = async function(args, callback) {
+  let params;
+  let callidx = 0;
+
+  // If callback not defined, define a simple one
+  if (!callback) {
+    callback = (_arg1, arg2) => {
+      return arg2;
+    };
+  }
+
+  // Try to parse the arguments
+  try {
+    params = JSON.parse(args[0]);
+    callidx = args[1];
+  } catch (error) {
+    const toReturn = {
+      success: false,
+      message: 'Invalid JSON',
+    };
+    return callback(null, toReturn);
+  }
+
+  // Avoid call to flashman twice from provision, check if data is valid
+  if (
+    cacheGetFirmwareFileIDX === callidx &&
+    cacheGetFirmwareFileDATA &&
+    cacheGetFirmwareFileDATA.message
+  ) {
+    return callback(null, cacheGetFirmwareFileDATA);
+  }
+
+  // Check if params is valid
+  if (!params || !params.productClass || !params.version || !params.acsId) {
+    const toReturn = {
+      success: false,
+      message: 'Incomplete arguments',
+    };
+    return callback(null, toReturn);
+  }
+
+  // Call Flashman
+  let response = await sendFlashmanRequest(
+    'GET',
+    `product-class/${params.productClass}/version/${params.version}/firmware`,
+    {},
+  );
+
+  if (!response || !response.data) {
+    cacheGetFirmwareFileIDX = callidx;
+    cacheGetFirmwareFileDATA = {
+      success: false,
+      message: 'Error contacting Flashman',
+      filename: null,
+    };
+    return callback(null, cacheGetFirmwareFileDATA);
+  }
+
+  cacheGetFirmwareFileIDX = callidx;
+  cacheGetFirmwareFileDATA = {
+    success: true,
+    message: 'OK',
+    filename: response.data.filename,
+  };
+  return callback(null, cacheGetFirmwareFileDATA);
+};
+
 
 /**
  * @exports controllers/external-genieacs/devices-api
@@ -592,3 +746,5 @@ exports.doFlashmanSync = doFlashmanSync;
 exports.syncDeviceData = syncDeviceData;
 exports.syncDeviceDiagnostics = syncDeviceDiagnostics;
 exports.getChosenWan = getChosenWan;
+exports.getMACField = getMACField;
+exports.getFirmwareFile = getFirmwareFile;

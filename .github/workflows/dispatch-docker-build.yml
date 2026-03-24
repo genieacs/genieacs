@@ -1,8 +1,8 @@
-name: Deploy to master
+name: Deploy to master/development
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, development ]
 
 jobs:
   On-merge-to-master:
@@ -13,6 +13,17 @@ jobs:
         node-version: [20.x]
 
     steps:
+      - name: Getting branch & code version
+        run: |
+              BRANCH=${GITHUB_REF_NAME}
+              DISPATCH_BRANCH=master
+              if [ $BRANCH == "development" ]; then
+                DISPATCH_BRANCH=development
+              else
+                DISPATCH_BRANCH=master
+              fi
+              echo "DISPATCH_BRANCH=$DISPATCH_BRANCH" >> $GITHUB_ENV
+
       - name: Dispatch version notification to dependent docker acs repository
         run: |
           curl -X POST \
@@ -20,4 +31,4 @@ jobs:
             -H "Accept: application/vnd.github.v3+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             https://api.github.com/repos/anlix-io/docker-genieacs/actions/workflows/dispatch.yml/dispatches \
-            -d '{"ref": "master"}'
+            -d '{"ref": "${{ env.DISPATCH_BRANCH }}"}'

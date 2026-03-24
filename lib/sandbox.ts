@@ -26,6 +26,7 @@ import * as scheduling from "./scheduling";
 import Path from "./common/path";
 import { Fault, SessionContext, ScriptResult } from "./types";
 import { metricsExporter } from "./metrics";
+import request from "request";
 
 // Used for throwing to exit user script and commit
 const COMMIT = Symbol();
@@ -33,9 +34,21 @@ const COMMIT = Symbol();
 // Used to execute extensions and restart
 const EXT = Symbol();
 
+// Used to skip provision if initilization conditions are not met
+const SKIP = Symbol();
+
+// Used to upgrade a device's firmware
+const UPGRADE = Symbol();
+
 const UNDEFINED = undefined;
 
 const context = vm.createContext();
+
+const FORCE_CUSTOM_SCRIPT_LOGGING =
+  process.env.FLM_FORCE_CUSTOM_SCRIPT_LOGGING === 'true';
+const FLASHMAN_PORT = process.env.FLM_WEB_PORT || 8000;
+const FLASHMAN_URL =
+  'http://'+(process.env.FLM_WEB_HOST || 'localhost') + `:${FLASHMAN_PORT}`;
 
 let state;
 
@@ -365,6 +378,710 @@ function alert(schema: alertSchema):void {
   }
 }
 
+/**
+ * Flashman-Log!! Not the word "flog"!!
+ * Send the provided message to Flashman for logging. This function will only
+ * log if the sandbox is initialized and either in debug mode or if the
+ * environment variable FORCE_CUSTOM_SCRIPT_LOGGING is set to true.
+ *
+ * @param {Array<any>} args - The arguments to log. Each argument will be
+ * stringified and concatenated.
+ */
+export function flog(...args: any[]): void {
+  // If not initialized, throw an error
+  if (!state.sessionContext.customScriptInfo?.initialized)
+    throw new Error("flog: Sandbox not initialized");
+
+  // If no arguments were provided, do not log
+  if (args.length === 0) return;
+
+  // If not in debug mode, do not log
+  if (
+    !state.sessionContext.customScriptInfo?.isDebug &&
+    !FORCE_CUSTOM_SCRIPT_LOGGING
+  ) return;
+
+  // Prepare the message to log
+  const message = '[ INFO  ] ' + args
+    .map((arg) => typeof arg === 'object' ? JSON.stringify(arg) : arg)
+    .join(" ");
+  
+  // Send the message to Flashman
+  request({
+    url: `${FLASHMAN_URL}/acs/acs-id/` +
+      `${state.sessionContext.deviceId}/script/` +
+      `${state.sessionContext.customScriptInfo?.scriptTag}/log`,
+    method: 'POST',
+    json: {
+      timestamp: new Date().toISOString(),
+      type: 'log',
+      message: message,
+    }
+  }).on('response', (response) => {
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      log(
+        'Failed to log script to Flashman. ' +
+        `Status code: ${response.statusCode}` +
+        `Response body: ${JSON.stringify(response.body)}`,
+        {}
+      );
+    }
+  }).on('error', (err) => {
+    // If there is an error sending the log to Flashman, log it to the console
+    log('Failed to send log to Flashman: ' + JSON.stringify(err), {});
+  });
+}
+
+/**
+ * Flashman-Error!! Not the word "ferrou"!!
+ * Send the provided message to Flashman for logging. This function will only
+ * log if the sandbox is initialized and either in debug mode or if the
+ * environment variable FORCE_CUSTOM_SCRIPT_LOGGING is set to true.
+ *
+ * @param {Array<any>} args - The arguments to log. Each argument will be
+ * stringified and concatenated.
+ */
+export function ferror(...args: any[]): void {
+  // If not initialized, throw an error
+  if (!state.sessionContext.customScriptInfo?.initialized)
+    throw new Error("ferror: Sandbox not initialized");
+
+  // If no arguments were provided, do not log
+  if (args.length === 0) return;
+
+  // If not in debug mode, do not log
+  if (
+    !state.sessionContext.customScriptInfo?.isDebug &&
+    !FORCE_CUSTOM_SCRIPT_LOGGING
+  ) return;
+
+  // Prepare the message to log
+  const message = '[ ERROR ] ' + args
+    .map((arg) => typeof arg === 'object' ? JSON.stringify(arg) : arg)
+    .join(" ");
+  
+  // Send the message to Flashman
+  request({
+    url: `${FLASHMAN_URL}/acs/acs-id/` +
+      `${state.sessionContext.deviceId}/script/` +
+      `${state.sessionContext.customScriptInfo?.scriptTag}/log`,
+    method: 'POST',
+    json: {
+      timestamp: new Date().toISOString(),
+      type: 'error',
+      message: message,
+    }
+  }).on('response', (response) => {
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      log(
+        'Failed to log error script to Flashman. ' +
+        `Status code: ${response.statusCode}` +
+        `Response body: ${JSON.stringify(response.body)}`,
+        {}
+      );
+    }
+  }).on('error', (err) => {
+    // If there is an error sending the log to Flashman, log it to the console
+    log('Failed to send error log to Flashman: ' + JSON.stringify(err), {});
+  });
+}
+
+enum ActionType {
+  ADD_OBJECT = "addObject",
+  DELETE_OBJECT = "deleteObject",
+  SET_VALUE = "setValue",
+}
+
+function audit(actionType: ActionType, path: string, value?: any): void {
+  // Send the request to Flashman for auditing
+  request({
+    url: `${FLASHMAN_URL}/acs/acs-id/` +
+      `${state.sessionContext.deviceId}/script/` +
+      `${state.sessionContext.customScriptInfo?.scriptTag}/audit`,
+    method: 'POST',
+    json: {
+      timestamp: new Date().toISOString(),
+      type: actionType,
+      path: path,
+      value: value,
+    },
+  }).on('response', (response) => {
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      log(
+        'Failed to audit script to Flashman. ' +
+        `Status code: ${response.statusCode}` +
+        `Response body: ${JSON.stringify(response.body)}`,
+        {}
+      );
+    }
+  }).on('error', (err) => {
+    // If there is an error sending the audit to Flashman, log it to the console
+    log(
+      'Failed to send audit to Flashman: ' + JSON.stringify(err) +
+        ` for action ${actionType} on path ${path} with value ${value}`,
+      {},
+    );
+  });
+}
+
+/**
+ * Gets the value of a parameter at the specified path.
+ *
+ * @param {string} path - The path of the parameter to get.
+ *
+ * @return {boolean|number|string|undefined} The value of the parameter, or
+ * undefined if not found.
+ *
+ * @throws {Error} If the sandbox is not initialized.
+ */
+export function getValue(path: string): boolean | number | string | undefined {
+  // If not initialized, throw an error
+  if (!state.sessionContext.customScriptInfo?.initialized)
+    throw new Error("getValue: Sandbox not initialized");
+
+  // If the path is not a string, return an error
+  if (typeof path !== "string") {
+    ferror(`getValue() called with a non-string path: ${path}`);
+    return UNDEFINED;
+  }
+
+  // Trim whitespace from the path
+  path = path.trim();
+
+  // If the path is empty, return an error
+  if (path.length === 0) {
+    ferror("getValue() called with an empty path.");
+    return UNDEFINED;
+  }
+
+  // If the path has trailing dot, remove it
+  if (path.endsWith(".")) path = path.slice(0, -1);
+
+  // Get the value
+  const parameter = declare(
+    path,
+    { value: SandboxDate.now(null, null), path: SandboxDate.now(null, null) },
+    null,
+  ) as {
+    value?: [boolean | number | string, string];
+  };
+
+  // If this is a valid parameter with a value, return it
+  if (parameter?.value?.[0]) return parameter.value[0];
+
+  return UNDEFINED;
+}
+
+/**
+ * Sets the value of a parameter at the specified path.
+ *
+ * @param {string} path - The path of the parameter to set.
+ * @param {boolean|number|string} value - The value to set.
+ * @return {boolean} True if the value was set successfully, false otherwise.
+ */
+export function setValue(
+  path: string,
+  value: boolean | number | string
+): boolean {
+  // If not initialized, throw an error
+  if (!state.sessionContext.customScriptInfo?.initialized)
+    throw new Error("setValue: Sandbox not initialized");
+
+  // If the path is not a string, return an error
+  if (typeof path !== "string") {
+    ferror(`setValue() called with a non-string path: ${path}`);
+    return UNDEFINED;
+  }
+
+  // Trim whitespace from the path
+  path = path.trim();
+
+  // If the path is empty, return an error
+  if (path.length === 0) {
+    ferror("setValue() called with an empty path.");
+    return UNDEFINED;
+  }
+
+  // If the path has trailing dot, remove it
+  if (path.endsWith(".")) path = path.slice(0, -1);
+
+  // Check if the value is of valid type
+  if (
+    typeof value !== "boolean" &&
+    typeof value !== "number" &&
+    typeof value !== "string"
+  ) {
+    ferror(`setValue() called with an invalid value type: ${typeof value}.`);
+    return false;
+  }
+
+  // Audit this setValue action before sending
+  audit(ActionType.SET_VALUE, path, value);
+
+  // Set the value
+  declare(path, null, { value: value });
+
+  return true;
+}
+
+/**
+ * Adds objects at the specified path.
+ *
+ * @param {string} path - The path where the object should be added.
+ * @return {number|undefined} The new size of the objects at the path, or
+ * undefined if the operation failed.
+ */
+export function addObject(
+  path: string,
+): number | undefined {
+  // If not initialized, throw an error
+  if (!state.sessionContext.customScriptInfo?.initialized)
+    throw new Error("addObject: Sandbox not initialized");
+
+  // If the path is not a string, return an error
+  if (typeof path !== "string") {
+    ferror(`addObject() called with a non-string path: ${path}`);
+    return UNDEFINED;
+  }
+
+  // Trim whitespace from the path
+  path = path.trim();
+
+  // If the path is empty, return an error
+  if (path.length === 0) {
+    ferror("addObject() called with an empty path.");
+    return UNDEFINED;
+  }
+
+  // If the path does not end with a * or [...], return an error
+  if (!path.endsWith("*") && !(/\[[\w=\d]*\]$/).test(path)) {
+    ferror(
+      'addObject() called with a path that does not end with "*"' +
+        `or [...]: ${path}.`,
+    );
+    return UNDEFINED;
+  }
+
+  // Get the amount of objects already present at the path
+  const parameter = declare(
+    path,
+    { path: SandboxDate.now(null, null) },
+    null,
+  ) as { size?: number };
+  const currentSize = parameter?.size ?? 0;
+
+  // If currentSize is undefined, return an error
+  if (typeof currentSize !== 'number') {
+    ferror(
+      'Unable to determine the current size of objects at path:' +
+       ` ${path}.`,
+    );
+    return UNDEFINED;
+  }
+
+  // The new size will be current size plus 1 that we are creating
+  const newSize = currentSize + 1;
+
+  // Audit this addition
+  audit(ActionType.ADD_OBJECT, path, newSize);
+
+  // Create the new object
+  declare(
+    path,
+    { path: SandboxDate.now(null, null) },
+    { path: newSize },
+  ) as { path?: string };
+
+  return newSize;
+}
+
+/**
+ * Deletes the last object at the specified path.
+ *
+ * @param {string} path - The path where the object should be deleted.
+ * @return {boolean} True if the object was deleted successfully, false
+ * otherwise.
+ */
+export function deleteObject(
+  path: string,
+): boolean {
+  // If not initialized, throw an error
+  if (!state.sessionContext.customScriptInfo?.initialized)
+    throw new Error("deleteObject: Sandbox not initialized");
+
+  // If the path is not a string, return an error
+  if (typeof path !== "string") {
+    ferror(`deleteObject() called with a non-string path: ${path}`);
+    return false;
+  }
+
+  // Trim whitespace from the path
+  path = path.trim();
+
+  // If the path is empty, return an error
+  if (path.length === 0) {
+    ferror("deleteObject() called with an empty path.");
+    return false;
+  }
+
+  // Get the amount of objects already present at the path
+  const parameter = declare(
+    path,
+    { path: SandboxDate.now(null, null) },
+    null,
+  ) as { size?: number };
+  const currentSize = parameter?.size ?? 1;
+
+  // If currentSize is undefined, return an error
+  if (typeof currentSize !== 'number') {
+    ferror(
+      'Unable to determine the current size of objects at path:' +
+       ` ${path}.`,
+    );
+    return false;
+  }
+
+  // The new size will be current size minus 1 that we are deleting
+  const newSize = currentSize - 1;
+
+  // Audit this deletion
+  audit(ActionType.DELETE_OBJECT, path, newSize);
+
+  // Delete the last object
+  declare(
+    path,
+    { path: SandboxDate.now(null, null) },
+    { path: newSize },
+  ) as { path?: string };
+
+  return true;
+}
+
+/**
+ * Get which firmware to update from Flashman and update the device accordingly.
+ *
+ * @param {string} version - The version to update the firmware to.
+ * @throws {Error} If the sandbox is not initialized.
+ * @throws {Error} If there is an error fetching firmware information from
+ * flashman.
+ * @throws {Error} If the firmware version for the device is not found in
+ * Flashman.
+ * @throws {UPGRADE} To skip the provision and execute the firmware upgrade
+ * command on the device. 
+ */
+export function updateFirmware(version: string): void {
+  // If not initialized, throw an error
+  if (!state.sessionContext.customScriptInfo?.initialized)
+    throw new Error("updateFirmware: Sandbox not initialized");
+
+  const acsId = state.sessionContext.deviceId;
+  const productClass = (declare('DeviceID.ProductClass', {value: 1}, null) as {
+    value?: [boolean | number | string, string];
+  })?.value?.[0];
+
+  if (!productClass) {
+    ferror(
+      `Unable to determine the product class of the device ${acsId}. ` +
+        `Cannot proceed with firmware update.`
+    );
+    throw new Error(
+      `Unable to determine the product class of the device ${acsId}. ` +
+        `Cannot proceed with firmware update.`
+    );
+  }
+
+  // If the version is not a string or an empty string, return an error
+  if (typeof version !== "string" || version.trim().length === 0) {
+    ferror(`updateFirmware() called with an invalid version: ${version}`);
+    throw new Error(
+      `updateFirmware() called with an invalid version: ${version}`,
+    );
+  }
+
+  // Use ext(...) synchronously so declares execute in this session before we
+  // throw UPGRADE
+  const hashIndex = SandboxDate.now(null, null).toString() + acsId;
+  const fmResp: any = ext(
+    'flashman-api',
+    'getFirmwareFile',
+    JSON.stringify({ productClass: productClass, version: version, acsId }),
+    hashIndex,
+  );
+
+  // Validate extension response
+  if (!fmResp) {
+    ferror(
+      `Error updating firmware information from Flashman: no response`,
+    );
+    throw new Error(
+      `Error updating firmware information from Flashman: no response`,
+    );
+  }
+
+  if (!fmResp.success) {
+    ferror(
+      'Failed to fetch firmware information from Flashman. ' +
+        `Response: ${JSON.stringify(fmResp)}`
+    );
+    throw new Error(
+      'Failed to fetch firmware information from Flashman. ' +
+        `Response: ${JSON.stringify(fmResp)}`
+    );
+  }
+
+  if (!fmResp.filename) {
+    ferror(
+      `Firmware version ${version} for device ${acsId} not found in Flashman.`
+    );
+    throw new Error(
+      `Firmware version ${version} for device ${acsId} not found in Flashman.`
+    );
+  }
+
+  // Send the firmware update command to the device
+  flog(
+    'Initiating firmware update to version', version,
+    'with firmware file', fmResp.filename,
+    'for device', acsId + '.',
+    'Exiting script to execute firmware upgrade command on the device.'
+  );
+  audit(ActionType.SET_VALUE, 'version', version);
+  declare(
+    'Downloads.[FileType:1 Firmware Upgrade Image]',
+    {path: 1},
+    {path: 1},
+  );
+  declare(
+    'Downloads.[FileType:1 Firmware Upgrade Image].FileName',
+    {value: 1},
+    {value: fmResp.filename},
+  );
+  declare(
+    'Downloads.[FileType:1 Firmware Upgrade Image].Download',
+    {value: 1},
+    {value: SandboxDate.now(null, null)},
+  );
+
+  throw UPGRADE;
+}
+
+/**
+ * Sends a request to Flashman to inform that a script with the provided tag has
+ * been run.
+ *
+ * @param {string} scriptTag - The tag of the script that has been run
+ * (scriptId). 
+ * @param {{fault?: Fault, started?: boolean}} runInfo - If any fault happened
+ * and if the script just started running
+ * @returns {Promise<void>} A promise that resolves when the request is
+ * successful, or rejects with an error if the request fails.
+ */
+function sendScriptRunInfoToFlashman(
+  scriptTag: string,
+  runInfo: {fault?: Fault, started?: boolean} = {},
+): void {
+  request({
+    url: `${FLASHMAN_URL}/acs/acs-id/` +
+      `${state.sessionContext.deviceId}/script/${scriptTag}/run`,
+    method: 'POST',
+    json: {
+      mac: state.sessionContext.customScriptInfo?.mac ?? '',
+      success: !runInfo?.fault,
+      started: runInfo?.started ?? false,
+      timestamp: new Date().toISOString(),
+      error: runInfo?.fault?.message ?? null,
+    },
+  }).on('response', (response) => {
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      log(
+        'Failed to send script run info to Flashman. ' +
+        `Status code: ${response.statusCode}`,
+        {}
+      );
+    }
+  }).on('error', (err) => {
+    log(
+      `Error sending script run info to Flashman: ${err.message}`,
+      {}
+    );
+  });
+}
+
+/**
+ * Gets the MAC address of the device. This function should call the EXT
+ * function to retrieve the MAC address field from Flashman.
+ */
+function getMACAddress(): string | null {
+  if (state.sessionContext?.customScriptInfo?.mac)
+    return state.sessionContext.customScriptInfo.mac;
+
+  const genieIDDeclare = declare('DeviceID.ID', {value: 1}, null) as {
+    value?: [boolean | number | string, string];
+  };
+  const ouiDeclare = declare('DeviceID.OUI', {value: 1}, null) as {
+    value?: [boolean | number | string, string];
+  };
+  const modelClassDeclare = declare(
+    'DeviceID.ProductClass',
+    {value: 1},
+    null,
+  ) as {
+    value?: [boolean | number | string, string];
+  };
+
+  // Detect TR-098 or TR-181 data model based on database value
+  const isIGDModel = (declare(
+    'InternetGatewayDevice.ManagementServer.URL',
+    {value: 1},
+    null,
+  ) as {
+    value?: [boolean | number | string, string];
+  }).value;
+  const prefix = (isIGDModel) ? 'InternetGatewayDevice' : 'Device';
+
+  const modelNameDeclare = declare(
+    prefix + '.DeviceInfo.ModelName',
+    {value: 1},
+    null,
+  ) as {
+    value?: [boolean | number | string, string];
+  };
+  const firmwareVersionDeclare = declare(
+    prefix + '.DeviceInfo.SoftwareVersion',
+    {value: 1},
+    null,
+  ) as {
+    value?: [boolean | number | string, string];
+  };
+  const hardwareVersionDeclare = declare(
+    prefix + '.DeviceInfo.HardwareVersion',
+    {value: 1},
+    null,
+  ) as {
+    value?: [boolean | number | string, string];
+  };
+  const trType = isIGDModel ? 'tr098' : 'tr181';
+
+  const genieID = genieIDDeclare.value?.[0];
+  const oui = ouiDeclare.value?.[0];
+  const modelClass = modelClassDeclare.value?.[0];
+  const modelName = modelNameDeclare.value?.[0];
+  const firmwareVersion = firmwareVersionDeclare.value?.[0];
+  const hardwareVersion = hardwareVersionDeclare.value?.[0];
+
+  const hashIndex = SandboxDate.now(null, null).toString() + genieID;
+
+  const flashmanArguments = {
+    oui: oui,
+    model: modelClass,
+    modelName: modelName,
+    firmwareVersion: firmwareVersion,
+    hardwareVersion: hardwareVersion,
+    trType: trType,
+    acs_id: genieID,
+  };
+
+  // Call the EXT function to get the MAC address field from Flashman
+  const macFieldResponse = ext(
+    'flashman-api',
+    'getMACField',
+    JSON.stringify(flashmanArguments),
+    hashIndex,
+  );
+
+  // Get the MAC address from the CPE
+  let mac: string | null = null;
+  if (macFieldResponse.success && macFieldResponse.macField) {
+    // Query and add the MAC address in Fargs
+    const macDeclare = declare(macFieldResponse.macField, {value: 1}, null) as {
+      value?: [boolean | number | string, string];
+    };
+
+    if (
+      macDeclare && macDeclare.value && macDeclare.value[0] &&
+      typeof macDeclare.value[0] === 'string'
+    ) mac = macDeclare.value[0].toUpperCase();
+  }
+
+  // Return the MAC address
+  return mac;
+}
+
+/**
+ * Initializes the sandbox environment. This function should be called before
+ * running any custom scripts. It checks if the script configured to run 
+ * matches the script tag provided in the arguments and sets up the context
+ * accordingly.
+ *
+ * @throws {Error} If the sandbox is not initialized or if the script tag is not
+ * set in the arguments.
+ * @throws {SKIP} If it is debug and already ran once with the same script tag,
+ * so it should not run again.
+ */
+function init(): void {
+  if (state.sessionContext?.customScriptInfo?.initialized) return;
+
+  let scriptInfo;
+  try {
+    scriptInfo = JSON.parse(context.args[1]);
+  } catch (error) {
+    log('Failed to parse script info from arguments, using default values. ' +
+      `Error: ${error.message}, Arguments: ${context.args[1]}`, {});
+    throw new Error(
+      'Failed to parse script info from arguments: ' +
+      error.message
+    );
+  }
+
+  // If the script tag was not set, throw an error
+  if (!scriptInfo?.scriptTag)
+    throw new Error("Script tag not set");
+
+  const scriptTag = scriptInfo?.scriptTag;
+
+  // If we must run the script in debug mode, check if the script tag matches or
+  // not, if so, throw SKIP to not run the script
+  const tagValue = declare(
+    'Tags.' + scriptTag,
+    { value: SandboxDate.now(null, null) },
+    null,
+  ) as {
+    value?: [boolean | number | string, string];
+  };
+  if (
+    scriptInfo?.isDebug &&
+    tagValue?.value?.[0] !== true
+  ) throw SKIP;
+
+  // Remove the script tag in Tags to avoid running again in debug mode
+  declare('Tags.' + scriptInfo?.scriptTag, null, {value: false});
+
+  // Get the MAC address of the device
+  const mac = getMACAddress();
+
+  // Set the debug mode, tag and initilization flag
+  if (!state.sessionContext.customScriptInfo)
+    state.sessionContext.customScriptInfo = {};
+
+  state.sessionContext.customScriptInfo.isDebug = !!scriptInfo?.isDebug;
+  state.sessionContext.customScriptInfo.scriptTag = scriptInfo?.scriptTag;
+  state.sessionContext.customScriptInfo.mac = mac;
+
+  // Send the script initialization info to Flashman for monitoring
+  sendScriptRunInfoToFlashman(scriptInfo.scriptTag, {started: true});
+
+  // Set the initialized flag
+  state.sessionContext.customScriptInfo.initialized = true;
+
+  // Log the script initialization
+  flog(
+    `Script ${scriptInfo?.scriptTag} ` +
+    `initialized in ${
+      state.sessionContext.customScriptInfo.isDebug ? 'debug' : 'normal'
+    } mode.`,
+  );
+}
+
 Object.defineProperty(context, "Date", { value: SandboxDate });
 Object.defineProperty(context, "declare", { value: declare });
 Object.defineProperty(context, "clear", { value: clear });
@@ -372,6 +1089,14 @@ Object.defineProperty(context, "commit", { value: commit });
 Object.defineProperty(context, "ext", { value: ext });
 Object.defineProperty(context, "log", { value: log });
 Object.defineProperty(context, "alert", { value: alert });
+Object.defineProperty(context, "flog", { value: flog });
+Object.defineProperty(context, "ferror", { value: ferror });
+Object.defineProperty(context, "getValue", { value: getValue });
+Object.defineProperty(context, "setValue", { value: setValue });
+Object.defineProperty(context, "addObject", { value: addObject });
+Object.defineProperty(context, "deleteObject", { value: deleteObject });
+Object.defineProperty(context, "init", { value: init });
+Object.defineProperty(context, "updateFirmware", { value: updateFirmware });
 
 // Monkey-patch Math.random() to make it deterministic
 context.random = random;
@@ -428,6 +1153,7 @@ export async function run(
     clear: [],
     rng: null,
     extCounter: extCounter,
+    globals: globals,
   };
 
   const endTimer = 
@@ -441,17 +1167,65 @@ export async function run(
 
   let ret, status;
 
+  // args: Array<string>
+  // [0]: "PERIODIC"/"BOOTSTRAP"/"BOOT"
+  // [1]: {
+  //   isDebug: boolean,
+  //   scriptTag: string,
+  // }
+  // Try parsing the second argument as JSON, if it fails, throw an error
+  // But only for scripts that come with scriptInfo in arguments
   try {
     ret = script.runInContext(context, { displayErrors: false });
     status = 0;
+    // Send a request to Flashman to inform that this script already finished
+    // running
+    if (state.sessionContext?.customScriptInfo?.scriptTag) {
+      sendScriptRunInfoToFlashman(
+        state.sessionContext.customScriptInfo.scriptTag,
+      );
+    }
   } catch (err) {
     if (err === COMMIT) {
       status = 1;
     } else if (err === EXT) {
       status = 2;
-    } else {
+    } else if (err === SKIP) {
+      // If we must skip this provision, just return
+      endTimer();
       return {
-        fault: errorToFault(err),
+        fault: null,
+        clear: state.clear,
+        declare: state.declarations,
+        done: true,
+        returnValue: ret,
+      };
+    } else if (err === UPGRADE) {
+      // Send a request to Flashman to inform that this script run the firmware
+      if (state.sessionContext?.customScriptInfo?.scriptTag) {
+        sendScriptRunInfoToFlashman(
+          state.sessionContext.customScriptInfo.scriptTag,
+        );
+      }
+      endTimer();
+      return {
+        fault: null,
+        clear: state.clear,
+        declare: state.declarations,
+        done: true,
+        returnValue: ret,
+      };
+    } else {
+      // For any other error, convert it to a fault and return it
+      const fault = errorToFault(err);
+      if (state.sessionContext?.customScriptInfo?.scriptTag) {
+        sendScriptRunInfoToFlashman(
+          state.sessionContext.customScriptInfo.scriptTag,
+          {fault},
+        );
+      }
+      return {
+        fault: fault,
         clear: null,
         declare: null,
         done: false,
