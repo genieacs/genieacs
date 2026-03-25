@@ -1,6 +1,6 @@
 import { platform } from "node:os";
-import { exec } from "node:child_process";
-import { domainToASCII } from "node:url";
+import { execFile } from "node:child_process";
+import { domainToASCII, domainToUnicode } from "node:url";
 
 export interface PingResult {
   packetsTransmitted: number;
@@ -16,9 +16,16 @@ function isValidHost(host: string): boolean {
   // Valid chars in IPv4, IPv6, domain names
   if (/^[a-zA-Z0-9\-.:[\]-]+$/.test(host)) return true;
 
+  const lowercase = host.toLowerCase();
+  const ascii = domainToASCII(lowercase);
+
   // Check if input is an IDN convert to Punycode
   // Can't merge with above because domainToASCII doesn't accept IP addresses
-  return /^[a-zA-Z0-9\-.:[\]-]+$/.test(domainToASCII(host));
+  if (!/^[a-zA-Z0-9\-.:[\]-]+$/.test(ascii)) return false;
+
+  // Round-trip to ensure the original host matches its normalized form.
+  // This prevents bypasses where domainToASCII strips paths (e.g. "example.com/;cmd").
+  return lowercase === domainToUnicode(ascii);
 }
 
 export function parsePing(osPlatform: string, stdout: string): PingResult {
@@ -73,24 +80,26 @@ export function ping(
 ): void {
   // Validate input to prevent possible remote code execution
   // Credit to Alex Hordijk for reporting this vulnerability
+  // Credit to JuHwiSang for reporting a follow-up vulnerability
   if (!isValidHost(host)) return callback(new Error("Invalid host"));
   host = host.replace("[", "").replace("]", "");
-  let cmd: string;
+  let args: string[];
 
   switch (platform()) {
     case "linux":
-      cmd = `ping -w 1 -i 0.2 -c 3 ${host}`;
+      args = ["-w", "1", "-i", "0.2", "-c", "3", "--", host];
       break;
     case "freebsd":
       // Send a single packet because on FreeBSD only superuser can send
       // packets that are only 200 ms apart.
-      cmd = `ping -t 1 -c 3 ${host}`;
+      args = ["-t", "1", "-c", "3", "--", host];
       break;
     default:
       return callback(new Error("Platform not supported"));
   }
 
-  exec(cmd, (err, stdout) => {
+  // Use execFile instead of exec to avoid shell interpretation of the host
+  execFile("ping", args, (err, stdout) => {
     if (err) return callback(err);
     const parsed: PingResult = parsePing(platform(), stdout);
     return callback(err, parsed, stdout);
