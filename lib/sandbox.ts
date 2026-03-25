@@ -412,11 +412,14 @@ export function flog(...args: any[]): void {
       `${state.sessionContext.deviceId}/script/` +
       `${state.sessionContext.customScriptInfo?.scriptTag}/log`,
     method: 'POST',
+    headers: {
+      'X-Anlix-Sec': process.env.FLM_COMPANY_SECRET,
+    },
     json: {
       timestamp: new Date().toISOString(),
       type: 'log',
       message: message,
-    }
+    },
   }).on('response', (response) => {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       log(
@@ -466,11 +469,14 @@ export function ferror(...args: any[]): void {
       `${state.sessionContext.deviceId}/script/` +
       `${state.sessionContext.customScriptInfo?.scriptTag}/log`,
     method: 'POST',
+    headers: {
+      'X-Anlix-Sec': process.env.FLM_COMPANY_SECRET,
+    },
     json: {
       timestamp: new Date().toISOString(),
       type: 'error',
       message: message,
-    }
+    },
   }).on('response', (response) => {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       log(
@@ -499,6 +505,9 @@ function audit(actionType: ActionType, path: string, value?: any): void {
       `${state.sessionContext.deviceId}/script/` +
       `${state.sessionContext.customScriptInfo?.scriptTag}/audit`,
     method: 'POST',
+    headers: {
+      'X-Anlix-Sec': process.env.FLM_COMPANY_SECRET,
+    },
     json: {
       timestamp: new Date().toISOString(),
       type: actionType,
@@ -884,6 +893,9 @@ function sendScriptRunInfoToFlashman(
     url: `${FLASHMAN_URL}/acs/acs-id/` +
       `${state.sessionContext.deviceId}/script/${scriptTag}/run`,
     method: 'POST',
+    headers: {
+      'X-Anlix-Sec': process.env.FLM_COMPANY_SECRET,
+    },
     json: {
       mac: state.sessionContext.customScriptInfo?.mac ?? '',
       success: !runInfo?.fault,

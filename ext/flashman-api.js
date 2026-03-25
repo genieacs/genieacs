@@ -389,6 +389,9 @@ const sendFlashmanRequest = function(method, route, params, shareLoad=true) {
       url: url + route,
       method: method,
       json: params,
+      headers: {
+        'X-Anlix-Sec': process.env.FLM_COMPANY_SECRET,
+      },
     },
     function(error, response, body) {
       if (error) {
