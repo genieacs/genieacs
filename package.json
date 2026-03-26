@@ -34,7 +34,7 @@
     "ipaddr.js": "^2.3.0",
     "jsonwebtoken": "^9.0.3",
     "koa": "^2.16.4",
-    "koa-compress": "^5.2.0",
+    "koa-compress": "^5.2.1",
     "koa-jwt": "^4.0.3",
     "koa-send": "^5.0.1",
     "mongodb": "^4.16.0",
@@ -46,7 +46,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/koa": "^2.15.0",
     "@types/koa-compress": "^4.0.7",
-    "@types/mithril": "^2.2.7",
+    "@types/mithril": "^2.2.8",
     "@types/node": "^20.19.37",
     "@types/parsimmon": "^1.10.9",
     "@types/seedrandom": "^3.0.8",
@@ -61,7 +61,7 @@
     "sql.js": "^1.14.1",
     "svgo": "^3.3.3",
     "typescript": "^5.9.3",
-    "yaml": "^1.10.2"
+    "yaml": "^1.10.3"
   },
   "engines": {
     "node": ">=12.13.0"
