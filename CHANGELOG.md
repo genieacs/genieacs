@@ -1,5 +1,13 @@
 # Change Log
 
+## 1.2.15 (2026-03-26)
+
+- Fix critical RCE vulnerability in /api/ping endpoint (follow-up to
+  CVE-2021-46704). Credit: JuHwiSang.
+
+- Fix device IDs containing special characters (e.g., %) not being handled
+  correctly in the UI due to a regression in Mithril 2.3.8.
+
 ## 1.2.14 (2026-03-12)
 
 - Prevent UI crash when a malformed URL is sent to the server.
