@@ -1,5 +1,11 @@
 # Change Log
 
+## 1.2.16 (2026-03-29)
+
+- Fix regression in v1.2.15 that broke the device search component in the UI by
+  pinning Mithril dependency to v2.2.2 due to multiple unresolved regressions in
+  later versions.
+
 ## 1.2.15 (2026-03-26)
 
 - Fix critical RCE vulnerability in /api/ping endpoint (follow-up to
