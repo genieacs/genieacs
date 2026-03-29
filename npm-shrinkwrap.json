@@ -36,7 +36,7 @@
         "@types/jsonwebtoken": "^9.0.10",
         "@types/koa": "^2.15.0",
         "@types/koa-compress": "^4.0.7",
-        "@types/mithril": "^2.2.8",
+        "@types/mithril": "^2.2.6",
         "@types/node": "^20.19.37",
         "@types/parsimmon": "^1.10.9",
         "@types/seedrandom": "^3.0.8",
@@ -46,7 +46,7 @@
         "esbuild": "^0.27.4",
         "eslint": "^8.57.1",
         "eslint-config-prettier": "^9.1.2",
-        "mithril": "^2.3.8",
+        "mithril": "2.2.2",
         "prettier": "^3.8.1",
         "sql.js": "^1.14.1",
         "svgo": "^3.3.3",
@@ -4311,10 +4311,17 @@
       }
     },
     "node_modules/mithril": {
-      "version": "2.3.8",
-      "resolved": "https://registry.npmjs.org/mithril/-/mithril-2.3.8.tgz",
-      "integrity": "sha512-za/Yo7qXEckjm5syrSfaaI9Utf4tCUT3T1IOIYqH6Lrj7G0OZuYYLAY9SV4ygoaAf0+CNqU92MBt+7pmo53JVQ==",
-      "dev": true
+      "version": "2.2.2",
+      "resolved": "https://registry.npmjs.org/mithril/-/mithril-2.2.2.tgz",
+      "integrity": "sha512-YRm6eLv2UUaWaWHdH8L+desW9+DN7+oM34CxJv6tT2e1lNVue8bxQlknQeDRn9aKlO8sIujm2wqUHwM+Hb1wGQ==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "ospec": "4.0.0"
+      },
+      "bin": {
+        "ospec": "ospec/bin/ospec"
+      }
     },
     "node_modules/mongodb": {
       "version": "4.17.2",
@@ -4424,6 +4431,19 @@
       },
       "engines": {
         "node": ">= 0.8.0"
+      }
+    },
+    "node_modules/ospec": {
+      "version": "4.0.0",
+      "resolved": "https://registry.npmjs.org/ospec/-/ospec-4.0.0.tgz",
+      "integrity": "sha512-MpDtkpscOxHYb4w71v7GB4LBsRuzxZnM+HdwjhzJQzu+5EJvA80yxTaKw+wp5Dmf5RV2/Bg3Uvz2vlI/PhW9Ow==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "glob": "^7.1.3"
+      },
+      "bin": {
+        "ospec": "bin/ospec"
       }
     },
     "node_modules/p-any": {
@@ -8457,10 +8477,13 @@
       }
     },
     "mithril": {
-      "version": "2.3.8",
-      "resolved": "https://registry.npmjs.org/mithril/-/mithril-2.3.8.tgz",
-      "integrity": "sha512-za/Yo7qXEckjm5syrSfaaI9Utf4tCUT3T1IOIYqH6Lrj7G0OZuYYLAY9SV4ygoaAf0+CNqU92MBt+7pmo53JVQ==",
-      "dev": true
+      "version": "2.2.2",
+      "resolved": "https://registry.npmjs.org/mithril/-/mithril-2.2.2.tgz",
+      "integrity": "sha512-YRm6eLv2UUaWaWHdH8L+desW9+DN7+oM34CxJv6tT2e1lNVue8bxQlknQeDRn9aKlO8sIujm2wqUHwM+Hb1wGQ==",
+      "dev": true,
+      "requires": {
+        "ospec": "4.0.0"
+      }
     },
     "mongodb": {
       "version": "4.17.2",
@@ -8547,6 +8570,15 @@
         "prelude-ls": "^1.2.1",
         "type-check": "^0.4.0",
         "word-wrap": "^1.2.5"
+      }
+    },
+    "ospec": {
+      "version": "4.0.0",
+      "resolved": "https://registry.npmjs.org/ospec/-/ospec-4.0.0.tgz",
+      "integrity": "sha512-MpDtkpscOxHYb4w71v7GB4LBsRuzxZnM+HdwjhzJQzu+5EJvA80yxTaKw+wp5Dmf5RV2/Bg3Uvz2vlI/PhW9Ow==",
+      "dev": true,
+      "requires": {
+        "glob": "^7.1.3"
       }
     },
     "p-any": {
