@@ -3,29 +3,6 @@ import { m } from "./components.ts";
 import config from "./config.ts";
 import * as store from "./store.ts";
 
-// Workaround for Mithril 2.3.8 regression
-// https://github.com/MithrilJS/mithril.js/issues/3064
-function getPathParamFromHash(hash: string, prefix: string): string | null {
-  if (!hash.startsWith(prefix)) return null;
-
-  const pathWithQuery = hash.slice(prefix.length);
-
-  // Stop at query string or hash fragment (mirrors Mithril's parsePathname)
-  const queryIdx = pathWithQuery.indexOf("?");
-  const hashIdx = pathWithQuery.indexOf("#");
-  let pathEnd = pathWithQuery.length;
-  if (queryIdx >= 0) pathEnd = Math.min(pathEnd, queryIdx);
-  if (hashIdx >= 0) pathEnd = Math.min(pathEnd, hashIdx);
-
-  const rawPath = pathWithQuery.slice(0, pathEnd);
-
-  // Normalize: collapse slashes, remove trailing slash (matches Mithril)
-  const normalizedPath = rawPath.replace(/\/{2,}/g, "/").replace(/\/$/, "");
-
-  // Decode once (Mithril already decoded with decodeURIComponentSafe)
-  return decodeURIComponent(normalizedPath);
-}
-
 export function init(
   args: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
@@ -35,13 +12,9 @@ export function init(
     );
   }
 
-  const deviceId =
-    getPathParamFromHash(window.location.hash, "#!/devices/") ??
-    (args.id as string);
-
   return Promise.resolve({
-    deviceId: deviceId,
-    deviceFilter: ["=", ["PARAM", "DeviceID.ID"], deviceId],
+    deviceId: args.id,
+    deviceFilter: ["=", ["PARAM", "DeviceID.ID"], args.id],
   });
 }
 
