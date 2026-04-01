@@ -6,6 +6,7 @@ import * as logger from "./logger.ts";
 import * as scheduling from "./scheduling.ts";
 import Path from "./common/path.ts";
 import { Fault, SessionContext, ScriptResult } from "./types.ts";
+import * as config from "./config.ts";
 
 // Used for throwing to exit user script and commit
 const COMMIT = Symbol();
@@ -372,7 +373,10 @@ export async function run(
   let ret, status;
 
   try {
-    ret = script.runInContext(context, { displayErrors: false, timeout: 50 });
+    ret = script.runInContext(context, {
+      displayErrors: false,
+      timeout: config.get("SCRIPT_TIMEOUT") as number,
+    });
     status = 0;
   } catch (err) {
     if (err === COMMIT) {
