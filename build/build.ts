@@ -99,7 +99,7 @@ const seedPlugin = {
       if (args.with?.["type"] !== "text") return undefined;
       let contents = fs.readFileSync(args.path, "utf8");
       // Strip TypeScript directives that are only needed for type-checking
-      contents = contents.replace(/^\s*\/\/\s*@ts-.*\n/gm, "");
+      contents = contents.replace(/^\s*\/\/\s*@ts-.*\n/gm, "\n");
       return { contents, loader: "text" };
     });
   },

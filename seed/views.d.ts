@@ -1,16 +1,16 @@
-interface Signal<T = unknown> {
+interface Signal<T = any> {
   get(): T;
 }
 
-interface StateSignal<T = unknown> extends Signal<T> {
+interface StateSignal<T = any> extends Signal<T> {
   set(value: T): void;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-interface ComputedSignal<T = unknown> extends Signal<T> {}
+interface ComputedSignal<T = any> extends Signal<T> {}
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-interface ConstSignal<T = unknown> extends Signal<T> {}
+interface ConstSignal<T = any> extends Signal<T> {}
 
 interface SignalConstructors {
   State: new <T>(value: T) => StateSignal<T>;
@@ -24,7 +24,7 @@ type ViewElement = ViewNode | string | number | Signal | ViewElement[];
 
 declare class ViewNode {
   name: string | null;
-  attributes: Record<string, unknown>;
+  attributes: Record<string, any>;
   children: ViewElement[];
 }
 

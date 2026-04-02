@@ -37,7 +37,7 @@ function buildInput(views: Views): string {
     import {ViewNode, Signal} from "${appJsPath}";
 
     function h(name, attributes, ...children) {
-      return new ViewNode(name, attributes, children);
+      return new ViewNode(name, attributes, children.flat());
     }
 
     export default {
