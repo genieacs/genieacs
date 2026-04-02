@@ -59,6 +59,8 @@ const component: ClosureComponent<Attrs> = () => {
 
           if (vnode.attrs.mode === "javascript")
             extensions.push(codeMirror.javascript());
+          else if (vnode.attrs.mode === "jsx")
+            extensions.push(codeMirror.javascript({ jsx: true }));
           else if (vnode.attrs.mode === "yaml")
             extensions.push(codeMirror.yaml());
 

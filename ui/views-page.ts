@@ -19,7 +19,7 @@ const memoizedJsonParse = memoize(JSON.parse);
 
 const attributes = [
   { id: "_id", label: "Name" },
-  { id: "script", label: "Script", type: "code" },
+  { id: "script", label: "Script", type: "code", mode: "jsx" },
 ];
 
 const unpackSmartQuery = memoize((query: Expression) => {
