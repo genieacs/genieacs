@@ -4,6 +4,9 @@ import * as https from "node:https";
 import { Socket } from "node:net";
 import * as path from "node:path";
 import { ROOT_DIR } from "./config.ts";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 let server: http.Server | https.Server;
 let listener: http.RequestListener;
