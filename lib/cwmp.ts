@@ -811,11 +811,18 @@ async function endSession(sessionContext: SessionContext): Promise<void> {
     }
   }
 
-  await Promise.all(promises);
-  await lock.releaseLock(
-    `cwmp_session_${sessionContext.deviceId}`,
-    `cwmp_session_${sessionContext.sessionId}`,
-  );
+  try {
+    await Promise.all(promises);
+  } finally {
+    try {
+      await lock.releaseLock(
+        `cwmp_session_${sessionContext.deviceId}`,
+        `cwmp_session_${sessionContext.sessionId}`,
+      );
+    } catch (err) {
+      // Lock may have already expired or been released
+    }
+  }
   if (sessionContext.new) {
     logger.accessInfo({
       sessionContext: sessionContext,
