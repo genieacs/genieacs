@@ -2,7 +2,7 @@ import m from "mithril";
 import {
   SignalBase,
   ComputedSignal,
-  ComputedState,
+  markSinksDirty,
   Watcher,
   registerDependency,
 } from "./signals.ts";
@@ -122,43 +122,7 @@ export class QuerySignal<T> extends SignalBase<QueryState<T>> {
 
     if (changed) {
       this._state = { value, timestamp, loading };
-      this._markSinksDirty();
-    }
-  }
-
-  private _markSinksDirty(): void {
-    for (const weakRef of this._sinks) {
-      const sink = weakRef.deref();
-      if (sink === undefined) {
-        this._sinks.delete(weakRef);
-        continue;
-      }
-      if (sink instanceof Watcher) {
-        sink._notify();
-        continue;
-      }
-      sink._state = ComputedState.Dirty;
-      this._markSinksChecking(sink._sinks);
-    }
-  }
-
-  private _markSinksChecking(
-    sinks: Set<globalThis.WeakRef<ComputedSignal<unknown> | Watcher>>,
-  ): void {
-    for (const weakRef of sinks) {
-      const sink = weakRef.deref();
-      if (sink === undefined) {
-        sinks.delete(weakRef);
-        continue;
-      }
-      if (sink instanceof Watcher) {
-        sink._notify();
-        continue;
-      }
-      if ((sink as { _state: ComputedState })._state === ComputedState.Clean) {
-        (sink as { _state: ComputedState })._state = ComputedState.Checking;
-        this._markSinksChecking((sink as ComputedSignal<unknown>)._sinks);
-      }
+      markSinksDirty(this._sinks);
     }
   }
 

@@ -791,3 +791,83 @@ void test("Watcher getPending returns dirty computed signals", () => {
 
   watcher[Symbol.dispose]();
 });
+
+void test("markSinksDirty handles computed re-adding itself during recomputation", () => {
+  // When iterating a Set and an element is removed then re-added during iteration,
+  // it may be encountered again. Verify computed signals don't recompute twice.
+
+  const source = new StateSignal(0);
+  let computeCount = 0;
+
+  const computed = new ComputedSignal(() => {
+    computeCount++;
+    return source.get() * 2;
+  });
+
+  // Prime the computed
+  assert.strictEqual(computed.get(), 0);
+  assert.strictEqual(computeCount, 1);
+
+  // Set up a watcher that recomputes on change
+  const watcher = new Watcher(() => {
+    computed.get();
+    watcher.watch(computed);
+  });
+  watcher.watch(computed);
+
+  // Change the source - this should NOT cause infinite recomputation
+  source.set(1);
+
+  // Should have recomputed exactly once (not infinitely)
+  assert.strictEqual(computeCount, 2);
+  assert.strictEqual(computed.get(), 2);
+  assert.strictEqual(computeCount, 2); // Still 2, no extra recompute
+
+  watcher[Symbol.dispose]();
+});
+
+void test("Watcher callback does not register dependencies on the current computed", () => {
+  // Verify signal reads inside a Watcher callback don't accidentally register as
+  // dependencies of the ComputedSignal currently being evaluated. Watchers observe
+  // "from outside" the reactive graph.
+
+  const triggerSignal = new StateSignal(0); // X - triggers A's recomputation
+  const sideEffectSignal = new StateSignal("initial"); // Y - set inside A, triggers W
+  const unrelatedSignal = new StateSignal(100); // Z - read by W, should NOT become dep of A
+
+  let watcherCallCount = 0;
+  let watcherReadValue: number | null = null;
+
+  const watcher = new Watcher(() => {
+    watcherCallCount++;
+    watcherReadValue = unrelatedSignal.get();
+    watcher.watch(sideEffectSignal);
+  });
+  watcher.watch(sideEffectSignal);
+
+  let computeCount = 0;
+
+  // ComputedSignal that sets sideEffectSignal (triggering watcher) during computation
+  const computedA = new ComputedSignal(() => {
+    computeCount++;
+    const val = triggerSignal.get();
+    // This set() will synchronously notify the watcher
+    sideEffectSignal.set(`computed-${val}`);
+    return val * 2;
+  });
+
+  assert.strictEqual(computedA.get(), 0);
+  assert.strictEqual(computeCount, 1);
+  assert.strictEqual(watcherCallCount, 1);
+  assert.strictEqual(watcherReadValue, 100);
+
+  unrelatedSignal.set(200);
+  assert.strictEqual(computedA.get(), 0);
+  assert.strictEqual(computeCount, 1);
+
+  triggerSignal.set(5);
+  assert.strictEqual(computedA.get(), 10);
+  assert.strictEqual(computeCount, 2);
+
+  watcher[Symbol.dispose]();
+});

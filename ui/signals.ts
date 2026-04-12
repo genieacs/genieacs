@@ -44,6 +44,18 @@ function createSafeProxy<T extends object>(target: T): T {
 // Tracks the currently computing signal for automatic dependency registration
 let computing: ComputedSignal<unknown> | null = null;
 
+// Run callback outside reactive tracking scope. Child computeds won't register
+// as dependencies of the currently-evaluating parent. Equivalent to TC39 Signal.subtle.untrack().
+export function untracked<T>(fn: () => T): T {
+  const prev = computing;
+  computing = null;
+  try {
+    return fn();
+  } finally {
+    computing = prev;
+  }
+}
+
 export function registerDependency(source: SignalBase<unknown>): void {
   if (computing !== null) {
     source._sinks.add(computing._selfRef);
@@ -68,7 +80,10 @@ function runCleanups(signal: ComputedSignal<unknown>): void {
 type Sink = ComputedSignal<unknown> | Watcher;
 
 function markSinksChecking(sinks: Set<WeakRef<Sink>>): void {
-  for (const weakRef of sinks) {
+  // Iterate over a snapshot to avoid issues with set modification during iteration
+  // (computed signals remove/re-add themselves during recomputation)
+  const snapshot = [...sinks];
+  for (const weakRef of snapshot) {
     const sink = weakRef.deref();
     if (sink === undefined) {
       sinks.delete(weakRef);
@@ -89,8 +104,11 @@ function markSinksChecking(sinks: Set<WeakRef<Sink>>): void {
   }
 }
 
-function markSinksDirty(sinks: Set<WeakRef<Sink>>): void {
-  for (const weakRef of sinks) {
+export function markSinksDirty(sinks: Set<WeakRef<Sink>>): void {
+  // Iterate over a snapshot to avoid issues with set modification during iteration
+  // (computed signals remove/re-add themselves during recomputation)
+  const snapshot = [...sinks];
+  for (const weakRef of snapshot) {
     const sink = weakRef.deref();
     if (sink === undefined) {
       sinks.delete(weakRef);
@@ -350,7 +368,16 @@ export class Watcher implements Disposable {
   _notify(): void {
     if (this._disposed || this._notified) return;
     this._notified = true;
-    this._callback();
+
+    // Clear computing context so Watcher reads don't register as dependencies
+    // of whatever ComputedSignal is currently being evaluated.
+    const prevComputing = computing;
+    computing = null;
+    try {
+      this._callback();
+    } finally {
+      computing = prevComputing;
+    }
   }
 
   [Symbol.dispose](): void {
