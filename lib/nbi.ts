@@ -1,6 +1,7 @@
 import * as vm from "node:vm";
 import { IncomingMessage, ServerResponse } from "node:http";
 import { Collection, ObjectId } from "mongodb";
+import * as config from "./config.ts";
 import { getRevision, getConfig } from "./ui/local-cache.ts";
 import { filesBucket, collections } from "./db/db.ts";
 import { optimizeProjection } from "./db/util.ts";
@@ -31,6 +32,9 @@ const VIRTUAL_PARAMETERS_REGEX =
   /^\/virtual_parameters\/([a-zA-Z0-9\-_%]+)\/?$/;
 const FAULTS_REGEX = /^\/faults\/([a-zA-Z0-9\-_%:]+)\/?$/;
 
+// Optional API key authentication for NBI endpoints (CVE-2025-56015)
+const NBI_AUTHENTICATION_KEY = config.get("NBI_AUTHENTICATION_KEY") as string;
+
 async function getBody(request: IncomingMessage): Promise<Buffer> {
   const chunks: Buffer[] = [];
   let readableEnded = false;
@@ -56,6 +60,21 @@ export async function listener(
     request.url,
     (origin.encrypted ? "https://" : "http://") + origin.host,
   );
+
+  // API key authentication check (CVE-2025-56015)
+  // When NBI_AUTHENTICATION_KEY is configured, require x-api-key header
+  if (
+    NBI_AUTHENTICATION_KEY &&
+    request.headers["x-api-key"] !== NBI_AUTHENTICATION_KEY
+  ) {
+    logger.accessWarn({
+      remoteAddress: origin.remoteAddress,
+      message: `${request.method} ${url.pathname} - 401 Unauthorized (invalid or missing API key)`,
+    });
+    response.writeHead(401, { "Content-Type": "text/plain" });
+    response.end("401 Unauthorized");
+    return;
+  }
 
   const body = await getBody(request).catch(() => null);
   // Ignore incomplete requests
