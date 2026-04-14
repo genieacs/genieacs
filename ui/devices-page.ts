@@ -4,6 +4,7 @@ import { pageSize as PAGE_SIZE, index as indexConfig } from "./config.ts";
 import indexTableComponent from "./index-table-component.ts";
 import filterComponent from "./filter-component.ts";
 import * as store from "./store.ts";
+import { deleteResource, updateTags } from "./api-client.ts";
 import { invalidate } from "./reactive-store.ts";
 import { queueTask, stageDownload } from "./task-queue.ts";
 import * as notifications from "./notifications.ts";
@@ -144,8 +145,7 @@ function renderActions(selected: Set<string>): Children {
           let counter = 1;
           for (const id of ids) {
             ++counter;
-            store
-              .deleteResource("devices", id)
+            deleteResource("devices", id)
               .then(() => {
                 notifications.push("success", `${id}: Deleted`);
                 if (--counter === 0) {
@@ -185,8 +185,7 @@ function renderActions(selected: Set<string>): Children {
           let counter = 1;
           for (const id of ids) {
             ++counter;
-            store
-              .updateTags(id, { [tag]: true })
+            updateTags(id, { [tag]: true })
               .then(() => {
                 notifications.push("success", `${id}: Tags updated`);
                 if (--counter === 0) {
@@ -228,8 +227,7 @@ function renderActions(selected: Set<string>): Children {
           let counter = 1;
           for (const id of ids) {
             ++counter;
-            store
-              .updateTags(id, { [tag]: false })
+            updateTags(id, { [tag]: false })
               .then(() => {
                 notifications.push("success", `${id}: Tags updated`);
                 if (--counter === 0) {

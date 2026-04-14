@@ -2,6 +2,12 @@ import { Children, ClosureComponent, Component } from "mithril";
 import { m } from "./components.ts";
 import { pageSize as PAGE_SIZE } from "./config.ts";
 import * as store from "./store.ts";
+import {
+  deleteResource,
+  resourceExists,
+  putResource,
+  changePassword,
+} from "./api-client.ts";
 import * as notifications from "./notifications.ts";
 import memoize from "../lib/common/memoize.ts";
 import putFormComponent from "./put-form-component.ts";
@@ -71,8 +77,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
 
       object.roles = object.roles.join(",");
 
-      store
-        .resourceExists("users", id)
+      resourceExists("users", id)
         .then((exists) => {
           if (exists && isNew) {
             store.setTimestamp(Date.now());
@@ -84,12 +89,10 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
             return void resolve({ _id: "User does not exist" });
           }
 
-          store
-            .putResource("users", id, object)
+          putResource("users", id, object)
             .then(() => {
               if (isNew) {
-                store
-                  .changePassword(id, password)
+                changePassword(id, password)
                   .then(() => {
                     notifications.push("success", "User created");
                     store.setTimestamp(Date.now());
@@ -107,8 +110,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
         .catch(reject);
     } else if (action === "delete") {
       if (!confirm("Deleting user. Are you sure?")) return void resolve(null);
-      store
-        .deleteResource("users", object["_id"])
+      deleteResource("users", object["_id"])
         .then(() => {
           notifications.push("success", "User deleted");
           store.setTimestamp(Date.now());
@@ -373,7 +375,7 @@ export const component: ClosureComponent = (): Component => {
                   e.target.disabled = true;
                   Promise.all(
                     Array.from(selected).map((id) =>
-                      store.deleteResource("users", id),
+                      deleteResource("users", id),
                     ),
                   )
                     .then((res) => {

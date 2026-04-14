@@ -95,7 +95,7 @@ function forcePruneCache(resource: string): void {
   (store as { pruneCache: () => void }).pruneCache();
 }
 
-// Import mock utilities for controlling xhrRequest behavior in tests
+// Import mock utilities for controlling request behavior in tests
 import {
   mockRegisterHandler,
   mockClearHandlers,
@@ -103,7 +103,7 @@ import {
   mockCountHandler,
   mockGetRequestLog,
   mockClearRequestLog,
-} from "./mocks/store.ts";
+} from "./mocks/api-client.ts";
 
 // =============================================================================
 // compareFunction Tests

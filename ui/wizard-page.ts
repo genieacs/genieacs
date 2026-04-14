@@ -1,9 +1,11 @@
 import { ClosureComponent, Component } from "mithril";
 import { m } from "./components.ts";
 import * as notifications from "./notifications.ts";
+import { request } from "./api-client.ts";
 
 export async function init(): Promise<Record<string, unknown>> {
-  return m.request({ url: "init" });
+  const res = await request("/init");
+  return res.json();
 }
 
 export const component: ClosureComponent = (vnode): Component => {
@@ -67,14 +69,11 @@ export const component: ClosureComponent = (vnode): Component => {
                 const opts = {};
                 for (const s of selected) opts[s] = true;
 
-                m.request({
-                  method: "POST",
-                  url: "init",
-                  body: opts,
-                })
+                request("/init", { method: "POST", body: opts })
                   .then(() => {
                     setTimeout(() => {
-                      m.request({ url: "init" })
+                      request("/init")
+                        .then((res) => res.json())
                         .then((o) => {
                           e.target.disabled = false;
                           options = o;

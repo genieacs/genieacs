@@ -1,6 +1,6 @@
 import { VnodeDOM, ClosureComponent } from "mithril";
 import * as notifications from "./notifications.ts";
-import { changePassword } from "./store.ts";
+import { changePassword } from "./api-client.ts";
 import { m } from "./components.ts";
 
 interface Attrs {

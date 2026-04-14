@@ -1,12 +1,7 @@
 import m from "mithril";
 import Expression from "../lib/common/expression.ts";
-import Path from "../lib/common/path.ts";
 import memoize from "../lib/common/memoize.ts";
-import { Task } from "../lib/types.ts";
 import * as notifications from "./notifications.ts";
-import { configSnapshot, genieacsVersion } from "./config.ts";
-import { QueueTask } from "./task-queue.ts";
-import { PingResult } from "../lib/ping.ts";
 import { unionDiff } from "../lib/common/expression/synth.ts";
 import {
   bookmarkToExpression,
@@ -14,6 +9,7 @@ import {
   toBookmark,
 } from "../lib/common/expression/pagination.ts";
 import { getClockSkew } from "./skewed-date.ts";
+import { request } from "./api-client.ts";
 
 function evaluate(exp: Expression, timestamp: number): Expression;
 function evaluate(
@@ -42,10 +38,6 @@ function evaluate(
 const memoizedEvaluate = memoize(evaluate);
 
 let fulfillTimestamp = 0;
-let connectionNotification,
-  configNotification,
-  versionNotification,
-  skewNotification;
 
 const queries = {
   filter: new WeakMap(),
@@ -104,143 +96,6 @@ export class QueryResponse {
     queries.accessed.set(this, Date.now());
     return queries.value.get(this);
   }
-}
-
-function checkConnection(): void {
-  m.request({
-    url: "health",
-    method: "GET",
-    background: true,
-    extract: (xhr) => {
-      if (xhr.status !== 200) {
-        if (!connectionNotification) {
-          connectionNotification = notifications.push(
-            "warning",
-            "Server is unreachable",
-            {},
-          );
-        }
-        return;
-      }
-
-      if (connectionNotification) {
-        notifications.dismiss(connectionNotification);
-        connectionNotification = null;
-      }
-
-      const body = JSON.parse(xhr.responseText);
-
-      const skew = body.timestamp - Date.now();
-      const skewDrifted = Math.abs(skew - getClockSkew()) > 5000;
-      if (!skewNotification !== !skewDrifted) {
-        if (skewNotification) {
-          notifications.dismiss(skewNotification);
-          skewNotification = null;
-        } else {
-          skewNotification = notifications.push(
-            "warning",
-            "Clock drift detected, please reload the page",
-            {
-              Reload: () => {
-                window.location.reload();
-              },
-            },
-          );
-        }
-      }
-
-      const configChanged = body.configSnapshot !== configSnapshot;
-      const versionChanged = body.version !== genieacsVersion;
-
-      if (!configNotification !== !configChanged) {
-        if (configNotification) {
-          notifications.dismiss(configNotification);
-          configNotification = null;
-        } else {
-          configNotification = notifications.push(
-            "warning",
-            "Configuration has been modified, please reload the page",
-            {
-              Reload: () => {
-                window.location.reload();
-              },
-            },
-          );
-        }
-      }
-
-      if (!versionNotification !== !versionChanged) {
-        if (versionNotification) {
-          notifications.dismiss(versionNotification);
-          versionNotification = null;
-        } else {
-          versionNotification = notifications.push(
-            "warning",
-            "Server has been updated, please reload the page",
-            {
-              Reload: () => {
-                window.location.reload();
-              },
-            },
-          );
-        }
-      }
-    },
-  }).catch((err) => {
-    notifications.push("error", err.message);
-  });
-}
-
-setInterval(checkConnection, 3000);
-
-export async function xhrRequest(
-  options: { url: string } & m.RequestOptions<unknown>,
-): Promise<any> {
-  const extract = options.extract;
-  const deserialize = options.deserialize;
-
-  options.extract = (
-    xhr: XMLHttpRequest,
-    _options?: { url: string } & m.RequestOptions<unknown>,
-  ): any => {
-    if (typeof extract === "function") return extract(xhr, _options);
-
-    // https://mithril.js.org/request.html#error-handling
-    if (xhr.status !== 304 && Math.floor(xhr.status / 100) !== 2) {
-      if (xhr.status === 403) throw new Error("Not authorized");
-      const err = new Error();
-      err["message"] =
-        xhr.status === 0
-          ? "Server is unreachable"
-          : `Unexpected response status code ${xhr.status}`;
-      err["code"] = xhr.status;
-      err["response"] = xhr.responseText;
-      throw err;
-    }
-
-    let response: any;
-    if (typeof deserialize === "function") {
-      response = deserialize(xhr.responseText);
-    } else if (
-      (xhr.getResponseHeader("content-type") || "").startsWith(
-        "application/json",
-      )
-    ) {
-      try {
-        response = xhr.responseText ? JSON.parse(xhr.responseText) : null;
-      } catch (err) {
-        throw new Error("Invalid JSON: " + xhr.responseText.slice(0, 80), {
-          cause: err,
-        });
-      }
-    } else {
-      response = xhr.responseText;
-    }
-
-    return response;
-  };
-
-  return m.request(options);
 }
 
 export function unpackExpression(exp: Expression): Expression {
@@ -361,26 +216,11 @@ export function fulfill(accessTimestamp: number): void {
         let filter = queries.filter.get(queryResponse);
         filter = unpackExpression(filter);
         allPromises.push(
-          xhrRequest({
+          request(`/api/${resourceType}/`, {
             method: "HEAD",
-            url:
-              `api/${resourceType}/?` +
-              m.buildQueryString({
-                filter: filter.toString(),
-              }),
-            extract: (xhr) => {
-              if (xhr.status === 403) throw new Error("Not authorized");
-              if (!xhr.status) {
-                throw new Error("Server is unreachable");
-              } else if (xhr.status !== 200) {
-                throw new Error(
-                  `Unexpected response status code ${xhr.status}`,
-                );
-              }
-              return +xhr.getResponseHeader("x-total-count");
-            },
-            background: false,
-          }).then((c) => {
+            params: { filter: filter.toString() },
+          }).then((res) => {
+            const c = +(res.headers.get("x-total-count") ?? 0);
             queries.value.set(queryResponse, c);
             queries.fulfilled.set(queryResponse, fulfillTimestamp);
             queries.fulfilling.delete(queryResponse);
@@ -418,26 +258,24 @@ export function fulfill(accessTimestamp: number): void {
           }
 
           allPromises.push(
-            xhrRequest({
-              method: "GET",
-              url:
-                `api/${resourceType}/?` +
-                m.buildQueryString({
-                  filter: filter.toString(),
-                  limit: 1,
-                  skip: limit - 1,
-                  sort: JSON.stringify(sort),
-                  projection: Object.keys(sort).join(","),
-                }),
-              background: true,
-            }).then((res) => {
-              queries.unsatisfied.delete(queryResponse);
-              if ((res as any[]).length) {
-                queries.bookmark.set(queryResponse, toBookmark(sort, res[0]));
-              } else {
-                queries.bookmark.delete(queryResponse);
-              }
-            }),
+            request(`/api/${resourceType}/`, {
+              params: {
+                filter: filter.toString(),
+                limit: "1",
+                skip: String(limit - 1),
+                sort: JSON.stringify(sort),
+                projection: Object.keys(sort).join(","),
+              },
+            })
+              .then((res) => res.json())
+              .then((res) => {
+                queries.unsatisfied.delete(queryResponse);
+                if ((res as any[]).length) {
+                  queries.bookmark.set(queryResponse, toBookmark(sort, res[0]));
+                } else {
+                  queries.bookmark.delete(queryResponse);
+                }
+              }),
           );
         }
       }
@@ -445,6 +283,9 @@ export function fulfill(accessTimestamp: number): void {
   }
 
   Promise.all(allPromises)
+    .then((res) => {
+      if (res.length) m.redraw();
+    })
     .then(() => {
       let updated = false;
       const allPromises2 = [];
@@ -505,57 +346,56 @@ export function fulfill(accessTimestamp: number): void {
         resources[resourceType].combinedFilter = union;
 
         allPromises2.push(
-          xhrRequest({
-            method: "GET",
-            url:
-              `api/${resourceType}/?` +
-              m.buildQueryString({
-                filter: combinedFilterDiff.toString(),
-              }),
-            background: false,
-          }).then((res) => {
-            for (const r of res as any[]) {
-              const id = r["DeviceID.ID"] ?? r["_id"];
-              resources[resourceType].objects.set(id, r);
-              deleted.delete(id);
-            }
+          request(`/api/${resourceType}/`, {
+            params: { filter: combinedFilterDiff.toString() },
+          })
+            .then((res) => res.json())
+            .then((res) => {
+              for (const r of res as any[]) {
+                const id = r["DeviceID.ID"] ?? r["_id"];
+                resources[resourceType].objects.set(id, r);
+                deleted.delete(id);
+              }
 
-            for (const d of deleted) {
-              const obj = resources[resourceType].objects.get(d);
-              if (
-                evaluate(
-                  combinedFilterDiff,
-                  fulfillTimestamp + getClockSkew(),
-                  obj,
-                ).value
-              )
-                resources[resourceType].objects.delete(d);
-            }
+              for (const d of deleted) {
+                const obj = resources[resourceType].objects.get(d);
+                if (
+                  evaluate(
+                    combinedFilterDiff,
+                    fulfillTimestamp + getClockSkew(),
+                    obj,
+                  ).value
+                )
+                  resources[resourceType].objects.delete(d);
+              }
 
-            for (const queryResponse of toFetch) {
-              let filter = queries.filter.get(queryResponse);
-              filter = unpackExpression(filter);
-              const limit = queries.limit.get(queryResponse);
-              const bookmark = queries.bookmark.get(queryResponse);
-              const sort = queries.sort.get(queryResponse);
-              if (bookmark)
-                filter = Expression.and(
-                  filter,
-                  bookmarkToExpression(bookmark, sort),
+              for (const queryResponse of toFetch) {
+                let filter = queries.filter.get(queryResponse);
+                filter = unpackExpression(filter);
+                const limit = queries.limit.get(queryResponse);
+                const bookmark = queries.bookmark.get(queryResponse);
+                const sort = queries.sort.get(queryResponse);
+                if (bookmark)
+                  filter = Expression.and(
+                    filter,
+                    bookmarkToExpression(bookmark, sort),
+                  );
+
+                queries.value.set(
+                  queryResponse,
+                  findMatches(resourceType, filter, sort, limit),
                 );
-
-              queries.value.set(
-                queryResponse,
-                findMatches(resourceType, filter, sort, limit),
-              );
-              queries.fulfilled.set(queryResponse, fulfillTimestamp);
-              queries.fulfilling.delete(queryResponse);
-            }
-          }),
+                queries.fulfilled.set(queryResponse, fulfillTimestamp);
+                queries.fulfilling.delete(queryResponse);
+              }
+            }),
         );
       }
       if (updated) m.redraw();
       return Promise.all(allPromises2);
+    })
+    .then((res) => {
+      if (res.length) m.redraw();
     })
     .catch((err) => {
       notifications.push("error", err.message);
@@ -574,113 +414,6 @@ export function setTimestamp(t: number): void {
   }
 }
 
-export function postTasks(
-  deviceId: string,
-  tasks: QueueTask[],
-): Promise<string> {
-  const tasks2: Task[] = [];
-  for (const t of tasks) {
-    t.status = "pending";
-    const t2 = Object.assign({}, t);
-    delete t2.device;
-    delete t2.status;
-    tasks2.push(t2);
-  }
-
-  return xhrRequest({
-    method: "POST",
-    url: `api/devices/${encodeURIComponent(deviceId)}/tasks`,
-    body: tasks2,
-    extract: (xhr) => {
-      if (xhr.status === 403) throw new Error("Not authorized");
-      if (!xhr.status) throw new Error("Server is unreachable");
-      if (xhr.status !== 200) throw new Error(xhr.response);
-      const connectionRequestStatus =
-        xhr.getResponseHeader("Connection-Request");
-      const st = JSON.parse(xhr.response);
-      for (const [i, t] of st.entries()) {
-        tasks[i]._id = t._id;
-        tasks[i].status = t.status;
-      }
-      return connectionRequestStatus;
-    },
-  });
-}
-
-export function updateTags(
-  deviceId: string,
-  tags: Record<string, boolean>,
-): Promise<void> {
-  return xhrRequest({
-    method: "POST",
-    url: `api/devices/${encodeURIComponent(deviceId)}/tags`,
-    body: tags,
-  });
-}
-
-export function deleteResource(
-  resourceType: string,
-  id: string,
-): Promise<void> {
-  return xhrRequest({
-    method: "DELETE",
-    url: `api/${resourceType}/${encodeURIComponent(id)}`,
-  });
-}
-
-export function putResource(
-  resourceType: string,
-  id: string,
-  object: Record<string, unknown>,
-): Promise<void> {
-  for (const k in object) if (object[k] === undefined) object[k] = null;
-
-  return xhrRequest({
-    method: "PUT",
-    url: `api/${resourceType}/${encodeURIComponent(id)}`,
-    body: object,
-  });
-}
-
-export function queryConfig(pattern = "%"): Promise<any[]> {
-  const filter = new Expression.Binary(
-    "LIKE",
-    new Expression.Parameter(Path.parse("_id")),
-    new Expression.Literal(pattern),
-  );
-  return xhrRequest({
-    method: "GET",
-    url: `api/config/?${m.buildQueryString({ filter: filter.toString() })}`,
-    background: true,
-  });
-}
-
-export function resourceExists(resource: string, id: string): Promise<number> {
-  const param = resource === "devices" ? "DeviceID.ID" : "_id";
-  const filter = new Expression.Binary(
-    "=",
-    new Expression.Parameter(Path.parse(param)),
-    new Expression.Literal(id),
-  );
-
-  return xhrRequest({
-    method: "HEAD",
-    url:
-      `api/${resource}/?` +
-      m.buildQueryString({
-        filter: filter.toString(),
-      }),
-    extract: (xhr) => {
-      if (xhr.status === 403) throw new Error("Not authorized");
-      if (!xhr.status) throw new Error("Server is unreachable");
-      else if (xhr.status !== 200)
-        throw new Error(`Unexpected response status code ${xhr.status}`);
-      return +xhr.getResponseHeader("x-total-count");
-    },
-    background: true,
-  });
-}
-
 export function evaluateExpression(exp: Expression): Expression;
 export function evaluateExpression(
   exp: Expression,
@@ -691,46 +424,4 @@ export function evaluateExpression(
   obj?: Record<string, unknown>,
 ): Expression {
   return memoizedEvaluate(exp, fulfillTimestamp + getClockSkew(), obj);
-}
-
-export function changePassword(
-  username: string,
-  newPassword: string,
-  authPassword?: string,
-): Promise<void> {
-  const body = { newPassword };
-  if (authPassword) body["authPassword"] = authPassword;
-  return xhrRequest({
-    method: "PUT",
-    url: `api/users/${username}/password`,
-    background: true,
-    body,
-  });
-}
-
-export function logIn(
-  username: string,
-  password: string,
-  remember = false,
-): Promise<void> {
-  return xhrRequest({
-    method: "POST",
-    url: "login",
-    background: true,
-    body: { username, password, remember },
-  });
-}
-
-export function logOut(): Promise<void> {
-  return xhrRequest({
-    method: "POST",
-    url: "logout",
-  });
-}
-
-export function ping(host: string): Promise<PingResult> {
-  return xhrRequest({
-    url: `api/ping/${encodeURIComponent(host)}`,
-    background: true,
-  });
 }

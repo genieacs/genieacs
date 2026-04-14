@@ -1,6 +1,6 @@
 import { ClosureComponent, Component, VnodeDOM } from "mithril";
 import { m } from "../components.ts";
-import * as store from "../store.ts";
+import { ping } from "../api-client.ts";
 
 const REFRESH_INTERVAL = 3000;
 
@@ -16,8 +16,7 @@ const component: ClosureComponent = (vn): Component => {
     }
 
     let status = "";
-    store
-      .ping(host)
+    ping(host)
       .then((res) => {
         if (res["avg"] != null) status = `${Math.trunc(res["avg"])} ms`;
         else status = "Unreachable";

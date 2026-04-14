@@ -1,5 +1,5 @@
 import m from "mithril";
-import * as store from "./store.ts";
+import { postTasks } from "./api-client.ts";
 import { Task } from "../lib/types.ts";
 import * as notifications from "./notifications.ts";
 
@@ -99,8 +99,7 @@ export function commit(
     let counter = 1;
     for (const [deviceId, tasks2] of Object.entries(devices)) {
       ++counter;
-      store
-        .postTasks(deviceId, tasks2)
+      postTasks(deviceId, tasks2)
         .then((connectionRequestStatus) => {
           for (const t of tasks2) {
             if (t.status === "pending") t.status = "stale";

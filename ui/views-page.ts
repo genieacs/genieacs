@@ -3,6 +3,7 @@ import { m } from "./components.ts";
 import * as config from "./config.ts";
 import filterComponent from "./filter-component.ts";
 import * as store from "./store.ts";
+import { deleteResource, resourceExists, putResource } from "./api-client.ts";
 import * as notifications from "./notifications.ts";
 import memoize from "../lib/common/memoize.ts";
 import putFormComponent from "./put-form-component.ts";
@@ -52,8 +53,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
 
       if (!id) return void resolve({ _id: "ID can not be empty" });
 
-      store
-        .resourceExists("views", id)
+      resourceExists("views", id)
         .then((exists) => {
           if (exists && isNew) {
             store.setTimestamp(Date.now());
@@ -65,8 +65,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
             return void resolve({ _id: "View does not exist" });
           }
 
-          store
-            .putResource("views", id, object)
+          putResource("views", id, object)
             .then(() => {
               notifications.push(
                 "success",
@@ -86,8 +85,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
         .catch(reject);
     } else if (action === "delete") {
       if (!confirm("Deleting view. Are you sure?")) return void resolve(null);
-      store
-        .deleteResource("views", object["_id"])
+      deleteResource("views", object["_id"])
         .then(() => {
           notifications.push("success", "View deleted");
           store.setTimestamp(Date.now());
@@ -309,7 +307,7 @@ export const component: ClosureComponent = (): Component => {
                   e.target.disabled = true;
                   Promise.all(
                     Array.from(selected).map((id) =>
-                      store.deleteResource("views", id),
+                      deleteResource("views", id),
                     ),
                   )
                     .then((res) => {

@@ -2,6 +2,7 @@ import { Children, ClosureComponent, Component } from "mithril";
 import { m } from "./components.ts";
 import { pageSize as PAGE_SIZE } from "./config.ts";
 import * as store from "./store.ts";
+import { deleteResource, resourceExists, putResource } from "./api-client.ts";
 import * as notifications from "./notifications.ts";
 import memoize from "../lib/common/memoize.ts";
 import putFormComponent from "./put-form-component.ts";
@@ -120,8 +121,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
 
       const id = `${object.role}:${object.resource}:${object.access}`;
 
-      store
-        .resourceExists("permissions", id)
+      resourceExists("permissions", id)
         .then((exists) => {
           if (exists && isNew) {
             store.setTimestamp(Date.now());
@@ -132,8 +132,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
             return void resolve({ _id: "Permission does not exist" });
           }
 
-          store
-            .putResource("permissions", id, object)
+          putResource("permissions", id, object)
             .then(() => {
               notifications.push(
                 "success",
@@ -148,8 +147,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
     } else if (action === "delete") {
       if (!confirm("Deleting permission. Are you sure?"))
         return void resolve(null);
-      store
-        .deleteResource("permissions", object["_id"])
+      deleteResource("permissions", object["_id"])
         .then(() => {
           notifications.push("success", "Permission deleted");
           store.setTimestamp(Date.now());
@@ -404,7 +402,7 @@ export const component: ClosureComponent = (): Component => {
                   e.target.disabled = true;
                   Promise.all(
                     Array.from(selected).map((id) =>
-                      store.deleteResource("permissions", id),
+                      deleteResource("permissions", id),
                     ),
                   )
                     .then((res) => {

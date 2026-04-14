@@ -4,6 +4,7 @@ import { pageSize as PAGE_SIZE } from "./config.ts";
 import indexTableComponent from "./index-table-component.ts";
 import filterComponent from "./filter-component.ts";
 import * as store from "./store.ts";
+import { deleteResource } from "./api-client.ts";
 import * as notifications from "./notifications.ts";
 import memoize from "../lib/common/memoize.ts";
 import * as smartQuery from "./smart-query.ts";
@@ -60,8 +61,8 @@ async function deleteFaults(faults: Iterable<string>): Promise<void> {
   for (const f of faults) {
     const deviceId = f.split(":", 1)[0];
     let p = proms.get(deviceId);
-    if (p == null) p = store.deleteResource("faults", f);
-    else p = p.then(() => store.deleteResource("faults", f));
+    if (p == null) p = deleteResource("faults", f);
+    else p = p.then(() => deleteResource("faults", f));
     proms.set(deviceId, p);
   }
   await Promise.all(proms.values());

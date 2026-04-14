@@ -1,6 +1,7 @@
 import { ClosureComponent, Component, Children } from "mithril";
 import { m } from "./components.ts";
 import * as store from "./store.ts";
+import { resourceExists, putResource, deleteResource } from "./api-client.ts";
 import * as notifications from "./notifications.ts";
 import putFormComponent from "./put-form-component.ts";
 import uiConfigComponent from "./ui-config-component.ts";
@@ -37,8 +38,7 @@ function putActionHandler(action, _object, isNew?): Promise<ValidationErrors> {
         });
       }
 
-      store
-        .resourceExists("config", id)
+      resourceExists("config", id)
         .then((exists) => {
           if (exists && isNew) {
             store.setTimestamp(Date.now());
@@ -50,8 +50,7 @@ function putActionHandler(action, _object, isNew?): Promise<ValidationErrors> {
             return void resolve({ _id: "Config does not exist" });
           }
 
-          store
-            .putResource("config", id, object)
+          putResource("config", id, object)
             .then(() => {
               notifications.push(
                 "success",
@@ -65,8 +64,7 @@ function putActionHandler(action, _object, isNew?): Promise<ValidationErrors> {
         .catch(reject);
     } else if (action === "delete") {
       if (!confirm("Deleting config. Are you sure?")) return void resolve(null);
-      store
-        .deleteResource("config", object["_id"])
+      deleteResource("config", object["_id"])
         .then(() => {
           notifications.push("success", "Config deleted");
           store.setTimestamp(Date.now());

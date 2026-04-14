@@ -4,6 +4,7 @@ import { pageSize as PAGE_SIZE } from "./config.ts";
 import filterComponent from "./filter-component.ts";
 import * as overlay from "./overlay.ts";
 import * as store from "./store.ts";
+import { deleteResource, resourceExists, putResource } from "./api-client.ts";
 import * as notifications from "./notifications.ts";
 import putFormComponent from "./put-form-component.ts";
 import indexTableComponent from "./index-table-component.ts";
@@ -89,8 +90,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
         }
       }
 
-      store
-        .resourceExists("presets", id)
+      resourceExists("presets", id)
         .then((exists) => {
           if (exists && isNew) {
             store.setTimestamp(Date.now());
@@ -102,8 +102,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
             return void resolve({ _id: "Preset does not exist" });
           }
 
-          store
-            .putResource("presets", id, object)
+          putResource("presets", id, object)
             .then(() => {
               notifications.push(
                 "success",
@@ -118,8 +117,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
     } else if (action === "delete") {
       if (!confirm("Deleting preset. Are you sure?")) return void resolve(null);
 
-      store
-        .deleteResource("presets", object["_id"])
+      deleteResource("presets", object["_id"])
         .then(() => {
           notifications.push("success", "Preset deleted");
           store.setTimestamp(Date.now());
@@ -423,7 +421,7 @@ export const component: ClosureComponent = (): Component => {
                   e.target.disabled = true;
                   Promise.all(
                     Array.from(selected).map((id) =>
-                      store.deleteResource("presets", id),
+                      deleteResource("presets", id),
                     ),
                   )
                     .then((res) => {

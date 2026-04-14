@@ -10,7 +10,7 @@ import {
   dialogOverlay,
   icon,
 } from "./tailwind-utility-components.ts";
-import * as store from "./store.ts";
+import { logOut } from "./api-client.ts";
 import * as notifications from "./notifications.ts";
 import { LOGO_SVG } from "../build/assets.ts";
 
@@ -185,8 +185,7 @@ const component: ClosureComponent<Attrs> = () => {
                           class="ml-auto text-base font-medium text-cyan-600 hover:text-cyan-500"
                           onclick={(e) => {
                             e.target.disabled = true;
-                            store
-                              .logOut()
+                            logOut()
                               .then(() => {
                                 location.hash = "";
                                 location.reload();
@@ -255,8 +254,7 @@ const component: ClosureComponent<Attrs> = () => {
                       class="ml-auto text-sm font-medium text-cyan-700 hover:text-cyan-900"
                       onclick={(e) => {
                         e.target.disabled = true;
-                        store
-                          .logOut()
+                        logOut()
                           .then(() => {
                             location.hash = "";
                             location.reload();

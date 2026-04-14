@@ -1,6 +1,6 @@
 import { ClosureComponent, Component, Children } from "mithril";
 import { m } from "./components.ts";
-import * as store from "./store.ts";
+import { logIn } from "./api-client.ts";
 import * as notifications from "./notifications.ts";
 import * as overlay from "./overlay.ts";
 import changePasswordComponent from "./change-password-component.ts";
@@ -16,10 +16,9 @@ export const component: ClosureComponent = (): Component => {
   let password = "";
   let remember = false;
 
-  function logIn(e: MouseEvent): boolean {
+  function handleLogIn(e: MouseEvent): boolean {
     e.target["disabled"] = true;
-    store
-      .logIn(username, password, remember)
+    logIn(username, password, remember)
       .then(() => {
         location.reload();
       })
@@ -159,7 +158,7 @@ export const component: ClosureComponent = (): Component => {
                 <button
                   type="submit"
                   class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-cyan-600 hover:bg-cyan-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500"
-                  onclick={logIn}
+                  onclick={handleLogIn}
                 >
                   <span class="absolute left-0 inset-y-0 flex items-center pl-3">
                     <svg

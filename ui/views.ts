@@ -14,7 +14,7 @@ import { SkewedDate, getClockSkew } from "./skewed-date.ts";
 import Expression from "../lib/common/expression.ts";
 import * as taskQueue from "./task-queue.ts";
 import * as notifications from "./notifications.ts";
-import { deleteResource, ping, updateTags } from "./store.ts";
+import { deleteResource, ping, updateTags } from "./api-client.ts";
 import { stringify } from "../lib/common/yaml.ts";
 
 type ViewElement =

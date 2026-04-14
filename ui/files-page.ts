@@ -3,6 +3,7 @@ import { m } from "./components.ts";
 import { pageSize as PAGE_SIZE } from "./config.ts";
 import filterComponent from "./filter-component.ts";
 import * as store from "./store.ts";
+import { resourceExists, deleteResource, uploadFile } from "./api-client.ts";
 import * as notifications from "./notifications.ts";
 import memoize from "../lib/common/memoize.ts";
 import putFormComponent from "./put-form-component.ts";
@@ -62,35 +63,6 @@ const unpackSmartQuery = memoize((query: Expression) => {
     return e;
   });
 });
-
-function upload(
-  file: File,
-  headers: Record<string, string>,
-  abortSignal?: AbortSignal,
-  progressListener?: (e: ProgressEvent) => void,
-): Promise<void> {
-  headers = Object.assign(
-    {
-      "Content-Type": "application/octet-stream",
-    },
-    headers,
-  );
-  return store.xhrRequest({
-    method: "PUT",
-    headers: headers,
-    url: `api/files/${encodeURIComponent(file.name)}`,
-    serialize: (body) => body, // Identity function to prevent JSON.parse on blob data
-    body: file,
-    config: (xhr) => {
-      if (progressListener)
-        xhr.upload.addEventListener("progress", progressListener);
-      if (abortSignal) {
-        if (abortSignal.aborted) xhr.abort();
-        abortSignal.addEventListener("abort", () => xhr.abort());
-      }
-    },
-  });
-}
 
 const getDownloadUrl = memoize((filter) => {
   const cols = {};
@@ -219,24 +191,29 @@ export const component: ClosureComponent = (): Component => {
                             return;
                           }
 
-                          if (await store.resourceExists("files", file.name)) {
+                          if (await resourceExists("files", file.name)) {
                             store.setTimestamp(Date.now());
                             notifications.push("error", "File already exists");
                             return;
                           }
 
-                          const progressListener = (e: ProgressEvent): void => {
-                            progress = e.loaded / e.total;
-                            m.redraw();
-                          };
-
-                          progress = 0;
                           try {
-                            await upload(
+                            progress = 0;
+                            m.redraw();
+                            await uploadFile(
+                              `/api/files/${encodeURIComponent(file.name)}`,
                               file,
-                              headers,
-                              abortController.signal,
-                              progressListener,
+                              {
+                                headers: {
+                                  "Content-Type": "application/octet-stream",
+                                  ...headers,
+                                },
+                                onProgress: (fraction) => {
+                                  progress = fraction;
+                                  m.redraw();
+                                },
+                                signal: abortController.signal,
+                              },
                             );
                             store.setTimestamp(Date.now());
                             notifications.push("success", "File created");
@@ -290,7 +267,7 @@ export const component: ClosureComponent = (): Component => {
                   e.target.disabled = true;
                   Promise.all(
                     Array.from(selected).map((id) =>
-                      store.deleteResource("files", id),
+                      deleteResource("files", id),
                     ),
                   )
                     .then((res) => {

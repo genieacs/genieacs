@@ -5,17 +5,17 @@ import * as esbuild from "esbuild";
 
 const INPUT_DIR = process.cwd();
 
-// Redirect ui/store.ts imports to test/mocks/store.ts
-const mockStorePlugin: esbuild.Plugin = {
-  name: "mock-store",
+// Redirect ui/api-client.ts imports to test/mocks/api-client.ts
+const mockApiClientPlugin: esbuild.Plugin = {
+  name: "mock-api-client",
   setup(build) {
-    const storePath = path.join(INPUT_DIR, "ui/store.ts");
-    const mockStorePath = path.join(INPUT_DIR, "test/mocks/store.ts");
+    const apiClientPath = path.join(INPUT_DIR, "ui/api-client.ts");
+    const mockApiClientPath = path.join(INPUT_DIR, "test/mocks/api-client.ts");
 
-    build.onResolve({ filter: /\.\/store\.ts$/ }, (args) => {
+    build.onResolve({ filter: /\.\/api-client\.ts$/ }, (args) => {
       const resolved = path.join(args.resolveDir, args.path);
-      if (resolved === storePath) {
-        return { path: mockStorePath };
+      if (resolved === apiClientPath) {
+        return { path: mockApiClientPath };
       }
       return undefined;
     });
@@ -64,7 +64,7 @@ async function buildTests(): Promise<void> {
     sourcemap: "inline",
     outdir: "test",
     logLevel: "warning",
-    plugins: [mockStorePlugin, exportPrivateFunctionsPlugin],
+    plugins: [mockApiClientPlugin, exportPrivateFunctionsPlugin],
   });
 }
 

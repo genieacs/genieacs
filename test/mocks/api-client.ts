@@ -1,21 +1,30 @@
-// Mock implementation of ui/store.ts for testing (substituted via esbuild alias)
+// Mock implementation of ui/api-client.ts for testing (substituted via esbuild alias)
 
-import Expression from "../../lib/common/expression.ts";
-
-// Provide window.clockSkew for reactive-store.ts in Node.js test environment
+// Provide window globals needed by modules that import config.ts indirectly
 if (typeof globalThis.window === "undefined") {
-  (globalThis as any).window = { clockSkew: 0 };
+  (globalThis as any).window = {
+    clockSkew: 0,
+    configSnapshot: "",
+    genieacsVersion: "",
+    clientConfig: {},
+  };
 } else {
-  (globalThis.window as any).clockSkew = 0;
-}
-
-// Clock skew is always 0 in tests
-export function getClockSkew(): number {
-  return 0;
+  const w = globalThis.window as any;
+  w.clockSkew ??= 0;
+  w.configSnapshot ??= "";
+  w.genieacsVersion ??= "";
+  w.clientConfig ??= {};
 }
 
 // Mock request handler type
-type MockHandler = (options: XhrRequestOptions) => unknown | Promise<unknown>;
+type MockHandler = (options: MockRequestOptions) => unknown | Promise<unknown>;
+
+interface MockRequestOptions {
+  url: string;
+  method: string;
+  body?: unknown;
+  params?: Record<string, string>;
+}
 
 // Store mock handlers
 const mockHandlers: MockHandler[] = [];
@@ -28,37 +37,53 @@ interface RequestRecord {
 }
 const requestLog: RequestRecord[] = [];
 
-// Options type matching mithril's RequestOptions
-interface XhrRequestOptions {
-  url: string;
-  method?: string;
-  body?: unknown;
-  extract?: (xhr: MockXhr) => unknown;
-  deserialize?: (text: string) => unknown;
-  background?: boolean;
-}
-
-// Mock XMLHttpRequest for extract functions
-interface MockXhr {
+// Mock Response that mimics the browser Response API
+class MockResponse {
+  private _body: unknown;
+  private _headers: Map<string, string>;
   status: number;
-  responseText: string;
-  getResponseHeader(name: string): string | null;
+  ok: boolean;
+
+  constructor(body: unknown, headers: Record<string, string> = {}) {
+    this._body = body;
+    this._headers = new Map(
+      Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]),
+    );
+    this.status = 200;
+    this.ok = true;
+  }
+
+  async json(): Promise<unknown> {
+    return this._body;
+  }
+
+  async text(): Promise<string> {
+    return typeof this._body === "string"
+      ? this._body
+      : JSON.stringify(this._body);
+  }
+
+  get headers(): { get(name: string): string | null } {
+    const headers = this._headers;
+    return {
+      get(name: string): string | null {
+        return headers.get(name.toLowerCase()) ?? null;
+      },
+    };
+  }
 }
 
 function parseQueryParams(url: string): Record<string, string> {
-  const params: Record<string, string> = {};
   const queryStart = url.indexOf("?");
-  if (queryStart === -1) return params;
+  if (queryStart === -1) return {};
 
-  const queryString = url.slice(queryStart + 1);
-  for (const pair of queryString.split("&")) {
-    const [key, value] = pair.split("=");
-    if (key && value !== undefined) {
-      params[decodeURIComponent(key)] = decodeURIComponent(value);
-    }
-  }
+  const params: Record<string, string> = {};
+  for (const [key, value] of new URLSearchParams(url.slice(queryStart + 1)))
+    params[key] = value;
   return params;
 }
+
+import Expression from "../../lib/common/expression.ts";
 
 function evaluate(
   exp: Expression,
@@ -93,41 +118,77 @@ function filterData(data: unknown[], filterStr: string | undefined): unknown[] {
   });
 }
 
-export async function xhrRequest(options: XhrRequestOptions): Promise<unknown> {
+export interface RequestOptions {
+  method?: string;
+  body?: unknown;
+  headers?: Record<string, string>;
+  params?: Record<string, string>;
+  timeout?: number;
+  signal?: AbortSignal;
+}
+
+export class HttpError extends Error {
+  code: number;
+  response: string;
+
+  constructor(message: string, code: number, response: string) {
+    super(message);
+    this.name = "HttpError";
+    this.code = code;
+    this.response = response;
+  }
+}
+
+export async function request(
+  url: string,
+  options: RequestOptions = {},
+): Promise<MockResponse> {
+  const method = options.method || "GET";
+
+  // Build full URL with params
+  let fullUrl = url;
+  if (options.params) {
+    const search = new URLSearchParams(options.params).toString();
+    fullUrl = `${url}?${search}`;
+  }
+
   // Log the request
   requestLog.push({
-    url: options.url,
-    method: options.method || "GET",
+    url: fullUrl,
+    method,
     timestamp: Date.now(),
   });
 
+  const mockOptions: MockRequestOptions = {
+    url: fullUrl,
+    method,
+    body: options.body,
+    params: options.params,
+  };
+
   for (const handler of mockHandlers) {
-    const result = handler(options);
+    const result = handler(mockOptions);
     if (result !== undefined) {
-      return result instanceof Promise ? result : Promise.resolve(result);
+      const data = result instanceof Promise ? await result : result;
+
+      // If handler returns a MockResponse, use it directly
+      if (data instanceof MockResponse) return data;
+
+      // Otherwise wrap in MockResponse
+      return new MockResponse(data);
     }
   }
 
   // Default: return empty result based on method
-  if (options.method === "HEAD") {
-    if (options.extract) {
-      const mockXhr: MockXhr = {
-        status: 200,
-        responseText: "",
-        getResponseHeader: (name: string) => {
-          if (name.toLowerCase() === "x-total-count") return "0";
-          return null;
-        },
-      };
-      return options.extract(mockXhr);
-    }
-    return 0;
+  if (method === "HEAD") {
+    return new MockResponse("", { "x-total-count": "0" });
   }
 
   // GET returns empty array by default
-  return [];
+  return new MockResponse([]);
 }
 
+// Re-export mock utilities
 export function mockRegisterHandler(handler: MockHandler): void {
   mockHandlers.push(handler);
 }
@@ -147,9 +208,9 @@ export function mockClearRequestLog(): void {
 
 export function mockUrlHandler(
   urlPattern: string | RegExp,
-  response: unknown | ((options: XhrRequestOptions) => unknown),
+  response: unknown | ((options: MockRequestOptions) => unknown),
 ): MockHandler {
-  return (options: XhrRequestOptions) => {
+  return (options: MockRequestOptions) => {
     const matches =
       typeof urlPattern === "string"
         ? options.url.includes(urlPattern)
@@ -167,7 +228,7 @@ export function mockCountHandler(
   data: unknown[],
   delayMs = 0,
 ): MockHandler {
-  return (options: XhrRequestOptions) => {
+  return (options: MockRequestOptions) => {
     if (options.method !== "HEAD") return undefined;
 
     const matches =
@@ -175,26 +236,20 @@ export function mockCountHandler(
         ? options.url.includes(urlPattern)
         : urlPattern.test(options.url);
 
-    if (matches && options.extract) {
+    if (matches) {
       const params = parseQueryParams(options.url);
       const filtered = filterData(data, params.filter);
       const count = filtered.length;
-
-      const mockXhr: MockXhr = {
-        status: 200,
-        responseText: "",
-        getResponseHeader: (name: string) => {
-          if (name.toLowerCase() === "x-total-count") return String(count);
-          return null;
-        },
-      };
+      const response = new MockResponse("", {
+        "x-total-count": String(count),
+      });
 
       if (delayMs > 0) {
         return new Promise((resolve) => {
-          setTimeout(() => resolve(options.extract!(mockXhr)), delayMs);
+          setTimeout(() => resolve(response), delayMs);
         });
       }
-      return options.extract(mockXhr);
+      return response;
     }
     return undefined;
   };
@@ -205,7 +260,7 @@ export function mockFetchHandler(
   data: unknown[],
   delayMs = 0,
 ): MockHandler {
-  return (options: XhrRequestOptions) => {
+  return (options: MockRequestOptions) => {
     if (options.method && options.method !== "GET") return undefined;
 
     const matches =

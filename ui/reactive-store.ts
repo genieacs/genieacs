@@ -1,4 +1,3 @@
-import m from "mithril";
 import {
   SignalBase,
   ComputedSignal,
@@ -6,7 +5,7 @@ import {
   Watcher,
   registerDependency,
 } from "./signals.ts";
-import { xhrRequest } from "./store.ts";
+import { request } from "./api-client.ts";
 import { SkewedDate } from "./skewed-date.ts";
 import { subtract, covers } from "../lib/common/expression/synth.ts";
 import {
@@ -448,18 +447,13 @@ class ResourceStore {
         }
 
         const filterStr = memoizedStringify(diff);
-        const res = await xhrRequest({
-          method: "GET",
-          url:
-            `api/${this.resourceType}/?` +
-            m.buildQueryString({
-              filter: filterStr,
-            }),
-          background: true,
+        const fetchRes = await request(`/api/${this.resourceType}/`, {
+          params: { filter: filterStr },
         });
+        const res = (await fetchRes.json()) as unknown[];
 
         const returnedIds = new Set<string>();
-        for (const obj of res as unknown[]) {
+        for (const obj of res) {
           const id = getObjectId(this.resourceType, obj);
           if (id) {
             this.cache.objects.set(id, obj);
@@ -499,23 +493,11 @@ class ResourceStore {
     const doCount = async (retryCount = 0): Promise<void> => {
       try {
         const filterStr = memoizedStringify(filter);
-        const countValue = await xhrRequest({
+        const countRes = await request(`/api/${this.resourceType}/`, {
           method: "HEAD",
-          url:
-            `api/${this.resourceType}/?` +
-            m.buildQueryString({
-              filter: filterStr,
-            }),
-          extract: (xhr: XMLHttpRequest) => {
-            if (xhr.status === 403) throw new Error("Not authorized");
-            if (!xhr.status) throw new Error("Server is unreachable");
-            if (xhr.status !== 200) {
-              throw new Error(`Unexpected response status code ${xhr.status}`);
-            }
-            return +xhr.getResponseHeader("x-total-count")!;
-          },
-          background: true,
+          params: { filter: filterStr },
         });
+        const countValue = +(countRes.headers.get("x-total-count") ?? 0);
 
         const now = Date.now();
         this.cache.counts.set(filterStr, { value: countValue, timestamp: now });
@@ -548,26 +530,23 @@ class ResourceStore {
         const filterStr = memoizedStringify(filter);
         const projection = Object.keys(sort).join(",");
 
-        const res = await xhrRequest({
-          method: "GET",
-          url:
-            `api/${this.resourceType}/?` +
-            m.buildQueryString({
-              filter: filterStr,
-              skip: offset,
-              limit: 1,
-              sort: JSON.stringify(sort),
-              projection,
-            }),
-          background: true,
+        const fetchRes = await request(`/api/${this.resourceType}/`, {
+          params: {
+            filter: filterStr,
+            skip: String(offset),
+            limit: "1",
+            sort: JSON.stringify(sort),
+            projection,
+          },
         });
+        const res = (await fetchRes.json()) as unknown[];
 
         const now = Date.now();
         const key = `${filterStr}:${JSON.stringify(sort)}:${offset}`;
 
         let bookmarkData: BookmarkData | null = null;
-        if ((res as unknown[]).length > 0) {
-          bookmarkData = toBookmark(sort, (res as unknown[])[0]);
+        if (res.length > 0) {
+          bookmarkData = toBookmark(sort, res[0]);
         }
 
         this.cache.bookmarks.set(key, { data: bookmarkData, timestamp: now });

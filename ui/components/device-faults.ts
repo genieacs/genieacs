@@ -1,6 +1,7 @@
 import { ClosureComponent, Component } from "mithril";
 import { m } from "../components.ts";
 import * as store from "../store.ts";
+import { deleteResource } from "../api-client.ts";
 import { invalidate } from "../reactive-store.ts";
 import * as notifications from "../notifications.ts";
 import { stringify } from "../../lib/common/yaml.ts";
@@ -91,8 +92,7 @@ const component: ClosureComponent = (): Component => {
                   title: "Delete fault",
                   onclick: (e) => {
                     e.redraw = false;
-                    store
-                      .deleteResource("faults", f["_id"])
+                    deleteResource("faults", f["_id"])
                       .then(() => {
                         notifications.push("success", "Fault deleted");
                         store.setTimestamp(Date.now());

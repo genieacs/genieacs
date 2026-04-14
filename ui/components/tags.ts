@@ -2,6 +2,7 @@ import { ClosureComponent } from "mithril";
 import { m } from "../components.ts";
 import * as notifications from "../notifications.ts";
 import * as store from "../store.ts";
+import { updateTags } from "../api-client.ts";
 import { invalidate } from "../reactive-store.ts";
 import { icon } from "../tailwind-utility-components.ts";
 import { decodeTag } from "../../lib/util.ts";
@@ -64,8 +65,7 @@ const component: ClosureComponent<Attrs> = () => {
                 onclick: (e) => {
                   e.target.disabled = true;
                   const deviceId = device["DeviceID.ID"] as string;
-                  store
-                    .updateTags(deviceId, { [tag]: false })
+                  updateTags(deviceId, { [tag]: false })
                     .then(() => {
                       e.target.disabled = false;
                       notifications.push(
@@ -114,8 +114,7 @@ const component: ClosureComponent<Attrs> = () => {
                   return;
                 }
 
-                store
-                  .updateTags(deviceId, { [tag]: true })
+                updateTags(deviceId, { [tag]: true })
                   .then(() => {
                     e.target.disabled = false;
                     notifications.push("success", `${deviceId}: Tags updated`);

@@ -2,7 +2,7 @@ import { ClosureComponent, Component } from "mithril";
 import { m } from "../components.ts";
 import * as taskQueue from "../task-queue.ts";
 import * as notifications from "../notifications.ts";
-import * as store from "../store.ts";
+import { deleteResource } from "../api-client.ts";
 
 const component: ClosureComponent = (): Component => {
   return {
@@ -68,8 +68,7 @@ const component: ClosureComponent = (): Component => {
               if (!confirm("Deleting this device. Are you sure?")) return;
               const deviceId = device["DeviceID.ID"];
 
-              store
-                .deleteResource("devices", deviceId)
+              deleteResource("devices", deviceId)
                 .then(() => {
                   notifications.push("success", `${deviceId}: Device deleted`);
                   m.route.set("/devices");

@@ -1,6 +1,6 @@
 import { ClosureComponent } from "mithril";
 import { m } from "./components.ts";
-import * as store from "./store.ts";
+import { queryConfig, putResource, deleteResource } from "./api-client.ts";
 import { yaml } from "./dynamic-loader.ts";
 import * as configFunctions from "./config-functions.ts";
 import codeEditorComponent from "./code-editor-component.ts";
@@ -29,8 +29,7 @@ function putActionHandler(prefix: string[], dataYaml: string): Promise<any> {
       // Try parse to ensure valid expressions
       for (const v of Object.values(updated)) Expression.parse(v as string);
 
-      store
-        .queryConfig(`${prefix.join(".")}.%`)
+      queryConfig(`${prefix.join(".")}.%`)
         .then((res) => {
           const current = {};
           for (const f of res) current[f._id] = f.value;
@@ -43,7 +42,7 @@ function putActionHandler(prefix: string[], dataYaml: string): Promise<any> {
 
           for (const obj of diff.add) {
             promises.push(
-              store.putResource(
+              putResource(
                 "config",
                 obj._id,
                 obj as unknown as Record<string, unknown>,
@@ -52,7 +51,7 @@ function putActionHandler(prefix: string[], dataYaml: string): Promise<any> {
           }
 
           for (const id of diff.remove)
-            promises.push(store.deleteResource("config", id));
+            promises.push(deleteResource("config", id));
 
           Promise.all(promises)
             .then(() => {
