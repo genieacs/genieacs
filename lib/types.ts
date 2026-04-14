@@ -171,6 +171,12 @@ export interface SessionContext {
   provisionsRet?: any[];
   doneTasks?: string[];
   needCookieOnEveryTask?: boolean;
+  customScriptInfo?: {
+    initialized?: boolean;
+    isDebug?: boolean;
+    scriptTag?: string;
+    mac?: string;
+  };
 }
 
 export interface Task {
