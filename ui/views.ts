@@ -5,9 +5,11 @@ import {
   SignalBase,
   StateSignal,
   Watcher,
+  abortSignal,
   setTimeout as _setTimeout,
   setInterval as _setInterval,
 } from "./signals.ts";
+
 import views from "views-bundle";
 import { count, fetch, invalidate } from "./reactive-store.ts";
 import { SkewedDate, getClockSkew } from "./skewed-date.ts";
@@ -131,8 +133,10 @@ function doTask(node: SignalizedViewNode): ViewElement {
     const task: any = Object.assign({}, arg);
     if (arg.commit) {
       if (res) res.set("pending");
+      const signal = abortSignal();
       taskQueue
         .commit([task], (_, err, conReq, tasks2) => {
+          if (signal.aborted) return;
           for (const t of tasks2)
             if (t.status === "stale") taskQueue.deleteTask(t);
           if (err) {
@@ -149,6 +153,7 @@ function doTask(node: SignalizedViewNode): ViewElement {
         })
         .then(() => invalidate(Date.now()))
         .catch(() => {
+          if (signal.aborted) return;
           if (res) res.set("stale");
         });
     } else if (task.name === "setParameterValues" || task.name === "download") {
@@ -186,12 +191,14 @@ function doDelete(node: SignalizedViewNode): ViewElement {
     if (!arg?.resource || !arg?.id) return null;
     const res = node.attributes["res"] as StateSignal<boolean | Error>;
 
-    deleteResource(arg.resource, arg.id)
+    const signal = abortSignal();
+    deleteResource(arg.resource, arg.id, signal)
       .then(() => {
         invalidate(Date.now());
         if (res) res.set(true);
       })
       .catch((err) => {
+        if (signal.aborted) return;
         if (res) res.set(err instanceof Error ? err : new Error(String(err)));
       });
 
@@ -218,12 +225,14 @@ function doUpdateTags(node: SignalizedViewNode): ViewElement {
     if (!arg?.deviceId || !arg?.tags) return null;
     const res = node.attributes["res"] as StateSignal<boolean | Error>;
 
-    updateTags(arg.deviceId, arg.tags)
+    const signal = abortSignal();
+    updateTags(arg.deviceId, arg.tags, signal)
       .then(() => {
         invalidate(Date.now());
         if (res) res.set(true);
       })
       .catch((err) => {
+        if (signal.aborted) return;
         if (res) res.set(err instanceof Error ? err : new Error(String(err)));
       });
 
@@ -237,12 +246,15 @@ function doPing(node: SignalizedViewNode): ViewElement {
     const res = node.attributes["res"] as StateSignal<number | Error | null>;
     if (!arg || !res) return null;
 
+    const signal = abortSignal();
+
     const refresh = (): void => {
-      ping(arg)
+      ping(arg, signal)
         .then((r) => {
           res.set(r["avg"] != null ? r["avg"] : null);
         })
         .catch((err) => {
+          if (signal.aborted) return;
           res.set(err instanceof Error ? err : new Error(String(err)));
         });
     };

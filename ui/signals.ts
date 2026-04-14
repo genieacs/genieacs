@@ -69,7 +69,21 @@ function registerCleanup(cleanup: () => void): void {
   }
 }
 
+const NEVER_ABORTED = AbortSignal.any([]);
+
+// Returns the AbortSignal of the enclosing ComputedSignal. The signal is
+// aborted when the computed recomputes or is disposed. Outside a computation,
+// returns a signal that never aborts.
+export function abortSignal(): AbortSignal {
+  if (computing === null) return NEVER_ABORTED;
+  return computing.abortSignal;
+}
+
 function runCleanups(signal: ComputedSignal<unknown>): void {
+  if (signal._abortController) {
+    signal._abortController.abort();
+    signal._abortController = null;
+  }
   for (const cleanup of signal._cleanups) {
     cleanup();
   }
@@ -210,6 +224,7 @@ export class ComputedSignal<T> extends SignalBase<T> {
   _state: ComputedState = ComputedState.Dirty;
   _sources: Set<SignalBase<unknown>> = new Set();
   _cleanups: Set<() => void> = new Set();
+  _abortController: AbortController | null = null;
 
   // Single WeakRef reused when registering with sources for memory efficiency
   readonly _selfRef: WeakRef<ComputedSignal<unknown>>;
@@ -224,6 +239,11 @@ export class ComputedSignal<T> extends SignalBase<T> {
     if (computing !== null) {
       registerCleanup(() => this[Symbol.dispose]());
     }
+  }
+
+  get abortSignal(): AbortSignal {
+    if (!this._abortController) this._abortController = new AbortController();
+    return this._abortController.signal;
   }
 
   get(): T {
