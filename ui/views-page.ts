@@ -6,6 +6,7 @@ import * as store from "./store.ts";
 import { deleteResource, resourceExists, putResource } from "./api-client.ts";
 import * as notifications from "./notifications.ts";
 import memoize from "../lib/common/memoize.ts";
+import { navigate } from "./router.ts";
 import putFormComponent from "./put-form-component.ts";
 import indexTableComponent from "./index-table-component.ts";
 import * as overlay from "./overlay.ts";
@@ -109,7 +110,7 @@ const formData = {
 const getDownloadUrl = memoize((filter: Expression) => {
   const cols = {};
   for (const attr of attributes) cols[attr.label] = attr.id;
-  return `api/views.csv?${m.buildQueryString({
+  return `/api/views.csv?${m.buildQueryString({
     filter: filter.toString(),
     columns: JSON.stringify(cols),
   })}`;
@@ -150,7 +151,7 @@ export const component: ClosureComponent = (): Component => {
       function onFilterChanged(filter): void {
         const ops = { filter };
         if (vnode.attrs["sort"]) ops["sort"] = vnode.attrs["sort"];
-        m.route.set("/views", ops);
+        navigate("/views", ops).catch(console.error);
       }
 
       const sort = vnode.attrs["sort"]
@@ -167,7 +168,7 @@ export const component: ClosureComponent = (): Component => {
           _sort[attributes[Math.abs(index) - 1].id] = Math.sign(index);
         const ops = { sort: JSON.stringify(_sort) };
         if (vnode.attrs["filter"]) ops["filter"] = vnode.attrs["filter"];
-        m.route.set("/views", ops);
+        navigate("/views", ops).catch(console.error);
       }
 
       let filter: Expression = vnode.attrs["filter"]

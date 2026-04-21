@@ -193,7 +193,7 @@ export const icon: ClosureComponent<IconAttrs> = () => {
           class: vnode.attrs.class,
           "aria-hidden": "true",
         },
-        m("use", { href: `${ICONS_SVG}#icon-${vnode.attrs.name}` }),
+        m("use", { href: `/${ICONS_SVG}#icon-${vnode.attrs.name}` }),
       );
     },
   };

@@ -6,6 +6,7 @@ import * as notifications from "./notifications.ts";
 import { configSnapshot, genieacsVersion } from "./config.ts";
 import { getClockSkew } from "./skewed-date.ts";
 import { QueueTask } from "./task-queue.ts";
+import { reload } from "./router.ts";
 
 export interface RequestOptions {
   method?: string;
@@ -183,7 +184,7 @@ function checkConnection(): void {
             "Clock drift detected, please reload the page",
             {
               Reload: () => {
-                window.location.reload();
+                reload().catch(console.error);
               },
             },
           );
@@ -203,7 +204,7 @@ function checkConnection(): void {
             "Configuration has been modified, please reload the page",
             {
               Reload: () => {
-                window.location.reload();
+                reload().catch(console.error);
               },
             },
           );
@@ -220,7 +221,7 @@ function checkConnection(): void {
             "Server has been updated, please reload the page",
             {
               Reload: () => {
-                window.location.reload();
+                reload().catch(console.error);
               },
             },
           );

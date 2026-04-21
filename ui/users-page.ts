@@ -2,6 +2,7 @@ import { Children, ClosureComponent, Component } from "mithril";
 import { m } from "./components.ts";
 import { pageSize as PAGE_SIZE } from "./config.ts";
 import * as store from "./store.ts";
+import { navigate } from "./router.ts";
 import {
   deleteResource,
   resourceExists,
@@ -130,7 +131,7 @@ const getDownloadUrl = memoize((filter) => {
   const cols = {};
   for (const attr of attributes) cols[attr.label] = attr.id;
 
-  return `api/users.csv?${m.buildQueryString({
+  return `/api/users.csv?${m.buildQueryString({
     filter: filter.toString(),
     columns: JSON.stringify(cols),
   })}`;
@@ -169,7 +170,7 @@ export const component: ClosureComponent = (): Component => {
         if (!(filter instanceof Expression.Literal && filter.value))
           ops["filter"] = filter.toString();
         if (vnode.attrs["sort"]) ops["sort"] = vnode.attrs["sort"];
-        m.route.set("/users", ops);
+        navigate("/users", ops).catch(console.error);
       }
 
       const sort = vnode.attrs["sort"]
@@ -189,7 +190,7 @@ export const component: ClosureComponent = (): Component => {
           _sort[attributes[Math.abs(index) - 1].id] = Math.sign(index);
         const ops = { sort: JSON.stringify(_sort) };
         if (vnode.attrs["filter"]) ops["filter"] = vnode.attrs["filter"];
-        m.route.set("/users", ops);
+        navigate("/users", ops).catch(console.error);
       }
 
       const filter = unpackSmartQuery(

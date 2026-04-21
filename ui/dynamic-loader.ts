@@ -1,4 +1,5 @@
 import * as notifications from "./notifications.ts";
+import { reload } from "./router.ts";
 
 export let codeMirror: typeof import("./codemirror-loader");
 export let yaml: typeof import("./yaml-loader");
@@ -12,7 +13,7 @@ function onError(): void {
       "Error loading JS resource, please reload the page",
       {
         Reload: () => {
-          window.location.reload();
+          reload().catch(console.error);
         },
       },
     );

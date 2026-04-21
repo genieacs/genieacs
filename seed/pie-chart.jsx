@@ -60,8 +60,7 @@ const chart = new Signal.Computed(() => {
         <path d={d} fill={slice.color} stroke="#fff" strokeWidth="1" />
         <a
           class="opacity-0 hover:opacity-100 focus-visible:opacity-100 outline-none"
-          xlink:href={`#!/devices/?filter=${encodeURIComponent(slice.filter)}`}
-          target="__blank"
+          xlink:href={`/devices?filter=${encodeURIComponent(slice.filter)}`}
         >
           <path class="stroke-cyan-500 stroke-1" d={d} fill-opacity="0" />
           <text
@@ -105,7 +104,7 @@ const chart = new Signal.Computed(() => {
             <td class="text-right tabular-nums">
               <a
                 class="text-cyan-700 hover:text-cyan-900 font-medium ml-2"
-                href={`#!/devices/?filter=${encodeURIComponent(slice.filter)}`}
+                href={`/devices?filter=${encodeURIComponent(slice.filter)}`}
               >
                 {slice.count}
               </a>

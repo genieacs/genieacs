@@ -13,6 +13,7 @@ import {
 import { logOut } from "./api-client.ts";
 import * as notifications from "./notifications.ts";
 import { LOGO_SVG } from "../build/assets.ts";
+import { reload } from "./router.ts";
 
 function tsxComponent<T>(
   c: ClosureComponent<T>,
@@ -31,7 +32,7 @@ function classNames(...classes: string[]): string {
 }
 
 interface Attrs {
-  page: string;
+  route: string;
 }
 
 const component: ClosureComponent<Attrs> = () => {
@@ -47,64 +48,64 @@ const component: ClosureComponent<Attrs> = () => {
       const navigation = [
         {
           name: "Overview",
-          href: "#!/overview",
+          href: "/overview",
           enabled: window.authorizer.hasAccess("devices", 1),
         },
         {
           name: "Devices",
-          href: "#!/devices",
+          href: "/devices",
           enabled: window.authorizer.hasAccess("devices", 2),
         },
         {
           name: "Faults",
-          href: "#!/faults",
+          href: "/faults",
           enabled: window.authorizer.hasAccess("faults", 2),
         },
         {
           name: "Presets",
-          href: "#!/presets",
+          href: "/presets",
           enabled: window.authorizer.hasAccess("presets", 2),
         },
         {
           name: "Provisions",
-          href: "#!/provisions",
+          href: "/provisions",
           enabled: window.authorizer.hasAccess("provisions", 2),
         },
         {
           name: "Virtual Parameters",
-          href: "#!/virtualParameters",
+          href: "/virtualParameters",
           enabled: window.authorizer.hasAccess("virtualParameters", 2),
         },
         {
           name: "Files",
-          href: "#!/files",
+          href: "/files",
           enabled: window.authorizer.hasAccess("files", 2),
         },
         {
           name: "Config",
-          href: "#!/config",
+          href: "/config",
           enabled: window.authorizer.hasAccess("config", 2),
         },
         {
           name: "Permissions",
-          href: "#!/permissions",
+          href: "/permissions",
           enabled: window.authorizer.hasAccess("permissions", 2),
         },
         {
           name: "Users",
-          href: "#!/users",
+          href: "/users",
           enabled: window.authorizer.hasAccess("users", 2),
         },
         {
           name: "Views",
-          href: "#!/views",
+          href: "/views",
           enabled: window.authorizer.hasAccess("views", 2),
         },
       ]
         .filter((item) => item.enabled)
         .map(({ name, href }) => {
-          const n = href.slice(3);
-          return { name, href, active: vnode.attrs["page"] === n };
+          const active = `${vnode.attrs.route}/`.startsWith(`${href}/`);
+          return { name, href, active };
         });
 
       return [
@@ -158,7 +159,11 @@ const component: ClosureComponent<Attrs> = () => {
                   </TransitionChild>
                   <div class="flex-1 h-0 pt-5 pb-4 overflow-y-auto">
                     <div class="flex-shrink-0 flex items-center px-4">
-                      <img class="h-10 w-auto" src={LOGO_SVG} alt="GenieACS" />
+                      <img
+                        class="h-10 w-auto"
+                        src={`/${LOGO_SVG}`}
+                        alt="GenieACS"
+                      />
                     </div>
                     <nav class="mt-5 px-2 flex flex-col gap-1">
                       {navigation.map((item) => (
@@ -186,10 +191,7 @@ const component: ClosureComponent<Attrs> = () => {
                           onclick={(e) => {
                             e.target.disabled = true;
                             logOut()
-                              .then(() => {
-                                location.hash = "";
-                                location.reload();
-                              })
+                              .then(reload)
                               .catch((err) => {
                                 e.target.disabled = false;
                                 notifications.push("error", err.message);
@@ -227,7 +229,11 @@ const component: ClosureComponent<Attrs> = () => {
             <div class="flex-1 flex flex-col min-h-0 border-r border-stone-200 bg-white">
               <div class="flex-1 flex flex-col pt-5 pb-4 overflow-y-auto">
                 <div class="flex items-center flex-shrink-0 px-4">
-                  <img class="h-10 w-auto" src={LOGO_SVG} alt="GenieACS" />
+                  <img
+                    class="h-10 w-auto"
+                    src={`/${LOGO_SVG}`}
+                    alt="GenieACS"
+                  />
                 </div>
                 <nav class="mt-5 flex-1 px-2 bg-white flex flex-col gap-1">
                   {navigation.map((item) => (
@@ -255,10 +261,7 @@ const component: ClosureComponent<Attrs> = () => {
                       onclick={(e) => {
                         e.target.disabled = true;
                         logOut()
-                          .then(() => {
-                            location.hash = "";
-                            location.reload();
-                          })
+                          .then(reload)
                           .catch((err) => {
                             e.target.disabled = false;
                             notifications.push("error", err.message);

@@ -4,11 +4,11 @@ import { logIn } from "./api-client.ts";
 import * as notifications from "./notifications.ts";
 import * as overlay from "./overlay.ts";
 import changePasswordComponent from "./change-password-component.ts";
+import { navigate, redirect, reload } from "./router.ts";
 
-export function init(
-  args: Record<string, unknown>,
-): Promise<Record<string, unknown>> {
-  return Promise.resolve(args);
+export function init(args: { continue?: string }): Promise<void> {
+  if (window.username) return redirect(args.continue || "/");
+  return Promise.resolve();
 }
 
 export const component: ClosureComponent = (): Component => {
@@ -19,9 +19,7 @@ export const component: ClosureComponent = (): Component => {
   function handleLogIn(e: MouseEvent): boolean {
     e.target["disabled"] = true;
     logIn(username, password, remember)
-      .then(() => {
-        location.reload();
-      })
+      .then(reload)
       .catch((err) => {
         notifications.push("error", err.response || err.message);
         e.target["disabled"] = false;
@@ -43,9 +41,7 @@ export const component: ClosureComponent = (): Component => {
   }
 
   return {
-    view: (vnode) => {
-      if (window.username) m.route.set(vnode.attrs["continue"] || "/");
-
+    view: () => {
       document.title = "Login - GenieACS";
 
       return (

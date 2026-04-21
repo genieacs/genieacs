@@ -3,6 +3,7 @@ import { m } from "../components.ts";
 import * as taskQueue from "../task-queue.ts";
 import * as notifications from "../notifications.ts";
 import { deleteResource } from "../api-client.ts";
+import { navigate } from "../router.ts";
 
 const component: ClosureComponent = (): Component => {
   return {
@@ -71,7 +72,7 @@ const component: ClosureComponent = (): Component => {
               deleteResource("devices", deviceId)
                 .then(() => {
                   notifications.push("success", `${deviceId}: Device deleted`);
-                  m.route.set("/devices");
+                  navigate("/devices").catch(console.error);
                 })
                 .catch((err) => {
                   notifications.push("error", err.message);

@@ -12,6 +12,7 @@ import Expression, { extractPaths } from "../lib/common/expression.ts";
 import memoize from "../lib/common/memoize.ts";
 import * as smartQuery from "./smart-query.ts";
 import { ViewComponent } from "./views.ts";
+import { navigate } from "./router.ts";
 
 const memoizedGetSortable = memoize((p: Expression) => {
   const expressionParams = extractPaths(p);
@@ -26,7 +27,7 @@ const getDownloadUrl = memoize(
   ) => {
     const columns = {};
     for (const p of indexParameters) columns[p.label] = p.parameter.toString();
-    return `api/devices.csv?${m.buildQueryString({
+    return `/api/devices.csv?${m.buildQueryString({
       filter: filter.toString(),
       columns: JSON.stringify(columns),
     })}`;
@@ -279,7 +280,7 @@ export const component: ClosureComponent<Attrs> = () => {
         if (!(filter instanceof Expression.Literal && filter.value))
           ops["filter"] = filter.toString();
         if (vnode.attrs.sort) ops["sort"] = vnode.attrs.sort;
-        m.route.set("/devices", ops);
+        navigate("/devices", ops).catch(console.error);
       }
 
       const sort = vnode.attrs.sort || {};
@@ -302,7 +303,7 @@ export const component: ClosureComponent<Attrs> = () => {
         }
         const ops = { sort: JSON.stringify(_sort) };
         if (vnode.attrs["filter"]) ops["filter"] = vnode.attrs["filter"];
-        m.route.set("/devices", ops);
+        navigate("/devices", ops).catch(console.error);
       }
 
       const filter = unpackSmartQuery(
@@ -352,7 +353,7 @@ export const component: ClosureComponent<Attrs> = () => {
         return m(
           "a.text-cyan-700 hover:text-cyan-900",
           {
-            href: `#!/devices/${encodeURIComponent(device["DeviceID.ID"])}`,
+            href: `/devices/${encodeURIComponent(device["DeviceID.ID"])}`,
           },
           "Show",
         );

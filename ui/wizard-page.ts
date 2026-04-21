@@ -2,6 +2,7 @@ import { ClosureComponent, Component } from "mithril";
 import { m } from "./components.ts";
 import * as notifications from "./notifications.ts";
 import { request } from "./api-client.ts";
+import { navigate, reload } from "./router.ts";
 
 export async function init(): Promise<Record<string, unknown>> {
   const res = await request("/init");
@@ -82,8 +83,9 @@ export const component: ClosureComponent = (vnode): Component => {
                             "Initialization complete",
                             {
                               "Open Sesame!": () => {
-                                m.route.set("/login");
-                                window.location.reload();
+                                navigate("/login")
+                                  .then(reload)
+                                  .catch(console.error);
                               },
                             },
                           );

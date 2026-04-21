@@ -118,7 +118,7 @@ const explorer = new Signal.Computed(() => {
           <span class="font-medium">{filtered.length}</span> parameters
         </span>
         <a
-          href={`api/devices/${encodeURIComponent(deviceId)}.csv`}
+          href={`/api/devices/${encodeURIComponent(deviceId)}.csv`}
           download=""
           class="text-cyan-700 hover:text-cyan-900 text-sm font-medium"
         >

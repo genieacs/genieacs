@@ -22,7 +22,7 @@ const component: ClosureComponent = (): Component => {
       if (deviceId) {
         return m(
           "a.text-cyan-700 hover:text-cyan-900 font-medium",
-          { href: `#!/devices/${encodeURIComponent(deviceId)}` },
+          { href: `/devices/${encodeURIComponent(deviceId)}` },
           children,
         );
       } else {

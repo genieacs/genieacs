@@ -36,7 +36,7 @@ function drawChart(chartData: Attrs["chart"]): Children {
           m(
             "a.text-cyan-700 hover:text-cyan-900 font-medium ml-2",
             {
-              href: `#!/devices/?${m.buildQueryString({
+              href: `/devices?${m.buildQueryString({
                 filter: slice.filter.toString(),
               })}`,
             },
@@ -76,7 +76,7 @@ function drawChart(chartData: Attrs["chart"]): Children {
         m(
           "a.opacity-0 hover:opacity-100 focus-visible:opacity-100 outline-hidden",
           {
-            "xlink:href": `#!/devices/?${m.buildQueryString({
+            "xlink:href": `/devices?${m.buildQueryString({
               filter: slice.filter.toString(),
             })}`,
           },

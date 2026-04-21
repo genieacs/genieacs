@@ -225,7 +225,7 @@ const component: ClosureComponent<Attrs> = () => {
               m(
                 "a.text-cyan-700 hover:text-cyan-900 text-sm font-medium",
                 {
-                  href: `api/devices/${encodeURIComponent(
+                  href: `/api/devices/${encodeURIComponent(
                     device["DeviceID.ID"],
                   )}.csv`,
                   download: "",

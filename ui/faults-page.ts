@@ -6,6 +6,7 @@ import filterComponent from "./filter-component.ts";
 import * as store from "./store.ts";
 import { deleteResource } from "./api-client.ts";
 import * as notifications from "./notifications.ts";
+import { navigate } from "./router.ts";
 import memoize from "../lib/common/memoize.ts";
 import * as smartQuery from "./smart-query.ts";
 import { stringify as yamlStringify } from "../lib/common/yaml.ts";
@@ -30,7 +31,7 @@ const getDownloadUrl = memoize((filter) => {
       attr.id === "timestamp" ? `DATE_STRING(${attr.id})` : attr.id;
   }
 
-  return `api/faults.csv?${m.buildQueryString({
+  return `/api/faults.csv?${m.buildQueryString({
     filter: filter.toString(),
     columns: JSON.stringify(cols),
   })}`;
@@ -100,7 +101,7 @@ export const component: ClosureComponent = (): Component => {
         if (!(filter instanceof Expression.Literal && filter.value))
           ops["filter"] = filter.toString();
         if (vnode.attrs["sort"]) ops["sort"] = vnode.attrs["sort"];
-        m.route.set("/faults", ops);
+        navigate("/faults", ops).catch(console.error);
       }
 
       const sort = vnode.attrs["sort"]
@@ -119,7 +120,7 @@ export const component: ClosureComponent = (): Component => {
           _sort[attributes[Math.abs(index) - 1].id] = Math.sign(index);
         const ops = { sort: JSON.stringify(_sort) };
         if (vnode.attrs["filter"]) ops["filter"] = vnode.attrs["filter"];
-        m.route.set("/faults", ops);
+        navigate("/faults", ops).catch(console.error);
       }
 
       const filter = unpackSmartQuery(
@@ -136,9 +137,7 @@ export const component: ClosureComponent = (): Component => {
 
       const valueCallback = (attr, fault): Children => {
         if (attr.id === "device") {
-          const deviceHref = `#!/devices/${encodeURIComponent(
-            fault["device"],
-          )}`;
+          const deviceHref = `/devices/${encodeURIComponent(fault["device"])}`;
 
           return m(
             "a.text-cyan-700 hover:text-cyan-900 font-medium",

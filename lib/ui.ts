@@ -17,6 +17,7 @@ import * as init from "./init.ts";
 import { version as VERSION } from "../package.json";
 import memoize from "./common/memoize.ts";
 import { APP_JS, APP_CSS, FAVICON_PNG } from "../build/assets.ts";
+import { matchRoute } from "../ui/router.ts";
 
 const koa = new Koa();
 const router = new Router();
@@ -214,11 +215,7 @@ router.post("/init", async (ctx) => {
   ctx.body = "";
 });
 
-router.get("/", async (ctx) => {
-  // koa-router seems to tolerate double slashes in the URL but that can
-  // be problematic when using relatives asset paths in HTML
-  if (ctx.path.endsWith("//")) return;
-
+function renderIndex(ctx): void {
   const ps: PermissionSet[] = ctx.state.authorizer.getPermissionSets();
   const permissionSets = ps.map((p) =>
     p.map((s) =>
@@ -231,21 +228,24 @@ router.get("/", async (ctx) => {
     ),
   );
 
-  let wizard = "";
-  if (!Object.keys(localCache.getUsers(ctx.state.configSnapshot)).length)
-    wizard = '<script>window.location.hash = "#!/wizard";</script>';
+  if (
+    !Object.keys(localCache.getUsers(ctx.state.configSnapshot)).length &&
+    ctx.path !== "/wizard"
+  ) {
+    ctx.redirect("/wizard");
+    return;
+  }
 
   let viewsUrl: string;
-  if (ctx.state.user)
-    viewsUrl = `./views-bundle-${ctx.state.configSnapshot}.js`;
+  if (ctx.state.user) viewsUrl = `/views-bundle-${ctx.state.configSnapshot}.js`;
   else viewsUrl = "data:application/javascript,export default {}";
 
   ctx.body = `<!DOCTYPE html>
   <html>
     <head>
       <title>GenieACS</title>
-      <link rel="shortcut icon" type="image/png" href="./${FAVICON_PNG}" />
-      <link rel="stylesheet" href="./${APP_CSS}">
+      <link rel="shortcut icon" type="image/png" href="/${FAVICON_PNG}" />
+      <link rel="stylesheet" href="/${APP_CSS}">
     </head>
     <body class="h-full bg-stone-100">
       <noscript>GenieACS UI requires JavaScript to work. Please enable JavaScript in your browser.</noscript>
@@ -268,11 +268,18 @@ router.get("/", async (ctx) => {
         )};
         window.permissionSets = ${JSON.stringify(permissionSets)};
       </script>
-      <script type="module" src="./${APP_JS}"></script>
-      ${wizard}
+      <script type="module" src="/${APP_JS}"></script>
     </body>
   </html>
   `;
+}
+
+router.get("(.*)", (ctx, next) => {
+  const match = matchRoute(ctx.path);
+  if (!match) return next();
+  if (match.pathname === ctx.path) return renderIndex(ctx);
+  ctx.status = 301;
+  ctx.redirect(match.pathname);
 });
 
 router.get("/views-bundle-:revision.js", async (ctx) => {
