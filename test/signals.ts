@@ -234,7 +234,7 @@ void test("Deeply nested computeds", () => {
   // Create a chain of 100 computeds
   let current: StateSignal<number> | ComputedSignal<number> = state;
   for (let i = 0; i < 100; i++) {
-    const prev = current;
+    const prev: StateSignal<number> | ComputedSignal<number> = current;
     current = new ComputedSignal(() => prev.get() + 1);
   }
 

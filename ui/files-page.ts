@@ -8,12 +8,12 @@ import * as notifications from "./notifications.ts";
 import memoize from "../lib/common/memoize.ts";
 import { navigate } from "./router.ts";
 import putFormComponent from "./put-form-component.ts";
-import indexTableComponent from "./index-table-component.ts";
+import indexTableComponent, {
+  IndexTableAttrs,
+} from "./index-table-component.ts";
 import * as overlay from "./overlay.ts";
 import * as smartQuery from "./smart-query.ts";
 import Expression from "../lib/common/expression.ts";
-
-const memoizedJsonParse = memoize(JSON.parse);
 
 const attributes: {
   id: string;
@@ -65,8 +65,8 @@ const unpackSmartQuery = memoize((query: Expression) => {
   });
 });
 
-const getDownloadUrl = memoize((filter) => {
-  const cols = {};
+const getDownloadUrl = memoize((filter: Expression) => {
+  const cols: Record<string, string> = {};
   for (const attr of attributes) cols[attr.label] = attr.id;
   return `/api/files.csv?${m.buildQueryString({
     filter: filter.toString(),
@@ -91,48 +91,52 @@ export function init(
   return Promise.resolve({ filter, sort });
 }
 
-export const component: ClosureComponent = (): Component => {
+interface Attrs {
+  filter?: Expression;
+  sort?: Record<string, number>;
+}
+
+export const component: ClosureComponent<Attrs> = (): Component<Attrs> => {
+  let showCount: number;
+
   return {
     view: (vnode) => {
       document.title = "Files - GenieACS";
 
       function showMore(): void {
-        vnode.state["showCount"] =
-          (vnode.state["showCount"] || PAGE_SIZE) + PAGE_SIZE;
+        showCount = (showCount || PAGE_SIZE) + PAGE_SIZE;
         m.redraw();
       }
 
-      function onFilterChanged(filter): void {
-        const ops = {};
+      function onFilterChanged(filter: Expression): void {
+        const ops: Record<string, string> = {};
         if (!(filter instanceof Expression.Literal && filter.value))
           ops["filter"] = filter.toString();
-        if (vnode.attrs["sort"]) ops["sort"] = vnode.attrs["sort"];
+        if (vnode.attrs.sort) ops["sort"] = JSON.stringify(vnode.attrs.sort);
         navigate("/files", ops).catch(console.error);
       }
 
-      const sort = vnode.attrs["sort"]
-        ? memoizedJsonParse(vnode.attrs["sort"])
-        : {};
+      const sort = vnode.attrs.sort || {};
 
-      const sortAttributes = {};
+      const sortAttributes: Record<number, number> = {};
       for (let i = 0; i < attributes.length; i++)
         sortAttributes[i] = sort[attributes[i].id] || 0;
 
-      function onSortChange(sortAttrs): void {
-        const _sort = {};
+      function onSortChange(sortAttrs: number[]): void {
+        const _sort: Record<string, number> = {};
         for (const index of sortAttrs)
           _sort[attributes[Math.abs(index) - 1].id] = Math.sign(index);
-        const ops = { sort: JSON.stringify(_sort) };
-        if (vnode.attrs["filter"]) ops["filter"] = vnode.attrs["filter"];
+        const ops: Record<string, string> = { sort: JSON.stringify(_sort) };
+        if (vnode.attrs.filter) ops["filter"] = vnode.attrs.filter.toString();
         navigate("/files", ops).catch(console.error);
       }
 
       const filter = unpackSmartQuery(
-        vnode.attrs["filter"] ?? new Expression.Literal(true),
+        vnode.attrs.filter ?? new Expression.Literal(true),
       );
 
       const files = store.fetch("files", filter, {
-        limit: vnode.state["showCount"] || PAGE_SIZE,
+        limit: showCount || PAGE_SIZE,
         sort: sort,
       });
 
@@ -140,26 +144,27 @@ export const component: ClosureComponent = (): Component => {
 
       const downloadUrl = getDownloadUrl(filter);
 
-      const attrs = {};
-      attrs["attributes"] = attributes;
-      attrs["data"] = files.value;
-      attrs["total"] = count.value;
-      attrs["showMoreCallback"] = showMore;
-      attrs["sortAttributes"] = sortAttributes;
-      attrs["onSortChange"] = onSortChange;
-      attrs["downloadUrl"] = downloadUrl;
-      attrs["recordActionsCallback"] = (file) => {
-        return [
-          m(
-            "a.text-cyan-700 hover:text-cyan-900",
-            { href: "/api/blob/files/" + file["_id"] },
-            "Download",
-          ),
-        ];
+      const attrs: IndexTableAttrs = {
+        attributes,
+        data: files.value,
+        total: count.value,
+        showMoreCallback: showMore,
+        sortAttributes,
+        onSortChange,
+        downloadUrl,
+        recordActionsCallback: (file: Record<string, any>) => {
+          return [
+            m(
+              "a.text-cyan-700 hover:text-cyan-900",
+              { href: "/api/blob/files/" + file["_id"] },
+              "Download",
+            ),
+          ];
+        },
       };
 
       if (window.authorizer.hasAccess("files", 3)) {
-        attrs["actionsCallback"] = (selected: Set<string>): Children => {
+        attrs.actionsCallback = (selected: Set<string>): Children => {
           return [
             m(
               "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
@@ -173,7 +178,10 @@ export const component: ClosureComponent = (): Component => {
                     putFormComponent,
                     Object.assign(
                       {
-                        actionHandler: async (action, obj) => {
+                        actionHandler: async (
+                          action: string,
+                          obj: Record<string, any>,
+                        ) => {
                           if (action !== "save")
                             throw new Error("Undefined action");
                           const file = obj["file"]?.[0];
@@ -220,6 +228,7 @@ export const component: ClosureComponent = (): Component => {
                             notifications.push("success", "File created");
                             overlay.close(cb);
                           } catch (err) {
+                            if (!(err instanceof Error)) throw err;
                             notifications.push("error", err.message);
                           }
                           progress = -1;
@@ -242,7 +251,7 @@ export const component: ClosureComponent = (): Component => {
                   };
                   overlay.open(cb, () => {
                     if (
-                      comp.state["current"]["modified"] &&
+                      (comp.state as any)["current"]["modified"] &&
                       !confirm("You have unsaved changes. Close anyway?")
                     )
                       return false;
@@ -258,14 +267,14 @@ export const component: ClosureComponent = (): Component => {
               {
                 title: "Delete selected files",
                 disabled: !selected.size,
-                onclick: (e) => {
+                onclick: (e: Event) => {
                   if (
                     !confirm(`Deleting ${selected.size} files. Are you sure?`)
                   )
                     return;
 
                   e.redraw = false;
-                  e.target.disabled = true;
+                  (e.target as HTMLButtonElement).disabled = true;
                   Promise.all(
                     Array.from(selected).map((id) =>
                       deleteResource("files", id),
@@ -292,7 +301,7 @@ export const component: ClosureComponent = (): Component => {
 
       const filterAttrs = {
         resource: "files",
-        filter: vnode.attrs["filter"],
+        filter: vnode.attrs.filter,
         onChange: onFilterChanged,
       };
 

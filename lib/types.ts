@@ -21,7 +21,7 @@ export interface Fault {
 
 export interface SessionFault extends Fault {
   timestamp: number;
-  provisions: string[][];
+  provisions: [string, ...Value[]][];
   retryNow?: boolean;
   precondition?: boolean;
   retries?: number;
@@ -112,7 +112,7 @@ export interface SessionContext {
   deviceData: DeviceData;
   cwmpVersion: string;
   timeout: number;
-  provisions: any[];
+  provisions: [string, ...Value[]][];
   channels: { [channel: string]: number };
   virtualParameters: [
     string,
@@ -165,7 +165,7 @@ export interface Task {
 export interface Operation {
   name: string;
   timestamp: number;
-  provisions: string[][];
+  provisions: [string, ...Value[]][];
   channels: { [channel: string]: number };
   retries: { [channel: string]: number };
   args: {
@@ -251,7 +251,7 @@ export interface Download {
   password?: string;
   fileSize?: number;
   targetFileName?: string;
-  delaySecods?: number;
+  delaySeconds?: number;
   successUrl?: string;
   failureUrl?: string;
 }

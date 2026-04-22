@@ -1,6 +1,7 @@
 import { ClosureComponent, Component, Children } from "mithril";
 import { m } from "./components.ts";
 import * as store from "./store.ts";
+import type { QueryResponse } from "./store.ts";
 import { resourceExists, putResource, deleteResource } from "./api-client.ts";
 import * as notifications from "./notifications.ts";
 import putFormComponent from "./put-form-component.ts";
@@ -19,7 +20,11 @@ interface ValidationErrors {
   [prop: string]: string;
 }
 
-function putActionHandler(action, _object, isNew?): Promise<ValidationErrors> {
+function putActionHandler(
+  action: string,
+  _object: Record<string, any>,
+  isNew?: boolean,
+): Promise<ValidationErrors> {
   return new Promise((resolve, reject) => {
     const object = Object.assign({}, _object);
     if (action === "save") {
@@ -39,7 +44,7 @@ function putActionHandler(action, _object, isNew?): Promise<ValidationErrors> {
       }
 
       resourceExists("config", id)
-        .then((exists) => {
+        .then((exists): void => {
           if (exists && isNew) {
             store.setTimestamp(Date.now());
             return void resolve({ _id: "Config already exists" });
@@ -85,7 +90,7 @@ const formData = {
   attributes: attributes,
 };
 
-function escapeRegExp(str): string {
+function escapeRegExp(str: string): string {
   return str.replace(/[-[\]/{}()*+?.\\^$|]/g, "\\$&");
 }
 
@@ -104,21 +109,29 @@ export function init(): Promise<Record<string, unknown>> {
   });
 }
 
-function renderTable(confsResponse, searchString): Children {
-  const confs = confsResponse.value.sort((a, b) => {
-    return a._id < b._id ? -1 : 1;
-  });
+function renderTable(
+  confsResponse: QueryResponse,
+  searchString: string,
+): Children {
+  const confs = confsResponse.value.sort(
+    (a: { _id: string }, b: { _id: string }) => {
+      return a._id < b._id ? -1 : 1;
+    },
+  );
 
-  let regex;
+  let regex: RegExp;
   if (searchString) {
-    const keywords = searchString.split(" ").filter((s) => s);
+    const keywords = searchString.split(" ").filter((s: string) => s);
     if (keywords.length)
-      regex = new RegExp(keywords.map((s) => escapeRegExp(s)).join(".*"), "i");
+      regex = new RegExp(
+        keywords.map((s: string) => escapeRegExp(s)).join(".*"),
+        "i",
+      );
   }
 
   const rows = [];
   for (const conf of confs) {
-    const attrs = {};
+    const attrs: Record<string, string> = {};
     if (regex && !regex.test(conf._id) && !regex.test(conf.value))
       attrs["style"] = "display: none;";
 
@@ -133,7 +146,10 @@ function renderTable(confsResponse, searchString): Children {
             Object.assign(
               {
                 base: conf,
-                actionHandler: (action, object) => {
+                actionHandler: (
+                  action: string,
+                  object: Record<string, any>,
+                ) => {
                   return new Promise<void>((resolve) => {
                     putActionHandler(action, object, false)
                       .then((errors) => {
@@ -160,7 +176,7 @@ function renderTable(confsResponse, searchString): Children {
           overlay.open(
             cb,
             () =>
-              !comp.state["current"]["modified"] ||
+              !(comp.state as any)["current"]["modified"] ||
               confirm("You have unsaved changes. Close anyway?"),
           );
         },
@@ -212,8 +228,11 @@ function renderTable(confsResponse, searchString): Children {
 }
 
 export const component: ClosureComponent = (): Component => {
+  let searchString: string;
+  let searchTimeout: ReturnType<typeof setTimeout>;
+
   return {
-    view: (vnode) => {
+    view: () => {
       document.title = "Config - GenieACS";
 
       const search = m(
@@ -221,11 +240,11 @@ export const component: ClosureComponent = (): Component => {
         {
           type: "text",
           placeholder: "Search config",
-          oninput: (e) => {
-            vnode.state["searchString"] = e.target.value;
+          oninput: (e: Event) => {
+            searchString = (e.target as HTMLInputElement).value;
             e.redraw = false;
-            clearTimeout(vnode.state["timeout"]);
-            vnode.state["timeout"] = setTimeout(m.redraw, 250);
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(m.redraw, 250);
           },
         },
       );
@@ -246,7 +265,10 @@ export const component: ClosureComponent = (): Component => {
                 putFormComponent,
                 Object.assign(
                   {
-                    actionHandler: (action, object) => {
+                    actionHandler: (
+                      action: string,
+                      object: Record<string, any>,
+                    ) => {
                       return new Promise<void>((resolve) => {
                         putActionHandler(action, object, true)
                           .then((errors) => {
@@ -275,7 +297,7 @@ export const component: ClosureComponent = (): Component => {
               overlay.open(
                 cb,
                 () =>
-                  !comp.state["current"]["modified"] ||
+                  !(comp.state as any)["current"]["modified"] ||
                   confirm("You have unsaved changes. Close anyway?"),
               );
             },
@@ -283,7 +305,11 @@ export const component: ClosureComponent = (): Component => {
           "New config",
         );
 
-        const subsData = [
+        const subsData: {
+          name: string;
+          prefix: string;
+          data: { _id: string; value: string }[];
+        }[] = [
           { name: "overview", prefix: "ui.overview.groups.", data: [] },
           { name: "charts", prefix: "ui.overview.charts.", data: [] },
           { name: "filters", prefix: "ui.filters.", data: [] },
@@ -331,7 +357,7 @@ export const component: ClosureComponent = (): Component => {
                           }
                           store.setTimestamp(Date.now());
                         },
-                        onError: (err) => {
+                        onError: (err: Error) => {
                           notifications.push("error", err.message);
                           store.setTimestamp(Date.now());
                           overlay.close(cb);
@@ -344,7 +370,7 @@ export const component: ClosureComponent = (): Component => {
                   overlay.open(
                     cb,
                     () =>
-                      !comp.state["modified"] ||
+                      !(comp.state as any)["modified"] ||
                       confirm("You have unsaved changes. Close anyway?"),
                   );
                 },
@@ -365,10 +391,7 @@ export const component: ClosureComponent = (): Component => {
             search,
             m(
               ".shadow-sm overflow-hidden border-b border-stone-200 rounded-lg bg-white",
-              m(
-                ".overflow-y-scroll h-96",
-                renderTable(confs, vnode.state["searchString"]),
-              ),
+              m(".overflow-y-scroll h-96", renderTable(confs, searchString)),
             ),
             m(".mt-5", [newConfig].concat(subs)),
           ),

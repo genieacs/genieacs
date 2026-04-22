@@ -21,7 +21,7 @@ import { collections } from "../db/db.ts";
 const router = new Router();
 export default router;
 
-function logUnauthorizedWarning(log): void {
+function logUnauthorizedWarning(log: { message: string }): void {
   log.message += " not authorized";
   logger.accessWarn(log);
 }
@@ -29,7 +29,7 @@ function logUnauthorizedWarning(log): void {
 const RESOURCE_DELETE = 1 << 0;
 const RESOURCE_PUT = 1 << 1;
 
-const RESOURCE_IDS = {
+const RESOURCE_IDS: Record<string, string> = {
   devices: "DeviceID.ID",
   presets: "_id",
   provisions: "_id",
@@ -157,7 +157,7 @@ for (const [resource, flags] of Object.entries(resources)) {
       message: `Count ${resource}`,
       context: ctx,
       filter: ctx.request.query.filter,
-      count: null,
+      count: null as number | null,
     };
 
     if (!authorizer.hasAccess(resource, 1)) {
@@ -504,6 +504,7 @@ for (const [resource, flags] of Object.entries(resources)) {
       try {
         await apiFunctions.putResource(resource, id, obj);
       } catch (err) {
+        if (!(err instanceof Error)) throw err;
         log.message += " failed";
         logger.accessWarn(log);
         ctx.body = `${err.name}: ${err.message}`;
@@ -559,7 +560,7 @@ router.put("/files/:id", async (ctx) => {
     message: `Upload ${resource}`,
     context: ctx,
     id: id,
-    metadata: null,
+    metadata: null as Record<string, string> | null,
   };
 
   if (!authorizer.hasAccess(resource, 3)) {
@@ -601,7 +602,7 @@ router.post("/devices/:id/tasks", async (ctx) => {
     message: "Commit tasks",
     context: ctx,
     deviceId: deviceId,
-    tasks: null,
+    tasks: null as string | null,
   };
 
   if (!authorizer.hasAccess("devices", 3)) {
@@ -653,7 +654,7 @@ router.post("/devices/:id/tasks", async (ctx) => {
 
     for (const task of tasks) {
       delete task._id;
-      task["device"] = deviceId;
+      (task as Task & { device: string }).device = deviceId;
     }
 
     tasks = await apiFunctions.insertTasks(tasks);
@@ -759,6 +760,7 @@ router.post("/devices/:id/tags", async (ctx) => {
   try {
     await db.updateDeviceTags(ctx.params.id, ctx.request.body);
   } catch (error) {
+    if (!(error instanceof Error)) throw error;
     log.message += " failed";
     logger.accessWarn(log);
     ctx.body = error.message;

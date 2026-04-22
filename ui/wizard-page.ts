@@ -9,7 +9,9 @@ export async function init(): Promise<Record<string, unknown>> {
   return res.json();
 }
 
-export const component: ClosureComponent = (vnode): Component => {
+type Attrs = Record<string, boolean>;
+
+export const component: ClosureComponent<Attrs> = (vnode): Component<Attrs> => {
   let options = vnode.attrs;
   const selected = new Set<string>();
   for (const [k, v] of Object.entries(options)) if (v) selected.add(k);
@@ -50,8 +52,9 @@ export const component: ClosureComponent = (vnode): Component => {
                     type: "checkbox",
                     checked: selected.has(item.key),
                     disabled: !options[item.key],
-                    onclick: (e) => {
-                      if (e.target.checked) selected.add(item.key);
+                    onclick: (e: Event) => {
+                      if ((e.target as HTMLInputElement).checked)
+                        selected.add(item.key);
                       else selected.delete(item.key);
                     },
                   },
@@ -64,10 +67,11 @@ export const component: ClosureComponent = (vnode): Component => {
             "button.inline-flex justify-center py-2 px-4 border border-transparent shadow-xs text-sm font-medium rounded-md text-white bg-cyan-600 hover:bg-cyan-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
             {
               disabled: selected.size === 0,
-              onclick: (e) => {
-                e.target.disabled = true;
+              onclick: (e: Event) => {
+                const target = e.target as HTMLButtonElement;
+                target.disabled = true;
 
-                const opts = {};
+                const opts: Record<string, boolean> = {};
                 for (const s of selected) opts[s] = true;
 
                 request("/init", { method: "POST", body: opts })
@@ -76,7 +80,7 @@ export const component: ClosureComponent = (vnode): Component => {
                       request("/init")
                         .then((res) => res.json())
                         .then((o) => {
-                          e.target.disabled = false;
+                          target.disabled = false;
                           options = o;
                           notifications.push(
                             "success",

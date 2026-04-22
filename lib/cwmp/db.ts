@@ -32,11 +32,13 @@ export async function fetchDevice(
     ],
   ];
 
-  const device = (await collections.devices.findOne({ _id: id })) as any;
+  const device = (await collections.devices.findOne({
+    _id: id,
+  })) as Record<string, any>;
   if (!device) return null;
 
   function storeParams(
-    obj,
+    obj: any,
     path: string,
     pathLength: number,
     ts: number,
@@ -240,7 +242,12 @@ export async function saveDevice(
   isNew: boolean,
   sessionTimestamp: number,
 ): Promise<void> {
-  const update = { $set: {}, $unset: {}, $addToSet: {}, $pull: {} };
+  const update: {
+    $set: Record<string, any>;
+    $unset: Record<string, any>;
+    $addToSet: Record<string, any>;
+    $pull: Record<string, any>;
+  } = { $set: {}, $unset: {}, $addToSet: {}, $pull: {} };
 
   for (const diff of deviceData.timestamps.diff()) {
     if (diff[0].wildcard !== 1 << (diff[0].length - 1)) continue;
@@ -385,7 +392,7 @@ export async function saveDevice(
           continue;
         }
 
-        for (const attrName of Object.keys(diff[2])) {
+        for (const attrName of Object.keys(diff[2]) as (keyof Attributes)[]) {
           // Param timestamps may be greater than session timestamp to track revisions
           if (diff[2][attrName][0] > sessionTimestamp)
             diff[2][attrName][0] = sessionTimestamp;
@@ -473,7 +480,7 @@ export async function saveDevice(
         }
 
         if (diff[1]) {
-          for (const attrName of Object.keys(diff[1])) {
+          for (const attrName of Object.keys(diff[1]) as (keyof Attributes)[]) {
             if (
               diff[1][attrName][1] != null &&
               diff[2]?.[attrName]?.[1] == null
@@ -506,7 +513,10 @@ export async function saveDevice(
     if (update["$set"][k] != null) delete update["$unset"][k];
 
   // Remove empty keys
-  for (const [k, v] of Object.entries(update)) {
+  for (const [k, v] of Object.entries(update) as [
+    keyof typeof update,
+    Record<string, any>,
+  ][]) {
     if (k === "$addToSet") {
       for (const [kk, vv] of Object.entries(v))
         if (!vv["$each"].length) delete v[kk];
@@ -641,11 +651,12 @@ export async function getDueTasks(
     tasks.push(task);
 
     // For API compatibility
-    if (task.name === "download" && t["file"]) {
+    const tFile = (t as Record<string, any>)["file"];
+    if (task.name === "download" && tFile) {
       let q;
-      if (ObjectId.isValid(t["file"]))
-        q = { _id: { $in: [t["file"], new ObjectId(t["file"])] } };
-      else q = { _id: t["file"] };
+      if (ObjectId.isValid(tFile))
+        q = { _id: { $in: [tFile, new ObjectId(tFile)] } };
+      else q = { _id: tFile };
 
       const res = await collections.files.find(q).toArray();
 

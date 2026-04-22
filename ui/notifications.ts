@@ -1,6 +1,6 @@
 import m from "mithril";
 
-interface Notification {
+export interface Notification {
   type: string;
   message: string;
   timestamp: number;

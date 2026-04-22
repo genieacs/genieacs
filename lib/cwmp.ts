@@ -40,6 +40,8 @@ import {
   Preset,
   GetRPCMethodsResponse,
   CpeFault,
+  Declaration,
+  TransferCompleteRequest,
 } from "./types.ts";
 import { parseXmlDeclaration } from "./xml-parser.ts";
 import * as debug from "./debug.ts";
@@ -77,7 +79,7 @@ async function authenticate(
   );
   if (!authExpression) return true;
 
-  let authentication;
+  let authentication: auth.AuthorizationHeader;
 
   if (sessionContext.httpRequest.headers["authorization"]) {
     try {
@@ -167,13 +169,13 @@ async function authenticate(
 
 async function writeResponse(
   sessionContext: SessionContext,
-  res,
+  res: { code: number; headers: Record<string, string>; data: string },
   close = false,
 ): Promise<void> {
   // Close connection after last request in session
   if (close) res.headers["Connection"] = "close";
 
-  let data = res.data;
+  let data: string | Buffer = res.data;
 
   // Respond using the same content-encoding as the request
   if (
@@ -230,15 +232,15 @@ async function writeResponse(
 function recordFault(
   sessionContext: SessionContext,
   fault: Fault,
-  provisions,
-  channels,
+  provisions: [string, ...Value[]][],
+  channels: { [channel: string]: number },
 ): void;
 function recordFault(sessionContext: SessionContext, fault: Fault): void;
 function recordFault(
   sessionContext: SessionContext,
   fault: Fault,
-  provisions?,
-  channels?,
+  provisions?: [string, ...Value[]][],
+  channels?: { [channel: string]: number },
 ): void {
   if (!provisions) {
     provisions = sessionContext.provisions;
@@ -333,10 +335,13 @@ async function inform(
   return res;
 }
 
-async function transferComplete(sessionContext, rpc): Promise<void> {
+async function transferComplete(
+  sessionContext: SessionContext,
+  rpc: SoapMessage,
+): Promise<void> {
   const { acsResponse, operation, fault } = await session.transferComplete(
     sessionContext,
-    rpc.cpeRequest,
+    rpc.cpeRequest as TransferCompleteRequest,
   );
 
   if (!operation) {
@@ -367,7 +372,7 @@ async function transferComplete(sessionContext, rpc): Promise<void> {
 }
 
 // Append provisions and remove duplicates
-function appendProvisions(original, toAppend): boolean {
+function appendProvisions(original: any[], toAppend: any[]): boolean {
   let modified = false;
   const stringified = new WeakMap();
 
@@ -403,9 +408,9 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
   const presets = localCache.getPresets(sessionContext.cacheSnapshot);
 
   // Filter presets based on existing faults
-  const blackList = {};
+  const blackList: Record<string, number> = {};
   let whiteList = null;
-  let whiteListProvisions = null;
+  let whiteListProvisions: [string, ...Value[]][] = null;
   const RETRY_DELAY = +localCache.getConfig(
     sessionContext.cacheSnapshot,
     "cwmp.retryDelay",
@@ -435,7 +440,7 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
   deviceData.timestamps.revision = 1;
   deviceData.attributes.revision = 1;
 
-  const deviceEvents = {};
+  const deviceEvents: Record<string, boolean> = {};
   for (const p of deviceData.paths.find(Path.parse("Events"), 0b001, 0b1)) {
     const attrs = deviceData.attributes.get(p);
     const t = attrs?.value[1][0] as number;
@@ -495,14 +500,16 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
     filteredPresets.push(pre);
   }
 
-  const declarations = [...parameters].map((v) => ({
-    path: Path.parse(v),
-    pathGet: 1,
-    pathSet: null,
-    attrGet: { value: 1 },
-    attrSet: null,
-    defer: true,
-  }));
+  const declarations: Declaration[] = [...parameters].map(
+    (v): Declaration => ({
+      path: Path.parse(v),
+      pathGet: 1,
+      pathSet: null,
+      attrGet: { value: 1 },
+      attrSet: null,
+      defer: true,
+    }),
+  );
 
   const {
     fault: flt,
@@ -523,7 +530,7 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
   if (whiteList != null)
     session.addProvisions(sessionContext, whiteList, whiteListProvisions);
 
-  const appendProvisionsToFaults = {};
+  const appendProvisionsToFaults: Record<string, [string, ...Value[]][]> = {};
 
   const evalCallback2 = (e: Expression): Expression.Literal => {
     e = session.configContextCallback(sessionContext, e);
@@ -982,7 +989,7 @@ async function responseUnauthorized(
   sessionContext: SessionContext,
   close: boolean,
 ): Promise<void> {
-  const resHeaders = {};
+  const resHeaders: Record<string, string> = {};
   if (close) {
     // Invalid credentials
     logger.accessError({
@@ -1465,11 +1472,12 @@ async function listenerAsync(
     );
   }
 
-  const parseWarnings = [];
+  const parseWarnings: Record<string, unknown>[] = [];
   let rpc: SoapMessage;
   try {
     rpc = soap.request(bodyStr, parseWarnings);
   } catch (err) {
+    if (!(err instanceof Error)) throw err;
     if (!sessionContext && sessionId) {
       await new Promise((resolve) => setTimeout(resolve, 100));
       const sessionContextString = await cache.pop(`session_${sessionId}`);

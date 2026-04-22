@@ -10,70 +10,86 @@ interface Attrs {
 }
 
 const component: ClosureComponent<Attrs> = () => {
+  let usernameState = "";
+  let newPassword = "";
+  let confirmPassword = "";
+  let authPassword = "";
+
+  const labelClass =
+    "label.block text-sm font-semibold text-stone-700 mt-2 mb-1";
+  const inputClass =
+    "input.shadow-sm focus:ring-cyan-500 focus:border-cyan-500 block sm:text-sm border-stone-300 rounded-md";
+
   return {
     view: (vnode) => {
       const onPasswordChange = vnode.attrs.onPasswordChange;
       const enforceAuth = !vnode.attrs.noAuth;
       const username = vnode.attrs.username;
 
-      if (username) vnode.state["username"] = username;
+      if (username) usernameState = username;
 
       const form = [
         m(
           "p",
-          m(
-            "label.block text-sm font-semibold text-stone-700 mt-2 mb-1",
-            { for: "username" },
-            "Username",
-          ),
-          m(
-            "input.shadow-sm focus:ring-cyan-500 focus:border-cyan-500 block sm:text-sm border-stone-300 rounded-md",
-            {
-              name: "username",
-              type: "text",
-              value: vnode.state["username"],
-              disabled: !!username,
-              oninput: (e) => {
-                vnode.state["username"] = e.target.value;
-              },
-              oncreate: (_vnode) => {
-                (_vnode.dom as HTMLSelectElement).focus();
-              },
+          m(labelClass, { for: "username" }, "Username"),
+          m(inputClass, {
+            name: "username",
+            type: "text",
+            value: usernameState,
+            disabled: !!username,
+            oninput: (e: Event) => {
+              usernameState = (e.target as HTMLInputElement).value;
             },
-          ),
+            oncreate: (_vnode) => {
+              (_vnode.dom as HTMLSelectElement).focus();
+            },
+          }),
         ),
       ];
 
-      let fields = {
-        newPassword: "New password",
-        confirmPassword: "Confirm password",
-      };
-      if (enforceAuth)
-        fields = Object.assign({ authPassword: "Your password" }, fields);
-
-      for (const [f, l] of Object.entries(fields)) {
+      if (enforceAuth) {
         form.push(
           m(
             "p",
-            m(
-              "label.block text-sm font-semibold text-stone-700 mt-2 mb-1",
-              { for: f },
-              l,
-            ),
-            m(
-              "input.shadow-sm focus:ring-cyan-500 focus:border-cyan-500 block sm:text-sm border-stone-300 rounded-md",
-              {
-                name: f,
-                type: "password",
-                value: vnode.state[f],
-                oninput: (e) => {
-                  vnode.state[f] = e.target.value;
-                },
+            m(labelClass, { for: "authPassword" }, "Your password"),
+            m(inputClass, {
+              name: "authPassword",
+              type: "password",
+              value: authPassword,
+              oninput: (e: Event) => {
+                authPassword = (e.target as HTMLInputElement).value;
               },
-            ),
+            }),
           ),
         );
       }
+
+      form.push(
+        m(
+          "p",
+          m(labelClass, { for: "newPassword" }, "New password"),
+          m(inputClass, {
+            name: "newPassword",
+            type: "password",
+            value: newPassword,
+            oninput: (e: Event) => {
+              newPassword = (e.target as HTMLInputElement).value;
+            },
+          }),
+        ),
+        m(
+          "p",
+          m(labelClass, { for: "confirmPassword" }, "Confirm password"),
+          m(inputClass, {
+            name: "confirmPassword",
+            type: "password",
+            value: confirmPassword,
+            oninput: (e: Event) => {
+              confirmPassword = (e.target as HTMLInputElement).value;
+            },
+          }),
+        ),
+      );
 
       const submit = m(
         "button.ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-xs text-sm font-medium rounded-md text-white bg-cyan-600 hover:bg-cyan-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500",
@@ -90,29 +106,23 @@ const component: ClosureComponent<Attrs> = () => {
         m(
           "form",
           {
-            onsubmit: (e) => {
+            onsubmit: (e: Event) => {
               e.redraw = false;
               e.preventDefault();
               if (
-                !vnode.state["username"] ||
-                !vnode.state["newPassword"] ||
-                (enforceAuth && !vnode.state["authPassword"])
+                !usernameState ||
+                !newPassword ||
+                (enforceAuth && !authPassword)
               ) {
                 notifications.push("error", "Please fill all fields");
-              } else if (
-                vnode.state["newPassword"] !== vnode.state["confirmPassword"]
-              ) {
+              } else if (newPassword !== confirmPassword) {
                 notifications.push(
                   "error",
                   "Password confirm doesn't match new password",
                 );
               } else {
                 (submit.dom as HTMLFormElement).disabled = true;
-                changePassword(
-                  vnode.state["username"],
-                  vnode.state["newPassword"],
-                  vnode.state["authPassword"],
-                )
+                changePassword(usernameState, newPassword, authPassword)
                   .then(() => {
                     notifications.push(
                       "success",

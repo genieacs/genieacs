@@ -4,11 +4,17 @@ import * as taskQueue from "../task-queue.ts";
 import * as notifications from "../notifications.ts";
 import { deleteResource } from "../api-client.ts";
 import { navigate } from "../router.ts";
+import { FlatDevice } from "../../lib/ui/db.ts";
 
-const component: ClosureComponent = (): Component => {
+interface Attrs {
+  device: FlatDevice;
+}
+
+const component: ClosureComponent<Attrs> = (): Component<Attrs> => {
   return {
     view: (vnode) => {
-      const device = vnode.attrs["device"];
+      const device = vnode.attrs.device;
+      const deviceId = device["DeviceID.ID"] as string;
 
       const buttons = [];
 
@@ -20,7 +26,7 @@ const component: ClosureComponent = (): Component => {
             onclick: () => {
               taskQueue.queueTask({
                 name: "reboot",
-                device: device["DeviceID.ID"],
+                device: deviceId,
               });
             },
           },
@@ -36,7 +42,7 @@ const component: ClosureComponent = (): Component => {
             onclick: () => {
               taskQueue.queueTask({
                 name: "factoryReset",
-                device: device["DeviceID.ID"],
+                device: deviceId,
               });
             },
           },
@@ -52,7 +58,7 @@ const component: ClosureComponent = (): Component => {
             onclick: () => {
               taskQueue.stageDownload({
                 name: "download",
-                devices: [device["DeviceID.ID"]],
+                devices: [deviceId],
               });
             },
           },
@@ -67,7 +73,6 @@ const component: ClosureComponent = (): Component => {
             title: "Delete device",
             onclick: () => {
               if (!confirm("Deleting this device. Are you sure?")) return;
-              const deviceId = device["DeviceID.ID"];
 
               deleteResource("devices", deviceId)
                 .then(() => {

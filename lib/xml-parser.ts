@@ -146,7 +146,7 @@ export function decodeEntities(string: string): string {
 }
 
 export function encodeEntities(string: string): string {
-  const entities = {
+  const entities: Record<string, string> = {
     "&": "&amp;",
     '"': "&quot;",
     "'": "&apos;",

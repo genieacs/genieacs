@@ -18,7 +18,11 @@ interface Attrs {
 
 const component: ClosureComponent<Attrs> = () => {
   let object: Path;
-  let parameters: { label: Expression; parameter: Expression }[];
+  let parameters: {
+    label: Expression;
+    parameter: Expression;
+    type?: Expression;
+  }[];
 
   return {
     oninit: (vnode) => {
@@ -85,8 +89,8 @@ const component: ClosureComponent<Attrs> = () => {
           });
 
           let type = "parameter";
-          if (p["type"] instanceof Expression)
-            type = evaluateExpression(p["type"], device).value + "";
+          if (p.type instanceof Expression)
+            type = evaluateExpression(p.type, device).value + "";
 
           return m(
             "td",

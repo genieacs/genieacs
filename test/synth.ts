@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert";
-import initSqlJs from "sql.js/dist/sql-asm.js";
+import initSqlJs, { Database } from "sql.js/dist/sql-asm.js";
 import {
   covers,
   minimize,
@@ -17,7 +17,7 @@ function isFalse(expr: Expression): boolean {
 const STRING_VALUES = [null, "", "a", "ab", "ab10", "ab-10"];
 const DECIMAL_VALUES = [null, 0, -10, 10];
 
-let db;
+let db: Database;
 
 async function query(filter: string): Promise<Set<number>> {
   if (!db) {
@@ -40,7 +40,7 @@ async function query(filter: string): Promise<Set<number>> {
 
   const res = db.exec(`SELECT id FROM test WHERE ${filter}`);
   if (!res.length) return new Set();
-  return new Set(res[0].values.flat());
+  return new Set(res[0].values.flat() as number[]);
 }
 
 function setsEqual(set1: Set<number>, set2: Set<number>): boolean {

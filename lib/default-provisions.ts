@@ -27,8 +27,8 @@ export function refresh(
   const offset = scheduling.variance(sessionContext.deviceId, every);
   const t = scheduling.interval(sessionContext.timestamp, every, offset);
 
-  let attrGet;
-  let refreshChildren;
+  let attrGet: Record<string, number>;
+  let refreshChildren: boolean;
   if (provision[3] == null) {
     refreshChildren = true;
     attrGet = { object: 1, writable: 1, value: t };
@@ -85,7 +85,7 @@ export function value(
   }
 
   if (attr === "accessList") {
-    val = (val || "")
+    val = String(val || "")
       .split(",")
       .map((s) => s.trim())
       .filter((s) => !!s);
@@ -226,7 +226,8 @@ export function instances(
 
   const path = Path.parse(provision[1]);
 
-  if (provision[2][0] === "+" || provision[2][0] === "-") {
+  const sign = String(provision[2])[0];
+  if (sign === "+" || sign === "-") {
     declarations.push({
       path: path,
       pathGet: 1,

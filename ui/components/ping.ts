@@ -1,16 +1,21 @@
 import { ClosureComponent, Component, VnodeDOM } from "mithril";
 import { m } from "../components.ts";
 import { ping } from "../api-client.ts";
+import { FlatDevice } from "../../lib/ui/db.ts";
 
 const REFRESH_INTERVAL = 3000;
 
-const component: ClosureComponent = (vn): Component => {
+interface Attrs {
+  device: FlatDevice;
+}
+
+const component: ClosureComponent<Attrs> = (vn): Component<Attrs> => {
   let interval: ReturnType<typeof setInterval>;
   let host: string;
 
   const refresh = (): void => {
     if (!host) {
-      const dom = (vn as VnodeDOM).dom;
+      const dom = (vn as VnodeDOM<Attrs>).dom;
       if (dom) dom.innerHTML = "";
       return;
     }
@@ -26,7 +31,7 @@ const component: ClosureComponent = (vn): Component => {
         clearInterval(interval);
       })
       .finally(() => {
-        const dom = (vn as VnodeDOM).dom;
+        const dom = (vn as VnodeDOM<Attrs>).dom;
         if (dom) dom.innerHTML = `Pinging ${host}: ${status}`;
       });
   };
@@ -36,15 +41,17 @@ const component: ClosureComponent = (vn): Component => {
       clearInterval(interval);
     },
     view: (vnode) => {
-      const device = vnode.attrs["device"];
-      let param =
-        device["InternetGatewayDevice.ManagementServer.ConnectionRequestURL"];
+      const device = vnode.attrs.device;
+      let param = device[
+        "InternetGatewayDevice.ManagementServer.ConnectionRequestURL"
+      ] as string;
       if (!param)
-        param = device["Device.ManagementServer.ConnectionRequestURL"];
-
+        param = device[
+          "Device.ManagementServer.ConnectionRequestURL"
+        ] as string;
       let h;
       try {
-        const url = new URL(param.value[0]);
+        const url = new URL(param);
         h = url.hostname;
       } catch {
         // Ignore

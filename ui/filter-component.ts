@@ -144,9 +144,9 @@ const component: ClosureComponent<Attrs> = (initialVnode) => {
               type: "text",
               class: classNames,
               value: fltr,
-              oninput: (e) => {
+              oninput: (e: Event) => {
                 e.redraw = false;
-                filterList[idx] = e.target.value;
+                filterList[idx] = (e.target as HTMLInputElement).value;
                 filterTouched = true;
               },
               oncreate: (vn) => {

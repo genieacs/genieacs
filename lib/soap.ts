@@ -15,17 +15,27 @@ import {
   SoapMessage,
   TransferCompleteRequest,
   AcsRequest,
+  type GetParameterNames,
   type GetParameterNamesResponse,
+  type GetParameterValues,
   type GetParameterValuesResponse,
+  type GetParameterAttributes,
   type GetParameterAttributesResponse,
+  type SetParameterValues,
   type SetParameterValuesResponse,
+  type SetParameterAttributes,
   type SetParameterAttributesResponse,
+  type AddObject,
   type AddObjectResponse,
   type DeleteObject,
   type DeleteObjectResponse,
+  type Reboot,
   type RebootResponse,
+  type FactoryReset,
   type FactoryResetResponse,
+  type Download,
   type DownloadResponse,
+  type GetRPCMethodsResponse as GetRPCMethodsResponseType,
   GetRPCMethodsRequest,
   RequestDownloadRequest,
   AcsResponse,
@@ -262,13 +272,13 @@ function parameterAttributeList(xml: Element): [Path, number, string[]][] {
     .filter((e) => e != null);
 }
 
-function GetParameterNames(methodRequest): string {
+function GetParameterNames(methodRequest: GetParameterNames): string {
   return `<cwmp:GetParameterNames><ParameterPath>${
     methodRequest.parameterPath
   }</ParameterPath><NextLevel>${+methodRequest.nextLevel}</NextLevel></cwmp:GetParameterNames>`;
 }
 
-function GetParameterNamesResponse(xml): GetParameterNamesResponse {
+function GetParameterNamesResponse(xml: Element): GetParameterNamesResponse {
   return {
     name: "GetParameterNamesResponse",
     parameterList: parameterInfoList(
@@ -277,11 +287,11 @@ function GetParameterNamesResponse(xml): GetParameterNamesResponse {
   };
 }
 
-function GetParameterValues(methodRequest): string {
+function GetParameterValues(methodRequest: GetParameterValues): string {
   return `<cwmp:GetParameterValues><ParameterNames soap-enc:arrayType="xsd:string[${
     methodRequest.parameterNames.length
   }]">${methodRequest.parameterNames
-    .map((p) => `<string>${p}</string>`)
+    .map((p: string) => `<string>${p}</string>`)
     .join("")}</ParameterNames></cwmp:GetParameterValues>`;
 }
 
@@ -294,11 +304,11 @@ function GetParameterValuesResponse(xml: Element): GetParameterValuesResponse {
   };
 }
 
-function GetParameterAttributes(methodRequest): string {
+function GetParameterAttributes(methodRequest: GetParameterAttributes): string {
   return `<cwmp:GetParameterAttributes><ParameterNames soap-enc:arrayType="xsd:string[${
     methodRequest.parameterNames.length
   }]">${methodRequest.parameterNames
-    .map((p) => `<string>${p}</string>`)
+    .map((p: string) => `<string>${p}</string>`)
     .join("")}</ParameterNames></cwmp:GetParameterAttributes>`;
 }
 
@@ -313,7 +323,7 @@ function GetParameterAttributesResponse(
   };
 }
 
-function SetParameterValues(methodRequest): string {
+function SetParameterValues(methodRequest: SetParameterValues): string {
   const params = methodRequest.parameterList.map((p) => {
     let val = p[1];
     if (p[2] === "xsd:dateTime" && typeof val === "number") {
@@ -360,7 +370,7 @@ function SetParameterValuesResponse(xml: Element): SetParameterValuesResponse {
   };
 }
 
-function SetParameterAttributes(methodRequest): string {
+function SetParameterAttributes(methodRequest: SetParameterAttributes): string {
   const params = methodRequest.parameterList.map((p) => {
     return `<SetParameterAttributesStruct><Name>${
       p[0]
@@ -375,7 +385,9 @@ function SetParameterAttributes(methodRequest): string {
     }]">${
       p[2] == null
         ? ""
-        : p[2].map((s) => `<string>${encodeEntities(s)}</string>`).join("")
+        : p[2]
+            .map((s: string) => `<string>${encodeEntities(s)}</string>`)
+            .join("")
     }</AccessList></SetParameterAttributesStruct>`;
   });
 
@@ -390,7 +402,7 @@ function SetParameterAttributesResponse(): SetParameterAttributesResponse {
   };
 }
 
-function AddObject(methodRequest): string {
+function AddObject(methodRequest: AddObject): string {
   return `<cwmp:AddObject><ObjectName>${
     methodRequest.objectName
   }</ObjectName><ParameterKey>${
@@ -429,7 +441,7 @@ function AddObjectResponse(xml: Element): AddObjectResponse {
   };
 }
 
-function DeleteObject(methodRequest): string {
+function DeleteObject(methodRequest: DeleteObject): string {
   return `<cwmp:DeleteObject><ObjectName>${
     methodRequest.objectName
   }</ObjectName><ParameterKey>${
@@ -462,7 +474,7 @@ function DeleteObjectResponse(xml: Element): DeleteObjectResponse {
   };
 }
 
-function Reboot(methodRequest): string {
+function Reboot(methodRequest: Reboot): string {
   return `<cwmp:Reboot><CommandKey>${
     methodRequest.commandKey || ""
   }</CommandKey></cwmp:Reboot>`;
@@ -484,7 +496,7 @@ function FactoryResetResponse(): FactoryResetResponse {
   };
 }
 
-function Download(methodRequest): string {
+function Download(methodRequest: Download): string {
   return `<cwmp:Download><CommandKey>${
     methodRequest.commandKey || ""
   }</CommandKey><FileType>${methodRequest.fileType}</FileType><URL>${
@@ -557,7 +569,7 @@ function DownloadResponse(xml: Element): DownloadResponse {
 function Inform(xml: Element): InformRequest {
   let retryCount: number, evnt: string[];
   let parameterList: [Path, string | number | boolean, string][];
-  const deviceId = {
+  const deviceId: InformRequest["deviceId"] = {
     Manufacturer: null,
     OUI: null,
     ProductClass: null,
@@ -572,7 +584,8 @@ function Inform(xml: Element): InformRequest {
       case "DeviceId":
         for (const cc of c.children) {
           const n = cc.localName;
-          if (n in deviceId) deviceId[n] = decodeEntities(cc.text);
+          if (n in deviceId)
+            deviceId[n as keyof typeof deviceId] = decodeEntities(cc.text);
         }
         break;
       case "Event":
@@ -625,11 +638,13 @@ function GetRPCMethods(): GetRPCMethodsRequest {
   return { name: "GetRPCMethods" };
 }
 
-function GetRPCMethodsResponse(methodResponse): string {
+function GetRPCMethodsResponse(
+  methodResponse: GetRPCMethodsResponseType,
+): string {
   return `<cwmp:GetRPCMethodsResponse><MethodList soap-enc:arrayType="xsd:string[${
     methodResponse.methodList.length
   }]">${methodResponse.methodList
-    .map((m) => `<string>${m}</string>`)
+    .map((m: string) => `<string>${m}</string>`)
     .join("")}</MethodList></cwmp:GetRPCMethodsResponse>`;
 }
 
@@ -824,7 +839,7 @@ export function request(
 ): SoapMessage {
   warnings = warn;
 
-  const rpc = {
+  const rpc: SoapMessage = {
     id: null,
     cwmpVersion: null,
     sessionTimeout: null,
@@ -871,7 +886,7 @@ export function request(
   const methodElement = bodyElement.children[0];
 
   if (methodElement.localName === "Inform") {
-    let namespace, namespaceHref;
+    let namespace: string, namespaceHref: string;
     for (const e of [methodElement, bodyElement, envelope]) {
       namespace = namespace || e.namespace;
       if (e.attrs) {
@@ -960,7 +975,7 @@ export function request(
   return rpc;
 }
 
-const namespacesAttrs = {
+const namespacesAttrs: Record<string, string> = {
   "1.0": Object.entries(NAMESPACES["1.0"])
     .map(([k, v]) => `xmlns:${k}="${v}"`)
     .join(" "),
@@ -985,7 +1000,7 @@ export function response(rpc: {
   acsFault?: CpeFault;
   cwmpVersion?: string;
 }): { code: number; headers: Record<string, string>; data: string } {
-  const headers = {
+  const headers: Record<string, string> = {
     Server: SERVER_NAME,
     SOAPServer: SERVER_NAME,
   };

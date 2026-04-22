@@ -134,16 +134,19 @@ export async function httpConnectionRequest(
     try {
       res = await httpGet(url, opts, _debug, deviceId);
     } catch (err) {
+      if (!(err instanceof Error)) throw err;
       // Workaround for some devices unexpectedly closing the connection
       if (authHeader) {
         try {
           res = await httpGet(url, opts, _debug, deviceId);
         } catch (err) {
+          if (!(err instanceof Error)) throw err;
           return `Connection request error: ${err.message}`;
         }
       }
 
-      if (err["code"] === "ECONNRESET" || err["code"] === "ECONNREFUSED")
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === "ECONNRESET" || code === "ECONNREFUSED")
         return "Device is offline";
 
       return `Connection request error: ${err.message}`;
@@ -285,6 +288,7 @@ export async function xmppConnectionRequest(
         timeout,
       ));
     } catch (err) {
+      if (!(err instanceof Error)) throw err;
       return err.message;
     }
     if (_debug) {

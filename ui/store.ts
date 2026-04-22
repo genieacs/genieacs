@@ -27,9 +27,9 @@ function evaluate(
     else if (e instanceof Expression.FunctionCall) {
       if (e.name === "NOW") return new Expression.Literal(timestamp);
     } else if (e instanceof Expression.Parameter && obj) {
-      let v = obj[e.path.toString()];
+      let v = obj[e.path.toString()] as unknown;
       if (v == null) return new Expression.Literal(null);
-      if (typeof v === "object") v = v["value"]?.[0];
+      if (typeof v === "object") v = (v as { value?: unknown[] })["value"]?.[0];
       return new Expression.Literal(v as any);
     }
     return e;
@@ -136,7 +136,7 @@ function compareFunction(sort: {
       } else if (v1 < v2) {
         return asc * -1;
       } else if (v1 !== v2) {
-        const w = {
+        const w: Record<string, number> = {
           null: 1,
           number: 2,
           string: 3,
@@ -150,7 +150,12 @@ function compareFunction(sort: {
   };
 }
 
-function findMatches(resourceType, filter, sort, limit): any[] {
+function findMatches(
+  resourceType: string,
+  filter: Expression,
+  sort: { [param: string]: number },
+  limit: number,
+): any[] {
   let value = [];
   for (const obj of resources[resourceType].objects.values())
     if (evaluate(filter, fulfillTimestamp + getClockSkew(), obj).value)

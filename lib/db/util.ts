@@ -26,7 +26,7 @@ export function optimizeProjection(obj: { [path: string]: 1 }): {
 }
 
 export function convertOldPrecondition(q: Record<string, unknown>): Expression {
-  function recursive(_query): Expression {
+  function recursive(_query: Record<string, unknown>): Expression {
     let res: Expression = new Expression.Literal(true);
     for (const [k, v] of Object.entries(_query)) {
       if (k[0] === "$") {
@@ -44,28 +44,29 @@ export function convertOldPrecondition(q: Record<string, unknown>): Expression {
       } else if (k === "_tags") {
         if (typeof v === "object") {
           if (Array.isArray(v)) throw new Error(`Invalid type`);
-          for (const [op, val] of Object.entries(v)) {
+          const vObj = v as Record<string, unknown>;
+          for (const [op, val] of Object.entries(vObj)) {
             if (op === "$ne") {
-              if (typeof v["$ne"] !== "string")
+              if (typeof vObj["$ne"] !== "string")
                 throw new Error("Only string values are allowed for _tags");
               res = Expression.and(
                 res,
                 new Expression.Unary(
                   "IS NULL",
                   new Expression.Parameter(
-                    Path.parse(`Tags.${encodeTag(val)}`),
+                    Path.parse(`Tags.${encodeTag(val as string)}`),
                   ),
                 ),
               );
             } else if (op === "$eq") {
-              if (typeof v["$eq"] !== "string")
+              if (typeof vObj["$eq"] !== "string")
                 throw new Error("Only string values are allowed for _tags");
               res = Expression.and(
                 res,
                 new Expression.Unary(
                   "IS NOT NULL",
                   new Expression.Parameter(
-                    Path.parse(`Tags.${encodeTag(val)}`),
+                    Path.parse(`Tags.${encodeTag(val as string)}`),
                   ),
                 ),
               );
@@ -86,10 +87,11 @@ export function convertOldPrecondition(q: Record<string, unknown>): Expression {
         }
       } else if (k.startsWith("Tags.")) {
         let exists: boolean;
+        const vObj = v as Record<string, unknown>;
         if (typeof v === "boolean") exists = v;
-        else if (v.hasOwnProperty("$eq")) exists = !!v["$eq"];
-        else if (v.hasOwnProperty("$ne")) exists = !v["$ne"];
-        else if (v.hasOwnProperty("$exists")) exists = !!v["$exists"];
+        else if (vObj.hasOwnProperty("$eq")) exists = !!vObj["$eq"];
+        else if (vObj.hasOwnProperty("$ne")) exists = !vObj["$ne"];
+        else if (vObj.hasOwnProperty("$exists")) exists = !!vObj["$exists"];
         else throw new Error(`Invalid tag query`);
 
         res = Expression.and(

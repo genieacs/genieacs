@@ -1,10 +1,11 @@
 import * as notifications from "./notifications.ts";
+import type { Notification } from "./notifications.ts";
 import { reload } from "./router.ts";
 
 export let codeMirror: typeof import("./codemirror-loader");
 export let yaml: typeof import("./yaml-loader");
 
-let note;
+let note: Notification;
 
 function onError(): void {
   if (!note) {

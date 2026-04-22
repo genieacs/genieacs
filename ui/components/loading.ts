@@ -1,11 +1,16 @@
 import { VnodeDOM, ClosureComponent, Component } from "mithril";
+import { QueryResponse } from "../store.ts";
 
-const component: ClosureComponent = (): Component => {
+interface Attrs {
+  queries: QueryResponse[];
+}
+
+const component: ClosureComponent<Attrs> = (): Component<Attrs> => {
   let overlay: HTMLElement;
   let dom: Element;
   let loading = false;
 
-  function apply(vnode: VnodeDOM): void {
+  function apply(vnode: VnodeDOM<Attrs>): void {
     if (!loading) {
       if (overlay) overlay.parentElement.remove();
       if (dom) dom.classList.remove("loading");
@@ -43,8 +48,7 @@ const component: ClosureComponent = (): Component => {
 
   return {
     view: (vnode) => {
-      const queries = vnode.attrs["queries"];
-      loading = queries.some((q) => q.fulfilling);
+      loading = vnode.attrs.queries.some((q) => q.fulfilling);
       return vnode.children;
     },
     oncreate: apply,

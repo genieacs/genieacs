@@ -63,7 +63,12 @@ function foldString(str: string): string[] {
   return lines;
 }
 
-function stringifyString(str: string, res: string[], prefix1, prefix2): void {
+function stringifyString(
+  str: string,
+  res: string[],
+  prefix1: string,
+  prefix2: string,
+): void {
   if (/^\s*$/.test(str) || STRING_RESERVED.has(str) || !isPrintable(str)) {
     res.push(prefix1 + JSON.stringify(str));
     return;

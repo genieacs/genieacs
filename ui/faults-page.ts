@@ -1,7 +1,9 @@
 import { ClosureComponent, Component, Children } from "mithril";
 import { m } from "./components.ts";
 import { pageSize as PAGE_SIZE } from "./config.ts";
-import indexTableComponent from "./index-table-component.ts";
+import indexTableComponent, {
+  IndexTableAttrs,
+} from "./index-table-component.ts";
 import filterComponent from "./filter-component.ts";
 import * as store from "./store.ts";
 import { deleteResource } from "./api-client.ts";
@@ -11,8 +13,6 @@ import memoize from "../lib/common/memoize.ts";
 import * as smartQuery from "./smart-query.ts";
 import { stringify as yamlStringify } from "../lib/common/yaml.ts";
 import Expression from "../lib/common/expression.ts";
-
-const memoizedJsonParse = memoize(JSON.parse);
 
 const attributes = [
   { id: "device", label: "Device" },
@@ -24,8 +24,8 @@ const attributes = [
   { id: "timestamp", label: "Timestamp" },
 ];
 
-const getDownloadUrl = memoize((filter) => {
-  const cols = {};
+const getDownloadUrl = memoize((filter: Expression) => {
+  const cols: Record<string, string> = {};
   for (const attr of attributes) {
     cols[attr.label] =
       attr.id === "timestamp" ? `DATE_STRING(${attr.id})` : attr.id;
@@ -85,57 +85,64 @@ export function init(
   return Promise.resolve({ filter, sort });
 }
 
-export const component: ClosureComponent = (): Component => {
+interface Attrs {
+  filter?: Expression;
+  sort?: Record<string, number>;
+}
+
+export const component: ClosureComponent<Attrs> = (): Component<Attrs> => {
+  let showCount: number;
+
   return {
     view: (vnode) => {
       document.title = "Faults - GenieACS";
 
       function showMore(): void {
-        vnode.state["showCount"] =
-          (vnode.state["showCount"] || PAGE_SIZE) + PAGE_SIZE;
+        showCount = (showCount || PAGE_SIZE) + PAGE_SIZE;
         m.redraw();
       }
 
-      function onFilterChanged(filter): void {
-        const ops = {};
+      function onFilterChanged(filter: Expression): void {
+        const ops: Record<string, string> = {};
         if (!(filter instanceof Expression.Literal && filter.value))
           ops["filter"] = filter.toString();
-        if (vnode.attrs["sort"]) ops["sort"] = vnode.attrs["sort"];
+        if (vnode.attrs.sort) ops["sort"] = JSON.stringify(vnode.attrs.sort);
         navigate("/faults", ops).catch(console.error);
       }
 
-      const sort = vnode.attrs["sort"]
-        ? memoizedJsonParse(vnode.attrs["sort"])
-        : {};
+      const sort = vnode.attrs.sort || {};
 
-      const sortAttributes = {};
+      const sortAttributes: Record<number, number> = {};
       for (let i = 0; i < attributes.length; i++) {
         const attr = attributes[i];
         if (attr.id !== "detail") sortAttributes[i] = sort[attr.id] || 0;
       }
 
-      function onSortChange(sortAttrs): void {
-        const _sort = {};
+      function onSortChange(sortAttrs: number[]): void {
+        const _sort: Record<string, number> = {};
         for (const index of sortAttrs)
           _sort[attributes[Math.abs(index) - 1].id] = Math.sign(index);
-        const ops = { sort: JSON.stringify(_sort) };
-        if (vnode.attrs["filter"]) ops["filter"] = vnode.attrs["filter"];
+        const ops: Record<string, string> = { sort: JSON.stringify(_sort) };
+        if (vnode.attrs.filter) ops["filter"] = vnode.attrs.filter.toString();
         navigate("/faults", ops).catch(console.error);
       }
 
       const filter = unpackSmartQuery(
-        vnode.attrs["filter"] ?? new Expression.Literal(true),
+        vnode.attrs.filter ?? new Expression.Literal(true),
       );
 
       const faults = store.fetch("faults", filter, {
-        limit: vnode.state["showCount"] || PAGE_SIZE,
+        limit: showCount || PAGE_SIZE,
         sort: sort,
       });
       const count = store.count("faults", filter);
 
       const downloadUrl = getDownloadUrl(filter);
 
-      const valueCallback = (attr, fault): Children => {
+      const valueCallback = (
+        attr: (typeof attributes)[number],
+        fault: Record<string, any>,
+      ): Children => {
         if (attr.id === "device") {
           const deviceHref = `/devices/${encodeURIComponent(fault["device"])}`;
 
@@ -162,26 +169,27 @@ export const component: ClosureComponent = (): Component => {
         return fault[attr.id];
       };
 
-      const attrs = {};
-      attrs["attributes"] = attributes;
-      attrs["data"] = faults.value;
-      attrs["valueCallback"] = valueCallback;
-      attrs["total"] = count.value;
-      attrs["showMoreCallback"] = showMore;
-      attrs["sortAttributes"] = sortAttributes;
-      attrs["onSortChange"] = onSortChange;
-      attrs["downloadUrl"] = downloadUrl;
+      const attrs: IndexTableAttrs = {
+        attributes,
+        data: faults.value,
+        valueCallback,
+        total: count.value,
+        showMoreCallback: showMore,
+        sortAttributes,
+        onSortChange,
+        downloadUrl,
+      };
 
       if (window.authorizer.hasAccess("faults", 3)) {
-        attrs["actionsCallback"] = (selected: Set<string>): Children => {
+        attrs.actionsCallback = (selected: Set<string>): Children => {
           return m(
             "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
             {
               disabled: selected.size === 0,
               title: "Delete selected faults",
-              onclick: (e) => {
+              onclick: (e: Event) => {
                 e.redraw = false;
-                e.target.disabled = true;
+                (e.target as HTMLButtonElement).disabled = true;
 
                 if (!confirm(`Deleting ${selected.size} faults. Are you sure?`))
                   return;
@@ -205,7 +213,7 @@ export const component: ClosureComponent = (): Component => {
 
       const filterAttrs = {
         resource: "faults",
-        filter: vnode.attrs["filter"],
+        filter: vnode.attrs.filter,
         onChange: onFilterChanged,
       };
 

@@ -4,7 +4,7 @@ import { logIn } from "./api-client.ts";
 import * as notifications from "./notifications.ts";
 import * as overlay from "./overlay.ts";
 import changePasswordComponent from "./change-password-component.ts";
-import { navigate, redirect, reload } from "./router.ts";
+import { redirect, reload } from "./router.ts";
 
 export function init(args: { continue?: string }): Promise<void> {
   if (window.username) return redirect(args.continue || "/");
@@ -17,12 +17,13 @@ export const component: ClosureComponent = (): Component => {
   let remember = false;
 
   function handleLogIn(e: MouseEvent): boolean {
-    e.target["disabled"] = true;
+    const target = e.target as HTMLButtonElement;
+    target.disabled = true;
     logIn(username, password, remember)
       .then(reload)
       .catch((err) => {
         notifications.push("error", err.response || err.message);
-        e.target["disabled"] = false;
+        target.disabled = false;
       });
     return false;
   }
@@ -94,8 +95,8 @@ export const component: ClosureComponent = (): Component => {
                     required
                     class="appearance-none rounded-none relative block w-full px-3 py-2 border border-stone-300 placeholder-stone-500 text-stone-900 rounded-t-md focus:outline-hidden focus:ring-cyan-500 focus:border-cyan-500 focus:z-10 sm:text-sm"
                     placeholder="Username"
-                    oninput={(e) => {
-                      username = e.target.value;
+                    oninput={(e: Event) => {
+                      username = (e.target as HTMLInputElement).value;
                     }}
                   />
                 </div>
@@ -112,8 +113,8 @@ export const component: ClosureComponent = (): Component => {
                     required
                     class="appearance-none rounded-none relative block w-full px-3 py-2 border border-stone-300 placeholder-stone-500 text-stone-900 rounded-b-md focus:outline-hidden focus:ring-cyan-500 focus:border-cyan-500 focus:z-10 sm:text-sm"
                     placeholder="Password"
-                    oninput={(e) => {
-                      password = e.target.value;
+                    oninput={(e: Event) => {
+                      password = (e.target as HTMLInputElement).value;
                     }}
                   />
                 </div>
@@ -127,8 +128,8 @@ export const component: ClosureComponent = (): Component => {
                     type="checkbox"
                     value={remember}
                     class="h-4 w-4 text-cyan-700 focus:ring-cyan-500 border-stone-300 rounded-sm"
-                    onchange={(e) => {
-                      remember = e.target.checked;
+                    onchange={(e: Event) => {
+                      remember = (e.target as HTMLInputElement).checked;
                     }}
                   />
                   <label

@@ -8,7 +8,9 @@ import * as notifications from "./notifications.ts";
 import memoize from "../lib/common/memoize.ts";
 import { navigate } from "./router.ts";
 import putFormComponent from "./put-form-component.ts";
-import indexTableComponent from "./index-table-component.ts";
+import indexTableComponent, {
+  IndexTableAttrs,
+} from "./index-table-component.ts";
 import * as overlay from "./overlay.ts";
 import * as smartQuery from "./smart-query.ts";
 import Expression from "../lib/common/expression.ts";
@@ -45,7 +47,11 @@ interface ValidationErrors {
   [prop: string]: string;
 }
 
-function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
+function putActionHandler(
+  action: string,
+  _object: Record<string, any>,
+  isNew: boolean,
+): Promise<ValidationErrors> {
   return new Promise((resolve, reject) => {
     const object = Object.assign({}, _object);
     if (action === "save") {
@@ -55,7 +61,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
       if (!id) return void resolve({ _id: "ID can not be empty" });
 
       resourceExists("views", id)
-        .then((exists) => {
+        .then((exists): void => {
           if (exists && isNew) {
             store.setTimestamp(Date.now());
             return void resolve({ _id: "View already exists" });
@@ -108,7 +114,7 @@ const formData = {
 };
 
 const getDownloadUrl = memoize((filter: Expression) => {
-  const cols = {};
+  const cols: Record<string, string> = {};
   for (const attr of attributes) cols[attr.label] = attr.id;
   return `/api/views.csv?${m.buildQueryString({
     filter: filter.toString(),
@@ -137,47 +143,51 @@ export function init(
   });
 }
 
-export const component: ClosureComponent = (): Component => {
+interface Attrs {
+  filter?: string;
+  sort?: string;
+}
+
+export const component: ClosureComponent<Attrs> = (): Component<Attrs> => {
+  let showCount: number;
+
   return {
     view: (vnode) => {
       document.title = "Views - GenieACS";
 
       function showMore(): void {
-        vnode.state["showCount"] =
-          (vnode.state["showCount"] || PAGE_SIZE) + PAGE_SIZE;
+        showCount = (showCount || PAGE_SIZE) + PAGE_SIZE;
         m.redraw();
       }
 
-      function onFilterChanged(filter): void {
-        const ops = { filter };
-        if (vnode.attrs["sort"]) ops["sort"] = vnode.attrs["sort"];
+      function onFilterChanged(filter: Expression): void {
+        const ops: Record<string, string> = { filter: filter.toString() };
+        if (vnode.attrs.sort) ops["sort"] = vnode.attrs.sort;
         navigate("/views", ops).catch(console.error);
       }
 
-      const sort = vnode.attrs["sort"]
-        ? memoizedJsonParse(vnode.attrs["sort"])
-        : {};
+      const sort = vnode.attrs.sort ? memoizedJsonParse(vnode.attrs.sort) : {};
 
-      const sortAttributes = {};
+      const sortAttributes: Record<number, number> = {};
       for (let i = 0; i < attributes.length; i++)
         sortAttributes[i] = sort[attributes[i].id] || 0;
 
-      function onSortChange(sortAttrs): void {
-        const _sort = {};
+      function onSortChange(sortAttrs: number[]): void {
+        const _sort: Record<string, number> = {};
         for (const index of sortAttrs)
           _sort[attributes[Math.abs(index) - 1].id] = Math.sign(index);
-        const ops = { sort: JSON.stringify(_sort) };
-        if (vnode.attrs["filter"]) ops["filter"] = vnode.attrs["filter"];
+        const ops: Record<string, string> = { sort: JSON.stringify(_sort) };
+        if (vnode.attrs.filter) ops["filter"] = vnode.attrs.filter;
         navigate("/views", ops).catch(console.error);
       }
 
-      let filter: Expression = vnode.attrs["filter"]
-        ? memoizedParse(vnode.attrs["filter"])
+      const rawFilter: Expression = vnode.attrs.filter
+        ? memoizedParse(vnode.attrs.filter)
         : new Expression.Literal(true);
-      filter = unpackSmartQuery(filter);
+      const filter = unpackSmartQuery(rawFilter);
 
       const views = store.fetch("views", filter, {
-        limit: vnode.state["showCount"] || PAGE_SIZE,
+        limit: showCount || PAGE_SIZE,
         sort: sort,
       });
 
@@ -185,15 +195,16 @@ export const component: ClosureComponent = (): Component => {
 
       const downloadUrl = getDownloadUrl(filter);
 
-      const attrs = {};
-      attrs["attributes"] = attributes;
-      attrs["data"] = views.value;
-      attrs["total"] = count.value;
-      attrs["showMoreCallback"] = showMore;
-      attrs["sortAttributes"] = sortAttributes;
-      attrs["onSortChange"] = onSortChange;
-      attrs["downloadUrl"] = downloadUrl;
-      attrs["recordActionsCallback"] = (cmp) => {
+      const attrs: IndexTableAttrs = {
+        attributes,
+        data: views.value,
+        total: count.value,
+        showMoreCallback: showMore,
+        sortAttributes,
+        onSortChange,
+        downloadUrl,
+      };
+      attrs.recordActionsCallback = (cmp: Record<string, any>) => {
         return [
           m(
             "button.text-cyan-700 hover:text-cyan-900 font-medium",
@@ -205,7 +216,10 @@ export const component: ClosureComponent = (): Component => {
                   Object.assign(
                     {
                       base: cmp,
-                      actionHandler: (action, object) => {
+                      actionHandler: (
+                        action: string,
+                        object: Record<string, any>,
+                      ) => {
                         return new Promise<void>((resolve) => {
                           putActionHandler(action, object, false)
                             .then((errors) => {
@@ -234,7 +248,7 @@ export const component: ClosureComponent = (): Component => {
                 overlay.open(
                   cb,
                   () =>
-                    !comp.state["current"]["modified"] ||
+                    !(comp.state as any)["current"]["modified"] ||
                     confirm("You have unsaved changes. Close anyway?"),
                 );
               },
@@ -245,7 +259,7 @@ export const component: ClosureComponent = (): Component => {
       };
 
       if (window.authorizer.hasAccess("views", 3)) {
-        attrs["actionsCallback"] = (selected: Set<string>): Children => {
+        attrs.actionsCallback = (selected: Set<string>): Children => {
           return [
             m(
               "button.px-4 py-2 border border-stone-300 shadow-sm text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
@@ -257,7 +271,10 @@ export const component: ClosureComponent = (): Component => {
                     putFormComponent,
                     Object.assign(
                       {
-                        actionHandler: (action, object) => {
+                        actionHandler: (
+                          action: string,
+                          object: Record<string, any>,
+                        ) => {
                           return new Promise<void>((resolve) => {
                             putActionHandler(action, object, true)
                               .then((errors) => {
@@ -286,7 +303,7 @@ export const component: ClosureComponent = (): Component => {
                   overlay.open(
                     cb,
                     () =>
-                      !comp.state["current"]["modified"] ||
+                      !(comp.state as any)["current"]["modified"] ||
                       confirm("You have unsaved changes. Close anyway?"),
                   );
                 },
@@ -298,14 +315,14 @@ export const component: ClosureComponent = (): Component => {
               {
                 title: "Delete selected views",
                 disabled: !selected.size,
-                onclick: (e) => {
+                onclick: (e: Event) => {
                   if (
                     !confirm(`Deleting ${selected.size} views. Are you sure?`)
                   )
                     return;
 
                   e.redraw = false;
-                  e.target.disabled = true;
+                  (e.target as HTMLButtonElement).disabled = true;
                   Promise.all(
                     Array.from(selected).map((id) =>
                       deleteResource("views", id),
@@ -332,7 +349,7 @@ export const component: ClosureComponent = (): Component => {
 
       const filterAttrs = {
         resource: "views",
-        filter: vnode.attrs["filter"],
+        filter: rawFilter,
         onChange: onFilterChanged,
       };
 

@@ -2,7 +2,7 @@ function isObject(obj: any): boolean {
   return Object.prototype.toString.call(obj) === "[object Object]";
 }
 
-function stringToRegexp(input, flags?): RegExp | false {
+function stringToRegexp(input: string, flags?: string): RegExp | false {
   if (input.indexOf("*") === -1) return false;
 
   let output = input.replace(/[[\]\\^$.|?+()]/, "\\$&");
@@ -16,7 +16,7 @@ function stringToRegexp(input, flags?): RegExp | false {
   return new RegExp(output, flags);
 }
 
-function normalize(input): any {
+function normalize(input: unknown): any {
   if (typeof input === "string") {
     const vals: any = [input];
     const m = /^\/(.*?)\/(g?i?m?y?)$/.exec(input);
@@ -48,7 +48,7 @@ const EXPAND_OPS = new Set([
 
 function expandValue(value: unknown): unknown[] {
   if (Array.isArray(value)) {
-    let a = [];
+    let a: unknown[] = [];
     for (const j of value) a = a.concat(expandValue(j));
     return [a];
   } else if (!isObject(value)) {
@@ -70,7 +70,7 @@ function expandValue(value: unknown): unknown[] {
 
   let i = 0;
   while (i < indices.length) {
-    const obj = {};
+    const obj: Record<string, unknown> = {};
     for (let j = 0; j < keys.length; ++j) obj[keys[j]] = values[j][indices[j]];
     objs.push(obj);
 
@@ -83,14 +83,14 @@ function expandValue(value: unknown): unknown[] {
   return objs;
 }
 
-function permute(param, val): any[] {
+function permute(param: string, val: unknown): any[] {
   const conditions = [];
   const values = expandValue(val);
 
   if (param[param.lastIndexOf(".") + 1] !== "_") param += "._value";
 
   for (const v of values) {
-    const obj = {};
+    const obj: Record<string, unknown> = {};
     obj[param] = v;
     conditions.push(obj);
   }
@@ -101,7 +101,7 @@ function permute(param, val): any[] {
 export function expand(
   query: Record<string, unknown>,
 ): Record<string, unknown> {
-  const newQuery = {};
+  const newQuery: Record<string, any> = {};
   for (const [k, v] of Object.entries(query)) {
     if (k[0] === "$") {
       // Operator
@@ -110,8 +110,9 @@ export function expand(
       const conditions = permute(k, v);
       if (conditions.length > 1) {
         newQuery["$and"] = newQuery["$and"] || [];
-        if (v && (v["$ne"] != null || v["$not"] != null)) {
-          if (Object.keys(v).length > 1)
+        const vObj = v as Record<string, unknown>;
+        if (vObj && (vObj["$ne"] != null || vObj["$not"] != null)) {
+          if (Object.keys(vObj).length > 1)
             throw new Error("Cannot mix $ne or $not with other operators");
           for (const c of conditions) newQuery["$and"].push(c);
         } else {
@@ -136,7 +137,8 @@ export function sanitizeQueryTypes(
       for (const vv of v as any[]) sanitizeQueryTypes(vv, types);
     } else if (k in types) {
       if (isObject(v)) {
-        for (const [kk, vv] of Object.entries(v)) {
+        const vObj = v as Record<string, any>;
+        for (const [kk, vv] of Object.entries(vObj)) {
           switch (kk) {
             case "$in":
             case "$nin":
@@ -148,7 +150,7 @@ export function sanitizeQueryTypes(
             case "$lt":
             case "$lte":
             case "$ne":
-              v[kk] = types[k](vv);
+              vObj[kk] = types[k](vv);
               break;
             case "$exists":
             case "$type":

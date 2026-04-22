@@ -1,4 +1,4 @@
-import { exec } from "node:child_process";
+import { exec, ExecException } from "node:child_process";
 import { promisify } from "node:util";
 
 const execPromise = promisify(exec);
@@ -15,13 +15,15 @@ async function runEslint(): Promise<string> {
     if (stderr) throw new Error(stderr);
     return stdout;
   } catch (err) {
-    if (err.killed || err.signal || err.stderr || err.code !== 1) throw err;
-    return err.stdout;
+    if (!(err instanceof Error)) throw err;
+    const e = err as ExecException;
+    if (e.killed || e.signal || e.stderr || e.code !== 1) throw err;
+    return e.stdout;
   }
 }
 
 async function runTsc(): Promise<string> {
-  const CMD = "tsc --noEmit && tsc -p seed/tsconfig.json";
+  const CMD = "tsgo --noEmit && tsgo -p seed/tsconfig.json";
   const env = {
     ...(process.stdout.isTTY && { FORCE_COLOR: "1" }),
     ...process.env,

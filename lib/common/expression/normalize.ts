@@ -283,7 +283,7 @@ class Polynomial extends Expression {
   }
 }
 
-const SWAPPED_OPS = {
+const SWAPPED_OPS: Record<string, string> = {
   "=": "=",
   "<>": "<>",
   ">": "<",

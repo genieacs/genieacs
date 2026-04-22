@@ -97,8 +97,7 @@ function evaluate(
     } else if (e instanceof Expression.Parameter && obj) {
       let v = obj[e.path.toString()];
       if (v == null) return new Expression.Literal(null);
-      if (typeof v === "object")
-        v = (v as Record<string, unknown>)["value"]?.[0];
+      if (typeof v === "object") v = (v as { value?: unknown[] })["value"]?.[0];
       return new Expression.Literal(v as string | number | boolean | null);
     }
     return e;

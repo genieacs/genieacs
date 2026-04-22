@@ -27,11 +27,11 @@ function flattenObject<T extends Record<keyof T, unknown>>(
   prefix = "",
   dst = {} as T,
 ): T {
-  for (const k of Object.keys(src)) {
+  for (const k of Object.keys(src) as (keyof T & string)[]) {
     const v = src[k];
     if (typeof v === "object" && !Array.isArray(v))
       flattenObject(v as T, `${prefix}${k}.`, dst);
-    else dst[`${prefix}${k}`] = v;
+    else (dst as Record<string, unknown>)[`${prefix}${k}`] = v;
   }
   return dst;
 }
@@ -152,7 +152,7 @@ async function fetchPresets(): Promise<[string, Preset[]]> {
           for (const obj of objects) {
             if (obj["_id"] === c.object) {
               const alias = obj["_keys"]
-                .map((k) => `${k}:${JSON.stringify(obj[k])}`)
+                .map((k: string) => `${k}:${JSON.stringify(obj[k])}`)
                 .join(",");
               const p = `${c.name}.[${alias}]`;
               _provisions.push([
@@ -166,7 +166,7 @@ async function fetchPresets(): Promise<[string, Preset[]]> {
                   _provisions.push([
                     "value",
                     new Expression.Literal(`${p}.${k}`),
-                    new Expression.Literal(obj[k]),
+                    new Expression.Literal(obj[k] as Value),
                   ]);
               }
             }
@@ -178,7 +178,7 @@ async function fetchPresets(): Promise<[string, Preset[]]> {
           for (const obj of objects) {
             if (obj["_id"] === c.object) {
               const alias = obj["_keys"]
-                .map((k) => `${k}:${JSON.stringify(obj[k])}`)
+                .map((k: string) => `${k}:${JSON.stringify(obj[k])}`)
                 .join(",");
               const p = `${c.name}.[${alias}]`;
               _provisions.push([
@@ -218,17 +218,15 @@ async function fetchProvisions(): Promise<[string, Provisions]> {
   res.sort((a, b) => (a._id > b._id ? 1 : -1));
   const h = crypto.createHash("md5").update(JSON.stringify(res)).digest("hex");
 
-  const provisions = {};
+  const provisions: Provisions = {};
   for (const r of res) {
-    provisions[r._id] = {};
-    provisions[r._id].md5 = crypto
-      .createHash("md5")
-      .update(r.script)
-      .digest("hex");
-    provisions[r._id].script = new vm.Script(
-      `"use strict";(function(){\n${r.script}\n})();`,
-      { filename: r._id, lineOffset: -1 },
-    );
+    provisions[r._id] = {
+      md5: crypto.createHash("md5").update(r.script).digest("hex"),
+      script: new vm.Script(`"use strict";(function(){\n${r.script}\n})();`, {
+        filename: r._id,
+        lineOffset: -1,
+      }),
+    };
   }
 
   return [h, provisions];
@@ -239,17 +237,15 @@ async function fetchVirtualParameters(): Promise<[string, VirtualParameters]> {
   res.sort((a, b) => (a._id > b._id ? 1 : -1));
   const h = crypto.createHash("md5").update(JSON.stringify(res)).digest("hex");
 
-  const virtualParameters = {};
+  const virtualParameters: VirtualParameters = {};
   for (const r of res) {
-    virtualParameters[r._id] = {};
-    virtualParameters[r._id].md5 = crypto
-      .createHash("md5")
-      .update(r.script)
-      .digest("hex");
-    virtualParameters[r._id].script = new vm.Script(
-      `"use strict";(function(){\n${r.script}\n})();`,
-      { filename: r._id, lineOffset: -1 },
-    );
+    virtualParameters[r._id] = {
+      md5: crypto.createHash("md5").update(r.script).digest("hex"),
+      script: new vm.Script(`"use strict";(function(){\n${r.script}\n})();`, {
+        filename: r._id,
+        lineOffset: -1,
+      }),
+    };
   }
 
   return [h, virtualParameters];
@@ -259,12 +255,11 @@ async function fetchFiles(): Promise<[string, Files]> {
   const res = await collections.files.find().toArray();
   res.sort((a, b) => (a._id > b._id ? 1 : -1));
   const h = crypto.createHash("md5").update(JSON.stringify(res)).digest("hex");
-  const files = {};
+  const files: Files = {};
 
   for (const r of res) {
     const id = r.filename || r._id.toString();
-    files[id] = {};
-    files[id].length = r.length;
+    files[id] = { length: r.length };
   }
 
   return [h, files];
@@ -275,7 +270,7 @@ async function fetchConfig(): Promise<[string, Config]> {
   conf.sort((a, b) => (a._id > b._id ? 1 : -1));
   const h = crypto.createHash("md5").update(JSON.stringify(conf)).digest("hex");
 
-  const _config = {};
+  const _config: Config = {};
 
   for (const c of conf) {
     // Evaluate expressions to simplify them

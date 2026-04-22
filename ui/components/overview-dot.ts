@@ -2,15 +2,22 @@ import { ClosureComponent, Component } from "mithril";
 import { m } from "../components.ts";
 import { overview } from "../config.ts";
 import { evaluateExpression } from "../store.ts";
+import Expression from "../../lib/common/expression.ts";
+import { FlatDevice } from "../../lib/ui/db.ts";
 
 const CHARTS = overview.charts;
 
-const component: ClosureComponent = (): Component => {
+interface Attrs {
+  device: FlatDevice;
+  chart: Expression;
+}
+
+const component: ClosureComponent<Attrs> = (): Component<Attrs> => {
   return {
     view: (vnode) => {
-      const device = vnode.attrs["device"];
+      const device = vnode.attrs.device;
       const chartName = evaluateExpression(
-        vnode.attrs["chart"],
+        vnode.attrs.chart,
         device ?? {},
       ).value;
       const chart = CHARTS[chartName as string];

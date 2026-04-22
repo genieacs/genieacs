@@ -3,7 +3,12 @@ import Expression from "../lib/common/expression.ts";
 import { encodeTag } from "../lib/util.ts";
 import Path from "../lib/common/path.ts";
 
-const resources = {
+type ResourceFilter = {
+  parameter: Expression;
+  type: string | string[];
+};
+
+const resources: Record<string, Record<string, ResourceFilter>> = {
   devices: {},
   faults: {
     Device: {
@@ -253,7 +258,9 @@ export function getTip(resource: string, label: string): string {
   if (resources[resource]?.[label]) {
     const param = resources[resource][label];
     const types =
-      resource === "devices" ? param["type"] : param["type"].split(",");
+      resource === "devices"
+        ? (param["type"] as string[])
+        : (param["type"] as string).split(",");
 
     const tips = [];
     for (const type of types) {

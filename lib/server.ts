@@ -9,7 +9,7 @@ let server: http.Server | https.Server;
 let listener: http.RequestListener;
 let stopping = false;
 
-function closeServer(timeout, callback): void {
+function closeServer(timeout: number, callback: () => void): void {
   if (!server) return void callback();
 
   setTimeout(() => {
@@ -156,5 +156,7 @@ export function stop(terminateConnections = true): Promise<void> {
 
 export function getSocketEndpoints(socket: Socket): SocketEndpoint {
   // TLSSocket keeps a reference to the raw TCP socket in _parent
-  return socketEndpoints.get(socket["_parent"] ?? socket);
+  return socketEndpoints.get(
+    (socket as Socket & { _parent?: Socket })._parent ?? socket,
+  );
 }

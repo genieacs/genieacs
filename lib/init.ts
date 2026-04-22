@@ -1,6 +1,7 @@
 import { getRevision, getUiConfig, getUsers } from "./ui/local-cache.ts";
 import { generateSalt, hashPassword } from "./auth.ts";
 import { collections } from "./db/db.ts";
+import * as MongoTypes from "./db/types.ts";
 import {
   putConfig,
   putPermission,
@@ -34,6 +35,32 @@ interface Status {
   overview: boolean;
 }
 
+type SeedPermission = Omit<MongoTypes.Permission, "_id">;
+
+interface SeedUser {
+  username: string;
+  password: string;
+  roles: string[];
+}
+
+interface SeedPreset {
+  _id: string;
+  weight: number;
+  channel: string;
+  events?: string;
+  provision: string;
+  [key: string]: unknown;
+}
+
+interface Resources {
+  permissions?: SeedPermission[];
+  users?: SeedUser[];
+  config?: MongoTypes.Config[];
+  views?: MongoTypes.View[];
+  presets?: SeedPreset[];
+  provisions?: MongoTypes.Provision[];
+}
+
 export async function getStatus(): Promise<Status> {
   const [configSnapshot, presetCount] = await Promise.all([
     getRevision(),
@@ -62,11 +89,11 @@ export async function getStatus(): Promise<Status> {
 }
 
 export async function seed(options: Record<string, boolean>): Promise<void> {
-  const resources = {};
+  const resources: Resources = {};
   const proms = [];
 
   if (options.users) {
-    resources["permissions"] = [
+    resources.permissions = [
       { role: "admin", resource: "devices", access: 3, validate: "true" },
       { role: "admin", resource: "faults", access: 3, validate: "true" },
       { role: "admin", resource: "files", access: 3, validate: "true" },
@@ -89,13 +116,13 @@ export async function seed(options: Record<string, boolean>): Promise<void> {
       },
     ];
 
-    resources["users"] = [
+    resources.users = [
       { username: "admin", password: "admin", roles: ["admin"] },
     ];
   }
 
   if (options.filters) {
-    resources["config"] = (resources["config"] || []).concat([
+    resources.config = (resources.config || []).concat([
       { _id: "ui.filters.0.label", value: "'Serial number'" },
       { _id: "ui.filters.0.parameter", value: "DeviceID.SerialNumber" },
       { _id: "ui.filters.0.type", value: "'string'" },
@@ -108,10 +135,10 @@ export async function seed(options: Record<string, boolean>): Promise<void> {
   }
 
   if (options.device) {
-    resources["config"] = (resources["config"] || []).concat([
+    resources.config = (resources.config || []).concat([
       { _id: "ui.device", value: "'device-page'" },
     ]);
-    resources["views"] = (resources["views"] || []).concat([
+    resources.views = (resources.views || []).concat([
       { _id: "device-page", script: DEVICE_PAGE },
       { _id: "device-page-tr098", script: DEVICE_PAGE_TR098 },
       { _id: "device-page-tr181", script: DEVICE_PAGE_TR181 },
@@ -125,7 +152,7 @@ export async function seed(options: Record<string, boolean>): Promise<void> {
   }
 
   if (options.index) {
-    resources["config"] = (resources["config"] || []).concat([
+    resources.config = (resources.config || []).concat([
       { _id: "ui.index.0.type", value: "'device-link'" },
       { _id: "ui.index.0.label", value: "'Serial number'" },
       { _id: "ui.index.0.parameter", value: "DeviceID.SerialNumber" },
@@ -164,17 +191,17 @@ export async function seed(options: Record<string, boolean>): Promise<void> {
   }
 
   if (options.overview) {
-    resources["config"] = (resources["config"] || []).concat([
+    resources.config = (resources.config || []).concat([
       { _id: "ui.overview", value: "'overview-page'" },
     ]);
-    resources["views"] = (resources["views"] || []).concat([
+    resources.views = (resources.views || []).concat([
       { _id: "overview-page", script: OVERVIEW_PAGE },
       { _id: "pie-chart", script: PIE_CHART },
     ]);
   }
 
   if (options.presets) {
-    resources["presets"] = [
+    resources.presets = [
       {
         _id: "bootstrap",
         weight: 0,
@@ -186,45 +213,42 @@ export async function seed(options: Record<string, boolean>): Promise<void> {
       { _id: "inform", weight: 0, channel: "inform", provision: "inform" },
     ];
 
-    resources["provisions"] = [
+    resources.provisions = [
       { _id: "bootstrap", script: BOOTSTRAP_SCRIPT },
       { _id: "default", script: DEFAULT_SCRIPT },
       { _id: "inform", script: INFORM_SCRIPT },
     ];
   }
 
-  if (resources["permissions"]) {
-    for (const p of resources["permissions"]) {
-      p["_id"] = `${p["role"]}:${p["resource"]}:${p["access"]}`;
-      proms.push(putPermission(p["_id"], p));
+  if (resources.permissions) {
+    for (const p of resources.permissions) {
+      const _id = `${p.role}:${p.resource}:${p.access}`;
+      proms.push(putPermission(_id, p));
     }
   }
 
-  if (resources["users"]) {
-    for (const u of resources["users"]) {
-      u["salt"] = await generateSalt(64);
-      u["password"] = await hashPassword(u["password"], u["salt"]);
-      u["roles"] = (u["roles"] || []).join(",");
-      u["_id"] = u["username"];
-      delete u["username"];
-      proms.push(putUser(u["_id"], u));
+  if (resources.users) {
+    for (const u of resources.users) {
+      const salt = await generateSalt(64);
+      const password = await hashPassword(u.password, salt);
+      const roles = u.roles.join(",");
+      proms.push(putUser(u.username, { password, salt, roles }));
     }
   }
 
-  if (resources["provisions"]) {
-    for (const p of resources["provisions"])
-      proms.push(putProvision(p["_id"], p));
+  if (resources.provisions) {
+    for (const p of resources.provisions) proms.push(putProvision(p._id, p));
   }
 
-  if (resources["presets"])
-    for (const p of resources["presets"]) proms.push(putPreset(p["_id"], p));
+  if (resources.presets)
+    for (const p of resources.presets) proms.push(putPreset(p._id, p));
 
-  if (resources["views"])
-    for (const v of resources["views"]) proms.push(putView(v["_id"], v));
+  if (resources.views)
+    for (const v of resources.views) proms.push(putView(v._id, v));
 
-  if (resources["config"])
-    for (const c of resources["config"]) proms.push(putConfig(c["_id"], c));
+  if (resources.config)
+    for (const c of resources.config) proms.push(putConfig(c._id, c));
 
-  await proms;
+  await Promise.all(proms);
   await Promise.all([del("ui-local-cache-hash"), del("cwmp-local-cache-hash")]);
 }

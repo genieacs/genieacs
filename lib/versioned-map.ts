@@ -1,5 +1,5 @@
 const NONEXISTENT = Symbol();
-const UNDEFINED = undefined;
+const UNDEFINED: undefined = undefined;
 
 interface Revisions<V> {
   [rev: number]: V;
@@ -130,7 +130,7 @@ export default class VersionedMap<K, V> {
 
     let prev: V | symbol = NONEXISTENT;
     for (let i = 0; mutations >> i; ++i) {
-      let v = prev;
+      let v: V | symbol = prev;
       if (del & (1 << i)) v = NONEXISTENT;
       else if (i in revisionsObj) v = revisionsObj[i];
       if (v !== prev) this.dirty |= 1 << i;

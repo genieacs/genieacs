@@ -60,6 +60,9 @@ export abstract class SynthContextBase<
       {
         canRaise,
         canLower,
+        // espresso-iisojs declares bias as `() => boolean` but its runtime
+        // passes the return through Array.prototype.sort as a numeric comparator
+        // @ts-expect-error upstream type is wrong
         bias,
       },
     );

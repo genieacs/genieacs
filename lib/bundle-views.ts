@@ -1,4 +1,4 @@
-import esbuild from "esbuild";
+import esbuild, { type BuildFailure } from "esbuild";
 
 import { APP_JS } from "../build/assets.ts";
 import { Views } from "./types.ts";
@@ -11,8 +11,10 @@ export async function validateViewScript(
   try {
     await runBuild(input);
   } catch (err) {
-    if (!err.errors?.length) throw err;
-    const e = err.errors[0];
+    if (!(err instanceof Error)) throw err;
+    const failure = err as BuildFailure;
+    if (!failure.errors?.length) throw err;
+    const e = failure.errors[0];
     if (!e.location) return e.text;
     const offset = input
       .slice(0, input.indexOf("function(node,"))

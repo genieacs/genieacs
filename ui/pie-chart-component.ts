@@ -1,6 +1,7 @@
 import { ClosureComponent, Children } from "mithril";
 import { m } from "./components.ts";
 import Expression from "../lib/common/expression.ts";
+import type { QueryResponse } from "./store.ts";
 
 function drawChart(chartData: Attrs["chart"]): Children {
   const slices = chartData.slices;
@@ -140,6 +141,7 @@ interface Attrs {
       label: string;
       filter: Expression;
       color: string;
+      count?: QueryResponse;
     }[];
   };
 }

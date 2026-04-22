@@ -52,44 +52,49 @@ export async function connectionRequest(
     device = flattenDevice(res);
   }
 
-  let connectionRequestUrl,
-    udpConnectionRequestAddress,
-    stunEnable,
-    connReqJabberId,
-    username,
-    password;
+  let connectionRequestUrl: string,
+    udpConnectionRequestAddress: string,
+    stunEnable: boolean,
+    connReqJabberId: string,
+    username: string,
+    password: string;
 
   if (device["InternetGatewayDevice.ManagementServer.ConnectionRequestURL"]) {
-    connectionRequestUrl =
-      device["InternetGatewayDevice.ManagementServer.ConnectionRequestURL"] ||
-      "";
-    udpConnectionRequestAddress =
-      device[
-        "InternetGatewayDevice.ManagementServer.UDPConnectionRequestAddress"
-      ] || "";
-    stunEnable =
-      device["InternetGatewayDevice.ManagementServer.STUNEnable"] || "";
-    connReqJabberId =
-      device["InternetGatewayDevice.ManagementServer.ConnReqJabberID"] || "";
-    username =
-      device[
-        "InternetGatewayDevice.ManagementServer.ConnectionRequestUsername"
-      ] || "";
-    password =
-      device[
-        "InternetGatewayDevice.ManagementServer.ConnectionRequestPassword"
-      ] || "";
+    connectionRequestUrl = device[
+      "InternetGatewayDevice.ManagementServer.ConnectionRequestURL"
+    ] as string;
+    udpConnectionRequestAddress = device[
+      "InternetGatewayDevice.ManagementServer.UDPConnectionRequestAddress"
+    ] as string;
+    stunEnable = device[
+      "InternetGatewayDevice.ManagementServer.STUNEnable"
+    ] as boolean;
+    connReqJabberId = device[
+      "InternetGatewayDevice.ManagementServer.ConnReqJabberID"
+    ] as string;
+    username = device[
+      "InternetGatewayDevice.ManagementServer.ConnectionRequestUsername"
+    ] as string;
+    password = device[
+      "InternetGatewayDevice.ManagementServer.ConnectionRequestPassword"
+    ] as string;
   } else {
-    connectionRequestUrl =
-      device["Device.ManagementServer.ConnectionRequestURL"] || "";
-    udpConnectionRequestAddress =
-      device["Device.ManagementServer.UDPConnectionRequestAddress"] || "";
-    stunEnable = device["Device.ManagementServer.STUNEnable"] || "";
-    connReqJabberId = device["Device.ManagementServer.ConnReqJabberID"] || "";
-    username =
-      device["Device.ManagementServer.ConnectionRequestUsername"] || "";
-    password =
-      device["Device.ManagementServer.ConnectionRequestPassword"] || "";
+    connectionRequestUrl = device[
+      "Device.ManagementServer.ConnectionRequestURL"
+    ] as string;
+    udpConnectionRequestAddress = device[
+      "Device.ManagementServer.UDPConnectionRequestAddress"
+    ] as string;
+    stunEnable = device["Device.ManagementServer.STUNEnable"] as boolean;
+    connReqJabberId = device[
+      "Device.ManagementServer.ConnReqJabberID"
+    ] as string;
+    username = device[
+      "Device.ManagementServer.ConnectionRequestUsername"
+    ] as string;
+    password = device[
+      "Device.ManagementServer.ConnectionRequestPassword"
+    ] as string;
   }
   let remoteAddress;
   try {
@@ -242,7 +247,7 @@ export async function awaitSessionEnd(
   return awaitSessionEnd(deviceId, timeout);
 }
 
-function sanitizeTask(task): void {
+function sanitizeTask(task: any): void {
   task.timestamp = new Date(task.timestamp || Date.now());
   if (task.expiry) {
     if (task.expiry instanceof Date || isNaN(task.expiry))
@@ -250,7 +255,7 @@ function sanitizeTask(task): void {
     else task.expiry = new Date(task.timestamp.getTime() + +task.expiry * 1000);
   }
 
-  const validParamValue = (p): boolean => {
+  const validParamValue = (p: unknown[]): boolean => {
     if (
       !Array.isArray(p) ||
       p.length < 2 ||
@@ -323,9 +328,9 @@ function sanitizeTask(task): void {
     case "provisions":
       if (
         !Array.isArray(task.provisions) ||
-        !task.provisions.every((arr) =>
+        !task.provisions.every((arr: unknown[]) =>
           arr.every(
-            (s) =>
+            (s: unknown) =>
               s == null || ["boolean", "number", "string"].includes(typeof s),
           ),
         )

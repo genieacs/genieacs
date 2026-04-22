@@ -13,9 +13,20 @@ while (!existsSync(`${ROOT_DIR}/package.json`)) {
 }
 
 // For compatibility with v1.1
-let configDir, cwmpSsl, nbiSsl, fsSsl, uiSsl, fsHostname;
+let configDir: string,
+  cwmpSsl: string,
+  nbiSsl: string,
+  fsSsl: string,
+  uiSsl: string,
+  fsHostname: string;
 
-const options = {
+const options: Record<
+  string,
+  {
+    type: "string" | "int" | "bool" | "path";
+    default?: string | number | boolean;
+  }
+> = {
   EXT_DIR: { type: "path", default: resolve(ROOT_DIR, "config/ext") },
   MONGODB_CONNECTION_URL: {
     type: "string",
@@ -87,14 +98,19 @@ const options = {
   XMPP_PASSWORD: { type: "string", default: "" },
 };
 
-const allConfig: { [name: string]: string | number } = {};
+const allConfig: { [name: string]: string | number | boolean } = {};
 
-function setConfig(name, value, commandLineArgument = false): boolean {
+// TODO proper type for value arg
+function setConfig(
+  name: string,
+  value: unknown,
+  commandLineArgument = false,
+): boolean {
   if (allConfig[name] != null) return true;
 
   // For compatibility with v1.1
   if (name === "CONFIG_DIR" || name === "config-dir")
-    configDir = configDir || resolve(ROOT_DIR, value);
+    configDir = configDir || resolve(ROOT_DIR, String(value));
 
   if (name === "CWMP_SSL" || name === "cwmp-ssl")
     cwmpSsl = cwmpSsl || String(value).toLowerCase().trim();
@@ -129,7 +145,7 @@ function setConfig(name, value, commandLineArgument = false): boolean {
 
   if (name === "FS_IP" || name === "fs-ip") setConfig("FS_HOSTNAME", value);
 
-  function cast(val, type): string | number | boolean {
+  function cast(val: unknown, type: string): string | number | boolean {
     switch (type) {
       case "int":
         return Number(val);
@@ -139,13 +155,13 @@ function setConfig(name, value, commandLineArgument = false): boolean {
         return String(val);
       case "path":
         if (!val) return "";
-        return resolve(val);
+        return resolve(String(val));
       default:
         return null;
     }
   }
 
-  let _value = null;
+  let _value: string | number | boolean = null;
   for (const [optionName, optionDetails] of Object.entries(options)) {
     let n = optionName;
     if (commandLineArgument) n = n.toLowerCase().replace(/_/g, "-");
@@ -161,7 +177,7 @@ function setConfig(name, value, commandLineArgument = false): boolean {
     if (_value != null) {
       allConfig[n] = _value;
       // Save as environmnet variable to pass on to any child process
-      process.env[`GENIEACS_${n}`] = _value;
+      process.env[`GENIEACS_${n}`] = String(_value);
       return true;
     }
   }
@@ -235,7 +251,7 @@ if (fsHostname) {
 
 // Defaults
 for (const [k, v] of Object.entries(options))
-  if (v["default"] != null) setConfig(k, v["default"]);
+  if (v.default != null) setConfig(k, v.default);
 
 export function get(
   optionName: string,
@@ -273,7 +289,7 @@ export function getDefault(optionName: string): string | number | boolean {
   if (!option) return null;
 
   let val = option["default"];
-  if (val && option.type === "path") val = resolve(val);
+  if (val && option.type === "path") val = resolve(String(val));
 
   return val;
 }

@@ -12,18 +12,18 @@ import {
 import * as notifications from "./notifications.ts";
 import memoize from "../lib/common/memoize.ts";
 import putFormComponent from "./put-form-component.ts";
-import indexTableComponent from "./index-table-component.ts";
+import indexTableComponent, {
+  IndexTableAttrs,
+} from "./index-table-component.ts";
 import * as overlay from "./overlay.ts";
 import * as smartQuery from "./smart-query.ts";
 import Expression from "../lib/common/expression.ts";
 import filterComponent from "./filter-component.ts";
 import changePasswordComponent from "./change-password-component.ts";
 
-const memoizedJsonParse = memoize(JSON.parse);
-
 const attributes = [
   { id: "_id", label: "Username" },
-  { id: "roles", label: "Roles", type: "multi", options: [] },
+  { id: "roles", label: "Roles", type: "multi", options: [] as string[] },
 ];
 
 const unpackSmartQuery = memoize((query: Expression) => {
@@ -50,7 +50,11 @@ interface ValidationErrors {
   [prop: string]: string;
 }
 
-function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
+function putActionHandler(
+  action: string,
+  _object: Record<string, any>,
+  isNew: boolean,
+): Promise<ValidationErrors> {
   return new Promise((resolve, reject) => {
     const object = Object.assign({}, _object);
     if (action === "save") {
@@ -79,7 +83,7 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
       object.roles = object.roles.join(",");
 
       resourceExists("users", id)
-        .then((exists) => {
+        .then((exists): void => {
           if (exists && isNew) {
             store.setTimestamp(Date.now());
             return void resolve({ _id: "User already exists" });
@@ -127,8 +131,8 @@ function putActionHandler(action, _object, isNew): Promise<ValidationErrors> {
   });
 }
 
-const getDownloadUrl = memoize((filter) => {
-  const cols = {};
+const getDownloadUrl = memoize((filter: Expression) => {
+  const cols: Record<string, string> = {};
   for (const attr of attributes) cols[attr.label] = attr.id;
 
   return `/api/users.csv?${m.buildQueryString({
@@ -154,51 +158,55 @@ export function init(
   return Promise.resolve({ filter, sort });
 }
 
-export const component: ClosureComponent = (): Component => {
+interface Attrs {
+  filter?: Expression;
+  sort?: Record<string, number>;
+}
+
+export const component: ClosureComponent<Attrs> = (): Component<Attrs> => {
+  let showCount: number;
+
   return {
     view: (vnode) => {
       document.title = "Users - GenieACS";
 
       function showMore(): void {
-        vnode.state["showCount"] =
-          (vnode.state["showCount"] || PAGE_SIZE) + PAGE_SIZE;
+        showCount = (showCount || PAGE_SIZE) + PAGE_SIZE;
         m.redraw();
       }
 
-      function onFilterChanged(filter): void {
-        const ops = {};
+      function onFilterChanged(filter: Expression): void {
+        const ops: Record<string, string> = {};
         if (!(filter instanceof Expression.Literal && filter.value))
           ops["filter"] = filter.toString();
-        if (vnode.attrs["sort"]) ops["sort"] = vnode.attrs["sort"];
+        if (vnode.attrs.sort) ops["sort"] = JSON.stringify(vnode.attrs.sort);
         navigate("/users", ops).catch(console.error);
       }
 
-      const sort = vnode.attrs["sort"]
-        ? memoizedJsonParse(vnode.attrs["sort"])
-        : {};
+      const sort = vnode.attrs.sort || {};
 
-      const sortAttributes = {};
+      const sortAttributes: Record<number, number> = {};
       for (let i = 0; i < attributes.length; i++) {
         const attr = attributes[i];
         if (attr.id !== "roles")
           sortAttributes[i] = sort[attributes[i].id] || 0;
       }
 
-      function onSortChange(sortAttrs): void {
-        const _sort = {};
+      function onSortChange(sortAttrs: number[]): void {
+        const _sort: Record<string, number> = {};
         for (const index of sortAttrs)
           _sort[attributes[Math.abs(index) - 1].id] = Math.sign(index);
-        const ops = { sort: JSON.stringify(_sort) };
-        if (vnode.attrs["filter"]) ops["filter"] = vnode.attrs["filter"];
+        const ops: Record<string, string> = { sort: JSON.stringify(_sort) };
+        if (vnode.attrs.filter) ops["filter"] = vnode.attrs.filter.toString();
         navigate("/users", ops).catch(console.error);
       }
 
       const filter = unpackSmartQuery(
-        vnode.attrs["filter"] ?? new Expression.Literal(true),
+        vnode.attrs.filter ?? new Expression.Literal(true),
       );
 
       const users = store.fetch("users", filter, {
-        limit: vnode.state["showCount"] || PAGE_SIZE,
+        limit: showCount || PAGE_SIZE,
         sort: sort,
       });
 
@@ -211,8 +219,11 @@ export const component: ClosureComponent = (): Component => {
       );
       if (permissions.fulfilled) {
         for (const attr of attributes) {
-          if (attr.id === "roles")
-            attr.options = [...new Set(permissions.value.map((p) => p.role))];
+          if (attr.id === "roles") {
+            const roles = new Set<string>();
+            for (const p of permissions.value) roles.add(p.role);
+            attr.options = [...roles];
+          }
         }
       }
 
@@ -220,15 +231,16 @@ export const component: ClosureComponent = (): Component => {
 
       const canWrite = window.authorizer.hasAccess("users", 3);
 
-      const attrs = {};
-      attrs["attributes"] = attributes;
-      attrs["data"] = users.value;
-      attrs["total"] = count.value;
-      attrs["showMoreCallback"] = showMore;
-      attrs["sortAttributes"] = sortAttributes;
-      attrs["onSortChange"] = onSortChange;
-      attrs["downloadUrl"] = downloadUrl;
-      attrs["recordActionsCallback"] = (user) => {
+      const attrs: IndexTableAttrs = {
+        attributes,
+        data: users.value,
+        total: count.value,
+        showMoreCallback: showMore,
+        sortAttributes,
+        onSortChange,
+        downloadUrl,
+      };
+      attrs.recordActionsCallback = (user: Record<string, any>) => {
         return [
           m(
             "button.text-cyan-700 hover:text-cyan-900 font-medium",
@@ -243,7 +255,10 @@ export const component: ClosureComponent = (): Component => {
                         _id: user._id,
                         roles: user.roles.split(","),
                       },
-                      actionHandler: (action, object) => {
+                      actionHandler: (
+                        action: string,
+                        object: Record<string, any>,
+                      ) => {
                         return new Promise<void>((resolve) => {
                           putActionHandler(action, object, false)
                             .then((errors) => {
@@ -293,7 +308,7 @@ export const component: ClosureComponent = (): Component => {
                 overlay.open(
                   cb,
                   () =>
-                    !comp.state["current"]["modified"] ||
+                    !(comp.state as any)["current"]["modified"] ||
                     confirm("You have unsaved changes. Close anyway?"),
                 );
               },
@@ -313,7 +328,7 @@ export const component: ClosureComponent = (): Component => {
             attributes[1],
           ],
         };
-        attrs["actionsCallback"] = (selected: Set<string>): Children => {
+        attrs.actionsCallback = (selected: Set<string>): Children => {
           return [
             m(
               "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
@@ -325,7 +340,10 @@ export const component: ClosureComponent = (): Component => {
                     putFormComponent,
                     Object.assign(
                       {
-                        actionHandler: (action, object) => {
+                        actionHandler: (
+                          action: string,
+                          object: Record<string, any>,
+                        ) => {
                           return new Promise<void>((resolve) => {
                             putActionHandler(action, object, true)
                               .then((errors) => {
@@ -354,7 +372,7 @@ export const component: ClosureComponent = (): Component => {
                   overlay.open(
                     cb,
                     () =>
-                      !comp.state["current"]["modified"] ||
+                      !(comp.state as any)["current"]["modified"] ||
                       confirm("You have unsaved changes. Close anyway?"),
                   );
                 },
@@ -366,14 +384,14 @@ export const component: ClosureComponent = (): Component => {
               {
                 title: "Delete selected users",
                 disabled: !selected.size,
-                onclick: (e) => {
+                onclick: (e: Event) => {
                   if (
                     !confirm(`Deleting ${selected.size} users. Are you sure?`)
                   )
                     return;
 
                   e.redraw = false;
-                  e.target.disabled = true;
+                  (e.target as HTMLButtonElement).disabled = true;
                   Promise.all(
                     Array.from(selected).map((id) =>
                       deleteResource("users", id),
@@ -400,7 +418,7 @@ export const component: ClosureComponent = (): Component => {
 
       const filterAttrs = {
         resource: "users",
-        filter: vnode.attrs["filter"],
+        filter: vnode.attrs.filter,
         onChange: onFilterChanged,
       };
 

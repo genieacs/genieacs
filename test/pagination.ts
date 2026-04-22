@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert";
-import initSqlJs from "sql.js/dist/sql-asm.js";
+import initSqlJs, { Database } from "sql.js/dist/sql-asm.js";
 import {
   bookmarkToExpression,
   paginate,
@@ -12,7 +12,7 @@ import { covers, minimize } from "../lib/common/expression/synth.ts";
 const VALUES = [null, -1, false, "a"];
 const PARAMS = ["param1", "param2"];
 
-let db;
+let db: Database;
 
 async function query(filter: string): Promise<{ id: string }[]> {
   if (!db) {
@@ -28,9 +28,14 @@ async function query(filter: string): Promise<{ id: string }[]> {
     );
     const count = VALUES.length ** PARAMS.length;
     for (let i = 0; i < count; ++i) {
-      const values: (boolean | number | string)[] = [];
+      const values: (null | number | string)[] = [];
       for (let j = 0; j < PARAMS.length; ++j)
-        values.push(VALUES[Math.trunc(i / VALUES.length ** j) % VALUES.length]);
+        values.push(
+          VALUES[Math.trunc(i / VALUES.length ** j) % VALUES.length] as
+            | null
+            | number
+            | string,
+        );
       stmt.run(values);
     }
     stmt.free();
@@ -38,8 +43,11 @@ async function query(filter: string): Promise<{ id: string }[]> {
 
   const res = db.exec(`SELECT * FROM test WHERE ${filter}`);
   if (!res.length) return [];
-  return res[0].values.map((row) =>
-    Object.fromEntries(row.map((v, i) => [res[0].columns[i], v])),
+  return res[0].values.map(
+    (row: unknown[]) =>
+      Object.fromEntries(
+        row.map((v: unknown, i: number) => [res[0].columns[i], v]),
+      ) as { id: string },
   );
 }
 

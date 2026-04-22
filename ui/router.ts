@@ -1,52 +1,3 @@
-declare global {
-  interface NavigationInterceptOptions {
-    precommitHandler?: (
-      controller: NavigationInterceptController,
-    ) => void | Promise<void>;
-    handler?: () => void | Promise<void>;
-  }
-
-  interface NavigationInterceptController {
-    redirect(url: URL, options?: NavigationRedirectOptions): void;
-  }
-
-  interface NavigationRedirectOptions {
-    history: "auto" | "push" | "replace";
-  }
-
-  interface NavigationOptions {
-    info?: unknown;
-    history?: "auto" | "push" | "replace";
-  }
-
-  interface Navigation {
-    addEventListener(
-      type: "navigate",
-      listener: (event: NavigateEvent) => void,
-    ): void;
-    navigate(
-      url: string | URL,
-      options?: NavigationOptions,
-    ): { committed: Promise<void>; finished: Promise<void> };
-    reload(): { committed: Promise<void>; finished: Promise<void> };
-    currentEntry?: { url: string };
-  }
-
-  class NavigateEvent {
-    canIntercept: boolean;
-    destination: { url: string };
-    downloadRequest: boolean;
-    hashChange: boolean;
-    info: unknown;
-    signal: AbortSignal;
-    navigationType: "push" | "reload" | "replace" | "traverse";
-    intercept(options: NavigationInterceptOptions): void;
-  }
-  interface Window {
-    navigation: Navigation;
-  }
-}
-
 const ROUTES = [
   "/",
   "/overview",
@@ -146,22 +97,22 @@ export function initRouter(_handler: typeof handler): void {
   });
 }
 
-export function navigate(
+export async function navigate(
   path: string,
   params?: Record<string, string>,
 ): Promise<void> {
   if (params) path += "?" + new URLSearchParams(params).toString();
-  return window.navigation.navigate(path).committed;
+  await window.navigation.navigate(path).committed;
 }
 
-export function redirect(
+export async function redirect(
   path: string,
   params?: Record<string, string>,
 ): Promise<void> {
   if (params) path += "?" + new URLSearchParams(params).toString();
-  return window.navigation.navigate(path, { history: "replace" }).committed;
+  await window.navigation.navigate(path, { history: "replace" }).committed;
 }
 
-export function reload(): Promise<void> {
-  return window.navigation.reload().committed;
+export async function reload(): Promise<void> {
+  await window.navigation.reload().committed;
 }

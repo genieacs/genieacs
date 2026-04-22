@@ -4,8 +4,8 @@ import Expression from "./expression.ts";
 export default class Authorizer {
   declare private permissionSets: PermissionSet[];
   declare private validatorCache: WeakMap<
-    any,
-    (mutationType, mutation, any) => boolean
+    object,
+    (mutationType: string, mutation?: any, args?: any) => boolean
   >;
   declare private hasAccessCache: Map<string, boolean>;
   declare private getFilterCache: Map<string, Expression>;
@@ -59,7 +59,7 @@ export default class Authorizer {
 
   public getValidator(
     resourceType: string,
-    resource: unknown,
+    resource: object,
   ): (mutationType: string, mutation?: any, args?: any) => boolean {
     if (this.validatorCache.has(resource))
       return this.validatorCache.get(resource);
@@ -79,15 +79,15 @@ export default class Authorizer {
 
     const validator = (
       mutationType: string,
-      mutation: any,
-      any: any,
+      mutation?: any,
+      args?: any,
     ): boolean => {
       const object = {
         mutationType,
         mutation,
         resourceType,
         object: resource,
-        options: any,
+        options: args,
       };
 
       const now = Date.now();
@@ -98,16 +98,17 @@ export default class Authorizer {
           const entry = exp.path.segments[0] as string;
           const paramName = exp.path.slice(1);
           let value = null;
+          const o = object as Record<string, any>;
           if (["mutation", "options"].includes(entry)) {
-            value = object[entry];
+            value = o[entry];
             for (const seg of paramName.segments) {
               if (value == null) break;
               if (typeof value !== "object") value = null;
               else value = value[seg as string];
             }
-          } else if (object[entry]) {
-            if (paramName.length) value = object[entry][paramName.toString()];
-            else value = object[entry];
+          } else if (o[entry]) {
+            if (paramName.length) value = o[entry][paramName.toString()];
+            else value = o[entry];
           }
           return new Expression.Literal(value);
         } else if (exp instanceof Expression.FunctionCall) {

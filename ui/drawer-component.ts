@@ -8,6 +8,7 @@ import m, {
 import * as store from "./store.ts";
 import { invalidate } from "./reactive-store.ts";
 import * as notifications from "./notifications.ts";
+import type { Notification } from "./notifications.ts";
 import { icon } from "./tailwind-utility-components.ts";
 import {
   clear,
@@ -23,25 +24,29 @@ import Expression from "../lib/common/expression.ts";
 
 const invalid: WeakSet<StageTask> = new WeakSet();
 
-function renderStagingSpv(task: StageTask, queueFunc, cancelFunc): Children {
+function renderStagingSpv(
+  task: StageTask,
+  queueFunc: () => void,
+  cancelFunc: () => void,
+): Children {
   function keydown(e: KeyboardEvent): void {
     if (e.key === "Enter") queueFunc();
     else if (e.key === "Escape") cancelFunc();
     else e["redraw"] = false;
   }
 
-  let input;
+  let input: VnodeDOM;
   if (task.parameterValues[0][2] === "xsd:boolean") {
     input = m(
       "select.mt-1 w-full block pl-3 pr-10 py-2 text-base border-stone-300 focus:outline-hidden focus:ring-cyan-500 focus:border-cyan-500 sm:text-sm rounded-md",
       {
         value: task.parameterValues[0][1].toString(),
-        onchange: (e) => {
+        onchange: (e: Event) => {
           e.redraw = false;
-          task.parameterValues[0][1] = input.dom.value;
+          task.parameterValues[0][1] = (input.dom as HTMLSelectElement).value;
         },
         onkeydown: keydown,
-        oncreate: (vnode) => {
+        oncreate: (vnode: VnodeDOM) => {
           (vnode.dom as HTMLSelectElement).focus();
         },
       },
@@ -49,7 +54,7 @@ function renderStagingSpv(task: StageTask, queueFunc, cancelFunc): Children {
         m("option", { value: "true" }, "true"),
         m("option", { value: "false" }, "false"),
       ],
-    );
+    ) as VnodeDOM;
   } else {
     const type = task.parameterValues[0][2];
     let value = task.parameterValues[0][1];
@@ -60,12 +65,12 @@ function renderStagingSpv(task: StageTask, queueFunc, cancelFunc): Children {
       {
         type: ["xsd:int", "xsd:unsignedInt"].includes(type) ? "number" : "text",
         value: value,
-        oninput: (e) => {
+        oninput: (e: Event) => {
           e.redraw = false;
-          task.parameterValues[0][1] = input.dom.value;
+          task.parameterValues[0][1] = (input.dom as HTMLInputElement).value;
         },
         onkeydown: keydown,
-        oncreate: (vnode) => {
+        oncreate: (vnode: VnodeDOM) => {
           (vnode.dom as HTMLInputElement).focus();
           (vnode.dom as HTMLInputElement).select();
           // Need to prevent scrolling on focus because
@@ -73,7 +78,7 @@ function renderStagingSpv(task: StageTask, queueFunc, cancelFunc): Children {
           (vnode.dom.parentNode.parentNode as Element).scrollTop = 0;
         },
       },
-    );
+    ) as VnodeDOM;
   }
 
   return [
@@ -121,7 +126,9 @@ function renderStagingDownload(task: StageTask): Children {
       "3 Vendor Configuration File",
       "4 Tone File",
       "5 Ringer File",
-      ...files.value.map((f) => f["metadata.fileType"]).filter((f) => f),
+      ...files.value
+        .map((f: Record<string, string>) => f["metadata.fileType"])
+        .filter((f: string) => f),
     ]),
   ].map((t) =>
     m(
@@ -135,14 +142,14 @@ function renderStagingDownload(task: StageTask): Children {
     .concat(
       files.value
         .filter(
-          (f) =>
+          (f: Record<string, string>) =>
             (!f["metadata.oui"] || f["metadata.oui"] === oui) &&
             (!f["metadata.productClass"] ||
               f["metadata.productClass"] === productClass),
         )
-        .map((f) => f._id),
+        .map((f: Record<string, string>) => f._id),
     )
-    .map((f) =>
+    .map((f: string) =>
       m(
         "option",
         { disabled: !f, value: f, selected: (task.fileName || "") === f },
@@ -157,8 +164,8 @@ function renderStagingDownload(task: StageTask): Children {
       {
         class:
           "min-w-0 pl-3 pr-10 py-2 text-base border-stone-300 focus:outline-hidden focus:ring-cyan-500 focus:border-cyan-500 sm:text-sm rounded-md",
-        onchange: (e) => {
-          const f = e.target.value;
+        onchange: (e: Event) => {
+          const f = (e.target as HTMLSelectElement).value;
           task.fileName = f;
           task.fileType = "";
           for (const file of files.value)
@@ -174,8 +181,8 @@ function renderStagingDownload(task: StageTask): Children {
       {
         class:
           "min-w-0 pl-3 pr-10 py-2 text-base border-stone-300 focus:outline-hidden focus:ring-cyan-500 focus:border-cyan-500 sm:text-sm rounded-md",
-        onchange: (e) => {
-          task.fileType = e.target.value;
+        onchange: (e: Event) => {
+          task.fileType = (e.target as HTMLSelectElement).value;
         },
       },
       typesList,
@@ -394,7 +401,7 @@ function renderQueue(queue: Set<QueueTask>): Child[] {
   return details;
 }
 
-function renderNotifications(notifs): Child[] {
+function renderNotifications(notifs: Iterable<Notification>): Child[] {
   const notificationElements: Child[] = [];
 
   for (const n of notifs) {
@@ -461,13 +468,15 @@ function renderNotifications(notifs): Child[] {
 }
 
 const component: ClosureComponent = (): Component => {
+  let mouseIn = false;
+
   return {
-    view: (vnode) => {
+    view: () => {
       const queue = getQueue();
       const staging = getStaging();
       const notifs = notifications.getNotifications();
 
-      let drawerElement, statusElement;
+      let drawerElement: VnodeDOM, statusElement: VnodeDOM;
       const notificationElements = renderNotifications(notifs);
       const stagingElements = renderStaging(staging);
       const queueElements = renderQueue(queue);
@@ -481,8 +490,8 @@ const component: ClosureComponent = (): Component => {
       }
 
       function resizeDrawer(): void {
-        let height =
-          statusElement.dom.offsetTop + statusElement.dom.offsetHeight;
+        const statusDom = statusElement.dom as HTMLElement;
+        let height = statusDom.offsetTop + statusDom.offsetHeight;
         if (stagingElements.length) {
           for (const s of stagingElements as VnodeDOM[]) {
             height = Math.max(
@@ -491,15 +500,22 @@ const component: ClosureComponent = (): Component => {
                 (s.dom as HTMLDivElement).offsetHeight,
             );
           }
-        } else if (vnode.state["mouseIn"]) {
-          for (const c of drawerElement.children)
-            height = Math.max(height, c.dom.offsetTop + c.dom.offsetHeight);
+        } else if (mouseIn) {
+          for (const c of drawerElement.children as VnodeDOM[]) {
+            const dom = c.dom as HTMLElement;
+            height = Math.max(height, dom.offsetTop + dom.offsetHeight);
+          }
         }
-        drawerElement.dom.style.height = height + "px";
+        (drawerElement.dom as HTMLElement).style.height = height + "px";
       }
 
       if (stagingElements.length + queueElements.length) {
-        const statusCount = { queued: 0, pending: 0, fault: 0, stale: 0 };
+        const statusCount: Record<string, number> = {
+          queued: 0,
+          pending: 0,
+          fault: 0,
+          stale: 0,
+        };
         for (const t of queue) statusCount[t["status"]] += 1;
 
         const actions = m(
@@ -612,7 +628,7 @@ const component: ClosureComponent = (): Component => {
             m("span.relative", `Stale: ${statusCount.stale}`),
           ),
           actions,
-        );
+        ) as VnodeDOM;
 
         drawerElement = m(
           "div",
@@ -622,19 +638,21 @@ const component: ClosureComponent = (): Component => {
             key: "drawer",
             style: "opacity: 0;height: 0;",
             oncreate: (vnode2) => {
-              vnode.state["mouseIn"] = false;
+              mouseIn = false;
               (vnode2.dom as HTMLDivElement).style.opacity = "1";
               resizeDrawer();
             },
-            onmouseenter: (e) => {
-              if (drawerElement.dom.style.opacity === "0") return;
-              vnode.state["mouseIn"] = true;
+            onmouseenter: (e: Event) => {
+              if ((drawerElement.dom as HTMLDivElement).style.opacity === "0")
+                return;
+              mouseIn = true;
               resizeDrawer();
               e.redraw = false;
             },
-            onmouseleave: (e) => {
-              if (drawerElement.dom.style.opacity === "0") return;
-              vnode.state["mouseIn"] = false;
+            onmouseleave: (e: Event) => {
+              if ((drawerElement.dom as HTMLDivElement).style.opacity === "0")
+                return;
+              mouseIn = false;
               resizeDrawer();
               e.redraw = false;
             },
@@ -651,7 +669,7 @@ const component: ClosureComponent = (): Component => {
           stagingElements.length
             ? stagingElements
             : m("div.px-4 pb-4 text-sm", queueElements),
-        );
+        ) as VnodeDOM;
       }
 
       return m(

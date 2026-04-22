@@ -46,7 +46,7 @@ async function fetchUsers(): Promise<[string, Users]> {
     .createHash("md5")
     .update(JSON.stringify(_users))
     .digest("hex");
-  const users = {};
+  const users: Users = {};
 
   for (const user of _users) {
     users[user._id] = {
@@ -66,7 +66,7 @@ async function fetchConfig(): Promise<[string, Config, UiConfig]> {
 
   const ui: UiConfig = {};
 
-  const _config = {};
+  const _config: Config = {};
 
   for (const c of conf) {
     if (c._id.startsWith("ui.")) {

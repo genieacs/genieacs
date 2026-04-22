@@ -4,7 +4,7 @@ export function generateDeviceId(
   deviceIdStruct: Record<string, string>,
 ): string {
   // Escapes everything except alphanumerics and underscore
-  function esc(str): string {
+  function esc(str: string): string {
     return str.replace(/[^A-Za-z0-9_]/g, (chr) => {
       const buf = Buffer.from(chr, "utf8");
       let rep = "";

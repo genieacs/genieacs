@@ -1,6 +1,6 @@
 import * as vm from "node:vm";
 import { IncomingMessage, ServerResponse } from "node:http";
-import { Collection, ObjectId } from "mongodb";
+import { ObjectId } from "mongodb";
 import { getRevision, getConfig } from "./ui/local-cache.ts";
 import { filesBucket, collections } from "./db/db.ts";
 import { optimizeProjection } from "./db/util.ts";
@@ -57,7 +57,7 @@ export async function listener(
     (origin.encrypted ? "https://" : "http://") + origin.host,
   );
 
-  const body = await getBody(request).catch(() => null);
+  const body = await getBody(request).catch((): null => null);
   // Ignore incomplete requests
   if (body == null) return;
 
@@ -83,6 +83,7 @@ async function handler(
       try {
         preset = JSON.parse(body.toString());
       } catch (err) {
+        if (!(err instanceof Error)) throw err;
         response.writeHead(400);
         response.end(`${err.name}: ${err.message}`);
         return;
@@ -110,6 +111,7 @@ async function handler(
       try {
         object = JSON.parse(body.toString());
       } catch (err) {
+        if (!(err instanceof Error)) throw err;
         response.writeHead(400);
         response.end(`${err.name}: ${err.message}`);
         return;
@@ -143,6 +145,7 @@ async function handler(
       try {
         new vm.Script(`"use strict";(function(){\n${object.script}\n})();`);
       } catch (err) {
+        if (!(err instanceof Error)) throw err;
         response.writeHead(400);
         response.end(`${err.name}: ${err.message}`);
         return;
@@ -176,6 +179,7 @@ async function handler(
       try {
         new vm.Script(`"use strict";(function(){\n${object.script}\n})();`);
       } catch (err) {
+        if (!(err instanceof Error)) throw err;
         response.writeHead(400);
         response.end(`${err.name}: ${err.message}`);
         return;
@@ -269,6 +273,7 @@ async function handler(
           task = JSON.parse(body.toString());
           task.device = deviceId;
         } catch (err) {
+          if (!(err instanceof Error)) throw err;
           response.writeHead(400);
           response.end(`${err.name}: ${err.message}`);
           return;
@@ -528,6 +533,7 @@ async function handler(
       try {
         await filesBucket.delete(filename as unknown as ObjectId);
       } catch (err) {
+        if (!(err instanceof Error)) throw err;
         if (err.message.startsWith("FileNotFound")) {
           response.writeHead(404);
           response.end("404 Not Found");
@@ -607,7 +613,7 @@ async function handler(
       return;
     }
 
-    const collection = collections[collectionName] as Collection<unknown>;
+    const collection = collections[collectionName as keyof typeof collections];
     if (!collection) {
       response.writeHead(404);
       response.end("404 Not Found");
@@ -619,6 +625,7 @@ async function handler(
       try {
         q = JSON.parse(url.searchParams.get("query") as string);
       } catch (err) {
+        if (!(err instanceof Error)) throw err;
         response.writeHead(400);
         response.end(`${err.name}: ${err.message}`);
         return;
@@ -643,7 +650,7 @@ async function handler(
         });
     }
 
-    let projection = null;
+    let projection: Record<string, 1> = null;
     if (url.searchParams.has("projection")) {
       projection = {};
       for (const p of (url.searchParams.get("projection") as string).split(","))
@@ -658,18 +665,19 @@ async function handler(
       try {
         s = JSON.parse(url.searchParams.get("sort") as string);
       } catch (err) {
+        if (!(err instanceof Error)) throw err;
         response.writeHead(400);
         response.end(`${err.name}: ${err.message}`);
         return;
       }
-      const sort = {};
+      const sort: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(s)) {
         if (k[k.lastIndexOf(".") + 1] !== "_" && collectionName === "devices")
           sort[`${k}._value`] = v;
         else sort[k] = v;
       }
 
-      cur.sort(sort);
+      cur.sort(sort as Record<string, 1 | -1>);
     }
 
     const total = await collection.countDocuments(q);

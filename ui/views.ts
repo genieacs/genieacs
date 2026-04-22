@@ -87,7 +87,7 @@ function doCount(node: SignalizedViewNode): ViewElement {
       freshness: localFreshness,
     });
 
-    const sig = new ComputedSignal(() => {
+    const sig = new ComputedSignal((): null => {
       if (res) res.set(querySignal.get().value);
       return null;
     });
@@ -110,7 +110,7 @@ function doFetch(node: SignalizedViewNode): ViewElement {
       freshness: localFreshness,
     });
 
-    const sig = new ComputedSignal(() => {
+    const sig = new ComputedSignal((): null => {
       if (res) res.set(querySignal.get().value);
       return null;
     });
@@ -119,7 +119,7 @@ function doFetch(node: SignalizedViewNode): ViewElement {
 }
 
 function doTask(node: SignalizedViewNode): ViewElement {
-  return new ComputedSignal(() => {
+  return new ComputedSignal((): null => {
     const arg = node.attributes["arg"]?.get() as {
       name: string;
       device: string;
@@ -169,7 +169,7 @@ function doTask(node: SignalizedViewNode): ViewElement {
 }
 
 function doNotify(node: SignalizedViewNode): ViewElement {
-  return new ComputedSignal(() => {
+  return new ComputedSignal((): null => {
     const arg = node.attributes["arg"]?.get() as {
       type: string;
       message: string;
@@ -183,7 +183,7 @@ function doNotify(node: SignalizedViewNode): ViewElement {
 }
 
 function doDelete(node: SignalizedViewNode): ViewElement {
-  return new ComputedSignal(() => {
+  return new ComputedSignal((): null => {
     const arg = node.attributes["arg"]?.get() as {
       resource: string;
       id: string;
@@ -207,7 +207,7 @@ function doDelete(node: SignalizedViewNode): ViewElement {
 }
 
 function doYamlStringify(node: SignalizedViewNode): ViewElement {
-  return new ComputedSignal(() => {
+  return new ComputedSignal((): null => {
     const arg = node.attributes["arg"]?.get();
     const res = node.attributes["res"] as StateSignal<string>;
     if (arg === undefined || !res) return null;
@@ -217,7 +217,7 @@ function doYamlStringify(node: SignalizedViewNode): ViewElement {
 }
 
 function doUpdateTags(node: SignalizedViewNode): ViewElement {
-  return new ComputedSignal(() => {
+  return new ComputedSignal((): null => {
     const arg = node.attributes["arg"]?.get() as {
       deviceId: string;
       tags: Record<string, boolean>;
@@ -241,7 +241,7 @@ function doUpdateTags(node: SignalizedViewNode): ViewElement {
 }
 
 function doPing(node: SignalizedViewNode): ViewElement {
-  return new ComputedSignal(() => {
+  return new ComputedSignal((): null => {
     const arg = node.attributes["arg"]?.get() as string | null;
     const res = node.attributes["res"] as StateSignal<number | Error | null>;
     if (!arg || !res) return null;
@@ -423,7 +423,7 @@ export const ViewComponent: ClosureComponent<{
     view: () => signal.get(),
     onremove: () => {
       watcher[Symbol.dispose]();
-      if (node[Symbol.dispose]) node[Symbol.dispose]();
+      if (node instanceof SignalBase) node[Symbol.dispose]();
     },
   };
 };

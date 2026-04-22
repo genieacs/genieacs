@@ -359,7 +359,7 @@ export async function transferComplete(
 
 function revertDownloadParameters(
   sessionContext: SessionContext,
-  instance,
+  instance: string,
 ): void {
   const timestamp = sessionContext.timestamp + sessionContext.iteration + 1;
 
@@ -550,7 +550,7 @@ export function clearProvisions(sessionContext: SessionContext): void {
 
 async function runProvisions(
   sessionContext: SessionContext,
-  provisions: any[][],
+  provisions: [string, ...Value[]][],
   startRevision: number,
   endRevision: number,
 ): Promise<ScriptResult> {
@@ -558,13 +558,15 @@ async function runProvisions(
 
   const res = await Promise.all(
     provisions.map(async (provision) => {
-      if (!allProvisions[provision[0]]) {
-        if (defaultProvisions[provision[0]]) {
-          const dec = [];
+      if (!allProvisions[provision[0] as string]) {
+        const defaultProvision =
+          defaultProvisions[provision[0] as keyof typeof defaultProvisions];
+        if (defaultProvision) {
+          const dec: Declaration[] = [];
           let done = true;
           let fault = null;
           try {
-            done = defaultProvisions[provision[0]](
+            done = defaultProvision(
               sessionContext,
               provision,
               dec,
@@ -572,6 +574,7 @@ async function runProvisions(
               endRevision,
             );
           } catch (err) {
+            if (!(err instanceof Error)) throw err;
             fault = {
               code: `script.${err.name}`,
               message: err.message,
@@ -588,7 +591,7 @@ async function runProvisions(
             declare: dec,
             done: done,
             returnValue: null,
-          };
+          } as ScriptResult;
         }
         return null;
       }
@@ -604,9 +607,9 @@ async function runProvisions(
   );
 
   let done = true;
-  let allDeclarations = [];
-  let allClear = [];
-  let fault;
+  let allDeclarations: Declaration[] = [];
+  let allClear: Clear[] = [];
+  let fault: Fault;
 
   for (const r of res) {
     if (!r) continue;
@@ -629,7 +632,13 @@ async function runProvisions(
 
 async function runVirtualParameters(
   sessionContext: SessionContext,
-  provisions: any[][],
+  provisions: [
+    string,
+    AttributeTimestamps,
+    AttributeValues,
+    AttributeTimestamps,
+    AttributeValues,
+  ][],
   startRevision: number,
   endRevision: number,
 ): Promise<ScriptResult> {
@@ -715,10 +724,10 @@ async function runVirtualParameters(
   );
 
   let done = true;
-  const virtualParameterUpdates = [];
-  let allDeclarations = [];
-  let allClear = [];
-  let fault;
+  const virtualParameterUpdates: (AttributeValues | null)[] = [];
+  let allDeclarations: Declaration[] = [];
+  let allClear: Clear[] = [];
+  let fault: Fault;
 
   for (const r of res) {
     if (!r) {
@@ -789,7 +798,10 @@ function runDeclarations(
       allDeclareAttributeTimestamps.set(p, attrs);
     } else {
       cur = Object.assign({}, cur);
-      for (const [k, v] of Object.entries(attrs))
+      for (const [k, v] of Object.entries(attrs) as [
+        keyof AttributeTimestamps,
+        number,
+      ][])
         cur[k] = Math.max(v, cur[k] || 0);
       allDeclareAttributeTimestamps.set(p, cur);
     }
@@ -1003,27 +1015,27 @@ export async function rpcRequest(
     sessionContext.deviceData.timestamps.revision = revision;
     sessionContext.deviceData.attributes.revision = revision;
 
-    let run: typeof runProvisions, provisions;
-    if (inception === 0) {
-      run = runProvisions;
-      provisions = sessionContext.provisions;
-    } else {
-      run = runVirtualParameters;
-      provisions = sessionContext.virtualParameters[inception - 1];
-    }
-
+    const startRev = sessionContext.revisions[inception - 1] || 0;
+    const endRev = sessionContext.revisions[inception];
     const {
       fault,
       clear: toClear,
       declare: decs,
       done: done,
       returnValue: ret,
-    } = await run(
-      sessionContext,
-      provisions,
-      sessionContext.revisions[inception - 1] || 0,
-      sessionContext.revisions[inception],
-    );
+    } = await (inception === 0
+      ? runProvisions(
+          sessionContext,
+          sessionContext.provisions,
+          startRev,
+          endRev,
+        )
+      : runVirtualParameters(
+          sessionContext,
+          sessionContext.virtualParameters[inception - 1],
+          startRev,
+          endRev,
+        ));
 
     if (fault) {
       fault.timestamp = sessionContext.timestamp;
@@ -1035,7 +1047,10 @@ export async function rpcRequest(
       if (c[1] > sessionContext.timestamp) c[1] = sessionContext.timestamp;
 
       if (c[2]) {
-        for (const [k, v] of Object.entries(c[2]))
+        for (const [k, v] of Object.entries(c[2]) as [
+          keyof AttributeTimestamps,
+          number,
+        ][])
           if (v > sessionContext.timestamp) c[2][k] = sessionContext.timestamp;
       }
     }
@@ -1049,7 +1064,10 @@ export async function rpcRequest(
         d.pathGet = sessionContext.timestamp;
 
       if (d.attrGet) {
-        for (const [k, v] of Object.entries(d.attrGet)) {
+        for (const [k, v] of Object.entries(d.attrGet) as [
+          keyof AttributeTimestamps,
+          number,
+        ][]) {
           if (v > sessionContext.timestamp)
             d.attrGet[k] = sessionContext.timestamp;
         }
@@ -1470,8 +1488,11 @@ export async function rpcRequest(
   const timestamp = sessionContext.timestamp + sessionContext.iteration;
   let toClear;
   for (const [i, vpu] of ret.entries()) {
-    for (const [k, v] of Object.entries(vpu))
-      vpu[k] = [timestamp + (vparams[i][2][k] != null ? 1 : 0), v];
+    for (const [k, v] of Object.entries(vpu) as [keyof AttributeValues, any][])
+      vpu[k] = [
+        timestamp + ((vparams[i][2] as AttributeValues)[k] != null ? 1 : 0),
+        v,
+      ];
 
     toClear = device.set(
       sessionContext.deviceData,
@@ -1929,30 +1950,40 @@ function generateGetVirtualParameterProvisions(
   AttributeTimestamps,
   AttributeValues,
 ][] {
-  let provisions;
+  let provisions: [
+    string,
+    AttributeTimestamps,
+    AttributeValues,
+    AttributeTimestamps,
+    AttributeValues,
+  ][];
   if (virtualParameterDeclarations) {
     for (const declaration of virtualParameterDeclarations) {
       if (declaration[1]) {
-        const currentTimestamps = {};
-        const currentValues = {};
-        const dec = {};
+        const currentTimestamps: AttributeTimestamps = {};
+        const currentValues: AttributeValues = {};
+        const dec: AttributeTimestamps = {};
         const attrs =
           sessionContext.deviceData.attributes.get(declaration[0]) || {};
 
         for (const [k, v] of Object.entries(declaration[1])) {
           if (k !== "value" && k !== "writable") continue;
-          if (!attrs[k] || v > attrs[k][0]) dec[k] = v;
+          const attr = attrs[k as "value" | "writable"];
+          if (!attr || v > attr[0]) dec[k] = v;
         }
 
-        for (const [k, v] of Object.entries(attrs)) {
+        for (const [k, v] of Object.entries(attrs) as [
+          keyof Attributes,
+          any,
+        ][]) {
           currentTimestamps[k] = v[0];
-          currentValues[k] = v[1];
+          (currentValues as Record<string, unknown>)[k] = v[1];
         }
 
         if (Object.keys(dec).length) {
           if (!provisions) provisions = [];
           provisions.push([
-            declaration[0].segments[1],
+            declaration[0].segments[1] as string,
             dec,
             {},
             currentTimestamps,
@@ -1975,7 +2006,13 @@ function generateSetVirtualParameterProvisions(
   AttributeTimestamps,
   AttributeValues,
 ][] {
-  let provisions;
+  let provisions: [
+    string,
+    AttributeTimestamps,
+    AttributeValues,
+    AttributeTimestamps,
+    AttributeValues,
+  ][];
   if (virtualParameterDeclarations) {
     for (const declaration of virtualParameterDeclarations) {
       if (declaration[2]?.value != null) {
@@ -1997,15 +2034,18 @@ function generateSetVirtualParameterProvisions(
 
           if (val[0] !== attrs.value[1][0] || val[1] !== attrs.value[1][1]) {
             if (!provisions) provisions = [];
-            const currentTimestamps = {};
-            const currentValues = {};
-            for (const [k, v] of Object.entries(attrs)) {
+            const currentTimestamps: AttributeTimestamps = {};
+            const currentValues: AttributeValues = {};
+            for (const [k, v] of Object.entries(attrs) as [
+              keyof Attributes,
+              any,
+            ][]) {
               currentTimestamps[k] = v[0];
-              currentValues[k] = v[1];
+              (currentValues as Record<string, unknown>)[k] = v[1];
             }
 
             provisions.push([
-              declaration[0].segments[1],
+              declaration[0].segments[1] as string,
               {},
               { value: val },
               currentTimestamps,
@@ -2022,7 +2062,7 @@ function generateSetVirtualParameterProvisions(
 
 function processDeclarations(
   sessionContext: SessionContext,
-  allDeclareTimestamps,
+  allDeclareTimestamps: Map<Path, number>,
   allDeclareAttributeTimestamps: Map<Path, AttributeTimestamps>,
   allDeclareAttributeValues: Map<Path, AttributeValues>,
 ): VirtualParameterDeclaration[] {
@@ -2084,16 +2124,17 @@ function processDeclarations(
         const attrs = allDeclareAttributeTimestamps.get(path);
         if (attrs) {
           if (declareAttributeTimestamps) {
-            declareAttributeTimestamps = Object.assign(
+            const merged: AttributeTimestamps = Object.assign(
               {},
               declareAttributeTimestamps,
             );
-            for (const [k, v] of Object.entries(attrs)) {
-              declareAttributeTimestamps[k] = Math.max(
-                v,
-                declareAttributeTimestamps[k] || 0,
-              );
+            for (const [k, v] of Object.entries(attrs) as [
+              keyof AttributeTimestamps,
+              number,
+            ][]) {
+              merged[k] = Math.max(v, merged[k] || 0);
             }
+            declareAttributeTimestamps = merged;
           } else {
             declareAttributeTimestamps = attrs;
           }
@@ -2122,13 +2163,17 @@ function processDeclarations(
       case "Reboot":
         if (currentPath.length === 1) {
           if (declareAttributeValues?.value)
-            syncState.reboot = +new Date(declareAttributeValues.value[0]);
+            syncState.reboot = +new Date(
+              declareAttributeValues.value[0] as string | number,
+            );
         }
         break;
       case "FactoryReset":
         if (currentPath.length === 1) {
           if (declareAttributeValues?.value)
-            syncState.factoryReset = +new Date(declareAttributeValues.value[0]);
+            syncState.factoryReset = +new Date(
+              declareAttributeValues.value[0] as string | number,
+            );
         }
         break;
       case "Tags":
@@ -2162,26 +2207,27 @@ function processDeclarations(
           if (currentPath.segments[2] === "Download") {
             syncState.downloadsDownload.set(
               currentPath,
-              declareAttributeValues.value[0],
+              declareAttributeValues.value[0] as number,
             );
           } else {
             syncState.downloadsValues.set(
               currentPath,
-              declareAttributeValues.value[0],
+              declareAttributeValues.value[0] as string | number,
             );
           }
         }
         break;
       case "VirtualParameters":
         if (currentPath.length <= 2) {
-          let d;
-          if (!(declareTimestamp <= currentTimestamp)) d = [currentPath];
+          let d: VirtualParameterDeclaration;
+          if (!(declareTimestamp <= currentTimestamp))
+            d = [currentPath] as unknown as VirtualParameterDeclaration;
 
           if (currentPath.wildcard === 0) {
             if (declareAttributeTimestamps) {
               for (const [attrName, attrTimestamp] of Object.entries(
                 declareAttributeTimestamps,
-              )) {
+              ) as [keyof Attributes, number][]) {
                 if (
                   !(
                     currentAttributes &&
@@ -2189,7 +2235,8 @@ function processDeclarations(
                     attrTimestamp <= currentAttributes[attrName][0]
                   )
                 ) {
-                  if (!d) d = [currentPath];
+                  if (!d)
+                    d = [currentPath] as unknown as VirtualParameterDeclaration;
                   if (!d[1]) d[1] = {};
                   d[1][attrName] = attrTimestamp;
                 }
@@ -2197,7 +2244,8 @@ function processDeclarations(
             }
 
             if (declareAttributeValues) {
-              if (!d) d = [currentPath];
+              if (!d)
+                d = [currentPath] as unknown as VirtualParameterDeclaration;
               d[2] = declareAttributeValues;
             }
           }
@@ -2246,7 +2294,7 @@ function processDeclarations(
           if (declareAttributeTimestamps) {
             for (const [attrName, attrTimestamp] of Object.entries(
               declareAttributeTimestamps,
-            )) {
+            ) as [keyof Attributes, number][]) {
               if (
                 !(
                   currentAttributes[attrName] &&
@@ -2271,7 +2319,13 @@ function processDeclarations(
           }
           if (declareAttributeValues) {
             if (declareAttributeValues.value != null)
-              syncState.spv.set(currentPath, declareAttributeValues.value);
+              syncState.spv.set(
+                currentPath,
+                declareAttributeValues.value as [
+                  string | number | boolean,
+                  string,
+                ],
+              );
 
             if (declareAttributeValues.notification != null) {
               const spa = syncState.spa.get(currentPath);
@@ -2699,7 +2753,7 @@ export async function rpcResponse(
       return invalidResponse("Response name does not match request name");
 
     for (const p of rpcReq.parameterList) {
-      let attrs;
+      let attrs: Attributes;
 
       if (p[1] != null && p[2] != null) {
         attrs = {
@@ -2831,7 +2885,7 @@ export async function rpcResponse(
         toClear,
       );
     } else {
-      const operation = {
+      const operation: Operation = {
         name: "Download",
         timestamp: sessionContext.timestamp,
         provisions: sessionContext.provisions,

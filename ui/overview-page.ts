@@ -19,7 +19,10 @@ function queryCharts(charts: typeof overview.charts): typeof charts {
     charts[chartName] = chart = { ...chart };
     chart.slices = chart.slices.map((s) => ({ ...s }));
     for (const slice of chart.slices) {
-      slice["count"] = store.count("devices", slice.filter);
+      (slice as { count?: unknown }).count = store.count(
+        "devices",
+        slice.filter,
+      );
     }
   }
   return charts;

@@ -1,6 +1,6 @@
 import { Attributes, ClosureComponent } from "mithril";
 import memoize from "../../lib/common/memoize.ts";
-import Expression from "../../lib/common/expression.ts";
+import Expression, { Value } from "../../lib/common/expression.ts";
 import { m } from "../components.ts";
 import { evaluateExpression, getTimestamp } from "../store.ts";
 import { FlatDevice } from "../../lib/ui/db.ts";
@@ -35,7 +35,10 @@ const evaluateAttributes = memoize(
 interface Attrs {
   device: FlatDevice;
   filter: Expression;
-  components: unknown;
+  components: Record<string, unknown>;
+  element?:
+    | Expression
+    | { tag: Expression; attributes?: Record<string, Expression> };
 }
 
 const component: ClosureComponent<Attrs> = () => {
@@ -50,32 +53,32 @@ const component: ClosureComponent<Attrs> = () => {
       const children = Object.values(vnode.attrs.components).map((c) => {
         if (c instanceof Expression)
           c = evaluateExpression(c, device || {}).value;
-        if (typeof c !== "object") return `${c}`;
-        const type = evaluateExpression(c["type"], device || {}).value;
+        if (typeof c !== "object" || c == null) return `${c}`;
+        const comp = c as { type: Expression };
+        const type = evaluateExpression(comp.type, device || {}).value;
         if (!type) return null;
-        return m(type as string, c);
+        return m(type as string, comp);
       });
 
-      let el = vnode.attrs["element"];
-
-      if (el == null) return children;
+      const element = vnode.attrs.element;
+      if (element == null) return children;
 
       let attrs: Attributes;
-      if (el instanceof Expression) {
-        el = evaluateExpression(el, device || {}).value;
-      } else if (typeof el === "object") {
-        if (el["attributes"] != null) {
+      let el: Expression | Value;
+      if (element instanceof Expression) {
+        el = evaluateExpression(element, device || {}).value;
+      } else {
+        if (element.attributes != null) {
           attrs = evaluateAttributes(
-            el["attributes"],
+            element.attributes,
             device || {},
             getTimestamp(),
           );
         }
-
-        el = evaluateExpression(el["tag"], device || {}).value;
+        el = evaluateExpression(element.tag, device || {}).value;
       }
 
-      return m(el, attrs, children);
+      return m(el as string, attrs, children);
     },
   };
 };

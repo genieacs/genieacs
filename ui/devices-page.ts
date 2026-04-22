@@ -1,7 +1,9 @@
 import { ClosureComponent, Children } from "mithril";
 import { m } from "./components.ts";
 import { pageSize as PAGE_SIZE, index as indexConfig } from "./config.ts";
-import indexTableComponent from "./index-table-component.ts";
+import indexTableComponent, {
+  IndexTableAttrs,
+} from "./index-table-component.ts";
 import filterComponent from "./filter-component.ts";
 import * as store from "./store.ts";
 import { deleteResource, updateTags } from "./api-client.ts";
@@ -25,7 +27,7 @@ const getDownloadUrl = memoize(
     filter: Expression,
     indexParameters: { label: string; parameter: Expression }[],
   ) => {
-    const columns = {};
+    const columns: Record<string, string> = {};
     for (const p of indexParameters) columns[p.label] = p.parameter.toString();
     return `/api/devices.csv?${m.buildQueryString({
       filter: filter.toString(),
@@ -264,28 +266,29 @@ interface Attrs {
 }
 
 export const component: ClosureComponent<Attrs> = () => {
+  let showCount: number;
+
   return {
     view: (vnode) => {
       document.title = "Devices - GenieACS";
       const attributes = vnode.attrs.indexParameters;
 
       function showMore(): void {
-        vnode.state["showCount"] =
-          (vnode.state["showCount"] || PAGE_SIZE) + PAGE_SIZE;
+        showCount = (showCount || PAGE_SIZE) + PAGE_SIZE;
         m.redraw();
       }
 
       function onFilterChanged(filter: Expression): void {
-        const ops = {};
+        const ops: Record<string, string> = {};
         if (!(filter instanceof Expression.Literal && filter.value))
           ops["filter"] = filter.toString();
-        if (vnode.attrs.sort) ops["sort"] = vnode.attrs.sort;
+        if (vnode.attrs.sort) ops["sort"] = JSON.stringify(vnode.attrs.sort);
         navigate("/devices", ops).catch(console.error);
       }
 
       const sort = vnode.attrs.sort || {};
 
-      const sortAttributes = {};
+      const sortAttributes: Record<number, number> = {};
       for (let i = 0; i < attributes.length; i++) {
         const attr = attributes[i];
         if (attr.unsortable) continue;
@@ -293,38 +296,44 @@ export const component: ClosureComponent<Attrs> = () => {
         if (param) sortAttributes[i] = sort[param.toString()] || 0;
       }
 
-      function onSortChange(sortedAttrs): void {
-        const _sort = {};
+      function onSortChange(sortedAttrs: number[]): void {
+        const _sort: Record<string, number> = {};
         for (const index of sortedAttrs) {
           const param = memoizedGetSortable(
             attributes[Math.abs(index) - 1].parameter,
           );
           _sort[param.toString()] = Math.sign(index);
         }
-        const ops = { sort: JSON.stringify(_sort) };
-        if (vnode.attrs["filter"]) ops["filter"] = vnode.attrs["filter"];
+        const ops: Record<string, string> = { sort: JSON.stringify(_sort) };
+        if (vnode.attrs.filter) ops["filter"] = vnode.attrs.filter.toString();
         navigate("/devices", ops).catch(console.error);
       }
 
       const filter = unpackSmartQuery(
-        vnode.attrs["filter"] ?? new Expression.Literal(true),
+        vnode.attrs.filter ?? new Expression.Literal(true),
       );
 
       const devs = store.fetch("devices", filter, {
-        limit: vnode.state["showCount"] || PAGE_SIZE,
+        limit: showCount || PAGE_SIZE,
         sort: sort,
       });
       const count = store.count("devices", filter);
 
       const downloadUrl = getDownloadUrl(filter, attributes);
 
-      const valueCallback = (attr, device): Children => {
+      const valueCallback = (
+        attr: (typeof attributes)[number] & {
+          component?: string;
+          components?: unknown;
+        },
+        device: Record<string, any>,
+      ): Children => {
         if (!attr.type && !attr.components && attr.component) {
           return m(ViewComponent, {
             name: attr.component,
             attrs: {
-              ...attr,
-              deviceId: device["DeviceID.ID"],
+              ...(attr as unknown as Record<string, string>),
+              deviceId: device["DeviceID.ID"] as string,
             },
           });
         } else {
@@ -336,35 +345,36 @@ export const component: ClosureComponent<Attrs> = () => {
         }
       };
 
-      const attrs = {};
-      attrs["attributes"] = attributes.map((a) => ({
-        ...a,
-        label: a.label,
-        type: a.type,
-      }));
-      attrs["data"] = devs.value;
-      attrs["total"] = count.value;
-      attrs["showMoreCallback"] = showMore;
-      attrs["sortAttributes"] = sortAttributes;
-      attrs["onSortChange"] = onSortChange;
-      attrs["downloadUrl"] = downloadUrl;
-      attrs["valueCallback"] = valueCallback;
-      attrs["recordActionsCallback"] = (device): Children => {
-        return m(
-          "a.text-cyan-700 hover:text-cyan-900",
-          {
-            href: `/devices/${encodeURIComponent(device["DeviceID.ID"])}`,
-          },
-          "Show",
-        );
+      const attrs: IndexTableAttrs = {
+        attributes: attributes.map((a) => ({
+          ...a,
+          label: a.label,
+          type: a.type,
+        })),
+        data: devs.value,
+        total: count.value,
+        showMoreCallback: showMore,
+        sortAttributes,
+        onSortChange,
+        downloadUrl,
+        valueCallback,
+        recordActionsCallback: (device: Record<string, any>): Children => {
+          return m(
+            "a.text-cyan-700 hover:text-cyan-900",
+            {
+              href: `/devices/${encodeURIComponent(device["DeviceID.ID"])}`,
+            },
+            "Show",
+          );
+        },
       };
 
       if (window.authorizer.hasAccess("devices", 3))
-        attrs["actionsCallback"] = renderActions;
+        attrs.actionsCallback = renderActions;
 
       const filterAttrs = {
         resource: "devices",
-        filter: vnode.attrs["filter"],
+        filter: vnode.attrs.filter,
         onChange: onFilterChanged,
       };
 

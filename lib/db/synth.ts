@@ -209,7 +209,7 @@ class MongoClauseLike extends MongoClause {
   }
 
   toQuery(truthy: boolean): Filter<unknown> {
-    const convChars = {
+    const convChars: Record<string, string> = {
       "-": "\\-",
       "/": "\\/",
       "\\": "\\/",
@@ -587,7 +587,7 @@ class MongoSynthContext extends SynthContextBase<Clause, MongoClause> {
     const ejsonOps = ["$oid", "$date", "$regularExpression"];
 
     for (const minterm of minterms) {
-      const query = {};
+      const query: Record<string, any> = {};
       loop: for (const clause of minterm) {
         if (!minterm.length) return {};
         const negate = !!(clause & 1);

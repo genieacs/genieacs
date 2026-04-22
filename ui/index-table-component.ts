@@ -3,7 +3,7 @@ import { m } from "./components.ts";
 import { icon } from "./tailwind-utility-components.ts";
 import debounce from "../lib/common/debounce.ts";
 
-interface Attribute {
+export interface Attribute {
   id?: string;
   label: string;
   type?: string;
@@ -61,10 +61,10 @@ function renderTable(
       {
         type: "checkbox",
         checked: records.length && selected.size === records.length,
-        onchange: (e) => {
+        onchange: (e: Event) => {
           for (const record of records) {
             const id = record["_id"] ?? record["DeviceID.ID"];
-            if (e.target.checked) selected.add(id);
+            if ((e.target as HTMLInputElement).checked) selected.add(id);
             else selected.delete(id);
           }
         },
@@ -120,7 +120,7 @@ function renderTable(
     const sortable = m(
       "button",
       {
-        onclick: (e) => {
+        onclick: (e: Event) => {
           e.redraw = false;
           onSort(i);
         },
@@ -157,11 +157,11 @@ function renderTable(
         {
           type: "checkbox",
           checked: isSelected,
-          onchange: (e) => {
-            if (e.target.checked) selected.add(id);
+          onchange: (e: Event) => {
+            if ((e.target as HTMLInputElement).checked) selected.add(id);
             else selected.delete(id);
           },
-          onclick: (e) => {
+          onclick: (e: Event) => {
             e.stopPropagation();
             e.redraw = false;
           },
@@ -223,8 +223,8 @@ function renderTable(
         "tr",
         {
           class: isSelected ? "bg-stone-50" : "",
-          onclick: (e) => {
-            if (e.target.closest("input, button, a")) {
+          onclick: (e: Event) => {
+            if ((e.target as HTMLElement).closest("input, button, a")) {
               e.redraw = false;
               return;
             }
@@ -318,7 +318,25 @@ function renderTable(
   return children;
 }
 
-const component: ClosureComponent = (): Component => {
+export interface IndexTableAttrs {
+  attributes: Attribute[];
+  data: Record<string, any>[];
+  // Callback attribute type is caller-defined; treated as opaque here.
+  valueCallback?: (attr: any, record: Record<string, any>) => Children;
+  total: number;
+  showMoreCallback: () => void;
+  sortAttributes: Record<string, number>;
+  onSortChange: (events: number[]) => void;
+  downloadUrl?: string;
+  actionsCallback?: Children | ((sel: Set<string>) => Children);
+  recordActionsCallback?:
+    | Children
+    | ((record: Record<string, any>) => Children);
+}
+
+const component: ClosureComponent<
+  IndexTableAttrs
+> = (): Component<IndexTableAttrs> => {
   let selected = new Set<string>();
   let sortingfunction: (events: number[]) => void;
   const onSort = debounce((events: number[]) => {
@@ -326,16 +344,18 @@ const component: ClosureComponent = (): Component => {
   }, 500);
   return {
     view: (vnode) => {
-      const attributes = vnode.attrs["attributes"];
-      const data = vnode.attrs["data"];
-      const valueCallback = vnode.attrs["valueCallback"];
-      const total = vnode.attrs["total"];
-      const showMoreCallback = vnode.attrs["showMoreCallback"];
-      const sortAttributes = vnode.attrs["sortAttributes"];
-      const onSortChange = vnode.attrs["onSortChange"];
-      const downloadUrl = vnode.attrs["downloadUrl"];
-      const actionsCallback = vnode.attrs["actionsCallback"];
-      const recordActionsCallback = vnode.attrs["recordActionsCallback"];
+      const {
+        attributes,
+        data,
+        valueCallback,
+        total,
+        showMoreCallback,
+        sortAttributes,
+        onSortChange,
+        downloadUrl,
+        actionsCallback,
+        recordActionsCallback,
+      } = vnode.attrs;
 
       const _selected = new Set<string>();
       for (const record of data) {

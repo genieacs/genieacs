@@ -21,7 +21,7 @@ const defaultMeta: { [name: string]: any } = {};
 let LOG_SYSTEMD = false;
 let ACCESS_LOG_SYSTEMD = false;
 
-let LOG_FILE, ACCESS_LOG_FILE;
+let LOG_FILE: string, ACCESS_LOG_FILE: string;
 
 declare global {
   /* eslint-disable-next-line @typescript-eslint/no-namespace */
@@ -99,8 +99,10 @@ export function init(service: string, version: string): void {
   defaultMeta.name = `genieacs-${service}`;
   defaultMeta.version = version;
 
-  LOG_FILE = config.get(`${service.toUpperCase()}_LOG_FILE`);
-  ACCESS_LOG_FILE = config.get(`${service.toUpperCase()}_ACCESS_LOG_FILE`);
+  LOG_FILE = config.get(`${service.toUpperCase()}_LOG_FILE`) as string;
+  ACCESS_LOG_FILE = config.get(
+    `${service.toUpperCase()}_ACCESS_LOG_FILE`,
+  ) as string;
 
   if (LOG_FILE) {
     logStream = fs.createWriteStream(null, { fd: fs.openSync(LOG_FILE, "a") });
@@ -156,7 +158,7 @@ export function flatten(
   }
 
   if (details.task) {
-    details.taskId = details.task["_id"];
+    details.taskId = (details.task as { _id: string })["_id"];
     delete details.task;
   }
 
@@ -170,8 +172,8 @@ export function flatten(
     if (rpc.acsRequest) {
       details.acsRequestId = rpc.id;
       details.acsRequestName = rpc.acsRequest.name;
-      if (rpc.acsRequest["commandKey"])
-        details.acsRequestCommandKey = rpc.acsRequest["commandKey"];
+      const commandKey = (rpc.acsRequest as { commandKey?: string }).commandKey;
+      if (commandKey) details.acsRequestCommandKey = commandKey;
     } else if (rpc.cpeRequest) {
       details.cpeRequestId = rpc.id;
       if (rpc.cpeRequest.name === "Inform") {
@@ -179,8 +181,9 @@ export function flatten(
         details.informRetryCount = (rpc.cpeRequest as InformRequest).retryCount;
       } else {
         details.cpeRequestName = rpc.cpeRequest.name;
-        if (rpc.cpeRequest["commandKey"])
-          details.cpeRequestCommandKey = rpc.cpeRequest["commandKey"];
+        const commandKey = (rpc.cpeRequest as { commandKey?: string })
+          .commandKey;
+        if (commandKey) details.cpeRequestCommandKey = commandKey;
       }
     } else if (rpc.cpeFault) {
       details.acsRequestId = rpc.id;
@@ -199,11 +202,12 @@ export function flatten(
 
   // For genieacs-ui
   if (details.context) {
-    details.remoteAddress = getRequestOrigin(
-      details.context["req"],
-    ).remoteAddress;
-    if (details.context["state"].user)
-      details.user = details.context["state"].user.username;
+    const ctx = details.context as {
+      req: Parameters<typeof getRequestOrigin>[0];
+      state: { user?: { username: string } };
+    };
+    details.remoteAddress = getRequestOrigin(ctx.req).remoteAddress;
+    if (ctx.state.user) details.user = ctx.state.user.username;
     delete details.context;
   }
 
@@ -233,7 +237,7 @@ function formatSimple(
   details: Record<string, unknown>,
   systemd: boolean,
 ): string {
-  const skip = {
+  const skip: Record<string, boolean> = {
     user: true,
     remoteAddress: true,
     severity: true,

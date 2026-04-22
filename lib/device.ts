@@ -16,7 +16,7 @@ const CHANGE_FLAGS = {
   accessList: 32,
 };
 
-function parseBool(v): boolean {
+function parseBool(v: unknown): boolean {
   v = "" + v;
   if (v === "true" || v === "TRUE" || v === "True" || v === "1") return true;
   else if (v === "false" || v === "FALSE" || v === "False" || v === "0")
@@ -69,7 +69,7 @@ export function sanitizeParameterValue(
 export function getAliasDeclarations(
   path: Path,
   timestamp: number,
-  attrGet = null,
+  attrGet: Declaration["attrGet"] = null,
 ): Declaration[] {
   const stripped = path.stripAlias();
   let decs: Declaration[] = [
@@ -196,7 +196,7 @@ export function clear(
   attributes: AttributeTimestamps,
   changeFlags = 0,
 ): void {
-  const changeTrackers = {};
+  const changeTrackers: Record<string, number> = {};
 
   timestamp = timestamp || 0;
 
@@ -230,18 +230,19 @@ export function clear(
     } else if (attributes && p.length === path.length) {
       const currentAttributes = deviceData.attributes.get(p);
       if (currentAttributes) {
-        let newAttrs;
+        let newAttrs: Attributes;
         for (const attrName in attributes) {
+          const n = attrName as keyof Attributes;
           if (
-            attrName in currentAttributes &&
-            attributes[attrName] > currentAttributes[attrName][0]
+            n in currentAttributes &&
+            attributes[n] > currentAttributes[n][0]
           ) {
-            changeFlags |= CHANGE_FLAGS[attrName];
+            changeFlags |= CHANGE_FLAGS[n];
             if (!newAttrs) {
               newAttrs = Object.assign({}, currentAttributes);
               deviceData.attributes.set(p, newAttrs);
             }
-            delete newAttrs[attrName];
+            delete newAttrs[n];
           }
         }
       }
@@ -254,7 +255,7 @@ export function clear(
     if (changeTrackers[k] & changeFlags) deviceData.changes.add(k);
 }
 
-function compareEquality(a, b): boolean {
+function compareEquality(a: unknown, b: unknown): boolean {
   const t = typeof a;
   if (
     a === null ||
@@ -307,18 +308,13 @@ export function set(
 
     if (currentAttributes) {
       for (const attrName in attributes) {
-        timestamp = Math.max(timestamp, attributes[attrName][0]);
-        if (!(attrName in currentAttributes))
-          changeFlags |= CHANGE_FLAGS[attrName];
-        else if (attributes[attrName][0] <= currentAttributes[attrName][0])
-          newAttributes[attrName] = currentAttributes[attrName];
-        else if (
-          !compareEquality(
-            attributes[attrName][1],
-            currentAttributes[attrName][1],
-          )
-        )
-          changeFlags |= CHANGE_FLAGS[attrName];
+        const n = attrName as keyof Attributes;
+        timestamp = Math.max(timestamp, attributes[n][0]);
+        if (!(n in currentAttributes)) changeFlags |= CHANGE_FLAGS[n];
+        else if (attributes[n][0] <= currentAttributes[n][0])
+          (newAttributes[n] as unknown) = currentAttributes[n];
+        else if (!compareEquality(attributes[n][1], currentAttributes[n][1]))
+          changeFlags |= CHANGE_FLAGS[n];
       }
     } else {
       changeFlags |= 1;
@@ -393,7 +389,8 @@ export function track(
   let f = 1;
 
   if (attributes)
-    for (const attrName of attributes) f |= CHANGE_FLAGS[attrName];
+    for (const attrName of attributes)
+      f |= CHANGE_FLAGS[attrName as keyof typeof CHANGE_FLAGS];
 
   let cur = deviceData.trackers.get(path);
   if (!cur) {

@@ -1,17 +1,23 @@
-import m, { ClosureComponent, Component } from "mithril";
+import m, { ClosureComponent, Component, VnodeDOM } from "mithril";
 import * as overlay from "./overlay.ts";
 
-const component: ClosureComponent = (): Component => {
+interface Attrs {
+  text: string;
+  element?: string;
+  class?: string;
+}
+
+const component: ClosureComponent<Attrs> = (): Component<Attrs> => {
   return {
     view: (vnode) => {
-      const text = vnode.attrs["text"];
-      const element = vnode.attrs["element"] || "span";
-      const className = vnode.attrs["class"] || "";
+      const text = vnode.attrs.text;
+      const element = vnode.attrs.element || "span";
+      const className = vnode.attrs.class || "";
 
-      function overflowed(_vnode): void {
+      function overflowed(_vnode: VnodeDOM): void {
         _vnode.dom.classList.add("cursor-pointer", "hover:underline");
         _vnode.dom.setAttribute("title", text);
-        _vnode.dom.onclick = (e) => {
+        (_vnode.dom as HTMLElement).onclick = (e: MouseEvent) => {
           overlay.open(() => {
             return m(
               "textarea.font-mono text-sm focus:ring-cyan-500 focus:border-cyan-500 border border-stone-300 rounded-md",

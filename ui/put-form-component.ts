@@ -3,7 +3,7 @@ import { m } from "./components.ts";
 import codeEditorComponent from "./code-editor-component.ts";
 import { getDatalistId } from "./datalist.ts";
 
-const singular = {
+const singular: Record<string, string> = {
   presets: "preset",
   provisions: "provision",
   virtualParameters: "virtual parameter",
@@ -13,7 +13,27 @@ const singular = {
   views: "view",
 };
 
-function createField(current, attr, focus): Children {
+interface FieldAttr {
+  id: string;
+  label?: string;
+  type?: string;
+  options?: string[];
+  mode?: string;
+  cols?: number;
+  rows?: number;
+}
+
+interface FormState {
+  isNew: boolean;
+  object: Record<string, any>;
+  modified: boolean;
+}
+
+function createField(
+  current: FormState,
+  attr: FieldAttr,
+  focus: boolean,
+): Children {
   if (attr.type === "combo") {
     let selected = "";
     let optionsValues = attr.options;
@@ -33,12 +53,12 @@ function createField(current, attr, focus): Children {
         name: attr.id,
         value: selected,
         oncreate: focus
-          ? (_vnode) => {
+          ? (_vnode: VnodeDOM) => {
               (_vnode.dom as HTMLSelectElement).focus();
             }
           : null,
-        onchange: (e) => {
-          current.object[attr.id] = e.target.value;
+        onchange: (e: Event) => {
+          current.object[attr.id] = (e.target as HTMLSelectElement).value;
           current.modified = true;
           e.redraw = false;
         },
@@ -56,12 +76,13 @@ function createField(current, attr, focus): Children {
         type: "checkbox",
         id: id,
         value: op,
-        oncreate: (_vnode) => {
-          if (focus && !options.length) _vnode.dom.focus();
-          if (currentSelected.has(op)) _vnode.dom.checked = true;
+        oncreate: (_vnode: VnodeDOM) => {
+          const dom = _vnode.dom as HTMLInputElement;
+          if (focus && !options.length) dom.focus();
+          if (currentSelected.has(op)) dom.checked = true;
         },
-        onchange: (e) => {
-          if (e.target.checked) currentSelected.add(op);
+        onchange: (e: Event) => {
+          if ((e.target as HTMLInputElement).checked) currentSelected.add(op);
           else currentSelected.delete(op);
           current.object[attr.id] = Array.from(currentSelected);
           current.modified = true;
@@ -87,10 +108,12 @@ function createField(current, attr, focus): Children {
       id: attr.id,
       value: current.object[attr.id],
       mode: attr.mode || "javascript",
-      onSubmit: (dom) => {
-        dom.form.querySelector("button[type=submit]").click();
+      onSubmit: (dom: Element) => {
+        (dom as HTMLInputElement).form
+          .querySelector<HTMLButtonElement>("button[type=submit]")
+          .click();
       },
-      onChange: (value) => {
+      onChange: (value: string) => {
         current.object[attr.id] = value;
         current.modified = true;
       },
@@ -101,12 +124,12 @@ function createField(current, attr, focus): Children {
       type: "file",
       name: attr.id,
       oncreate: focus
-        ? (_vnode) => {
+        ? (_vnode: VnodeDOM) => {
             (_vnode.dom as HTMLInputElement).focus();
           }
         : null,
-      onchange: (e) => {
-        current.object[attr.id] = e.target.files;
+      onchange: (e: Event) => {
+        current.object[attr.id] = (e.target as HTMLInputElement).files;
         current.modified = true;
         e.redraw = false;
       },
@@ -122,22 +145,24 @@ function createField(current, attr, focus): Children {
         rows: attr.rows || 4,
         style: "resize: none;",
         oncreate: focus
-          ? (_vnode) => {
+          ? (_vnode: VnodeDOM) => {
               const dom = _vnode.dom as HTMLInputElement;
               dom.focus();
               dom.setSelectionRange(dom.value.length, dom.value.length);
             }
           : null,
-        oninput: (e) => {
-          current.object[attr.id] = e.target.value;
+        oninput: (e: Event) => {
+          current.object[attr.id] = (e.target as HTMLTextAreaElement).value;
           current.modified = true;
           e.redraw = false;
         },
-        onkeypress: (e) => {
+        onkeypress: (e: KeyboardEvent) => {
           e.redraw = false;
           if (e.which === 13 && !e.shiftKey) {
-            const dom = e.target;
-            dom.form.querySelector("button[type=submit]").click();
+            const dom = e.target as HTMLTextAreaElement;
+            dom.form
+              .querySelector<HTMLButtonElement>("button[type=submit]")
+              .click();
             return false;
           }
           return true;
@@ -159,12 +184,12 @@ function createField(current, attr, focus): Children {
       disabled: attr.id === "_id" && !current.isNew,
       value: current.object[attr.id],
       oncreate: focus
-        ? (_vnode) => {
+        ? (_vnode: VnodeDOM) => {
             (_vnode.dom as HTMLInputElement).focus();
           }
         : null,
-      oninput: (e) => {
-        current.object[attr.id] = e.target.value;
+      oninput: (e: Event) => {
+        current.object[attr.id] = (e.target as HTMLInputElement).value;
         current.modified = true;
         e.redraw = false;
       },
@@ -185,21 +210,21 @@ interface Attrs {
 }
 
 const component: ClosureComponent<Attrs> = () => {
+  let current: FormState;
+
   return {
     view: (vnode) => {
       const actionHandler = vnode.attrs.actionHandler;
       const attributes = vnode.attrs.attributes;
       const resource = vnode.attrs.resource;
       const base = vnode.attrs.base || {};
-      if (!vnode.state["current"]) {
-        vnode.state["current"] = {
+      if (!current) {
+        current = {
           isNew: !base["_id"],
           object: Object.assign({}, base),
           modified: false,
         };
       }
-
-      const current = vnode.state["current"];
 
       const form = [];
       let focused = false;
@@ -230,11 +255,12 @@ const component: ClosureComponent<Attrs> = () => {
             {
               type: "button",
               title: `Delete ${singular[resource] || resource}`,
-              onclick: (e) => {
+              onclick: (e: Event) => {
+                const target = e.target as HTMLButtonElement;
                 e.redraw = false;
-                e.target.disabled = true;
+                target.disabled = true;
                 void actionHandler("delete", current.object).finally(() => {
-                  e.target.disabled = false;
+                  target.disabled = false;
                 });
               },
             },
@@ -263,7 +289,7 @@ const component: ClosureComponent<Attrs> = () => {
         m(
           "form",
           {
-            onsubmit: (e) => {
+            onsubmit: (e: Event) => {
               e.redraw = false;
               // const onsubmit = e.target.onsubmit;
               e.preventDefault();

@@ -10,13 +10,13 @@ type Minterm = number[];
 
 export function toBookmark(
   sort: Record<string, number>,
-  row: unknown,
+  row: Record<string, string | number | boolean | null | { value: [string] }>,
 ): Bookmark {
   const bookmark: Bookmark = {};
   for (const param of Object.keys(sort)) {
-    let v = row[param];
-    if (v != null && typeof v === "object") v = v.value?.[0];
-    bookmark[param] = v;
+    if (row[param] == null) bookmark[param] = null;
+    else if (typeof row[param] !== "object") bookmark[param] = row[param];
+    else bookmark[param] = row[param].value?.[0];
   }
   return bookmark;
 }

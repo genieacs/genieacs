@@ -119,7 +119,7 @@ export function outgoingHttpRequestError(
     timestamp: now,
     remoteAddress: url.hostname,
     deviceId: deviceId,
-    connection: null,
+    connection: null as Date | null,
     remotePort: url.port,
     method: method,
     url: url.pathname + url.search,

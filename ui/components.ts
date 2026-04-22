@@ -22,7 +22,7 @@ import deviceLink from "./components/device-link.ts";
 import longTextComponent from "./long-text-component.ts";
 import loading from "./components/loading.ts";
 
-const comps = {
+const comps: Record<string, ComponentTypes<any>> = {
   parameter,
   "parameter-list": parameterList,
   "parameter-table": parameterTable,
@@ -83,13 +83,13 @@ const M = new Proxy(m, {
   },
 }) as MC;
 
-function contextFn(context, ...argumentsList): Vnode {
+function contextFn(context: Attributes, ...argumentsList: any[]): Vnode {
   const vnode = Reflect.apply(M, undefined, argumentsList);
   vnodeContext.set(vnode, context);
   return vnode;
 }
 
-function applyContext(vnode, parentContext): void {
+function applyContext(vnode: any, parentContext: Attributes): void {
   if (Array.isArray(vnode)) {
     for (const c of vnode) applyContext(c, parentContext);
   } else if (vnode && typeof vnode === "object" && vnode.tag) {

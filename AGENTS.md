@@ -42,7 +42,7 @@ invariants.
 ```bash
 npm run build # Production build (esbuild pipeline -> dist/)
 NODE_ENV=development npm run build # Dev build (no minification)
-npm run lint # Prettier + ESLint + tsc --noEmit in parallel
+npm run lint # Prettier + ESLint + tsgo --noEmit in parallel
 npm test # Compile tests with esbuild, run with node --test
 ```
 
@@ -69,7 +69,7 @@ esbuild --log-level=warning --bundle --platform=node --target=node18 \
 ```bash
 prettier --prose-wrap always --write .
 eslint 'bin/*.ts' 'lib/**/*.ts' 'ui/**/*.ts' 'test/**/*.ts' 'build/**/*.ts'
-tsc --noEmit
+tsgo --noEmit
 ```
 
 ## Before Committing

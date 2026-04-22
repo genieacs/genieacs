@@ -77,20 +77,27 @@ for (const obj of Object.values(conf["index"] || {})) {
   index.push({ label, type, parameter, unsortable, raw: obj });
 }
 
-for (const obj of Object.values(conf["overview"]?.["groups"] || {})) {
+const overviewConf = conf["overview"] as NestedRecord | undefined;
+for (const obj of Object.values(
+  (overviewConf?.["groups"] as NestedRecord) || {},
+) as NestedRecord[]) {
   let label = "";
   const charts: string[] = [];
   if (obj["label"] instanceof Expression.Literal)
     label = obj["label"].value as string;
-  for (const chart of Object.values(obj["charts"] || {})) {
+  for (const chart of Object.values((obj["charts"] as NestedRecord) || {})) {
     if (chart instanceof Expression.Literal) charts.push(chart.value as string);
   }
   overview.groups.push({ label, charts });
 }
 
-for (const [name, obj] of Object.entries(conf["overview"]?.["charts"] || {})) {
+for (const [name, objRaw] of Object.entries(
+  (overviewConf?.["charts"] as NestedRecord) || {},
+)) {
+  const obj = objRaw as NestedRecord;
   const slices: { label: string; filter: Expression; color: string }[] = [];
-  for (const slice of Object.values(obj["slices"] || {})) {
+  for (const sliceRaw of Object.values((obj["slices"] as NestedRecord) || {})) {
+    const slice = sliceRaw as NestedRecord;
     let label = "";
     let filter: Expression = new Expression.Literal(false);
     let color = "";

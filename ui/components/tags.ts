@@ -62,12 +62,13 @@ const component: ClosureComponent<Attrs> = () => {
                 title: "Remove tag",
                 class:
                   "flex-shrink-0 ml-0.5 h-4 w-4 rounded-full inline-flex items-center justify-center text-yellow-400 hover:bg-yellow-200 hover:text-yellow-500 focus:outline-hidden focus:bg-yellow-500 focus:text-white",
-                onclick: (e) => {
-                  e.target.disabled = true;
+                onclick: (e: Event) => {
+                  const target = e.target as HTMLButtonElement;
+                  target.disabled = true;
                   const deviceId = device["DeviceID.ID"] as string;
                   updateTags(deviceId, { [tag]: false })
                     .then(() => {
-                      e.target.disabled = false;
+                      target.disabled = false;
                       notifications.push(
                         "success",
                         `${deviceId}: Tags updated`,
@@ -76,7 +77,7 @@ const component: ClosureComponent<Attrs> = () => {
                       invalidate(Date.now());
                     })
                     .catch((err) => {
-                      e.target.disabled = false;
+                      target.disabled = false;
                       notifications.push(
                         "error",
                         `${deviceId}: ${err.message}`,
@@ -105,24 +106,25 @@ const component: ClosureComponent<Attrs> = () => {
               title: "Add tag",
               class:
                 "flex-shrink-0 h-4 w-4 rounded-full inline-flex items-center justify-center text-yellow-400 hover:bg-yellow-200 hover:text-yellow-500 focus:outline-hidden focus:bg-yellow-500 focus:text-white",
-              onclick: (e) => {
-                e.target.disabled = true;
+              onclick: (e: Event) => {
+                const target = e.target as HTMLButtonElement;
+                target.disabled = true;
                 const deviceId = device["DeviceID.ID"] as string;
                 const tag = prompt(`Enter tag to assign to device:`);
                 if (!tag) {
-                  e.target.disabled = false;
+                  target.disabled = false;
                   return;
                 }
 
                 updateTags(deviceId, { [tag]: true })
                   .then(() => {
-                    e.target.disabled = false;
+                    target.disabled = false;
                     notifications.push("success", `${deviceId}: Tags updated`);
                     store.setTimestamp(Date.now());
                     invalidate(Date.now());
                   })
                   .catch((err) => {
-                    e.target.disabled = false;
+                    target.disabled = false;
                     notifications.push("error", `${deviceId}: ${err.message}`);
                   });
               },

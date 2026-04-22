@@ -136,10 +136,14 @@ export interface Preset {
   channel: string;
   events: Record<string, boolean>;
   configurations: Configuration[];
+  schedule?: string;
+  precondition?: string;
 }
 
 export interface Object {
   _id: string;
+  _keys?: string[];
+  [key: string]: unknown;
 }
 
 export interface Provision {

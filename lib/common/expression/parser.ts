@@ -98,7 +98,7 @@ const BINARY_OPERATORS = [
   "+",
 ];
 
-const PRECEDENCE = {
+const PRECEDENCE: Record<string, number> = {
   OR: 10,
   AND: 11,
   NOT: 12,
@@ -163,23 +163,26 @@ function findOperator(cursor: Cursor): string {
 }
 
 // Turn escaped characters into real ones (e.g. "\\n" becomes "\n").
-function interpretEscapes(str): string {
-  const escapes = {
+function interpretEscapes(str: string): string {
+  const escapes: Record<string, string> = {
     b: "\b",
     f: "\f",
     n: "\n",
     r: "\r",
     t: "\t",
   };
-  return str.replace(/\\(u[0-9a-fA-F]{4}|[^u])/g, (_, escape) => {
-    const type = escape.charAt(0);
-    const hex = escape.slice(1);
-    if (type === "u") return String.fromCharCode(parseInt(hex, 16));
+  return str.replace(
+    /\\(u[0-9a-fA-F]{4}|[^u])/g,
+    (_: string, escape: string) => {
+      const type = escape.charAt(0);
+      const hex = escape.slice(1);
+      if (type === "u") return String.fromCharCode(parseInt(hex, 16));
 
-    if (escapes.hasOwnProperty(type)) return escapes[type];
+      if (escapes.hasOwnProperty(type)) return escapes[type];
 
-    return type;
-  });
+      return type;
+    },
+  );
 }
 
 export function parseExpression(cursor: Cursor, presedence = 0): Expression {
@@ -527,7 +530,7 @@ export function parseLikePattern(pat: string, esc: string): string[] {
 }
 
 export function likePatternToRegExp(pat: string, esc = "", flags = ""): RegExp {
-  const convChars = {
+  const convChars: Record<string, string> = {
     "-": "\\-",
     "/": "\\/",
     "\\": "\\/",

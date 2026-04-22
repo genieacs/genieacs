@@ -17,12 +17,16 @@ function fork(): Worker {
   return w;
 }
 
-function restartWorker(worker, code, signal): void {
+function restartWorker(
+  worker: Worker,
+  code: number | null,
+  signal: NodeJS.Signals | null,
+): void {
   const msg = {
     message: "Worker died",
     pid: worker.process.pid,
-    exitCode: null,
-    signal: null,
+    exitCode: null as number | null,
+    signal: null as NodeJS.Signals | null,
   };
 
   if (code != null) msg.exitCode = code;

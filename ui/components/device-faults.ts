@@ -7,11 +7,16 @@ import * as notifications from "../notifications.ts";
 import { stringify } from "../../lib/common/yaml.ts";
 import Expression from "../../lib/common/expression.ts";
 import Path from "../../lib/common/path.ts";
+import { FlatDevice } from "../../lib/ui/db.ts";
 
-const component: ClosureComponent = (): Component => {
+interface Attrs {
+  device: FlatDevice;
+}
+
+const component: ClosureComponent<Attrs> = (): Component<Attrs> => {
   return {
     view: (vnode) => {
-      const device = vnode.attrs["device"];
+      const device = vnode.attrs.device;
       const deviceId = device["DeviceID.ID"];
       const p = new Expression.Parameter(Path.parse("_id"));
       const exp = Expression.and(
@@ -90,7 +95,7 @@ const component: ClosureComponent = (): Component => {
                 {
                   class: "text-cyan-700 hover:text-cyan-900 font-medium",
                   title: "Delete fault",
-                  onclick: (e) => {
+                  onclick: (e: Event) => {
                     e.redraw = false;
                     deleteResource("faults", f["_id"])
                       .then(() => {

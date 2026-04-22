@@ -11,8 +11,8 @@ function putActionHandler(prefix: string[], dataYaml: string): Promise<any> {
     try {
       let updated = yaml.parse(dataYaml, { schema: "failsafe" });
       if (updated) {
-        const config = {};
-        let ref = config;
+        const config: Record<string, any> = {};
+        let ref: Record<string, any> = config;
         prefix.forEach((seg, index) => {
           if (index < prefix.length - 1) {
             ref[seg] = {};
@@ -30,8 +30,8 @@ function putActionHandler(prefix: string[], dataYaml: string): Promise<any> {
       for (const v of Object.values(updated)) Expression.parse(v as string);
 
       queryConfig(`${prefix.join(".")}.%`)
-        .then((res) => {
-          const current = {};
+        .then((res): void => {
+          const current: Record<string, any> = {};
           for (const f of res) current[f._id] = f.value;
 
           const diff = configFunctions.diffConfig(current, updated);
@@ -61,6 +61,7 @@ function putActionHandler(prefix: string[], dataYaml: string): Promise<any> {
         })
         .catch(reject);
     } catch (error) {
+      if (!(error instanceof Error)) throw error;
       resolve({ config: error.message });
     }
   });
@@ -75,6 +76,8 @@ interface Attrs {
 }
 
 const component: ClosureComponent<Attrs> = () => {
+  let updatedYaml: string | null = null;
+
   return {
     view: (vnode) => {
       const prefix = vnode.attrs.prefix.split(".");
@@ -83,9 +86,9 @@ const component: ClosureComponent<Attrs> = () => {
 
       if (prefix[prefix.length - 1] === "") prefix.pop();
 
-      let config;
+      let config: Record<string, any>;
       if (data.length) {
-        config = configFunctions.structureConfig(data);
+        config = configFunctions.structureConfig(data) as Record<string, any>;
         for (const seg of prefix) config = config[seg];
       }
 
@@ -99,12 +102,13 @@ const component: ClosureComponent<Attrs> = () => {
         value: yamlString,
         mode: "yaml",
         focus: true,
-        onSubmit: (dom) => {
-          dom.form.querySelector("button[type=submit]").click();
+        onSubmit: (dom: Element) => {
+          (dom as HTMLInputElement).form
+            .querySelector<HTMLButtonElement>("button[type=submit]")
+            .click();
         },
-        onChange: (value) => {
-          vnode.state["updatedYaml"] = value;
-          vnode.state["modified"] = true;
+        onChange: (value: string) => {
+          updatedYaml = value;
         },
       };
 
@@ -123,13 +127,12 @@ const component: ClosureComponent<Attrs> = () => {
         m(
           "form",
           {
-            onsubmit: (e) => {
+            onsubmit: (e: Event) => {
               e.redraw = false;
               e.preventDefault();
-              if (vnode.state["updatedYaml"] == null)
-                vnode.state["updatedYaml"] = yamlString;
+              if (updatedYaml == null) updatedYaml = yamlString;
 
-              putActionHandler(prefix, vnode.state["updatedYaml"])
+              putActionHandler(prefix, updatedYaml)
                 .then(vnode.attrs.onUpdate)
                 .catch(vnode.attrs.onError);
             },

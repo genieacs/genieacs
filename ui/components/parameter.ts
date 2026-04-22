@@ -7,6 +7,12 @@ import Expression, { Value } from "../../lib/common/expression.ts";
 import memoize from "../../lib/common/memoize.ts";
 import timeAgo from "../timeago.ts";
 import { icon } from "../tailwind-utility-components.ts";
+import { FlatDevice } from "../../lib/ui/db.ts";
+
+interface Attrs {
+  device: FlatDevice;
+  parameter: Expression;
+}
 
 const evaluateParam = memoize(
   (
@@ -50,13 +56,13 @@ const evaluateParam = memoize(
   },
 );
 
-const component: ClosureComponent = (): Component => {
+const component: ClosureComponent<Attrs> = (): Component<Attrs> => {
   return {
     view: (vnode) => {
-      const device = vnode.attrs["device"];
+      const device = vnode.attrs.device;
 
       const { value, timestamp, parameter } = evaluateParam(
-        vnode.attrs["parameter"],
+        vnode.attrs.parameter,
         device,
         getTimestamp() + getClockSkew(),
       );
@@ -72,9 +78,13 @@ const component: ClosureComponent = (): Component => {
             onclick: () => {
               taskQueue.stageSpv({
                 name: "setParameterValues",
-                devices: [device["DeviceID.ID"]],
+                devices: [device["DeviceID.ID"] as string],
                 parameterValues: [
-                  [parameter, device[parameter], device[parameter + ":type"]],
+                  [
+                    parameter,
+                    device[parameter] as string | number | boolean,
+                    device[parameter + ":type"] as string,
+                  ],
                 ],
               });
             },
@@ -91,13 +101,14 @@ const component: ClosureComponent = (): Component => {
       return m(
         "span.inline-flex overflow-hidden align-top",
         {
-          onmouseover: (e) => {
+          onmouseover: (e: Event) => {
             e.redraw = false;
             // Don't update any child element
             if (e.target === (el as VnodeDOM).dom) {
               const now = Date.now() + getClockSkew();
               const localeString = new Date(timestamp).toLocaleString();
-              e.target.title = `${localeString} (${timeAgo(now - timestamp)})`;
+              (e.target as HTMLElement).title =
+                `${localeString} (${timeAgo(now - timestamp)})`;
             }
           },
         },

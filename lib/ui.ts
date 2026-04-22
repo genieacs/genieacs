@@ -25,6 +25,11 @@ const router = new Router();
 const JWT_SECRET = "" + config.get("UI_JWT_SECRET");
 const JWT_COOKIE = "genieacs-ui-jwt";
 
+interface TokenPayload {
+  authMethod: string;
+  username: string;
+}
+
 const getAuthorizer = memoize(
   (snapshot: string, rolesStr: string): Authorizer => {
     const roles: string[] = JSON.parse(rolesStr);
@@ -61,11 +66,9 @@ koa.use(
     secret: JWT_SECRET,
     passthrough: true,
     cookie: JWT_COOKIE,
-    isRevoked: async (ctx, token) => {
-      if (token["authMethod"] === "local") {
-        return !localCache.getUsers(ctx.state.configSnapshot)[
-          token["username"]
-        ];
+    isRevoked: async (ctx, token: TokenPayload) => {
+      if (token.authMethod === "local") {
+        return !localCache.getUsers(ctx.state.configSnapshot)[token.username];
       }
 
       return true;
@@ -114,15 +117,14 @@ router.post("/login", async (ctx) => {
     message: "Log in",
     context: ctx,
     username: username,
-    method: null,
+    method: null as string | null,
   };
 
-  function success(authMethod): void {
+  function success(authMethod: string): void {
     log.method = authMethod;
     const expiresIn = remember ? TWO_WEEKS_SECS : ONE_DAY_SECS;
-    const token = jwt.sign({ username, authMethod }, JWT_SECRET, {
-      expiresIn,
-    });
+    const payload: TokenPayload = { username, authMethod };
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn });
     ctx.cookies.set(JWT_COOKIE, token, {
       sameSite: "lax",
       maxAge: remember ? expiresIn * 1000 : null,
@@ -215,7 +217,7 @@ router.post("/init", async (ctx) => {
   ctx.body = "";
 });
 
-function renderIndex(ctx): void {
+function renderIndex(ctx: Koa.Context): void {
   const ps: PermissionSet[] = ctx.state.authorizer.getPermissionSets();
   const permissionSets = ps.map((p) =>
     p.map((s) =>
@@ -319,7 +321,7 @@ koa.use(async (ctx, next) => {
   try {
     await koaSend(ctx, ctx.path, { root: config.ROOT_DIR + "/public" });
   } catch (err) {
-    if (err.status !== 404) throw err;
+    if (!(err instanceof Koa.HttpError) || err.status !== 404) throw err;
   }
 });
 

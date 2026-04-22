@@ -6,6 +6,7 @@ import { exec } from "node:child_process";
 import * as esbuild from "esbuild";
 import { optimize } from "svgo";
 import * as xmlParser from "../lib/xml-parser.ts";
+import type { Element } from "../lib/xml-parser.ts";
 
 const fsAsync = {
   readdir: promisify(fs.readdir),
@@ -40,28 +41,37 @@ async function rmDir(dirPath: string): Promise<void> {
   await fsAsync.rmdir(dirPath);
 }
 
+interface LockfileV1Node {
+  dev?: boolean;
+  dependencies?: Record<string, LockfileV1Node>;
+}
+
 // For lockfileVersion = 1
-function stripDevDeps(deps): void {
-  if (!deps["dependencies"]) return;
-  for (const [k, v] of Object.entries(deps["dependencies"])) {
-    if (v["dev"]) delete deps["dependencies"][k];
+function stripDevDeps(deps: LockfileV1Node): void {
+  if (!deps.dependencies) return;
+  for (const [k, v] of Object.entries(deps.dependencies)) {
+    if (v.dev) delete deps.dependencies[k];
     else stripDevDeps(v);
   }
-  if (!Object.keys(deps["dependencies"]).length) delete deps["dependencies"];
+  if (!Object.keys(deps.dependencies).length) delete deps.dependencies;
+}
+
+interface LockfileV2 {
+  packages?: Record<string, { dev?: boolean; devDependencies?: unknown }>;
 }
 
 // For lockfileVersion = 2
-function stripDevDeps2(deps): void {
-  if (!deps["packages"]) return;
-  for (const [k, v] of Object.entries(deps["packages"])) {
-    delete v["devDependencies"];
-    if (v["dev"]) delete deps["packages"][k];
+function stripDevDeps2(deps: LockfileV2): void {
+  if (!deps.packages) return;
+  for (const [k, v] of Object.entries(deps.packages)) {
+    delete v.devDependencies;
+    if (v.dev) delete deps.packages[k];
   }
 }
 
-function xmlTostring(xml): string {
+function xmlToString(xml: Element): string {
   const children = [];
-  for (const c of xml.children || []) children.push(xmlTostring(c));
+  for (const c of xml.children || []) children.push(xmlToString(c));
 
   return xml.name === "root" && xml.bodyIndex === 0
     ? children.join("")
@@ -156,7 +166,7 @@ function generateSymbol(id: string, svgStr: string): string {
     }
   }
   const symbolBody = xml.children[0].children
-    .map((c) => xmlTostring(c))
+    .map((c) => xmlToString(c))
     .join("");
   return `<symbol id="icon-${id}" ${viewBox}>${symbolBody}</symbol>`;
 }

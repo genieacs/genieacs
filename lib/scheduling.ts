@@ -1,7 +1,7 @@
 import * as crypto from "node:crypto";
 import * as later from "@breejs/later";
 
-function md532(str): number {
+function md532(str: string): number {
   const digest = crypto.createHash("md5").update(str).digest();
   return (
     digest.readUInt32LE(0) ^

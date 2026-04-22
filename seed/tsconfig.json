@@ -8,6 +8,10 @@
     "jsxFactory": "h",
     "jsxFragmentFactory": "Fragment",
     "types": [],
+    "strict": false,
+    "noImplicitThis": true,
+    "strictBindCallApply": true,
+    "useUnknownInCatchVariables": true,
     "moduleDetection": "force"
   },
   "include": ["./*.js", "./*.jsx", "./*.d.ts"]

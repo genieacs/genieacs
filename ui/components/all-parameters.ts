@@ -9,7 +9,7 @@ import Expression, { Value } from "../../lib/common/expression.ts";
 import { FlatDevice } from "../../lib/ui/db.ts";
 import Path from "../../lib/common/path.ts";
 
-function escapeRegExp(str): string {
+function escapeRegExp(str: string): string {
   return str.replace(/[-[\]/{}()*+?.\\^$|]/g, "\\$&");
 }
 
@@ -31,7 +31,7 @@ const prepareParams = memoize((device: FlatDevice): Parameter[][] => {
         param,
         (attrs = { path: new Expression.Parameter(Path.parse(param)) }),
       );
-    attrs[attr || "value"] = v;
+    (attrs as unknown as Record<string, unknown>)[attr || "value"] = v;
   }
 
   const res: Parameter[][] = [];
@@ -78,8 +78,8 @@ const component: ClosureComponent<Attrs> = () => {
         {
           type: "text",
           placeholder: "Search parameters",
-          oninput: (e) => {
-            formQueryString(e.target.value);
+          oninput: (e: Event) => {
+            formQueryString((e.target as HTMLInputElement).value);
             e.redraw = false;
           },
         },
@@ -98,7 +98,9 @@ const component: ClosureComponent<Attrs> = () => {
       for (const keys of allParams) {
         let c = 0;
         for (const k of keys) {
-          const str = k.value ? `${k.path.toString()} ${k.value}` : k;
+          const str = k.value
+            ? `${k.path.toString()} ${k.value}`
+            : k.path.toString();
           if (re && !re.test(str)) continue;
           ++c;
           if (count < limit) filteredParams.push(k);

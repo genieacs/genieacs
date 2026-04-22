@@ -43,7 +43,7 @@ export function run(args: string[]): Promise<{ fault: Fault; value: any }> {
         if (processes[scriptName] === p) delete processes[scriptName];
       });
 
-      p.on("message", (message) => {
+      p.on("message", (message: [number, Fault, unknown]) => {
         const func = jobs.get(message[0]);
         if (func) {
           jobs.delete(message[0]);

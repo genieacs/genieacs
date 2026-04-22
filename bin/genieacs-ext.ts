@@ -2,7 +2,10 @@ import { Fault } from "../lib/types.ts";
 
 const jobs = new Set();
 const fileName = process.argv[2];
-let script;
+let script: Record<
+  string,
+  (args: unknown[], cb: (err: Error | null, res: unknown) => void) => void
+>;
 
 function errorToFault(err: Error): Fault {
   if (!err) return null;
@@ -19,16 +22,14 @@ function errorToFault(err: Error): Fault {
   };
 
   if (err.stack) {
-    fault.detail["stack"] = err.stack;
+    const detail = fault.detail as { stack?: string };
+    detail.stack = err.stack;
     // Trim the stack trace
-    const stackTrimIndex = fault.detail["stack"].match(
+    const stackTrimIndex = detail.stack.match(
       /\s+at\s[^\s]+\s\(.*genieacs-ext:.+\)/,
     );
     if (stackTrimIndex) {
-      fault.detail["stack"] = fault.detail["stack"].slice(
-        0,
-        stackTrimIndex.index,
-      );
+      detail.stack = detail.stack.slice(0, stackTrimIndex.index);
     }
   }
 
@@ -49,7 +50,8 @@ process.on("uncaughtException", (err) => {
   process.disconnect();
 });
 
-process.on("message", (message) => {
+process.on("message", (msg) => {
+  const message = msg as [number, [string, ...unknown[]]];
   jobs.add(message[0]);
 
   if (!script) {
@@ -70,7 +72,7 @@ process.on("message", (message) => {
     return;
   }
 
-  script[funcName](message[1].slice(1), (err, res) => {
+  script[funcName](message[1].slice(1), (err: Error | null, res: unknown) => {
     if (!jobs.delete(message[0])) return;
 
     process.send([message[0], errorToFault(err), res]);

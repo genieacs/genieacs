@@ -147,7 +147,7 @@ const component: ClosureComponent<Attrs> = () => {
                       <button
                         type="button"
                         class="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-hidden focus:ring-2 focus:ring-inset focus:ring-white"
-                        onclick={(e) => {
+                        onclick={(e: Event) => {
                           e.redraw = false;
                           setSidebarOpen(false);
                         }}
@@ -188,12 +188,13 @@ const component: ClosureComponent<Attrs> = () => {
                         {window.username}
                         <button
                           class="ml-auto text-base font-medium text-cyan-600 hover:text-cyan-500"
-                          onclick={(e) => {
-                            e.target.disabled = true;
+                          onclick={(e: Event) => {
+                            const target = e.target as HTMLButtonElement;
+                            target.disabled = true;
                             logOut()
                               .then(reload)
                               .catch((err) => {
-                                e.target.disabled = false;
+                                target.disabled = false;
                                 notifications.push("error", err.message);
                               });
                             return false;
@@ -258,12 +259,13 @@ const component: ClosureComponent<Attrs> = () => {
                     {window.username}
                     <button
                       class="ml-auto text-sm font-medium text-cyan-700 hover:text-cyan-900"
-                      onclick={(e) => {
-                        e.target.disabled = true;
+                      onclick={(e: Event) => {
+                        const target = e.target as HTMLButtonElement;
+                        target.disabled = true;
                         logOut()
                           .then(reload)
                           .catch((err) => {
-                            e.target.disabled = false;
+                            target.disabled = false;
                             notifications.push("error", err.message);
                           });
                         return false;
@@ -293,7 +295,7 @@ const component: ClosureComponent<Attrs> = () => {
               <button
                 type="button"
                 class="-ml-0.5 -mt-0.5 h-12 w-12 inline-flex items-center justify-center rounded-md text-stone-500 hover:text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-inset focus:ring-cyan-500"
-                onclick={(e) => {
+                onclick={(e: Event) => {
                   setSidebarOpen(true);
                   e.redraw = false;
                   return false;

@@ -40,7 +40,7 @@ export const component: ClosureComponent<Attrs> = () => {
         if (!dev.fulfilling) {
           return m(
             "p.text-sm font-bold text-red-500",
-            `No such device ${vnode.attrs["deviceId"]}`,
+            `No such device ${vnode.attrs.deviceId}`,
           );
         }
         return m(
@@ -57,23 +57,24 @@ export const component: ClosureComponent<Attrs> = () => {
       ) {
         return m(ViewComponent, {
           name: conf.value,
-          attrs: { deviceId: vnode.attrs["deviceId"] },
+          attrs: { deviceId: vnode.attrs.deviceId },
         });
       }
 
       const cmps = [];
 
       for (const c of Object.values(conf)) {
+        const cObj = c as Record<string, any>;
         cmps.push(
           m.context(
             { device: dev.value[0], deviceQuery: dev },
-            store.evaluateExpression(c["type"], {}).value as string,
+            store.evaluateExpression(cObj["type"], {}).value as string,
             c as any,
           ),
         );
       }
 
-      return m("div.device-page", m("h1", vnode.attrs["deviceId"]), cmps);
+      return m("div.device-page", m("h1", vnode.attrs.deviceId), cmps);
     },
   };
 };

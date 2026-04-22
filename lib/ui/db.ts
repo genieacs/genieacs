@@ -1,8 +1,8 @@
 import { Script } from "node:vm";
 import { Readable } from "node:stream";
-import { Collection, ObjectId, WithoutId } from "mongodb";
+import { ObjectId, WithoutId } from "mongodb";
 import { encodeTag } from "../util.ts";
-import { Fault, Task } from "../types.ts";
+import { Fault, SessionFault, Task } from "../types.ts";
 import { collections, filesBucket } from "../db/db.ts";
 import { validateViewScript } from "../bundle-views.ts";
 import { convertOldPrecondition, optimizeProjection } from "../db/util.ts";
@@ -14,7 +14,7 @@ function processDeviceProjection(
   projection: Record<string, 1>,
 ): Record<string, 1> {
   if (!projection) return projection;
-  const p = {};
+  const p: Record<string, 1> = {};
   for (const [k, v] of Object.entries(projection)) {
     if (k === "DeviceID.ID") {
       p["_id"] = 1;
@@ -42,7 +42,7 @@ function processDeviceSort(
   sort: Record<string, number>,
 ): Record<string, number> {
   if (!sort) return sort;
-  const s = {};
+  const s: Record<string, number> = {};
   for (const [k, v] of Object.entries(sort)) {
     if (k === "DeviceID.ID") s["_id"] = v;
     else if (k.startsWith("DeviceID.")) s[`_deviceId._${k.slice(9)}`] = v;
@@ -67,27 +67,28 @@ export interface FlatDevice {
 
 export function flattenDevice(device: Record<string, unknown>): FlatDevice {
   function recursive(
-    input,
+    input: Record<string, unknown>,
     root: string,
     output: FlatDevice,
     timestamp: number,
   ): void {
-    for (const [name, tree] of Object.entries(input)) {
+    for (const [name, treeRaw] of Object.entries(input)) {
+      const tree = treeRaw as Record<string, any>;
       if (!root) {
         if (name === "_lastInform") {
-          output["Events.Inform"] = parseDate(tree as Date);
+          output["Events.Inform"] = parseDate(treeRaw as Date);
           output["Events.Inform:type"] = "xsd:dateTime";
         } else if (name === "_registered") {
-          output["Events.Registered"] = parseDate(tree as Date);
+          output["Events.Registered"] = parseDate(treeRaw as Date);
           output["Events.Registered:type"] = "xsd:dateTime";
         } else if (name === "_lastBoot") {
-          output["Events.1_BOOT"] = parseDate(tree as Date);
+          output["Events.1_BOOT"] = parseDate(treeRaw as Date);
           output["Events.1_BOOT:type"] = "xsd:dateTime";
         } else if (name === "_lastBootstrap") {
-          output["Events.0_BOOTSTRAP"] = parseDate(tree as Date);
+          output["Events.0_BOOTSTRAP"] = parseDate(treeRaw as Date);
           output["Events.0_BOOTSTRAP:type"] = "xsd:dateTime";
         } else if (name === "_id") {
-          output["DeviceID.ID"] = tree as string;
+          output["DeviceID.ID"] = treeRaw as string;
           output["DeviceID.ID:type"] = "xsd:dateTime";
         } else if (name === "_deviceId") {
           output["DeviceID.Manufacturer"] = tree["_Manufacturer"];
@@ -102,7 +103,7 @@ export function flattenDevice(device: Record<string, unknown>): FlatDevice {
           output["Tags:object"] = true;
           output["Tags:writable"] = true;
 
-          for (const t of tree as string[]) {
+          for (const t of treeRaw as string[]) {
             const et = encodeTag(t);
             output[`Tags.${et}`] = true;
             output[`Tags.${et}:type`] = "xsd:boolean";
@@ -160,16 +161,19 @@ export function flattenDevice(device: Record<string, unknown>): FlatDevice {
 }
 
 function flattenFault(fault: unknown): Fault {
-  const f = Object.assign({}, fault) as Fault;
+  const f = Object.assign({}, fault) as SessionFault;
   if (f.timestamp) f.timestamp = +f.timestamp;
-  if (f["expiry"]) f["expiry"] = +f["expiry"];
-  return f as Fault;
+  if (f.expiry) f.expiry = +f.expiry;
+  return f;
 }
 
 function flattenTask(task: unknown): Task {
-  const t = Object.assign({}, task) as Task;
+  const t = Object.assign({}, task) as Task & {
+    timestamp?: number;
+    expiry?: number;
+  };
   t._id = "" + t._id;
-  if (t["timestamp"]) t["timestamp"] = +t["timestamp"];
+  if (t.timestamp) t.timestamp = +t.timestamp;
   if (t.expiry) t.expiry = +t.expiry;
   return t;
 }
@@ -196,16 +200,21 @@ function flattenPreset(
     p.events = e.join(", ");
   }
 
-  const provision = p.configurations[0];
+  const configurations = p.configurations as {
+    type: string;
+    name?: string;
+    args?: unknown[];
+  }[];
+  const provision = configurations?.[0];
   if (
-    (p.configurations as any[]).length === 1 &&
+    configurations?.length === 1 &&
     provision.type === "provision" &&
     provision.name &&
     provision.name.length
   ) {
     p.provision = provision.name;
     p.provisionArgs = provision.args
-      ? provision.args.map((a) => a.toString()).join(", ")
+      ? provision.args.map((a: unknown) => a.toString()).join(", ")
       : "";
   }
 
@@ -214,13 +223,14 @@ function flattenPreset(
 }
 
 function flattenFile(file: Record<string, unknown>): Record<string, unknown> {
-  const f = {};
+  const f: Record<string, unknown> = {};
   f["_id"] = file["_id"];
-  if (file.metadata) {
-    f["metadata.fileType"] = file["metadata"]["fileType"] || "";
-    f["metadata.oui"] = file["metadata"]["oui"] || "";
-    f["metadata.productClass"] = file["metadata"]["productClass"] || "";
-    f["metadata.version"] = file["metadata"]["version"] || "";
+  const metadata = file.metadata as Record<string, unknown> | undefined;
+  if (metadata) {
+    f["metadata.fileType"] = metadata["fileType"] || "";
+    f["metadata.oui"] = metadata["oui"] || "";
+    f["metadata.productClass"] = metadata["productClass"] || "";
+    f["metadata.version"] = metadata["version"] || "";
   }
   return f;
 }
@@ -233,7 +243,7 @@ function preProcessPreset(data: Record<string, unknown>): MongoTypes.Preset {
 
   preset.weight = parseInt(preset.weight as string) || 0;
 
-  const events = {};
+  const events: Record<string, boolean> = {};
   if (preset.events) {
     for (let e of (preset.events as string).split(",")) {
       let v = true;
@@ -253,7 +263,7 @@ function preProcessPreset(data: Record<string, unknown>): MongoTypes.Preset {
   const configuration = {
     type: "provision",
     name: preset.provision,
-    args: null,
+    args: null as Expression[] | null,
   };
 
   if (preset.provisionArgs)
@@ -290,7 +300,7 @@ export async function* query(
   const q = toMongoQuery(filter, resource);
   if (!q) return;
 
-  const collection = collections[resource] as Collection<any>;
+  const collection = collections[resource as keyof typeof collections];
   const cursor = collection.find(q);
   if (options.projection) {
     let projection = options.projection;
@@ -320,7 +330,7 @@ export async function* query(
     cursor.sort(s);
   }
 
-  for await (let doc of cursor) {
+  for await (let doc of cursor as AsyncIterable<any>) {
     if (resource === "devices") doc = flattenDevice(doc);
     else if (resource === "faults") doc = flattenFault(doc);
     else if (resource === "tasks") doc = flattenTask(doc);
@@ -332,7 +342,7 @@ export async function* query(
 }
 
 export function count(resource: string, filter: Expression): Promise<number> {
-  const collection = collections[resource] as Collection<any>;
+  const collection = collections[resource as keyof typeof collections];
   const now = Date.now();
   filter = filter.evaluate((e) => {
     if (e instanceof Expression.FunctionCall) {
@@ -357,7 +367,7 @@ export async function updateDeviceTags(
     if (onOff) add.push(tag);
     else pull.push(tag);
   }
-  const object = {};
+  const object: Record<string, any> = {};
 
   if (add?.length) object["$addToSet"] = { _tags: { $each: add } };
   if (pull?.length) object["$pullAll"] = { _tags: pull };
@@ -388,6 +398,7 @@ export async function putProvision(
       lineOffset: -1,
     });
   } catch (err) {
+    if (!(err instanceof Error)) throw err;
     if (err.stack?.startsWith(`${id}:`)) {
       return Promise.reject(
         new Error(`${err.name} at ${err.stack.split("\n", 1)[0]}`),
@@ -415,6 +426,7 @@ export async function putVirtualParameter(
       lineOffset: -1,
     });
   } catch (err) {
+    if (!(err instanceof Error)) throw err;
     if (err.stack?.startsWith(`${id}:`)) {
       return Promise.reject(
         new Error(`${err.name} at ${err.stack.split("\n", 1)[0]}`),
