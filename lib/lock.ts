@@ -8,7 +8,7 @@ export async function acquireLock(
   ttl: number,
   timeout = 0,
   token = Math.random().toString(36).slice(2),
-): Promise<string> {
+): Promise<string | undefined> {
   try {
     const now = Date.now();
     const r = await collections.locks.findOneAndUpdate(
@@ -21,11 +21,11 @@ export async function acquireLock(
       },
       { upsert: true, returnDocument: "after" },
     );
-    if (Math.abs(r.value.timestamp.getTime() - now) > CLOCK_SKEW_TOLERANCE)
+    if (Math.abs(r.value!.timestamp.getTime() - now) > CLOCK_SKEW_TOLERANCE)
       throw new Error("Database clock skew too great");
   } catch (err) {
     if (!(err instanceof MongoServerError) || err.code !== 11000) throw err;
-    if (!(timeout > 0)) return null;
+    if (!(timeout > 0)) return undefined;
     const w = 50 + Math.random() * 50;
     await new Promise((resolve) => setTimeout(resolve, w));
     return acquireLock(lockName, ttl, timeout - w, token);
@@ -45,7 +45,7 @@ export async function releaseLock(
   if (res.deletedCount !== 1) throw new Error("Lock expired");
 }
 
-export async function getToken(lockName: string): Promise<string> {
+export async function getToken(lockName: string): Promise<string | undefined> {
   const res = await collections.locks.findOne({ _id: lockName });
   return res?.value;
 }

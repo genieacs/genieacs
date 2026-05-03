@@ -13,12 +13,12 @@ while (!existsSync(`${ROOT_DIR}/package.json`)) {
 }
 
 // For compatibility with v1.1
-let configDir: string,
-  cwmpSsl: string,
-  nbiSsl: string,
-  fsSsl: string,
-  uiSsl: string,
-  fsHostname: string;
+let configDir = "";
+let cwmpSsl = "";
+let nbiSsl = "";
+let fsSsl = "";
+let uiSsl = "";
+let fsHostname = "";
 
 const options: Record<
   string,
@@ -145,7 +145,7 @@ function setConfig(
 
   if (name === "FS_IP" || name === "fs-ip") setConfig("FS_HOSTNAME", value);
 
-  function cast(val: unknown, type: string): string | number | boolean {
+  function cast(val: unknown, type: string): string | number | boolean | null {
     switch (type) {
       case "int":
         return Number(val);
@@ -161,7 +161,7 @@ function setConfig(
     }
   }
 
-  let _value: string | number | boolean = null;
+  let _value: string | number | boolean | null = null;
   for (const [optionName, optionDetails] of Object.entries(options)) {
     let n = optionName;
     if (commandLineArgument) n = n.toLowerCase().replace(/_/g, "-");
@@ -189,6 +189,7 @@ function setConfig(
 const argv = process.argv.slice(2);
 while (argv.length) {
   const arg = argv.shift();
+  if (arg == null) break;
   if (arg[0] === "-") {
     const v = argv.shift();
     setConfig(arg.slice(2), v, true);
@@ -256,7 +257,7 @@ for (const [k, v] of Object.entries(options))
 export function get(
   optionName: string,
   deviceId?: string,
-): string | number | boolean {
+): string | number | boolean | null {
   if (!deviceId) return allConfig[optionName];
 
   optionName = `${optionName}-${deviceId}`;
@@ -284,12 +285,14 @@ export function get(
   return null;
 }
 
-export function getDefault(optionName: string): string | number | boolean {
+export function getDefault(
+  optionName: string,
+): string | number | boolean | null {
   const option = options[optionName];
   if (!option) return null;
 
   let val = option["default"];
   if (val && option.type === "path") val = resolve(String(val));
 
-  return val;
+  return val ?? null;
 }

@@ -21,7 +21,7 @@ function getConnectionTimestamp(connection: Socket): Date {
 
 export function incomingHttpRequest(
   httpRequest: IncomingMessage,
-  deviceId: string,
+  deviceId: string | null,
   body: string,
 ): void {
   if (!DEBUG_FILE) return;
@@ -50,10 +50,11 @@ export function incomingHttpRequest(
 
 export function outgoingHttpResponse(
   httpResponse: ServerResponse,
-  deviceId: string,
+  deviceId: string | null,
   body: string,
 ): void {
   if (!DEBUG_FILE) return;
+  if (!httpResponse.socket) throw new Error("httpResponse.socket is null");
   const now = new Date();
   const con = httpResponse.socket;
   const socketEndpoints = getSocketEndpoints(con);
@@ -80,9 +81,10 @@ export function outgoingHttpRequest(
   deviceId: string,
   method: "GET" | "PUT" | "POST" | "DELETE",
   url: URL,
-  body: string,
+  body: string | null,
 ): void {
   if (!DEBUG_FILE) return;
+  if (!httpRequest.socket) throw new Error("httpRequest.socket is null");
   const now = new Date();
   const con = httpRequest.socket;
   const msg = {
@@ -137,9 +139,10 @@ export function outgoingHttpRequestError(
 export function incomingHttpResponse(
   httpResponse: IncomingMessage,
   deviceId: string,
-  body: string,
+  body: string | null,
 ): void {
   if (!DEBUG_FILE) return;
+  if (!httpResponse.socket) throw new Error("httpResponse.socket is null");
   const now = new Date();
   const con = httpResponse.socket;
   const msg = {

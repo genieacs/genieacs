@@ -21,7 +21,7 @@ const getAutocomplete = memoize((resource) => {
   return autocomplete;
 });
 
-function parseFilter(resource: string, f: string): Expression {
+function parseFilter(resource: smartQuery.Resource, f: string): Expression {
   let exp;
   if (/^[\s0-9a-zA-Z]+:/.test(f)) {
     const k = f.split(":", 1)[0];
@@ -42,12 +42,11 @@ function parseFilter(resource: string, f: string): Expression {
           e.args[0] instanceof Expression.Literal &&
           e.args[1] instanceof Expression.Literal
         ) {
-          const r = smartQuery.unpack(
+          return smartQuery.unpack(
             resource,
             e.args[0].value as string,
             e.args[1].value as string,
           );
-          return r;
         }
       }
     }
@@ -60,13 +59,13 @@ function parseFilter(resource: string, f: string): Expression {
   return exp;
 }
 
-function splitFilter(filter: Expression): string[] {
+function splitFilter(filter: Expression | undefined): string[] {
   if (!filter) return [""];
   if (filter instanceof Expression.Literal && filter.value) return [""];
   const list: Expression[] = [filter];
   const res: string[] = [];
   while (list.length) {
-    const f = list.pop();
+    const f = list.pop()!;
     if (f instanceof Expression.Binary && f.operator === "AND") {
       list.push(f.right);
       list.push(f.left);
@@ -84,7 +83,7 @@ function splitFilter(filter: Expression): string[] {
 }
 
 interface Attrs {
-  resource: string;
+  resource: smartQuery.Resource;
   filter?: Expression;
   onChange: (filter: Expression) => void;
 }
@@ -113,7 +112,7 @@ const component: ClosureComponent<Attrs> = (initialVnode) => {
       m.redraw();
       return;
     }
-    if (!filterList.length) attrs.onChange(null);
+    if (!filterList.length) attrs.onChange(new Expression.Literal(true));
     else attrs.onChange(filter);
   }
 

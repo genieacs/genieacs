@@ -428,5 +428,6 @@ export function evaluateExpression(
   exp: Expression,
   obj?: Record<string, unknown>,
 ): Expression {
-  return memoizedEvaluate(exp, fulfillTimestamp + getClockSkew(), obj);
+  const ts = fulfillTimestamp + getClockSkew();
+  return obj ? memoizedEvaluate(exp, ts, obj) : memoizedEvaluate(exp, ts);
 }

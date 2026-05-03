@@ -53,7 +53,7 @@ const deflatePromisified = promisify(zlib.deflate);
 
 const REALM = "GenieACS";
 const MAX_CYCLES = 4;
-const MAX_CONCURRENT_REQUESTS = +config.get("MAX_CONCURRENT_REQUESTS");
+const MAX_CONCURRENT_REQUESTS = Number(config.get("MAX_CONCURRENT_REQUESTS"));
 
 const MAX_SESSION_DURATION = 300000;
 const LOCK_REFRESH_INTERVAL = 10000;
@@ -79,7 +79,7 @@ async function authenticate(
   );
   if (!authExpression) return true;
 
-  let authentication: auth.AuthorizationHeader;
+  let authentication: auth.AuthorizationHeader | undefined;
 
   if (sessionContext.httpRequest.headers["authorization"]) {
     try {
@@ -117,7 +117,7 @@ async function authenticate(
           if (!e.args.every((a) => a instanceof Expression.Literal))
             return new Expression.Literal(null);
 
-          const args = e.args.map((a) => a.value.toString());
+          const args = e.args.map((a) => a.value?.toString() ?? "");
           if (typeof args[0] !== "string" || typeof args[1] !== "string")
             return new Expression.Literal(null);
 
@@ -141,9 +141,9 @@ async function authenticate(
                   username.toString(),
                   REALM,
                   password.toString(),
-                  authentication["nonce"],
+                  authentication["nonce"] ?? "",
                   "POST",
-                  authentication["uri"],
+                  authentication["uri"] ?? "",
                   authentication["qop"],
                   body,
                   authentication["cnonce"],
@@ -242,10 +242,8 @@ function recordFault(
   provisions?: [string, ...Value[]][],
   channels?: { [channel: string]: number },
 ): void {
-  if (!provisions) {
-    provisions = sessionContext.provisions;
-    channels = sessionContext.channels;
-  }
+  if (!provisions) provisions = sessionContext.provisions;
+  if (!channels) channels = sessionContext.channels;
 
   const channelKeys = Object.keys(channels);
   if (!channelKeys.length)
@@ -275,7 +273,6 @@ function recordFault(
 
     if (channels[channel] === 0) faults[channel].precondition = true;
 
-    if (!sessionContext.faultsTouched) sessionContext.faultsTouched = {};
     sessionContext.faultsTouched[channel] = true;
 
     logger.accessWarn({
@@ -352,7 +349,7 @@ async function transferComplete(
     });
   }
 
-  if (fault) {
+  if (fault && operation) {
     Object.assign(sessionContext.retries, operation.retries);
     recordFault(
       sessionContext,
@@ -409,32 +406,30 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
 
   // Filter presets based on existing faults
   const blackList: Record<string, number> = {};
-  let whiteList = null;
-  let whiteListProvisions: [string, ...Value[]][] = null;
-  const RETRY_DELAY = +localCache.getConfig(
-    sessionContext.cacheSnapshot,
-    "cwmp.retryDelay",
-    300,
-    (e) => session.configContextCallback(sessionContext, e),
+  let whiteList: [string, [string, ...Value[]][]] | null = null;
+  const RETRY_DELAY = Number(
+    localCache.getConfig(
+      sessionContext.cacheSnapshot,
+      "cwmp.retryDelay",
+      300,
+      (e) => session.configContextCallback(sessionContext, e),
+    ),
   );
 
-  if (sessionContext.faults) {
-    for (const [channel, fault] of Object.entries(sessionContext.faults)) {
-      let retryTimestamp = 0;
-      if (!fault.retryNow) {
-        retryTimestamp =
-          fault.timestamp +
-          RETRY_DELAY * Math.pow(2, sessionContext.retries[channel]) * 1000;
-      }
-
-      if (retryTimestamp <= sessionContext.timestamp) {
-        whiteList = channel;
-        whiteListProvisions = fault.provisions;
-        break;
-      }
-
-      blackList[channel] = fault.precondition ? 1 : 2;
+  for (const [channel, fault] of Object.entries(sessionContext.faults)) {
+    let retryTimestamp = 0;
+    if (!fault.retryNow) {
+      retryTimestamp =
+        fault.timestamp +
+        RETRY_DELAY * Math.pow(2, sessionContext.retries[channel]) * 1000;
     }
+
+    if (retryTimestamp <= sessionContext.timestamp) {
+      whiteList = [channel, fault.provisions];
+      break;
+    }
+
+    blackList[channel] = fault.precondition ? 1 : 2;
   }
 
   deviceData.timestamps.revision = 1;
@@ -443,7 +438,7 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
   const deviceEvents: Record<string, boolean> = {};
   for (const p of deviceData.paths.find(Path.parse("Events"), 0b001, 0b1)) {
     const attrs = deviceData.attributes.get(p);
-    const t = attrs?.value[1][0] as number;
+    const t = attrs?.value?.[1]?.[0] as number;
     if (t >= sessionContext.timestamp)
       deviceEvents[p.segments[1] as string] = true;
   }
@@ -453,7 +448,7 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
 
   for (const preset of presets) {
     if (whiteList != null) {
-      if (preset.channel !== whiteList) continue;
+      if (preset.channel !== whiteList[0]) continue;
     } else if (blackList[preset.channel] === 1) {
       continue;
     }
@@ -504,9 +499,9 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
     (v): Declaration => ({
       path: Path.parse(v),
       pathGet: 1,
-      pathSet: null,
+      pathSet: undefined,
       attrGet: { value: 1 },
-      attrSet: null,
+      attrSet: undefined,
       defer: true,
     }),
   );
@@ -528,7 +523,7 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
   session.clearProvisions(sessionContext);
 
   if (whiteList != null)
-    session.addProvisions(sessionContext, whiteList, whiteListProvisions);
+    session.addProvisions(sessionContext, whiteList[0], whiteList[1]);
 
   const appendProvisionsToFaults: Record<string, [string, ...Value[]][]> = {};
 
@@ -659,7 +654,8 @@ async function nextRpc(sessionContext: SessionContext): Promise<void> {
 
   // Clear expired tasks
   sessionContext.tasks = sessionContext.tasks.filter((task) => {
-    if (!(task.expiry <= sessionContext.timestamp)) return true;
+    if (task.expiry == null || !(task.expiry <= sessionContext.timestamp))
+      return true;
 
     logger.accessInfo({
       sessionContext: sessionContext,
@@ -667,13 +663,11 @@ async function nextRpc(sessionContext: SessionContext): Promise<void> {
       task: task,
     });
 
-    if (!sessionContext.doneTasks) sessionContext.doneTasks = [];
-    sessionContext.doneTasks.push(task._id);
+    sessionContext.doneTasks.push(task._id!);
 
     const channel = `task_${task._id}`;
     if (sessionContext.faults[channel]) {
       delete sessionContext.faults[channel];
-      if (!sessionContext.faultsTouched) sessionContext.faultsTouched = {};
       sessionContext.faultsTouched[channel] = true;
     }
 
@@ -686,74 +680,74 @@ async function nextRpc(sessionContext: SessionContext): Promise<void> {
 
   if (!task) return applyPresets(sessionContext);
 
+  const taskId = task._id!;
+  const taskChannel = `task_${taskId}`;
   let alias;
 
   switch (task.name) {
     case "getParameterValues":
       // Set channel in case params array is empty
-      sessionContext.channels[`task_${task._id}`] = 0;
-      for (const p of task.parameterNames) {
-        session.addProvisions(sessionContext, `task_${task._id}`, [
-          ["refresh", p],
-        ]);
+      sessionContext.channels[taskChannel] = 0;
+      for (const p of task.parameterNames ?? []) {
+        session.addProvisions(sessionContext, taskChannel, [["refresh", p]]);
       }
 
       break;
     case "setParameterValues":
       // Set channel in case params array is empty
-      sessionContext.channels[`task_${task._id}`] = 0;
-      for (const p of task.parameterValues) {
-        session.addProvisions(sessionContext, `task_${task._id}`, [
-          ["value", p[0], p[1]],
+      sessionContext.channels[taskChannel] = 0;
+      for (const p of task.parameterValues ?? []) {
+        session.addProvisions(sessionContext, taskChannel, [
+          ["value", p[0], p[1] ?? ""],
         ]);
       }
 
       break;
     case "refreshObject":
-      session.addProvisions(sessionContext, `task_${task._id}`, [
-        ["refresh", task.objectName],
+      session.addProvisions(sessionContext, taskChannel, [
+        ["refresh", task.objectName ?? ""],
       ]);
       break;
     case "reboot":
-      session.addProvisions(sessionContext, `task_${task._id}`, [["reboot"]]);
+      session.addProvisions(sessionContext, taskChannel, [["reboot"]]);
       break;
     case "factoryReset":
-      session.addProvisions(sessionContext, `task_${task._id}`, [["reset"]]);
+      session.addProvisions(sessionContext, taskChannel, [["reset"]]);
       break;
     case "download":
-      session.addProvisions(sessionContext, `task_${task._id}`, [
-        ["download", task.fileType, task.fileName, task.targetFileName || ""],
+      session.addProvisions(sessionContext, taskChannel, [
+        [
+          "download",
+          task.fileType ?? "",
+          task.fileName ?? "",
+          task.targetFileName ?? "",
+        ],
       ]);
       break;
     case "addObject":
       alias = (task.parameterValues || [])
         .map((p) => `${p[0]}:${JSON.stringify(p[1])}`)
         .join(",");
-      session.addProvisions(sessionContext, `task_${task._id}`, [
+      session.addProvisions(sessionContext, taskChannel, [
         ["instances", `${task.objectName}.[${alias}]`, "+1"],
       ]);
       break;
     case "deleteObject":
-      session.addProvisions(sessionContext, `task_${task._id}`, [
-        ["instances", task.objectName, 0],
+      session.addProvisions(sessionContext, taskChannel, [
+        ["instances", task.objectName ?? "", 0],
       ]);
       break;
     case "provisions":
-      session.addProvisions(
-        sessionContext,
-        `task_${task._id}`,
-        task.provisions,
-      );
+      session.addProvisions(sessionContext, taskChannel, task.provisions ?? []);
       break;
     default:
-      if (!sessionContext.doneTasks) sessionContext.doneTasks = [];
-      sessionContext.doneTasks.push(task._id);
+      sessionContext.doneTasks.push(taskId);
       sessionContext.tasks = sessionContext.tasks.filter((t) => t !== task);
 
       logger.accessWarn({
         sessionContext: sessionContext,
         message: "Invalid task",
-        taskId: task._id,
+        taskId: taskId,
       });
   }
 
@@ -833,8 +827,8 @@ async function endSession(sessionContext: SessionContext): Promise<void> {
 
 async function sendAcsRequest(
   sessionContext: SessionContext,
-  id?: string,
-  acsRequest?: AcsRequest,
+  id?: string | null,
+  acsRequest?: AcsRequest | null,
 ): Promise<void> {
   if (!acsRequest)
     return writeResponse(sessionContext, soap.response(null), true);
@@ -845,7 +839,7 @@ async function sendAcsRequest(
       let prefix = "" + config.get("FS_URL_PREFIX");
 
       if (!prefix) {
-        const FS_PORT = +config.get("FS_PORT");
+        const FS_PORT = Number(config.get("FS_PORT"));
         const ssl = !!config.get("FS_SSL_CERT");
         const origin = getRequestOrigin(sessionContext.httpRequest);
         let hostname = origin.localAddress;
@@ -853,16 +847,16 @@ async function sendAcsRequest(
         prefix = (ssl ? "https" : "http") + `://${hostname}:${FS_PORT}/`;
       }
 
-      acsRequest.url = prefix + encodeURI(acsRequest.fileName);
+      const fileName = acsRequest.fileName ?? "";
+      acsRequest.url = prefix + encodeURI(fileName);
 
       const files = localCache.getFiles(sessionContext.cacheSnapshot);
-      if (files[acsRequest.fileName])
-        acsRequest.fileSize = files[acsRequest.fileName].length;
+      if (files[fileName]) acsRequest.fileSize = files[fileName].length;
     }
   }
 
   const rpc = {
-    id: id,
+    id: id!,
     acsRequest: acsRequest,
     cwmpVersion: sessionContext.cwmpVersion,
   };
@@ -1280,12 +1274,12 @@ export async function listener(
 async function clientError(
   httpRequest: IncomingMessage,
   httpResponse: ServerResponse,
-  sessionContext: SessionContext,
+  sessionContext: SessionContext | undefined,
   body: string,
   msg: string,
 ): Promise<void> {
   let debugEnabled: boolean;
-  let deviceId: string = null;
+  let deviceId: string | null = null;
 
   if (sessionContext) {
     debugEnabled = sessionContext.debug;
@@ -1322,7 +1316,7 @@ async function clientError(
   if (sessionContext?.state) await endSession(sessionContext);
 }
 
-function decodeString(buffer: Buffer, charset: string): string {
+function decodeString(buffer: Buffer, charset: string): string | null {
   try {
     return buffer.toString(charset as BufferEncoding);
   } catch {
@@ -1346,12 +1340,12 @@ async function listenerAsync(
     return;
   }
 
-  let sessionId;
+  let sessionId: string | undefined;
   // Separation by comma is important as some devices don't comform to standard
   const COOKIE_REGEX =
     /\s*([a-zA-Z0-9\-_]+?)\s*=\s*"?([a-zA-Z0-9\-_]*?)"?\s*(,|;|$)/g;
-  let match;
-  while ((match = COOKIE_REGEX.exec(httpRequest.headers.cookie)))
+  let match: RegExpExecArray | null;
+  while ((match = COOKIE_REGEX.exec(httpRequest.headers.cookie ?? "")))
     if (match[1] === "session") sessionId = match[2];
 
   // If overloaded, ask CPE to retry in 60 seconds
@@ -1427,7 +1421,7 @@ async function listenerAsync(
     }
   }
 
-  let charset: string;
+  let charset: string | undefined;
   if (httpRequest.headers["content-type"]) {
     const m = httpRequest.headers["content-type"].match(
       /charset=['"]?([^'"\s]+)/i,
@@ -1521,7 +1515,7 @@ async function listenerAsync(
   if (sessionContext)
     return processRequest(sessionContext, rpc, parseWarnings, bodyStr);
 
-  if (rpc.cpeRequest?.name !== "Inform") {
+  if (!rpc.cpeRequest || rpc.cpeRequest.name !== "Inform") {
     logger.accessError({
       message: "Invalid session",
       sessionContext: {
@@ -1533,7 +1527,7 @@ async function listenerAsync(
     return clientError(
       httpRequest,
       httpResponse,
-      null,
+      undefined,
       bodyStr,
       "Invalid session",
     );
@@ -1554,16 +1548,14 @@ async function listenerAsync(
   const cacheSnapshot = await localCache.getRevision();
 
   const _sessionContext = session.init(
+    crypto.randomBytes(8).toString("hex"),
     deviceId,
     rpc.cwmpVersion,
-    rpc.sessionTimeout,
+    rpc.sessionTimeout ?? 0,
+    httpRequest,
+    httpResponse,
+    cacheSnapshot,
   );
-
-  _sessionContext.cacheSnapshot = cacheSnapshot;
-
-  _sessionContext.httpRequest = httpRequest;
-  _sessionContext.httpResponse = httpResponse;
-  _sessionContext.sessionId = crypto.randomBytes(8).toString("hex");
 
   const [dueTasks, faults, operations] = await Promise.all([
     getDueTasks(deviceId, _sessionContext.timestamp),
@@ -1574,15 +1566,13 @@ async function listenerAsync(
   _sessionContext.tasks = dueTasks[0];
   _sessionContext.operations = operations;
   _sessionContext.faults = faults;
-  _sessionContext.retries = {};
   for (const [k, v] of Object.entries(_sessionContext.faults)) {
-    if (v.expiry >= _sessionContext.timestamp) {
+    if (v.expiry != null && v.expiry >= _sessionContext.timestamp) {
       // Delete expired faults
       delete _sessionContext.faults[k];
-      if (!_sessionContext.faultsTouched) _sessionContext.faultsTouched = {};
       _sessionContext.faultsTouched[k] = true;
     } else {
-      _sessionContext.retries[k] = v.retries;
+      _sessionContext.retries[k] = v.retries ?? 0;
     }
   }
 

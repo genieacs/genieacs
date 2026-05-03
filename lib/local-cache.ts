@@ -7,7 +7,7 @@ const EVICT_TIMEOUT = 120000;
 
 export class LocalCache<T> {
   private nextRefresh = 1;
-  private currentRevision: string = null;
+  private currentRevision: string = "";
   private snapshots: Map<string, T> = new Map();
 
   constructor(

@@ -54,7 +54,7 @@ function putActionHandler(
   action: string,
   _object: Record<string, any>,
   isNew: boolean,
-): Promise<ValidationErrors> {
+): Promise<ValidationErrors | null> {
   return new Promise((resolve, reject) => {
     const object = Object.assign({}, _object);
     if (action === "save") {
@@ -150,8 +150,8 @@ export function init(
     );
   }
 
-  let filter: Expression = null;
-  let sort: Record<string, number> = null;
+  let filter: Expression | undefined;
+  let sort: Record<string, number> | undefined;
   if (args.hasOwnProperty("filter"))
     filter = Expression.parse(args["filter"] as string);
   if (args.hasOwnProperty("sort")) sort = JSON.parse(args["sort"] as string);
@@ -246,7 +246,7 @@ export const component: ClosureComponent<Attrs> = (): Component<Attrs> => {
             "button.text-cyan-700 hover:text-cyan-900 font-medium",
             {
               onclick: () => {
-                let cb: () => Children = null;
+                let cb: (() => Children) | null = null;
                 const comp = m(
                   putFormComponent,
                   Object.assign(
@@ -335,7 +335,7 @@ export const component: ClosureComponent<Attrs> = (): Component<Attrs> => {
               {
                 title: "Create new user",
                 onclick: () => {
-                  let cb: () => Children = null;
+                  let cb: (() => Children) | null = null;
                   const comp = m(
                     putFormComponent,
                     Object.assign(
@@ -417,7 +417,7 @@ export const component: ClosureComponent<Attrs> = (): Component<Attrs> => {
       }
 
       const filterAttrs = {
-        resource: "users",
+        resource: "users" as const,
         filter: vnode.attrs.filter,
         onChange: onFilterChanged,
       };

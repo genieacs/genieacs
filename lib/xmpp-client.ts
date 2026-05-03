@@ -153,9 +153,9 @@ function* loginScram(
     throw new Error(`Unexpected element ${res1.name}`);
   const serverFirstMessage = decodeBase64(res1.text);
 
-  let iterationCount: number;
-  let saltBase64: string;
-  let nonce: string;
+  let iterationCount: number | undefined;
+  let saltBase64: string | undefined;
+  let nonce: string | undefined;
   for (const s of serverFirstMessage.split(",")) {
     if (s.startsWith("i=")) iterationCount = parseInt(s.slice(2));
     else if (s.startsWith("s=")) saltBase64 = s.slice(2);
@@ -296,10 +296,10 @@ function upgradeTls(socket: net.Socket, host: string): Promise<tls.TLSSocket> {
 interface XmppClientOptions {
   host: string;
   port?: number;
-  username?: string;
-  password?: string;
-  resource?: string;
-  timeout?: number;
+  username: string;
+  password: string;
+  resource: string;
+  timeout: number;
 }
 
 export default class XmppClient extends EventEmitter {
@@ -309,15 +309,20 @@ export default class XmppClient extends EventEmitter {
   private _resource: string;
   private _iqStanzaCallbacks: Map<
     string,
-    (err: Error, r?: { rawRes: string; res: Element }) => void
+    (err: Error | null, r?: { rawRes: string; res: Element }) => void
   >;
 
-  private constructor() {
+  private constructor(
+    socket: net.Socket,
+    host: string,
+    username: string,
+    resource: string,
+  ) {
     super();
-    this._socket = null;
-    this._host = null;
-    this._username = null;
-    this._resource = null;
+    this._socket = socket;
+    this._host = host;
+    this._username = username;
+    this._resource = resource;
     this._iqStanzaCallbacks = new Map();
   }
 
@@ -349,11 +354,12 @@ export default class XmppClient extends EventEmitter {
       throw err;
     }
 
-    const client = new XmppClient();
-    client._socket = socket;
-    client._host = opts.host;
-    client._username = opts.username;
-    client._resource = opts.resource;
+    const client = new XmppClient(
+      socket,
+      opts.host,
+      opts.username,
+      opts.resource,
+    );
     socket.on("data", client._onData.bind(client));
     socket.on("error", client._onError.bind(client));
     if (opts.timeout)
@@ -453,7 +459,8 @@ export default class XmppClient extends EventEmitter {
         this._iqStanzaCallbacks.delete(id);
         clearTimeout(t);
         if (err) reject(err);
-        else resolve(Object.assign(r, { rawReq }));
+        else if (r) resolve(Object.assign(r, { rawReq }));
+        else reject(new Error("No IQ stanza response"));
       });
     });
   }

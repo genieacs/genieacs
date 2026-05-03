@@ -116,9 +116,9 @@ export function flattenDevice(device: Record<string, unknown>): FlatDevice {
 
       let childrenTimestamp = timestamp;
 
-      if (!root) childrenTimestamp = +(input["_timestamp"] || 1);
-      else if (+input["_timestamp"] > timestamp)
-        childrenTimestamp = +input["_timestamp"];
+      if (!root) childrenTimestamp = +((input["_timestamp"] as number) || 1);
+      else if (+(input["_timestamp"] as number) > timestamp)
+        childrenTimestamp = +(input["_timestamp"] as number);
 
       const r = root ? `${root}.${name}` : name;
 
@@ -214,7 +214,7 @@ function flattenPreset(
   ) {
     p.provision = provision.name;
     p.provisionArgs = provision.args
-      ? provision.args.map((a: unknown) => a.toString()).join(", ")
+      ? provision.args.map((a: unknown) => String(a)).join(", ")
       : "";
   }
 

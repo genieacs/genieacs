@@ -66,7 +66,7 @@ async function runBuild(input: string): Promise<string> {
     logLevel: "silent",
     minify: process.env.NODE_ENV === "production",
     jsxFactory: "h",
-    jsxFragment: "null",
+    jsxFragment: '""',
     plugins: [
       {
         name: "import-resolver",

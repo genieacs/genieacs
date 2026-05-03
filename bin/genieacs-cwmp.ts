@@ -17,7 +17,7 @@ function exitWorkerGracefully(): void {
   Promise.all([
     db.disconnect(),
     extensions.killAll(),
-    cluster.worker.disconnect(),
+    cluster.worker!.disconnect(),
   ])
     .then(logger.close)
     .catch(exitWorkerUngracefully);
@@ -64,7 +64,7 @@ if (!cluster.worker) {
   const options = {
     port: SERVICE_PORT,
     host: SERVICE_ADDRESS,
-    ssl: key && cert ? { key, cert } : null,
+    ssl: key && cert ? { key, cert } : undefined,
     onConnection: cwmp.onConnection,
     onClientError: cwmp.onClientError,
     timeout: 30000,

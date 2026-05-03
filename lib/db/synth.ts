@@ -109,7 +109,7 @@ function getTypes(parameter: string, collection: string): string[] {
   return ["bool", "number", "date", "string"];
 }
 
-function roundOid(oid: string, roundUp: boolean): string {
+function roundOid(oid: string, roundUp: boolean): string | null {
   const match = (oid.match(/^[0-9a-f]*/)?.[0] ?? "").slice(0, 24);
   let num = BigInt("0x0" + match);
   let lastChar = 0;
@@ -297,20 +297,20 @@ class MongoSynthContext extends SynthContextBase<Clause, MongoClause> {
         const t = decodeTag(param.slice(5));
         const c = new MongoClauseArray("_tags", t);
         if (typeof rhs === "string") rhs = 2;
-        if (exp.operator === "=") {
-          if ((rhs === 1) !== truthy) return [];
-        } else if (exp.operator === ">") {
-          if ((truthy && rhs >= 1) || (!truthy && rhs < 1)) return [];
-        } else if (exp.operator === "<") {
-          if ((truthy && rhs <= 1) || (!truthy && rhs > 1)) return [];
-        }
+        if ((rhs === 1) !== truthy) return [];
         return [[(this.getVar(c) << 1) ^ 1]];
       }
 
-      let op: "$gt" | "$lt" | "$eq" | "$gte" | "$lte";
-      if (exp.operator === "=") op = "$eq";
-      else if (exp.operator === ">") op = truthy ? "$gt" : "$lte";
-      else if (exp.operator === "<") op = truthy ? "$lt" : "$gte";
+      const op: "$gt" | "$lt" | "$eq" | "$gte" | "$lte" =
+        exp.operator === "="
+          ? "$eq"
+          : exp.operator === ">"
+            ? truthy
+              ? "$gt"
+              : "$lte"
+            : truthy
+              ? "$lt"
+              : "$gte";
 
       const possibleTypes = new Set(getTypes(param, this.collection));
       const clauses: MongoClause[] = [];
@@ -408,7 +408,7 @@ class MongoSynthContext extends SynthContextBase<Clause, MongoClause> {
       }
 
       const param = getParam(p, this.collection);
-      const c = new MongoClauseLike(param, pat, null, caseSensitive);
+      const c = new MongoClauseLike(param, pat, "", caseSensitive);
       if (truthy) return [[(this.getVar(c) << 1) ^ 1]];
       const typeClause = new MongoClauseCompare(param, "$gte", "", "string");
       const r = [[this.getVar(c) << 1, (this.getVar(typeClause) << 1) ^ 1]];
@@ -422,12 +422,12 @@ class MongoSynthContext extends SynthContextBase<Clause, MongoClause> {
     const dcSet: number[][] = [];
 
     const vars = new Set(minterms.flat().map((l) => l >> 1));
-    const clauses = Array.from(vars).map((v) => this.getClause(v));
+    const clauses = Array.from(vars).map((v) => this.getClause(v)!);
 
     for (const [parameter, clauses2] of groupBy(clauses, (c) => c.parameter)) {
       const comparisons = clauses2.filter(
         (c) => c instanceof MongoClauseCompare && c.value !== null,
-      ) as MongoClauseCompare<unknown>[];
+      ) as MongoClauseCompare<string | number | boolean>[];
 
       for (const [type, clauses3] of groupBy(comparisons, (c) => c.type)) {
         const isType = this.getVar(new MongoClauseType(parameter, type));
@@ -573,7 +573,7 @@ class MongoSynthContext extends SynthContextBase<Clause, MongoClause> {
       for (const j of s) {
         if (j === i) continue;
         const c2 = this.getClause(j >> 1);
-        if (c2.parameter !== c.parameter) continue;
+        if (c2!.parameter !== c.parameter) continue;
         if (!(j & 1)) return false;
         if (c2 instanceof MongoClauseType) return false;
       }
@@ -592,7 +592,7 @@ class MongoSynthContext extends SynthContextBase<Clause, MongoClause> {
         if (!minterm.length) return {};
         const negate = !!(clause & 1);
         const c = this.getClause(clause >> 1);
-        const q = c.toQuery(negate);
+        const q = c!.toQuery(negate);
         if (Object.keys(q).length !== 1)
           throw new Error("Invalid query expression");
         const [param, value] = Object.entries(q)[0];
@@ -650,7 +650,7 @@ export function toMongoQuery(
   const minterms = clause.getMinterms(context, 0b100);
   const minimized = context.minimize(minterms);
   if (!minimized.length) return false;
-  return EJSON.deserialize(context.toQuery(minimized));
+  return EJSON.deserialize(context.toQuery(minimized)) as Filter<unknown>;
 }
 
 export function validQuery(exp: Expression, resource: string): void {

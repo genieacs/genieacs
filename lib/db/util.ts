@@ -31,12 +31,12 @@ export function convertOldPrecondition(q: Record<string, unknown>): Expression {
     for (const [k, v] of Object.entries(_query)) {
       if (k[0] === "$") {
         if (k === "$and") {
-          for (const vv of Object.values(v))
-            res = Expression.and(res, recursive(vv));
+          for (const vv of Object.values(v as Record<string, unknown>))
+            res = Expression.and(res, recursive(vv as Record<string, unknown>));
         } else if (k === "$or") {
           let or: Expression = new Expression.Literal(false);
-          for (const vv of Object.values(v))
-            or = Expression.or(or, recursive(vv));
+          for (const vv of Object.values(v as Record<string, unknown>))
+            or = Expression.or(or, recursive(vv as Record<string, unknown>));
           res = Expression.and(res, or);
         } else {
           throw new Error(`Operator ${k} not supported`);
@@ -103,14 +103,15 @@ export function convertOldPrecondition(q: Record<string, unknown>): Expression {
         );
       } else if (typeof v === "object") {
         if (Array.isArray(v)) throw new Error(`Invalid type`);
-        for (const [kk, vv] of Object.entries(v)) {
+        for (const [kk, vv] of Object.entries(v as Record<string, unknown>)) {
+          const lit = new Expression.Literal(vv as Value);
           if (kk === "$eq") {
             res = Expression.and(
               res,
               new Expression.Binary(
                 "=",
                 new Expression.Parameter(Path.parse(k)),
-                new Expression.Literal(vv),
+                lit,
               ),
             );
           } else if (kk === "$ne") {
@@ -118,7 +119,7 @@ export function convertOldPrecondition(q: Record<string, unknown>): Expression {
             res = Expression.and(
               res,
               Expression.or(
-                new Expression.Binary("<>", p, new Expression.Literal(vv)),
+                new Expression.Binary("<>", p, lit),
                 new Expression.Unary("IS NULL", p),
               ),
             );
@@ -128,7 +129,7 @@ export function convertOldPrecondition(q: Record<string, unknown>): Expression {
               new Expression.Binary(
                 "<",
                 new Expression.Parameter(Path.parse(k)),
-                new Expression.Literal(vv),
+                lit,
               ),
             );
           } else if (kk === "$lte") {
@@ -137,7 +138,7 @@ export function convertOldPrecondition(q: Record<string, unknown>): Expression {
               new Expression.Binary(
                 "<=",
                 new Expression.Parameter(Path.parse(k)),
-                new Expression.Literal(vv),
+                lit,
               ),
             );
           } else if (kk === "$gt") {
@@ -146,7 +147,7 @@ export function convertOldPrecondition(q: Record<string, unknown>): Expression {
               new Expression.Binary(
                 ">",
                 new Expression.Parameter(Path.parse(k)),
-                new Expression.Literal(vv),
+                lit,
               ),
             );
           } else if (kk === "$gte") {
@@ -155,7 +156,7 @@ export function convertOldPrecondition(q: Record<string, unknown>): Expression {
               new Expression.Binary(
                 ">=",
                 new Expression.Parameter(Path.parse(k)),
-                new Expression.Literal(vv),
+                lit,
               ),
             );
           } else {

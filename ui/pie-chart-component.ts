@@ -6,7 +6,7 @@ import type { QueryResponse } from "./store.ts";
 function drawChart(chartData: Attrs["chart"]): Children {
   const slices = chartData.slices;
   const total: number = Array.from(Object.values(chartData.slices)).reduce(
-    (a: number, s) => a + (s["count"]["value"] || 0),
+    (a: number, s) => a + (s["count"]?.["value"] || 0),
     0,
   );
   const legend = [];
@@ -18,7 +18,7 @@ function drawChart(chartData: Attrs["chart"]): Children {
   let endX, endY;
 
   for (const slice of Object.values(slices)) {
-    const percent = total > 0 ? (slice["count"]["value"] || 0) / total : 0;
+    const percent = total > 0 ? (slice["count"]?.["value"] || 0) / total : 0;
     legend.push(
       m("tr", [
         m(
@@ -41,7 +41,7 @@ function drawChart(chartData: Attrs["chart"]): Children {
                 filter: slice.filter.toString(),
               })}`,
             },
-            slice["count"]["value"] || 0,
+            slice["count"]?.["value"] || 0,
           ),
         ),
       ]),

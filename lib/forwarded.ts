@@ -9,7 +9,7 @@ interface RequestOrigin {
   localPort: number;
   remoteAddress: string;
   remotePort: number;
-  host: string;
+  host?: string;
   encrypted: boolean;
 }
 
@@ -36,7 +36,7 @@ function parseForwardedHeader(str: string): { [name: string]: string } {
   const res: { [name: string]: string } = {};
   let keyIdx = 0;
   let valueIdx = -1;
-  let key: string;
+  let key = "";
   for (let i = 0; i < str.length; ++i) {
     const char = str.charCodeAt(i);
     if (char === 61 /* = */) {

@@ -6,13 +6,13 @@ interface Attrs {
 }
 
 const component: ClosureComponent<Attrs> = (): Component<Attrs> => {
-  let overlay: HTMLElement;
-  let dom: Element;
+  let overlay: HTMLElement | null = null;
+  let dom: Element | null = null;
   let loading = false;
 
   function apply(vnode: VnodeDOM<Attrs>): void {
     if (!loading) {
-      if (overlay) overlay.parentElement.remove();
+      if (overlay) overlay.parentElement?.remove();
       if (dom) dom.classList.remove("loading");
       overlay = null;
       dom = null;
@@ -34,9 +34,9 @@ const component: ClosureComponent<Attrs> = (): Component<Attrs> => {
       wrapper.appendChild(overlay);
     }
 
-    const wrapper = overlay.parentElement;
+    const wrapper = overlay.parentElement!;
     if (wrapper.parentElement !== dom.parentElement)
-      dom.parentNode.appendChild(wrapper);
+      dom.parentNode!.appendChild(wrapper);
 
     const wrapperRect = wrapper.getBoundingClientRect();
     const domRect = dom.getBoundingClientRect();
@@ -54,7 +54,7 @@ const component: ClosureComponent<Attrs> = (): Component<Attrs> => {
     oncreate: apply,
     onupdate: apply,
     onremove: () => {
-      if (overlay) overlay.parentElement.remove();
+      if (overlay) overlay.parentElement!.remove();
       if (dom) dom.classList.remove("loading");
       overlay = null;
       dom = null;

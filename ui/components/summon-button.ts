@@ -27,12 +27,12 @@ const component: ClosureComponent<Attrs> = () => {
             const target = e.target as HTMLButtonElement;
             target.disabled = true;
             const params = Object.values(vnode.attrs.parameters)
-              .map((exp) => {
-                if (exp instanceof Expression.Parameter)
-                  return exp.path.toString();
-                return null;
-              })
-              .filter((exp) => !!exp);
+              .map((exp) =>
+                exp instanceof Expression.Parameter
+                  ? exp.path.toString()
+                  : null,
+              )
+              .filter((exp): exp is string => !!exp);
 
             const task = {
               name: "getParameterValues",

@@ -2,9 +2,9 @@ import { collections } from "./db/db.ts";
 import * as config from "./config.ts";
 
 const CLOCK_SKEW_TOLERANCE = 30000;
-const MAX_CACHE_TTL = +config.get("MAX_CACHE_TTL");
+const MAX_CACHE_TTL = Number(config.get("MAX_CACHE_TTL"));
 
-export async function get(key: string): Promise<string> {
+export async function get(key: string): Promise<string | undefined> {
   const res = await collections.cache.findOne({ _id: key });
   return res?.value;
 }
@@ -29,7 +29,7 @@ export async function set(
   );
 }
 
-export async function pop(key: string): Promise<string> {
+export async function pop(key: string): Promise<string | undefined> {
   const res = await collections.cache.findOneAndDelete({ _id: key });
   return res.value?.value;
 }

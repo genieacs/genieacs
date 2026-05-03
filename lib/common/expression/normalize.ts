@@ -39,7 +39,7 @@ class Indeterminates {
         res.map.set(key, val);
         res.sortedKeys.push(key);
       } else {
-        const v2 = val + res.map.get(k);
+        const v2 = val + res.map.get(k)!;
         if (!v2) {
           res.map.delete(k);
           res.sortedKeys = res.sortedKeys.filter((s) => s !== k);
@@ -66,9 +66,9 @@ class Indeterminates {
       return b.sortedKeys.length - a.sortedKeys.length;
     for (let i = 0; i < a.sortedKeys.length; ++i) {
       const k1 = a.sortedKeys[i];
-      const w1 = a.map.get(k1);
+      const w1 = a.map.get(k1)!;
       const k2 = b.sortedKeys[i];
-      const w2 = b.map.get(k2);
+      const w2 = b.map.get(k2)!;
       if (w1 !== w2) return w2 - w1;
       if (k1.toString().length > k2.toString().length) return -1;
       else if (k1.toString().length < k2.toString().length) return 1;
@@ -249,7 +249,7 @@ class Polynomial extends Expression {
       const mul: Expression[] = [];
       if (t.indeterminates.sortedKeys.length) {
         for (const k of t.indeterminates.sortedKeys) {
-          const w = t.indeterminates.map.get(k);
+          const w = t.indeterminates.map.get(k)!;
           for (let i = Math.abs(w); i > 0; --i) {
             if (w > 0) mul.push(k);
             else
@@ -261,25 +261,20 @@ class Polynomial extends Expression {
 
         if (coefficient !== 1) mul.push(new Expression.Literal(coefficient));
 
-        while (mul.length > 1) {
-          const r = mul.pop();
-          const l = mul.pop();
-          mul.push(new Expression.Binary("*", l, r));
-        }
-        add.push(mul[0]);
+        let mulResult = mul[mul.length - 1];
+        for (let i = mul.length - 2; i >= 0; --i)
+          mulResult = new Expression.Binary("*", mul[i], mulResult);
+        add.push(mulResult);
       } else {
         add.push(new Expression.Literal(coefficient));
       }
     }
 
-    while (add.length > 1) {
-      const r = add.pop();
-      const l = add.pop();
-      add.push(new Expression.Binary("+", l, r));
-    }
-
     if (!add.length) return new Expression.Literal(0);
-    return add[0];
+    let addResult = add[add.length - 1];
+    for (let i = add.length - 2; i >= 0; --i)
+      addResult = new Expression.Binary("+", add[i], addResult);
+    return addResult;
   }
 }
 
@@ -299,7 +294,7 @@ function cartesianProduct<T>(arrays: T[][]): T[][] {
   );
 }
 
-function toPolynomial(e: Expression): Polynomial {
+function toPolynomial(e: Expression): Polynomial | null {
   if (e instanceof Polynomial) return e;
   if (e instanceof Expression.Literal) {
     if (e.value == null) return null;
@@ -400,7 +395,8 @@ function normalizeCallback(exp: Expression): Expression {
       if (exp.operator === "*") return lhs.multiply(rhs);
       if (exp.operator === "/") return lhs.divide(rhs);
     } else if ([">", ">=", "<", "<=", "=", "<>"].includes(exp.operator)) {
-      let lhs: Polynomial, rhs: Polynomial;
+      let lhs: Polynomial | undefined;
+      let rhs: Polynomial | undefined;
 
       if (exp.left instanceof Polynomial) lhs = exp.left;
       else if (exp.left instanceof Expression.Literal) {
@@ -427,19 +423,18 @@ function normalizeCallback(exp: Expression): Expression {
         if (!lhs.terms.length) {
           const l = lhs.toExpression() as Expression.Literal;
           const r = rhs.toExpression() as Expression.Literal;
+          const lv = l.value as number;
+          const rv = r.value as number;
 
-          if (exp.operator === "=")
-            return new Expression.Literal(l.value === r.value);
+          if (exp.operator === "=") return new Expression.Literal(lv === rv);
           else if (exp.operator === "<>")
-            return new Expression.Literal(l.value !== r.value);
-          else if (exp.operator === ">")
-            return new Expression.Literal(l.value > r.value);
+            return new Expression.Literal(lv !== rv);
+          else if (exp.operator === ">") return new Expression.Literal(lv > rv);
           else if (exp.operator === ">=")
-            return new Expression.Literal(l.value >= r.value);
-          else if (exp.operator === "<")
-            return new Expression.Literal(l.value < r.value);
+            return new Expression.Literal(lv >= rv);
+          else if (exp.operator === "<") return new Expression.Literal(lv < rv);
           else if (exp.operator === "<=")
-            return new Expression.Literal(l.value <= r.value);
+            return new Expression.Literal(lv <= rv);
           else throw new Error("Invalid operator");
         }
 
@@ -462,7 +457,7 @@ function normalizeCallback(exp: Expression): Expression {
         rhs = rhs.multiply(reciprocal);
 
         const keys = lhs.terms[0].indeterminates.sortedKeys;
-        let invert = lhs.terms[0].indeterminates.map.get(keys[0]) < 0 ? -1 : 0;
+        let invert = lhs.terms[0].indeterminates.map.get(keys[0])! < 0 ? -1 : 0;
 
         for (const t of lhs.terms)
           for (const v of t.indeterminates.map.values()) invert += v;

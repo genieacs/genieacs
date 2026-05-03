@@ -61,8 +61,8 @@ export function init(args: Record<string, unknown>): Promise<Attrs> {
     if (!window.authorizer.hasAccess("devices", 2))
       return void reject(new Error("You are not authorized to view this page"));
 
-    let filter: Expression = null;
-    let sort: Record<string, number> = null;
+    let filter: Expression | undefined;
+    let sort: Record<string, number> | undefined;
     if (args.hasOwnProperty("filter"))
       filter = Expression.parse(args["filter"] as string);
     if (args.hasOwnProperty("sort")) sort = JSON.parse(args["sort"] as string);
@@ -302,7 +302,7 @@ export const component: ClosureComponent<Attrs> = () => {
           const param = memoizedGetSortable(
             attributes[Math.abs(index) - 1].parameter,
           );
-          _sort[param.toString()] = Math.sign(index);
+          if (param) _sort[param.toString()] = Math.sign(index);
         }
         const ops: Record<string, string> = { sort: JSON.stringify(_sort) };
         if (vnode.attrs.filter) ops["filter"] = vnode.attrs.filter.toString();
@@ -373,7 +373,7 @@ export const component: ClosureComponent<Attrs> = () => {
         attrs.actionsCallback = renderActions;
 
       const filterAttrs = {
-        resource: "devices",
+        resource: "devices" as const,
         filter: vnode.attrs.filter,
         onChange: onFilterChanged,
       };

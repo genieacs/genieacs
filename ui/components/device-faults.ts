@@ -75,7 +75,7 @@ const component: ClosureComponent<Attrs> = (): Component<Attrs> => {
             m(
               "td.whitespace-nowrap px-3 py-4 text-sm text-stone-900",
               m("long-text", {
-                text: stringify(f["detail"]),
+                text: stringify(f["detail"] ?? null),
                 class: "max-w-xs",
               }),
             ),

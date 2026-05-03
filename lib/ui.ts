@@ -127,7 +127,7 @@ router.post("/login", async (ctx) => {
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn });
     ctx.cookies.set(JWT_COOKIE, token, {
       sameSite: "lax",
-      maxAge: remember ? expiresIn * 1000 : null,
+      maxAge: remember ? expiresIn * 1000 : undefined,
     });
     ctx.body = JSON.stringify(token);
     logger.accessInfo(log);

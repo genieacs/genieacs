@@ -5,30 +5,32 @@ import { Socket } from "node:net";
 import * as path from "node:path";
 import { ROOT_DIR } from "./config.ts";
 
-let server: http.Server | https.Server;
-let listener: http.RequestListener;
+let server: http.Server | https.Server | undefined;
+let listener: http.RequestListener | undefined;
 let stopping = false;
 
 function closeServer(timeout: number, callback: () => void): void {
   if (!server) return void callback();
 
+  let cbRef: (() => void) | null = callback;
+
   setTimeout(() => {
-    if (!callback) return;
+    if (!cbRef) return;
 
     // Ignore HTTP requests from connection that may still be open
-    server.removeListener("request", listener);
-    server.setTimeout(1);
+    server!.removeListener("request", listener!);
+    server!.setTimeout(1);
 
-    const cb = callback;
-    callback = null;
+    const cb = cbRef;
+    cbRef = null;
     setTimeout(cb, 1000);
   }, timeout).unref();
 
   server.close(() => {
-    if (!callback) return;
+    if (!cbRef) return;
 
-    const cb = callback;
-    callback = null;
+    const cb = cbRef;
+    cbRef = null;
     // Allow some time for connection close events to fire
     setTimeout(cb, 50);
   });
@@ -88,7 +90,7 @@ export function start(
     if (stopping) res.setHeader("Connection", "close");
     _listener(req, res).catch((err) => {
       try {
-        res.socket.unref();
+        res.socket?.unref();
         if (res.headersSent) {
           res.writeHead(500, { Connection: "close" });
           res.end(`${err.name}: ${err.message}`);
@@ -116,22 +118,23 @@ export function start(
 
   server.on("connection", (socket: Socket) => {
     socketEndpoints.set(socket, {
-      localAddress: socket.localAddress,
-      localPort: socket.localPort,
-      remoteAddress: socket.remoteAddress,
-      remotePort: socket.remotePort,
+      localAddress: socket.localAddress!,
+      localPort: socket.localPort!,
+      remoteAddress: socket.remoteAddress!,
+      remotePort: socket.remotePort!,
       remoteFamily: socket.remoteFamily as "IPv4" | "IPv6",
     });
   });
 
-  if (options.onClientError) {
+  const onClientError = options.onClientError;
+  if (onClientError) {
     server.on("clientError", (err, socket: Socket) => {
       if (err["code"] !== "ECONNRESET" && socket.writable)
         socket.end("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
 
       // As per Node docs: This event is guaranteed to be passed an instance
       // of the <net.Socket> class
-      options.onClientError(err, socket as Socket);
+      onClientError(err, socket as Socket);
     });
   }
 
@@ -158,5 +161,5 @@ export function getSocketEndpoints(socket: Socket): SocketEndpoint {
   // TLSSocket keeps a reference to the raw TCP socket in _parent
   return socketEndpoints.get(
     (socket as Socket & { _parent?: Socket })._parent ?? socket,
-  );
+  )!;
 }

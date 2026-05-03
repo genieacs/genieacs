@@ -23,11 +23,12 @@ type ViewElement =
   | ViewNode
   | string
   | number
+  | null
   | SignalBase<ViewElement>
   | ViewElement[];
 
 export class ViewNode {
-  name: string | null;
+  name: string;
   attributes: Record<string, any>;
   children: ViewElement[];
   constructor(
@@ -45,7 +46,7 @@ export class ViewNode {
 // If the original value is already a Signal, it's used as-is.
 // Otherwise, a ConstSignal is created to wrap the value.
 export interface SignalizedViewNode {
-  name: SignalBase<string | null>;
+  name: SignalBase<string>;
   attributes: Record<string, SignalBase<unknown>>;
   children: SignalBase<ViewElement>[];
 }
@@ -334,9 +335,9 @@ class RenderContext {
     }
   }
 
-  getView(name: string): ViewFunc {
+  getView(name: string): ViewFunc | undefined {
     const stack = this.viewStacks[name];
-    if (!stack) return null;
+    if (!stack) return undefined;
     return stack[stack.length - 1];
   }
 
@@ -356,8 +357,8 @@ class RenderContext {
     return clone;
   }
 
-  getDeferred(): (ViewNode | SignalBase | any)[] {
-    if (!this.deferredStack.length) return null;
+  getDeferred(): (ViewNode | SignalBase | any)[] | undefined {
+    if (!this.deferredStack.length) return undefined;
     return this.deferredStack[this.deferredStack.length - 1];
   }
 
@@ -392,7 +393,7 @@ function renderNode(node: ViewElement): ReturnType<typeof m> {
       {},
       node.map((n) => renderNode(n)),
     );
-  return m.fragment({}, node);
+  return m.fragment({}, node ?? "");
 }
 
 export const ViewComponent: ClosureComponent<{

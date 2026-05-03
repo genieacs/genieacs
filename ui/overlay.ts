@@ -4,18 +4,18 @@ import { dialog, dialogOverlay, icon } from "./tailwind-utility-components.ts";
 type OverlayCallback = () => Children;
 type CloseCallback = () => boolean;
 
-let overlayCallback: OverlayCallback = null;
-let closeCallback: CloseCallback = null;
+let overlayCallback: OverlayCallback | null = null;
+let closeCallback: CloseCallback | null = null;
 
 export function open(
   callback: OverlayCallback,
-  closeCb: CloseCallback = null,
+  closeCb: CloseCallback | null = null,
 ): void {
   overlayCallback = callback;
   closeCallback = closeCb;
 }
 
-export function close(callback: OverlayCallback, force = true): boolean {
+export function close(callback: OverlayCallback | null, force = true): boolean {
   if (callback === overlayCallback) {
     if (!force && closeCallback && !closeCallback()) return false;
     overlayCallback = null;

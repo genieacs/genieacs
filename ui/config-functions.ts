@@ -59,7 +59,7 @@ export function structureConfig(config: Config[]): any {
     const keys = c._id.split(".");
     let ref = _config;
     while (keys.length > 1) {
-      const k = keys.shift();
+      const k = keys.shift()!;
       if (ref[k] == null || typeof ref[k] !== "object") ref[k] = {};
       ref = ref[k];
     }
@@ -88,7 +88,7 @@ export function structureConfig(config: Config[]): any {
       }
 
       let index = 0;
-      while (indexes.length && (index = indexes.shift()) === 1073741823);
+      while (indexes.length && (index = indexes.shift()!) === 1073741823);
 
       if (index && (~index & (index + 1)) === index + 1) {
         // its an array

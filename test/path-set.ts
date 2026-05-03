@@ -19,7 +19,7 @@ void test("get", () => {
   pathSet.add("a.a");
   pathSet.add("*.*");
 
-  assert.strictEqual(pathSet.get("a.*").toString(), "a.*");
+  assert.strictEqual(pathSet.get("a.*")?.toString(), "a.*");
   assert.equal(pathSet.get("*.a"), null);
 });
 

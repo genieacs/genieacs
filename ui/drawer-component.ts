@@ -35,15 +35,18 @@ function renderStagingSpv(
     else e["redraw"] = false;
   }
 
+  const pv = task.parameterValues;
+  if (!pv || !pv[0]) throw new Error("Invalid task object");
+
   let input: VnodeDOM;
-  if (task.parameterValues[0][2] === "xsd:boolean") {
+  if (pv[0][2] === "xsd:boolean") {
     input = m(
       "select.mt-1 w-full block pl-3 pr-10 py-2 text-base border-stone-300 focus:outline-hidden focus:ring-cyan-500 focus:border-cyan-500 sm:text-sm rounded-md",
       {
-        value: task.parameterValues[0][1].toString(),
+        value: pv[0][1].toString(),
         onchange: (e: Event) => {
           e.redraw = false;
-          task.parameterValues[0][1] = (input.dom as HTMLSelectElement).value;
+          pv[0][1] = (input.dom as HTMLSelectElement).value;
         },
         onkeydown: keydown,
         oncreate: (vnode: VnodeDOM) => {
@@ -56,18 +59,19 @@ function renderStagingSpv(
       ],
     ) as VnodeDOM;
   } else {
-    const type = task.parameterValues[0][2];
-    let value = task.parameterValues[0][1];
+    const type = pv[0][2];
+    let value = pv[0][1];
     if (type === "xsd:dateTime" && typeof value === "number")
       value = new Date(value).toJSON() || value;
     input = m(
       "input.mt-1 w-full shadow-xs focus:ring-cyan-500 focus:border-cyan-500 block sm:text-sm border-stone-300 rounded-md",
       {
-        type: ["xsd:int", "xsd:unsignedInt"].includes(type) ? "number" : "text",
+        type:
+          type === "xsd:int" || type === "xsd:unsignedInt" ? "number" : "text",
         value: value,
         oninput: (e: Event) => {
           e.redraw = false;
-          task.parameterValues[0][1] = (input.dom as HTMLInputElement).value;
+          pv[0][1] = (input.dom as HTMLInputElement).value;
         },
         onkeydown: keydown,
         oncreate: (vnode: VnodeDOM) => {
@@ -75,7 +79,8 @@ function renderStagingSpv(
           (vnode.dom as HTMLInputElement).select();
           // Need to prevent scrolling on focus because
           // we're animating height and using overflow: hidden
-          (vnode.dom.parentNode.parentNode as Element).scrollTop = 0;
+          const gp = vnode.dom.parentNode?.parentNode;
+          if (gp) (gp as Element).scrollTop = 0;
         },
       },
     ) as VnodeDOM;
@@ -88,11 +93,11 @@ function renderStagingSpv(
       m(
         "span",
         {
-          title: task.parameterValues[0][0],
+          title: pv[0][0],
           dir: "rtl",
           class: "italic pr-1 min-w-0 truncate",
         },
-        task.parameterValues[0][0],
+        pv[0][0],
       ),
     ),
     input,
@@ -103,8 +108,8 @@ function renderStagingDownload(task: StageTask): Children {
   if (!task.fileName || !task.fileType) invalid.add(task);
   else invalid.delete(task);
   const files = store.fetch("files", new Expression.Literal(true));
-  let oui = "";
-  let productClass = "";
+  let oui: string | null = "";
+  let productClass: string | null = "";
   for (const d of task.devices) {
     const parts = d.split("-");
     if (oui === "") oui = parts[0];
@@ -197,8 +202,9 @@ function renderStaging(staging: Set<StageTask>): Child[] {
     const queueFunc = (): void => {
       staging.delete(s);
       for (const d of s.devices) {
-        const t = Object.assign({ device: d }, s);
-        delete t.devices;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { devices, ...rest } = s;
+        const t = Object.assign({ device: d }, rest);
         queueTask(t);
       }
     };
@@ -375,7 +381,7 @@ function renderQueue(queue: Set<QueueTask>): Child[] {
         task = m("span.text-stone-900", t.name);
       }
 
-      let bgDiv: ReturnType<typeof m>;
+      let bgDiv: ReturnType<typeof m> | undefined;
       if (t.status === "pending") {
         bgDiv = m(
           "div.block absolute inset-0 bg-emerald-200 rounded-sm animate-pulse",
@@ -476,7 +482,8 @@ const component: ClosureComponent = (): Component => {
       const staging = getStaging();
       const notifs = notifications.getNotifications();
 
-      let drawerElement: VnodeDOM, statusElement: VnodeDOM;
+      let drawerElement: VnodeDOM | undefined,
+        statusElement: VnodeDOM | undefined;
       const notificationElements = renderNotifications(notifs);
       const stagingElements = renderStaging(staging);
       const queueElements = renderQueue(queue);
@@ -490,6 +497,7 @@ const component: ClosureComponent = (): Component => {
       }
 
       function resizeDrawer(): void {
+        if (!statusElement || !drawerElement) return;
         const statusDom = statusElement.dom as HTMLElement;
         let height = statusDom.offsetTop + statusDom.offsetHeight;
         if (stagingElements.length) {
@@ -516,7 +524,7 @@ const component: ClosureComponent = (): Component => {
           fault: 0,
           stale: 0,
         };
-        for (const t of queue) statusCount[t["status"]] += 1;
+        for (const t of queue) if (t.status) statusCount[t.status] += 1;
 
         const actions = m(
           "div.flex ml-auto gap-2",
@@ -643,14 +651,20 @@ const component: ClosureComponent = (): Component => {
               resizeDrawer();
             },
             onmouseenter: (e: Event) => {
-              if ((drawerElement.dom as HTMLDivElement).style.opacity === "0")
+              if (
+                !drawerElement ||
+                (drawerElement.dom as HTMLDivElement).style.opacity === "0"
+              )
                 return;
               mouseIn = true;
               resizeDrawer();
               e.redraw = false;
             },
             onmouseleave: (e: Event) => {
-              if ((drawerElement.dom as HTMLDivElement).style.opacity === "0")
+              if (
+                !drawerElement ||
+                (drawerElement.dom as HTMLDivElement).style.opacity === "0"
+              )
                 return;
               mouseIn = false;
               resizeDrawer();

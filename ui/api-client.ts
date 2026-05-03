@@ -110,9 +110,10 @@ export function uploadFile(
     for (const [k, v] of Object.entries(options.headers ?? {}))
       xhr.setRequestHeader(k, v);
 
-    if (options.onProgress) {
+    const onProgress = options.onProgress;
+    if (onProgress) {
       xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) options.onProgress(e.loaded / e.total);
+        if (e.lengthComputable) onProgress(e.loaded / e.total);
       };
     }
 
@@ -248,9 +249,8 @@ export async function postTasks(
   const tasks2: Task[] = [];
   for (const t of tasks) {
     t.status = "pending";
-    const t2 = Object.assign({}, t);
-    delete t2.device;
-    delete t2.status;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { device, status, ...t2 } = t;
     tasks2.push(t2);
   }
 
@@ -264,7 +264,7 @@ export async function postTasks(
     tasks[i]._id = t._id;
     tasks[i].status = t.status;
   }
-  return connectionRequestStatus;
+  return connectionRequestStatus ?? "";
 }
 
 export async function updateTags(

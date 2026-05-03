@@ -36,7 +36,7 @@ function createField(
 ): Children {
   if (attr.type === "combo") {
     let selected = "";
-    let optionsValues = attr.options;
+    let optionsValues = attr.options ?? [];
     if (current.object[attr.id] != null) {
       if (!optionsValues.includes(current.object[attr.id]))
         optionsValues = optionsValues.concat([current.object[attr.id]]);
@@ -56,7 +56,7 @@ function createField(
           ? (_vnode: VnodeDOM) => {
               (_vnode.dom as HTMLSelectElement).focus();
             }
-          : null,
+          : undefined,
         onchange: (e: Event) => {
           current.object[attr.id] = (e.target as HTMLSelectElement).value;
           current.modified = true;
@@ -67,7 +67,7 @@ function createField(
     );
   } else if (attr.type === "multi") {
     const optionsValues = Array.from(
-      new Set(attr.options.concat(current.object[attr.id] || [])),
+      new Set((attr.options ?? []).concat(current.object[attr.id] || [])),
     );
     const currentSelected = new Set(current.object[attr.id]);
     const options = optionsValues.map((op) => {
@@ -110,8 +110,8 @@ function createField(
       mode: attr.mode || "javascript",
       onSubmit: (dom: Element) => {
         (dom as HTMLInputElement).form
-          .querySelector<HTMLButtonElement>("button[type=submit]")
-          .click();
+          ?.querySelector<HTMLButtonElement>("button[type=submit]")
+          ?.click();
       },
       onChange: (value: string) => {
         current.object[attr.id] = value;
@@ -127,7 +127,7 @@ function createField(
         ? (_vnode: VnodeDOM) => {
             (_vnode.dom as HTMLInputElement).focus();
           }
-        : null,
+        : undefined,
       onchange: (e: Event) => {
         current.object[attr.id] = (e.target as HTMLInputElement).files;
         current.modified = true;
@@ -150,7 +150,7 @@ function createField(
               dom.focus();
               dom.setSelectionRange(dom.value.length, dom.value.length);
             }
-          : null,
+          : undefined,
         oninput: (e: Event) => {
           current.object[attr.id] = (e.target as HTMLTextAreaElement).value;
           current.modified = true;
@@ -161,8 +161,8 @@ function createField(
           if (e.which === 13 && !e.shiftKey) {
             const dom = e.target as HTMLTextAreaElement;
             dom.form
-              .querySelector<HTMLButtonElement>("button[type=submit]")
-              .click();
+              ?.querySelector<HTMLButtonElement>("button[type=submit]")
+              ?.click();
             return false;
           }
           return true;
@@ -171,7 +171,7 @@ function createField(
     );
   }
 
-  let datalist: string = null;
+  let datalist: string | undefined;
   if (attr.options) datalist = getDatalistId(attr.options);
 
   return m(
@@ -180,14 +180,14 @@ function createField(
       type: attr.type === "password" ? "password" : "text",
       name: attr.id,
       list: datalist,
-      autocomplete: datalist ? "off" : null,
+      autocomplete: datalist ? "off" : undefined,
       disabled: attr.id === "_id" && !current.isNew,
       value: current.object[attr.id],
       oncreate: focus
         ? (_vnode: VnodeDOM) => {
             (_vnode.dom as HTMLInputElement).focus();
           }
-        : null,
+        : undefined,
       oninput: (e: Event) => {
         current.object[attr.id] = (e.target as HTMLInputElement).value;
         current.modified = true;

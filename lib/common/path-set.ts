@@ -8,7 +8,7 @@ export default class PathSet {
   public constructor() {}
 
   public add(pathStr: string): Path {
-    let path: Path = this.get(pathStr);
+    let path = this.get(pathStr);
     if (path) return path;
     path = Path.parse(pathStr);
     if (path.alias) throw new Error("PathSet does not support aliased paths");
@@ -40,7 +40,7 @@ export default class PathSet {
     return path;
   }
 
-  public get(path: string): Path {
+  public get(path: string): Path | undefined {
     return this.stringIndex.get(path);
   }
 

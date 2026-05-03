@@ -85,7 +85,8 @@ class SandboxDate {
       number?,
     ]
   ) {
-    if (argumentList.length) return new Date(...argumentList);
+    if (argumentList.length)
+      return new (Date as new (...a: unknown[]) => Date)(...argumentList);
 
     return new Date(state.sessionContext.timestamp);
   }
@@ -150,7 +151,7 @@ class ParameterWrapper {
         get: function () {
           if (state.uncommitted) commit();
 
-          if (state.revision !== unpackedRevision) {
+          if (!unpacked || state.revision !== unpackedRevision) {
             unpackedRevision = state.revision;
             unpacked = device.unpack(
               state.sessionContext.deviceData,
@@ -164,7 +165,7 @@ class ParameterWrapper {
           const attr = state.sessionContext.deviceData.attributes.get(
             unpacked[0],
             state.revision,
-          )[attrName as keyof Attributes];
+          )?.[attrName as keyof Attributes];
 
           if (!attr) return UNDEFINED;
 
@@ -177,7 +178,7 @@ class ParameterWrapper {
       get: function () {
         if (state.uncommitted) commit();
 
-        if (state.revision !== unpackedRevision) {
+        if (!unpacked || state.revision !== unpackedRevision) {
           unpackedRevision = state.revision;
           unpacked = device.unpack(
             state.sessionContext.deviceData,
@@ -196,7 +197,7 @@ class ParameterWrapper {
       get: function () {
         if (state.uncommitted) commit();
 
-        if (state.revision !== unpackedRevision) {
+        if (!unpacked || state.revision !== unpackedRevision) {
           unpackedRevision = state.revision;
           unpacked = device.unpack(
             state.sessionContext.deviceData,
@@ -214,7 +215,7 @@ class ParameterWrapper {
     (this as any)[Symbol.iterator] = function* () {
       if (state.uncommitted) commit();
 
-      if (state.revision !== unpackedRevision) {
+      if (!unpacked || state.revision !== unpackedRevision) {
         unpackedRevision = state.revision;
         unpacked = device.unpack(
           state.sessionContext.deviceData,
@@ -244,9 +245,9 @@ function declare(
   const declaration: Declaration = {
     path: parsedPath,
     pathGet: 1,
-    pathSet: null,
-    attrGet: null,
-    attrSet: null,
+    pathSet: undefined,
+    attrGet: undefined,
+    attrSet: undefined,
     defer: true,
   };
 
@@ -425,7 +426,7 @@ export async function run(
   }
 
   const _state = state;
-  let fault: Fault;
+  let fault: Fault | undefined;
 
   await Promise.all(
     Object.entries(_state.extensions).map(async ([k, v]) => {

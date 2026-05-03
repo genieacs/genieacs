@@ -9,7 +9,7 @@ import { reduce } from "./expression/evaluate.ts";
 export type Value = string | number | boolean | null;
 
 export abstract class Expression {
-  private _string: string;
+  private _string: string | undefined;
 
   abstract map(fn: (e: Expression, i: number) => Expression): Expression;
   abstract mapAsync(

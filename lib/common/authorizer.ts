@@ -20,7 +20,7 @@ export default class Authorizer {
   public hasAccess(resourceType: string, access: number): boolean {
     const cacheKey = `${resourceType}-${access}`;
     if (this.hasAccessCache.has(cacheKey))
-      return this.hasAccessCache.get(cacheKey);
+      return this.hasAccessCache.get(cacheKey)!;
 
     let has = false;
     for (const permissionSet of this.permissionSets) {
@@ -41,7 +41,7 @@ export default class Authorizer {
   public getFilter(resourceType: string, access: number): Expression {
     const cacheKey = `${resourceType}-${access}`;
     if (this.getFilterCache.has(cacheKey))
-      return this.getFilterCache.get(cacheKey);
+      return this.getFilterCache.get(cacheKey)!;
 
     let filter: Expression = new Expression.Literal(false);
     for (const permissionSet of this.permissionSets) {
@@ -62,7 +62,7 @@ export default class Authorizer {
     resource: object,
   ): (mutationType: string, mutation?: any, args?: any) => boolean {
     if (this.validatorCache.has(resource))
-      return this.validatorCache.get(resource);
+      return this.validatorCache.get(resource)!;
 
     let validators: Expression = new Expression.Literal(false);
 

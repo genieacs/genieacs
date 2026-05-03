@@ -11,7 +11,7 @@ interface Attrs {
 
 const component: ClosureComponent<Attrs> = (vn): Component<Attrs> => {
   let interval: ReturnType<typeof setInterval>;
-  let host: string;
+  let host: string | undefined;
 
   const refresh = (): void => {
     if (!host) {

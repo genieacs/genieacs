@@ -19,7 +19,7 @@ const component: ClosureComponent<Attrs> = () => {
     view: (vnode) => {
       const device = vnode.attrs.device;
       let writable = true;
-      if ("writable" in vnode.attrs)
+      if (vnode.attrs.writable)
         writable = !!store.evaluateExpression(vnode.attrs.writable, device)
           .value;
 

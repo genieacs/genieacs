@@ -53,7 +53,7 @@ function restartWorker(
   if (min1 > 5 && min2 > 5 && min3 > 5) {
     process.exitCode = 1;
     cluster.removeListener("exit", restartWorker);
-    for (const pid in cluster.workers) cluster.workers[pid].kill();
+    for (const w of Object.values(cluster.workers!)) w!.kill();
 
     logger.error({
       message: "Too many crashes, exiting",
@@ -103,7 +103,7 @@ export function start(
 
 export function stop(): void {
   cluster.removeListener("exit", restartWorker);
-  for (const pid in cluster.workers) cluster.workers[pid].kill();
+  for (const w of Object.values(cluster.workers!)) w!.kill();
 }
 
 export const worker = cluster.worker;

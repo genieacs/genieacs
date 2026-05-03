@@ -67,17 +67,18 @@ async function fetchPresets(): Promise<[string, Preset[]]> {
 
   const presets = [] as Preset[];
   for (const preset of res) {
-    let schedule: { md5: string; duration: number; schedule: any } = null;
+    let schedule: { md5: string; duration: number; schedule: any } | undefined =
+      undefined;
     if (preset["schedule"]) {
       const parts = preset["schedule"].trim().split(/\s+/);
       schedule = {
         md5: crypto.createHash("md5").update(preset["schedule"]).digest("hex"),
-        duration: null,
+        duration: 0,
         schedule: null,
       };
 
       try {
-        schedule.duration = +parts.shift() * 1000;
+        schedule.duration = +parts.shift()! * 1000;
         schedule.schedule = scheduling.parseCron(parts.join(" "));
       } catch {
         logger.warn({
@@ -151,9 +152,9 @@ async function fetchPresets(): Promise<[string, Preset[]]> {
         case "add_object":
           for (const obj of objects) {
             if (obj["_id"] === c.object) {
-              const alias = obj["_keys"]
-                .map((k: string) => `${k}:${JSON.stringify(obj[k])}`)
-                .join(",");
+              const alias = obj["_keys"]!.map(
+                (k: string) => `${k}:${JSON.stringify(obj[k])}`,
+              ).join(",");
               const p = `${c.name}.[${alias}]`;
               _provisions.push([
                 "instances",
@@ -162,7 +163,7 @@ async function fetchPresets(): Promise<[string, Preset[]]> {
               ]);
 
               for (const k in obj) {
-                if (!k.startsWith("_") && !(obj["_keys"].indexOf(k) !== -1))
+                if (!k.startsWith("_") && !(obj["_keys"]!.indexOf(k) !== -1))
                   _provisions.push([
                     "value",
                     new Expression.Literal(`${p}.${k}`),
@@ -177,9 +178,9 @@ async function fetchPresets(): Promise<[string, Preset[]]> {
         case "delete_object":
           for (const obj of objects) {
             if (obj["_id"] === c.object) {
-              const alias = obj["_keys"]
-                .map((k: string) => `${k}:${JSON.stringify(obj[k])}`)
-                .join(",");
+              const alias = obj["_keys"]!.map(
+                (k: string) => `${k}:${JSON.stringify(obj[k])}`,
+              ).join(",");
               const p = `${c.name}.[${alias}]`;
               _provisions.push([
                 "instances",

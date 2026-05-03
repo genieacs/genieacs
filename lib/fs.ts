@@ -89,8 +89,8 @@ export async function listener(
     return;
   }
 
-  const urlParts = url.parse(request.url, true);
-  const filename = decodeURIComponent(urlParts.pathname.substring(1));
+  const urlParts = url.parse(request.url!, true);
+  const filename = decodeURIComponent(urlParts.pathname!.substring(1));
 
   const log = {
     message: "Fetch file",

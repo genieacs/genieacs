@@ -8,8 +8,10 @@ type ResourceFilter = {
   type: string | string[];
 };
 
-const resources: Record<string, Record<string, ResourceFilter>> = {
-  devices: {},
+export type Resource = keyof typeof resources;
+
+const resources = {
+  devices: {} as Record<string, ResourceFilter>,
   faults: {
     Device: {
       parameter: new Expression.Parameter(Path.parse("device")),
@@ -115,12 +117,12 @@ for (const v of filters) {
   };
 }
 
-export function getLabels(resource: string): string[] {
+export function getLabels(resource: Resource): string[] {
   if (!resources[resource]) return [];
   return Object.keys(resources[resource]);
 }
 
-function queryNumber(param: Expression, value: string): Expression {
+function queryNumber(param: Expression, value: string): Expression | null {
   let op = "=";
   for (const o of ["<>", "=", "<=", "<", ">=", ">"]) {
     if (value.startsWith(o)) {
@@ -136,7 +138,7 @@ function queryNumber(param: Expression, value: string): Expression {
   return new Expression.Binary(op, param, new Expression.Literal(v));
 }
 
-function queryTimestamp(param: Expression, value: string): Expression {
+function queryTimestamp(param: Expression, value: string): Expression | null {
   let op = "=";
   for (const o of ["<>", "=", "<=", "<", ">=", ">"]) {
     if (value.startsWith(o)) {
@@ -182,7 +184,7 @@ function queryStringMonoCase(param: Expression, value: string): Expression {
   );
 }
 
-function queryMac(param: Expression, value: string): Expression {
+function queryMac(param: Expression, value: string): Expression | null {
   value = value.replace(/[^a-f0-9]/gi, "").toLowerCase();
   if (!value) return null;
   if (value.length === 12) {
@@ -253,16 +255,18 @@ function queryTag(tag: string): Expression {
   );
 }
 
-export function getTip(resource: string, label: string): string {
-  let tip;
-  if (resources[resource]?.[label]) {
-    const param = resources[resource][label];
+export function getTip(resource: Resource, label: string): string {
+  const resourceFilter = (
+    resources[resource] as Record<string, ResourceFilter>
+  )[label];
+  let tip: string = "";
+  if (resourceFilter) {
     const types =
       resource === "devices"
-        ? (param["type"] as string[])
-        : (param["type"] as string).split(",");
+        ? (resourceFilter.type as string[])
+        : (resourceFilter.type as string).split(",");
 
-    const tips = [];
+    const tips: string[] = [];
     for (const type of types) {
       switch (type.trim()) {
         case "string":
@@ -300,50 +304,50 @@ export function getTip(resource: string, label: string): string {
 }
 
 export function unpack(
-  resource: string,
+  resource: Resource,
   label: string,
   value: string,
 ): Expression {
-  if (!resources[resource]) return null;
-  const type = resources[resource][label].type;
+  const resourceFilter = (
+    resources[resource] as Record<string, ResourceFilter>
+  )[label];
+  if (!resourceFilter) return new Expression.Literal(null);
+  const type = resources[resource as "devices"][label].type;
   value = value.trim();
   let res: Expression = new Expression.Literal(false);
 
   if (type.length === 0 || type.includes("number")) {
-    const q = queryNumber(resources[resource][label].parameter, value);
+    const q = queryNumber(resourceFilter.parameter, value);
     if (q) res = Expression.or(res, q);
   }
 
   if (type.length === 0 || type.includes("string")) {
-    const q = queryString(resources[resource][label].parameter, value);
+    const q = queryString(resourceFilter.parameter, value);
     if (q) res = Expression.or(res, q);
   }
 
   if (type.length === 0 || type.includes("timestamp")) {
-    const q = queryTimestamp(resources[resource][label].parameter, value);
+    const q = queryTimestamp(resourceFilter.parameter, value);
     if (q) res = Expression.or(res, q);
   }
 
   if (type.includes("string-casesensitive")) {
-    const q = queryStringCaseSensitive(
-      resources[resource][label].parameter,
-      value,
-    );
+    const q = queryStringCaseSensitive(resourceFilter.parameter, value);
     if (q) res = Expression.or(res, q);
   }
 
   if (type.includes("string-monocase")) {
-    const q = queryStringMonoCase(resources[resource][label].parameter, value);
+    const q = queryStringMonoCase(resourceFilter.parameter, value);
     if (q) res = Expression.or(res, q);
   }
 
   if (type.includes("mac")) {
-    const q = queryMac(resources[resource][label].parameter, value);
+    const q = queryMac(resourceFilter.parameter, value);
     if (q) res = Expression.or(res, q);
   }
 
   if (type.includes("mac-wildcard")) {
-    const q = queryMacWildcard(resources[resource][label].parameter, value);
+    const q = queryMacWildcard(resourceFilter.parameter, value);
     if (q) res = Expression.or(res, q);
   }
 

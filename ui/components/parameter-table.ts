@@ -66,9 +66,7 @@ const component: ClosureComponent<Attrs> = () => {
       const rows = [];
       for (const i of instances) {
         let filter: Expression =
-          "filter" in vnode.attrs
-            ? vnode.attrs.filter
-            : new Expression.Literal(true);
+          vnode.attrs.filter ?? new Expression.Literal(true);
 
         const root = Path.parse(i);
         filter = filter.evaluate((e) => {

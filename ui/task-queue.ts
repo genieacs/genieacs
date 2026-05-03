@@ -78,8 +78,8 @@ export function commit(
   tasks: QueueTask[],
   callback: (
     deviceId: string,
-    err: Error,
-    conReqStatus: string,
+    err: Error | null,
+    conReqStatus: string | null,
     _tasks: QueueTask[],
   ) => void,
 ): Promise<void> {

@@ -9,7 +9,7 @@ import { ICONS_SVG } from "../build/assets.ts";
 
 export const portal: ClosureComponent<void> = () => {
   let rootElement: HTMLElement;
-  let children: ChildArrayOrPrimitive;
+  let children: ChildArrayOrPrimitive | undefined;
 
   return {
     oncreate: (vnode) => {

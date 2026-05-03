@@ -224,7 +224,8 @@ export async function awaitSessionStart(
     { _id: deviceId },
     { projection: { _lastInform: 1 } },
   );
-  const li = (device["_lastInform"] as Date).getTime();
+  if (!device) throw new Error("No such device");
+  const li = device["_lastInform"].getTime();
   if (li > lastInform) return true;
   const token = await getToken(`cwmp_session_${deviceId}`);
   if (token?.startsWith("cwmp_session_")) return true;
@@ -492,7 +493,7 @@ export function authLocal(
   return new Promise((resolve, reject) => {
     const users = getUsers(snapshot);
     const user = users[username];
-    if (!user?.password) return void resolve(null);
+    if (!user?.password) return void resolve(false);
     hashPassword(password, user.salt)
       .then((hash) => {
         if (hash === user.password) resolve(true);

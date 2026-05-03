@@ -13,7 +13,7 @@ const SERVICE_PORT = config.get("FS_PORT") as number;
 
 function exitWorkerGracefully(): void {
   setTimeout(exitWorkerUngracefully, 5000).unref();
-  Promise.all([db.disconnect(), cluster.worker.disconnect()])
+  Promise.all([db.disconnect(), cluster.worker!.disconnect()])
     .then(logger.close)
     .catch(exitWorkerUngracefully);
 }
@@ -56,7 +56,7 @@ if (!cluster.worker) {
   const options = {
     port: SERVICE_PORT,
     host: SERVICE_ADDRESS,
-    ssl: key && cert ? { key, cert } : null,
+    ssl: key && cert ? { key, cert } : undefined,
     timeout: 30000,
   };
 

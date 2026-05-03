@@ -63,7 +63,7 @@ const component: ClosureComponent<Attrs> = () => {
       const element = vnode.attrs.element;
       if (element == null) return children;
 
-      let attrs: Attributes;
+      let attrs: Attributes | undefined;
       let el: Expression | Value;
       if (element instanceof Expression) {
         el = evaluateExpression(element, device || {}).value;
@@ -78,7 +78,7 @@ const component: ClosureComponent<Attrs> = () => {
         el = evaluateExpression(element.tag, device || {}).value;
       }
 
-      return m(el as string, attrs, children);
+      return m(el as string, attrs ?? {}, children);
     },
   };
 };

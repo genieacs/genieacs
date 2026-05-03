@@ -1,4 +1,4 @@
-function isObject(obj: any): boolean {
+function isObject(obj: any): obj is Record<string, unknown> {
   return Object.prototype.toString.call(obj) === "[object Object]";
 }
 

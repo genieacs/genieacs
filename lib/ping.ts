@@ -6,10 +6,10 @@ export interface PingResult {
   packetsTransmitted: number;
   packetsReceived: number;
   packetLoss: number;
-  min: number;
-  avg: number;
-  max: number;
-  mdev: number;
+  min: number | null;
+  avg: number | null;
+  max: number | null;
+  mdev: number | null;
 }
 
 function isValidHost(host: string): boolean {
@@ -21,8 +21,13 @@ function isValidHost(host: string): boolean {
   return /^[a-zA-Z0-9\-.:[\]-]+$/.test(domainToASCII(host));
 }
 
-export function parsePing(osPlatform: string, stdout: string): PingResult {
-  let parseRegExp1: RegExp, parseRegExp2: RegExp, parsed: PingResult;
+export function parsePing(
+  osPlatform: string,
+  stdout: string,
+): PingResult | undefined {
+  let parseRegExp1: RegExp | undefined,
+    parseRegExp2: RegExp | undefined,
+    parsed: PingResult | undefined;
   switch (osPlatform) {
     case "linux":
       parseRegExp1 =
@@ -37,6 +42,8 @@ export function parsePing(osPlatform: string, stdout: string): PingResult {
       parseRegExp2 =
         /(\d+) packets transmitted, (\d+) packets received, ([\d.]+)% packet loss/;
       break;
+    default:
+      return undefined;
   }
 
   const m1 = stdout.match(parseRegExp1);
@@ -69,7 +76,7 @@ export function parsePing(osPlatform: string, stdout: string): PingResult {
 
 export function ping(
   host: string,
-  callback: (err: Error, res?: PingResult, stdout?: string) => void,
+  callback: (err: Error | null, res?: PingResult, stdout?: string) => void,
 ): void {
   // Validate input to prevent possible remote code execution
   // Credit to Alex Hordijk for reporting this vulnerability
@@ -92,7 +99,7 @@ export function ping(
 
   exec(cmd, (err, stdout) => {
     if (err) return callback(err);
-    const parsed: PingResult = parsePing(platform(), stdout);
+    const parsed = parsePing(platform(), stdout);
     return callback(err, parsed, stdout);
   });
 }

@@ -187,14 +187,14 @@ function renderTable(
       if (typeof valueCallback === "function") {
         valueComponent = valueCallback(attr, record);
       } else if (attr.type === "code") {
-        const excerpt = getExcerpt(record[attr.id]);
+        const excerpt = getExcerpt(record[attr.id!]);
         valueComponent = m(
           "span.font-mono",
           { title: excerpt.join("\n") },
           excerpt[0],
         );
       } else {
-        valueComponent = record[attr.id];
+        valueComponent = record[attr.id!];
       }
       // TODO automatically add long text component on long values
 

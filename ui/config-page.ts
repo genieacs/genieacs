@@ -24,7 +24,7 @@ function putActionHandler(
   action: string,
   _object: Record<string, any>,
   isNew?: boolean,
-): Promise<ValidationErrors> {
+): Promise<ValidationErrors | null> {
   return new Promise((resolve, reject) => {
     const object = Object.assign({}, _object);
     if (action === "save") {
@@ -119,7 +119,7 @@ function renderTable(
     },
   );
 
-  let regex: RegExp;
+  let regex: RegExp | undefined;
   if (searchString) {
     const keywords = searchString.split(" ").filter((s: string) => s);
     if (keywords.length)
@@ -140,7 +140,7 @@ function renderTable(
       {
         title: "Edit config value",
         onclick: () => {
-          let cb: () => Children = null;
+          let cb: (() => Children) | null = null;
           const comp = m(
             putFormComponent,
             Object.assign(
@@ -260,7 +260,7 @@ export const component: ClosureComponent = (): Component => {
           {
             title: "Create new config",
             onclick: () => {
-              let cb: () => Children = null;
+              let cb: (() => Children) | null = null;
               const comp = m(
                 putFormComponent,
                 Object.assign(
@@ -281,7 +281,7 @@ export const component: ClosureComponent = (): Component => {
                             } else {
                               overlay.close(cb);
                             }
-                            resolve(null);
+                            resolve();
                           })
                           .catch((err) => {
                             notifications.push("error", err.message);
@@ -335,7 +335,7 @@ export const component: ClosureComponent = (): Component => {
               "button.mr-4 px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500",
               {
                 onclick: () => {
-                  let cb: () => Children = null;
+                  let cb: (() => Children) | null = null;
                   const comp = m(
                     uiConfigComponent,
                     Object.assign(

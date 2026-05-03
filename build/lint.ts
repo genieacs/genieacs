@@ -18,7 +18,7 @@ async function runEslint(): Promise<string> {
     if (!(err instanceof Error)) throw err;
     const e = err as ExecException;
     if (e.killed || e.signal || e.stderr || e.code !== 1) throw err;
-    return e.stdout;
+    return e.stdout ?? "";
   }
 }
 

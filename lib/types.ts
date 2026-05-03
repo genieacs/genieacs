@@ -24,7 +24,7 @@ export interface SessionFault extends Fault {
   provisions: [string, ...Value[]][];
   retryNow?: boolean;
   precondition?: boolean;
-  retries?: number;
+  retries: number;
   expiry?: number;
 }
 
@@ -90,7 +90,7 @@ export interface SyncState {
     accessList: Set<Path>;
   };
   spv: Map<Path, [string | number | boolean, string]>;
-  spa: Map<Path, { notification: number; accessList: string[] }>;
+  spa: Map<Path, { notification: number | null; accessList: string[] | null }>;
   gpn: Set<Path>;
   gpnPatterns: Map<Path, number>;
   tags: Map<Path, boolean>;
@@ -106,7 +106,7 @@ export interface SyncState {
 }
 
 export interface SessionContext {
-  sessionId?: string;
+  sessionId: string;
   timestamp: number;
   deviceId: string;
   deviceData: DeviceData;
@@ -127,26 +127,26 @@ export interface SessionContext {
   cycle: number;
   extensionsCache: any;
   declarations: Declaration[][];
-  faults?: { [channel: string]: SessionFault };
-  retries?: { [channel: string]: number };
-  cacheSnapshot?: string;
-  httpResponse?: ServerResponse;
-  httpRequest?: IncomingMessage;
-  faultsTouched?: { [channel: string]: boolean };
-  presetCycles?: number;
-  new?: boolean;
-  debug?: boolean;
+  faults: { [channel: string]: SessionFault };
+  retries: { [channel: string]: number };
+  cacheSnapshot: string;
+  httpResponse: ServerResponse;
+  httpRequest: IncomingMessage;
+  faultsTouched: { [channel: string]: boolean };
+  presetCycles: number;
+  new: boolean;
+  debug: boolean;
   state: number;
   authState: number;
-  tasks?: Task[];
-  operations?: { [commandKey: string]: Operation };
-  syncState?: SyncState;
-  lastActivity?: number;
-  extendLock?: number;
-  rpcRequest?: AcsRequest;
-  operationsTouched?: { [commandKey: string]: 1 | 0 };
-  provisionsRet?: any[];
-  doneTasks?: string[];
+  tasks: Task[];
+  operations: { [commandKey: string]: Operation };
+  syncState: SyncState | undefined;
+  lastActivity: number;
+  extendLock: number;
+  rpcRequest: AcsRequest | undefined;
+  operationsTouched: { [commandKey: string]: 1 | 0 };
+  provisionsRet: any[];
+  doneTasks: string[];
 }
 
 export interface Task {
@@ -214,7 +214,7 @@ export interface SetParameterValues {
 
 export interface SetParameterAttributes {
   name: "SetParameterAttributes";
-  parameterList: [string, number, string[]][];
+  parameterList: [string, number | null, string[] | null][];
 }
 
 export interface AddObject {
@@ -357,7 +357,7 @@ export interface InformRequest {
 
 export interface TransferCompleteRequest {
   name: "TransferComplete";
-  commandKey?: string;
+  commandKey: string;
   faultStruct?: FaultStruct;
   startTime?: number;
   completeTime?: number;
@@ -407,21 +407,25 @@ export interface QueryOptions {
 export interface Declaration {
   path: Path;
   pathGet: number;
-  pathSet?: number | [number, number];
-  attrGet?: {
-    object?: number;
-    writable?: number;
-    value?: number;
-    notification?: number;
-    accessList?: number;
-  };
-  attrSet?: {
-    object?: boolean;
-    writable?: boolean;
-    value?: [string | number | boolean, string?];
-    notification?: number;
-    accessList?: string[];
-  };
+  pathSet: number | [number, number] | undefined;
+  attrGet:
+    | {
+        object?: number;
+        writable?: number;
+        value?: number;
+        notification?: number;
+        accessList?: number;
+      }
+    | undefined;
+  attrSet:
+    | {
+        object?: boolean;
+        writable?: boolean;
+        value?: [string | number | boolean, string?];
+        notification?: number;
+        accessList?: string[];
+      }
+    | undefined;
   defer: boolean;
 }
 
@@ -442,8 +446,8 @@ export interface Preset {
   name: string;
   channel: string;
   schedule?: { md5: string; duration: number; schedule: any };
-  events?: { [event: string]: boolean };
-  precondition?: Expression;
+  events: { [event: string]: boolean };
+  precondition: Expression;
   provisions: [string, ...Expression[]][];
 }
 
@@ -504,9 +508,9 @@ export interface SoapMessage {
 }
 
 export interface ScriptResult {
-  fault: Fault;
-  clear: Clear[];
-  declare: Declaration[];
+  fault: Fault | null;
+  clear: Clear[] | null;
+  declare: Declaration[] | null;
   done: boolean;
   returnValue: any;
 }

@@ -37,7 +37,7 @@ for (const [key, value] of Object.entries(window.clientConfig)) {
   let ref = conf;
   const keyParts = key.split(".");
   while (keyParts.length > 1) {
-    const k = keyParts.shift();
+    const k = keyParts.shift()!;
     if (ref[k] == null || typeof ref[k] !== "object") ref[k] = {};
     ref = ref[k] as NestedRecord;
   }
@@ -115,7 +115,7 @@ for (const [name, objRaw] of Object.entries(
 }
 
 if (conf["pageSize"] instanceof Expression.Literal)
-  pageSize = +conf["pageSize"].value || 10;
+  pageSize = +(conf["pageSize"].value as number) || 10;
 
 device = conf["device"] as NestedRecord;
 

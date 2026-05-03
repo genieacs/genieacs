@@ -69,7 +69,7 @@ export function reduce(exp: Expression): Expression {
         exp.left instanceof Expression.Literal &&
         exp.right instanceof Expression.Literal
       ) {
-        const c = compare(exp.left.value, exp.right.value);
+        const c = compare(exp.left.value!, exp.right.value!);
         switch (exp.operator) {
           case "=":
             return new Expression.Literal(c === 0);
@@ -94,8 +94,8 @@ export function reduce(exp: Expression): Expression {
         exp.left instanceof Expression.Literal &&
         exp.right instanceof Expression.Literal
       ) {
-        const a = toNumber(exp.left.value);
-        const b = toNumber(exp.right.value);
+        const a = toNumber(exp.left.value!);
+        const b = toNumber(exp.right.value!);
         switch (exp.operator) {
           case "+":
             return new Expression.Literal(a + b);
@@ -116,8 +116,8 @@ export function reduce(exp: Expression): Expression {
         exp.left instanceof Expression.Literal &&
         exp.right instanceof Expression.Literal
       ) {
-        const a = toNumber(exp.left.value);
-        const b = Math.trunc(toNumber(exp.right.value));
+        const a = toNumber(exp.left.value!);
+        const b = Math.trunc(toNumber(exp.right.value!));
         if (b === 0) return new Expression.Literal(null);
         return new Expression.Literal(a % b);
       }
@@ -130,8 +130,8 @@ export function reduce(exp: Expression): Expression {
         exp.left instanceof Expression.Literal &&
         exp.right instanceof Expression.Literal
       ) {
-        const a = toString(exp.left.value);
-        const b = toString(exp.right.value);
+        const a = toString(exp.left.value!);
+        const b = toString(exp.right.value!);
         return new Expression.Literal(a + b);
       }
     } else if (exp.operator === "LIKE") {
@@ -143,10 +143,10 @@ export function reduce(exp: Expression): Expression {
         exp.left instanceof Expression.Literal &&
         exp.right instanceof Expression.Literal
       ) {
-        const s = toString(exp.left.value);
+        const s = toString(exp.left.value!);
         let r = regExpCache.get(exp.right);
         if (!r) {
-          r = likePatternToRegExp(toString(exp.right.value));
+          r = likePatternToRegExp(toString(exp.right.value!));
           regExpCache.set(exp.right, r);
         }
         return new Expression.Literal(r.test(s));
@@ -160,10 +160,10 @@ export function reduce(exp: Expression): Expression {
         exp.left instanceof Expression.Literal &&
         exp.right instanceof Expression.Literal
       ) {
-        const s = toString(exp.left.value);
+        const s = toString(exp.left.value!);
         let r = regExpCache.get(exp.right);
         if (!r) {
-          r = likePatternToRegExp(toString(exp.right.value));
+          r = likePatternToRegExp(toString(exp.right.value!));
           regExpCache.set(exp.right, r);
         }
         return new Expression.Literal(!r.test(s));

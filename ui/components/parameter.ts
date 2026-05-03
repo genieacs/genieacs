@@ -19,7 +19,7 @@ const evaluateParam = memoize(
     exp: Expression,
     obj: any,
     now: number,
-  ): { value: Value; timestamp: number; parameter: string } => {
+  ): { value: Value; timestamp: number; parameter: string | undefined } => {
     let timestamp = now;
     const valueMap: Map<Expression.Literal, string> = new Map();
     const lit = exp.evaluate((e): Expression.Literal => {
@@ -70,7 +70,7 @@ const component: ClosureComponent<Attrs> = (): Component<Attrs> => {
       if (value == null) return null;
 
       let edit;
-      if (device[parameter + ":writable"]) {
+      if (parameter && device[parameter + ":writable"]) {
         edit = m(
           "button",
           {

@@ -77,8 +77,8 @@ export function init(
       new Error("You are not authorized to view this page"),
     );
   }
-  let filter: Expression = null;
-  let sort: Record<string, number> = null;
+  let filter: Expression | undefined;
+  let sort: Record<string, number> | undefined;
   if (args.hasOwnProperty("filter"))
     filter = Expression.parse(args["filter"] as string);
   if (args.hasOwnProperty("sort")) sort = JSON.parse(args["sort"] as string);
@@ -158,7 +158,7 @@ export const component: ClosureComponent<Attrs> = (): Component<Attrs> => {
 
         if (attr.id === "detail") {
           return m("long-text", {
-            text: yamlStringify(fault["detail"]),
+            text: yamlStringify(fault["detail"] ?? null),
             class: "max-w-xs",
           });
         }
@@ -212,7 +212,7 @@ export const component: ClosureComponent<Attrs> = (): Component<Attrs> => {
       }
 
       const filterAttrs = {
-        resource: "faults",
+        resource: "faults" as const,
         filter: vnode.attrs.filter,
         onChange: onFilterChanged,
       };

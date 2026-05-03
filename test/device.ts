@@ -15,9 +15,9 @@ void test("getAliasDeclarations", () => {
   for (const [i, d] of decs.entries()) {
     assert.strictEqual(d.path.toString(), expected[i]);
     assert.strictEqual(d.pathGet, 99);
-    assert.strictEqual(d.pathSet, null);
-    assert.deepStrictEqual(d.attrGet, i ? { value: 99 } : null);
-    assert.strictEqual(d.attrSet, null);
+    assert.strictEqual(d.pathSet, undefined);
+    assert.deepStrictEqual(d.attrGet, i ? { value: 99 } : undefined);
+    assert.strictEqual(d.attrSet, undefined);
     assert.strictEqual(d.defer, true);
   }
 });

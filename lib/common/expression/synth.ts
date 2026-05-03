@@ -6,8 +6,8 @@ import normalize from "./normalize.ts";
 type Minterm = number[];
 
 export abstract class SynthContextBase<
-  T extends { toString: () => string } = unknown,
-  U = unknown,
+  T extends { toString: () => string } = { toString: () => string },
+  U extends { toString: () => string } = { toString: () => string },
 > {
   public variables = new Map<string, number>();
   protected clauses = new Map<number, U>();
@@ -23,7 +23,7 @@ export abstract class SynthContextBase<
     return idx;
   }
 
-  public getClause(v: number): U {
+  public getClause(v: number): U | undefined {
     return this.clauses.get(v);
   }
 
@@ -88,8 +88,8 @@ function* findIsNullDeps(exp: Expression): IterableIterator<Expression> {
 }
 
 export abstract class Clause {
-  private _isNullable: Set<string>;
-  protected _expression: Expression;
+  private _isNullable: Set<string> | undefined;
+  protected _expression: Expression | undefined;
   abstract getMinterms(
     context: SynthContextBase<Clause>,
     res: number,
@@ -278,7 +278,7 @@ export namespace Clause {
         }
       }
       this.lhs = lhs;
-      this.pattern = parseLikePattern(rhs, esc);
+      this.pattern = parseLikePattern(rhs, esc ?? "");
       this.caseSensitive = caseSensitive;
       this.contradiction = contradiction;
     }
@@ -354,7 +354,7 @@ export namespace Clause {
           cases.length &&
           then.toString() === cases[cases.length - 1].then.toString()
         )
-          minterms.push(...cases.pop().when);
+          minterms.push(...cases.pop()!.when);
         minterms = context.minimize(
           minterms,
           cases.flatMap((c) => c.when),
@@ -377,7 +377,7 @@ export namespace Clause {
         cases.pop();
       let res: Expression = new Expression.Literal(null);
       while (cases.length) {
-        const c = cases.pop();
+        const c = cases.pop()!;
         if (c.when.length === 1 && !c.when[0].length) {
           res = c.then;
         } else {
@@ -399,7 +399,7 @@ export namespace Clause {
   }
 
   export function fromExpression(exp: Expression): Clause {
-    let res: Clause;
+    let res: Clause | undefined;
     let negate = false;
     if (exp instanceof Expression.Unary) {
       let op = exp.operator;
@@ -436,7 +436,7 @@ export namespace Clause {
             res = new Compare(
               fromExpression(exp.left),
               op as ">" | "<" | "=",
-              exp.right.value,
+              exp.right.value as string | number | boolean,
             );
           }
         } else if (op === "LIKE") {
@@ -694,7 +694,7 @@ export class SynthContext extends SynthContextBase<Clause, Clause> {
 
     for (const v of whitelist) {
       const clause = this.getClause(v);
-      const nullables = [...clause.getNullables()].map((c) => this.getVar(c));
+      const nullables = [...clause!.getNullables()].map((c) => this.getVar(c));
       if (nullables.length) {
         dcSet.push([
           ...nullables.map((n) => (n << 2) ^ 2),
@@ -727,7 +727,7 @@ export class SynthContext extends SynthContextBase<Clause, Clause> {
       for (const i of set) {
         if (i === idx || i & 1) continue;
         const c = this.getClause(i >> 2);
-        if (c.isNullable(clause)) return false;
+        if (c!.isNullable(clause)) return false;
       }
       return true;
     }
@@ -787,7 +787,7 @@ export class SynthContext extends SynthContextBase<Clause, Clause> {
       let ms = [minterm];
       while (perms.length) {
         const newMs: number[][] = [];
-        const perm = perms.pop();
+        const perm = perms.pop()!;
         for (const p of perm) newMs.push(...ms.map((mm) => [...mm, p]));
         ms = newMs;
       }
@@ -944,7 +944,7 @@ function getPureLikePrefix(pattern: string[]): string | null {
 }
 
 export function likeImplies(pat1: string[], pat2: string[]): boolean {
-  let backtrack: [number, number] = null;
+  let backtrack: [number, number] | null = null;
 
   for (let i1 = 0, i2 = 0; ; ++i1, ++i2) {
     while (i1 < pat1.length && pat1[i1] === "\\%") backtrack = [i1++, i2];

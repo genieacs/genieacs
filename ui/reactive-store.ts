@@ -148,9 +148,9 @@ function compareFunction(
         if (v2Obj.value) v2 = v2Obj.value[0];
         else v2 = null;
       }
-      if (v1 > v2) {
+      if ((v1 as any) > (v2 as any)) {
         return asc;
-      } else if (v1 < v2) {
+      } else if ((v1 as any) < (v2 as any)) {
         return asc * -1;
       } else if (v1 !== v2) {
         const w: Record<string, number> = {

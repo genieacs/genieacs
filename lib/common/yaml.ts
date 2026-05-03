@@ -215,8 +215,8 @@ function stringifyAny(
   }
 }
 
-export function stringify(obj: unknown): string {
-  if (obj === undefined) return undefined;
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export function stringify(obj: {} | null): string {
   const lines: string[] = [];
   stringifyAny(obj, lines);
   return lines.join("\n") + "\n";

@@ -34,7 +34,7 @@ export default class VersionedMap<K, V> {
     this._revision = rev;
   }
 
-  public get(key: K, rev = this._revision): V {
+  public get(key: K, rev = this._revision): V | undefined {
     const revisions = this.map.get(key);
     if (!revisions) return UNDEFINED;
 
@@ -52,7 +52,7 @@ export default class VersionedMap<K, V> {
     return true;
   }
 
-  public set(key: K, value: V, rev = this._revision): this {
+  public set(key: K, value: V, rev = this._revision): this | null {
     let revisions = this.map.get(key);
     if (!revisions) {
       this.dirty |= 1 << rev;
@@ -84,7 +84,8 @@ export default class VersionedMap<K, V> {
     if (!revisions) return false;
 
     // Can't modify old revisions
-    if (rev < revisions.length - 1) return null;
+    if (rev < revisions.length - 1)
+      throw new Error("Cannot modify old revisions");
 
     const old = revisions[revisions.length - 1];
     if (old === NONEXISTENT) return false;
@@ -98,21 +99,21 @@ export default class VersionedMap<K, V> {
     return true;
   }
 
-  public getRevisions(key: K): Revisions<V> {
+  public getRevisions(key: K): Revisions<V> | undefined {
     const revisions = this.map.get(key);
-    if (!revisions) return null;
+    if (!revisions) return undefined;
 
     const res: Revisions<V> = {};
 
     let prev: V | symbol = NONEXISTENT;
     for (const [i, v] of revisions.entries()) {
       if (v === prev) continue;
-      if (v === NONEXISTENT) res.delete |= 1 << i;
+      if (v === NONEXISTENT) res.delete = (res.delete ?? 0) | (1 << i);
       else res[i] = v as V;
       prev = v;
     }
 
-    if (prev === NONEXISTENT && !res.delete) return null;
+    if (prev === NONEXISTENT && !res.delete) return undefined;
 
     return res;
   }
@@ -141,12 +142,12 @@ export default class VersionedMap<K, V> {
     this.map.set(key, revisions);
   }
 
-  public getDiff(key: K): [V, V] {
+  public getDiff(key: K): [V | undefined, V | undefined] {
     const revisions = this.map.get(key);
     if (!revisions) return [UNDEFINED, UNDEFINED];
-    let first = revisions[0];
+    let first: V | symbol | undefined = revisions[0];
     if (first === NONEXISTENT) first = UNDEFINED;
-    let last = revisions[revisions.length - 1];
+    let last: V | symbol | undefined = revisions[revisions.length - 1];
     if (last === NONEXISTENT) last = UNDEFINED;
     return [first as V, last as V];
   }
@@ -154,8 +155,8 @@ export default class VersionedMap<K, V> {
   public *diff(): IterableIterator<[K, V, V]> {
     for (const [key, revisions] of this.map) {
       if (revisions.length <= 1) continue;
-      let first = revisions[0];
-      let last = revisions[revisions.length - 1];
+      let first: V | symbol | undefined = revisions[0];
+      let last: V | symbol | undefined = revisions[revisions.length - 1];
       if (first === NONEXISTENT && last === NONEXISTENT) continue;
       if (first === NONEXISTENT) first = UNDEFINED;
       if (last === NONEXISTENT) last = UNDEFINED;

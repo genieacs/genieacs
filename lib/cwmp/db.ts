@@ -22,7 +22,7 @@ function compareAccessLists(list1: string[], list2: string[]): boolean {
 export async function fetchDevice(
   id: string,
   timestamp: number,
-): Promise<[string, number, Attributes?][]> {
+): Promise<[string, number, Attributes?][] | null> {
   const res: [string, number, Attributes?][] = [
     ["Events", timestamp, { object: [timestamp, 1], writable: [timestamp, 0] }],
     [
@@ -242,12 +242,12 @@ export async function saveDevice(
   isNew: boolean,
   sessionTimestamp: number,
 ): Promise<void> {
-  const update: {
-    $set: Record<string, any>;
-    $unset: Record<string, any>;
-    $addToSet: Record<string, any>;
-    $pull: Record<string, any>;
-  } = { $set: {}, $unset: {}, $addToSet: {}, $pull: {} };
+  const update: Record<string, Record<string, any>> = {
+    $set: {},
+    $unset: {},
+    $addToSet: {},
+    $pull: {},
+  };
 
   for (const diff of deviceData.timestamps.diff()) {
     if (diff[0].wildcard !== 1 << (diff[0].length - 1)) continue;
@@ -266,7 +266,7 @@ export async function saveDevice(
 
     if (diff[2] == null && diff[1] != null) {
       update["$unset"][
-        parent.length ? parent.toString() + "._timestamp" : "_timestamp"
+        parent!.length ? parent!.toString() + "._timestamp" : "_timestamp"
       ] = 1;
     } else {
       if (parent && (!parent.length || deviceData.attributes.has(parent))) {
@@ -314,7 +314,7 @@ export async function saveDevice(
                 update["$unset"]["_registered"] = 1;
             }
           } else {
-            const t = new Date(diff[2].value[1][0] as number);
+            const t = new Date(diff[2].value![1][0] as number);
             switch (path.segments[1]) {
               case "Inform":
                 update["$set"]["_lastInform"] = t;
@@ -334,7 +334,7 @@ export async function saveDevice(
         break;
       case "DeviceID":
         if (value2 !== value1) {
-          const v = diff[2].value[1][0];
+          const v = diff[2].value![1][0];
           switch (path.segments[1]) {
             case "ID":
               update["$set"]["_id"] = v;
@@ -394,10 +394,10 @@ export async function saveDevice(
 
         for (const attrName of Object.keys(diff[2]) as (keyof Attributes)[]) {
           // Param timestamps may be greater than session timestamp to track revisions
-          if (diff[2][attrName][0] > sessionTimestamp)
-            diff[2][attrName][0] = sessionTimestamp;
+          if (diff[2][attrName]![0] > sessionTimestamp)
+            diff[2][attrName]![0] = sessionTimestamp;
 
-          if (diff[2][attrName][1] != null) {
+          if (diff[2][attrName]![1] != null) {
             switch (attrName) {
               case "value":
                 if (value2 !== value1) {
@@ -418,7 +418,7 @@ export async function saveDevice(
 
                 if (valueTimestamp2 !== valueTimestamp1) {
                   update["$set"][path.toString() + "._timestamp"] = new Date(
-                    valueTimestamp2,
+                    valueTimestamp2!,
                   );
                 }
 
@@ -454,7 +454,7 @@ export async function saveDevice(
 
                 if (attributesTimestamp2 !== attributesTimestamp1) {
                   update["$set"][path.toString() + "._attributesTimestamp"] =
-                    new Date(attributesTimestamp2);
+                    new Date(attributesTimestamp2!);
                 }
 
                 break;
@@ -462,7 +462,7 @@ export async function saveDevice(
                 if (
                   !diff[1] ||
                   !diff[1].accessList ||
-                  !compareAccessLists(accessList2, accessList1)
+                  !compareAccessLists(accessList2!, accessList1!)
                 ) {
                   update["$set"][
                     path.length
@@ -473,7 +473,7 @@ export async function saveDevice(
 
                 if (attributesTimestamp2 !== attributesTimestamp1) {
                   update["$set"][path.toString() + "._attributesTimestamp"] =
-                    new Date(attributesTimestamp2);
+                    new Date(attributesTimestamp2!);
                 }
             }
           }
@@ -482,7 +482,7 @@ export async function saveDevice(
         if (diff[1]) {
           for (const attrName of Object.keys(diff[1]) as (keyof Attributes)[]) {
             if (
-              diff[1][attrName][1] != null &&
+              diff[1][attrName]![1] != null &&
               diff[2]?.[attrName]?.[1] == null
             ) {
               const p = path.length ? path.toString() + "." : "";
@@ -616,7 +616,7 @@ export async function getDueTasks(
   const tasks = [] as Task[];
 
   for await (const t of cur) {
-    if (+t.timestamp >= timestamp) return [tasks, +t.timestamp];
+    if (t.timestamp && +t.timestamp >= timestamp) return [tasks, +t.timestamp];
     const task: Task = {
       _id: t._id.toString(),
       name: t.name,
@@ -661,14 +661,14 @@ export async function getDueTasks(
       const res = await collections.files.find(q).toArray();
 
       if (res[0]) {
-        if (!task.fileType) task.fileType = res[0].metadata.fileType;
+        if (!task.fileType) task.fileType = res[0].metadata?.fileType;
 
         if (!task.fileName)
           task.fileName = res[0].filename || res[0]._id.toString();
       }
     }
   }
-  return [tasks, null];
+  return [tasks, 0];
 }
 
 export async function clearTasks(
@@ -692,7 +692,7 @@ export async function getOperations(
     const commandKey = r._id.slice(deviceId.length + 1);
     // Workaround for a bug in v1.2.1 where operation object is saved without deserialization
     if (typeof r.provisions !== "string") {
-      delete r._id;
+      delete (r as Record<string, unknown>)._id;
       operations[commandKey] = r as unknown as Operation;
       continue;
     }
@@ -703,7 +703,7 @@ export async function getOperations(
         typeof r.channels === "string" ? JSON.parse(r.channels) : r.channels,
       retries: JSON.parse(r.retries),
       provisions: JSON.parse(r.provisions),
-      ...(r.args && { args: JSON.parse(r.args) }),
+      args: r.args ? JSON.parse(r.args) : {},
     };
     operations[commandKey] = operation;
   }

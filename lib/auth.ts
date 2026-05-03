@@ -4,7 +4,7 @@ function parseHeaderFeilds(str: string): Record<string, string> {
   const res: Record<string, string> = {};
   const parts = str.split(",");
 
-  let part: string;
+  let part: string | undefined;
   while ((part = parts.shift()) != null) {
     const name = part.split("=", 1)[0];
     if (name.length === part.length) {
@@ -44,7 +44,7 @@ export interface AuthorizationHeader {
   uri?: string;
   response?: string;
   body?: string;
-  [key: string]: string;
+  [key: string]: string | undefined;
 }
 
 export function parseAuthorizationHeader(
@@ -119,9 +119,9 @@ export function digest(
   if (qop) {
     hash
       .update(":")
-      .update(nc)
+      .update(nc ?? "")
       .update(":")
-      .update(cnonce)
+      .update(cnonce ?? "")
       .update(":")
       .update(qop);
   }

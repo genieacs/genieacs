@@ -86,10 +86,10 @@ const component: ClosureComponent<Attrs> = () => {
 
       if (prefix[prefix.length - 1] === "") prefix.pop();
 
-      let config: Record<string, any>;
+      let config: Record<string, any> | undefined;
       if (data.length) {
         config = configFunctions.structureConfig(data) as Record<string, any>;
-        for (const seg of prefix) config = config[seg];
+        for (const seg of prefix) config = config?.[seg];
       }
 
       const yamlString =
@@ -104,8 +104,8 @@ const component: ClosureComponent<Attrs> = () => {
         focus: true,
         onSubmit: (dom: Element) => {
           (dom as HTMLInputElement).form
-            .querySelector<HTMLButtonElement>("button[type=submit]")
-            .click();
+            ?.querySelector<HTMLButtonElement>("button[type=submit]")
+            ?.click();
         },
         onChange: (value: string) => {
           updatedYaml = value;

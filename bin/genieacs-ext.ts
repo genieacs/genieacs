@@ -7,8 +7,9 @@ let script: Record<
   (args: unknown[], cb: (err: Error | null, res: unknown) => void) => void
 >;
 
-function errorToFault(err: Error): Fault {
-  if (!err) return null;
+function errorToFault(err: unknown): Fault {
+  if (!(err instanceof Error) || !err.name)
+    return { code: "ext", message: `${err}` };
 
   if (!err.name) return { code: "ext", message: `${err}` };
 
@@ -44,10 +45,10 @@ process.on("unhandledRejection", (err) => {
 process.on("uncaughtException", (err) => {
   const fault = errorToFault(err);
   jobs.forEach((jobId) => {
-    process.send([jobId, fault, null]);
+    process.send!([jobId, fault, null]);
   });
   jobs.clear();
-  process.disconnect();
+  process.disconnect!();
 });
 
 process.on("message", (msg) => {
@@ -55,7 +56,7 @@ process.on("message", (msg) => {
   jobs.add(message[0]);
 
   if (!script) {
-    const cwd = process.env["GENIEACS_EXT_DIR"];
+    const cwd = process.env["GENIEACS_EXT_DIR"]!;
     process.chdir(cwd);
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     script = require(`${cwd}/${fileName}`);
@@ -68,14 +69,14 @@ process.on("message", (msg) => {
       code: "ext",
       message: `No such function '${funcName}' in extension '${fileName}'`,
     };
-    process.send([message[0], fault, null]);
+    process.send!([message[0], fault, null]);
     return;
   }
 
   script[funcName](message[1].slice(1), (err: Error | null, res: unknown) => {
     if (!jobs.delete(message[0])) return;
 
-    process.send([message[0], errorToFault(err), res]);
+    process.send!([message[0], errorToFault(err), res]);
   });
 });
 

@@ -283,7 +283,7 @@ for (const [resource, flags] of Object.entries(resources)) {
     }
 
     const columnsStr: Record<string, string> = JSON.parse(
-      singleParam(ctx.request.query.columns),
+      singleParam(ctx.request.query.columns!),
     );
 
     const now = Date.now();
@@ -354,7 +354,8 @@ for (const [resource, flags] of Object.entries(resources)) {
                       v = new Date(v).toJSON();
                   }
                 } else if (resource === "faults") {
-                  if (e.path.toString() === "detail") v = yamlStringify(v);
+                  if (e.path.toString() === "detail" && v !== undefined)
+                    v = yamlStringify(v);
                 }
 
                 if (typeof v === "string") v = `"${v.replace(/"/g, '""')}"`;
@@ -569,11 +570,12 @@ router.put("/files/:id", async (ctx) => {
   }
 
   const metadata = {
-    fileType: singleParam(ctx.request.headers["metadata-filetype"]) || "",
-    oui: singleParam(ctx.request.headers["metadata-oui"]) || "",
-    productClass:
-      singleParam(ctx.request.headers["metadata-productclass"]) || "",
-    version: singleParam(ctx.request.headers["metadata-version"]) || "",
+    fileType: singleParam(ctx.request.headers["metadata-filetype"] ?? ""),
+    oui: singleParam(ctx.request.headers["metadata-oui"] ?? ""),
+    productClass: singleParam(
+      ctx.request.headers["metadata-productclass"] ?? "",
+    ),
+    version: singleParam(ctx.request.headers["metadata-version"] ?? ""),
   };
 
   const validate = authorizer.getValidator(resource, metadata);
@@ -610,7 +612,7 @@ router.post("/devices/:id/tasks", async (ctx) => {
     return void (ctx.status = 403);
   }
 
-  const socketTimeout: number = ctx.socket.timeout;
+  const socketTimeout = ctx.socket.timeout ?? 0;
 
   // Extend socket timeout while waiting for session
   if (socketTimeout) ctx.socket.setTimeout(300000);
@@ -659,7 +661,7 @@ router.post("/devices/:id/tasks", async (ctx) => {
 
     tasks = await apiFunctions.insertTasks(tasks);
 
-    statuses = tasks.map((t) => ({ _id: t._id, status: "pending" }));
+    statuses = tasks.map((t) => ({ _id: t._id!, status: "pending" }));
   } finally {
     await releaseLock(`cwmp_session_${deviceId}`, token);
   }

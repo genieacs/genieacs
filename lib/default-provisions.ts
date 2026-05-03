@@ -2,13 +2,14 @@ import Path from "./common/path.ts";
 import * as config from "./config.ts";
 import * as device from "./device.ts";
 import * as scheduling from "./scheduling.ts";
+import { Value } from "./common/expression.ts";
 import { SessionContext, Declaration } from "./types.ts";
 
-const MAX_DEPTH = +config.get("MAX_DEPTH");
+const MAX_DEPTH = Number(config.get("MAX_DEPTH"));
 
 export function refresh(
   sessionContext: SessionContext,
-  provision: (string | number | boolean)[],
+  provision: [string, ...Value[]],
   declarations: Declaration[],
 ): boolean {
   if (
@@ -52,9 +53,9 @@ export function refresh(
     declarations.push({
       path: path.slice(0, i),
       pathGet: t,
-      pathSet: null,
+      pathSet: undefined,
       attrGet: attrGet,
-      attrSet: null,
+      attrSet: undefined,
       defer: true,
     });
   }
@@ -64,7 +65,7 @@ export function refresh(
 
 export function value(
   sessionContext: SessionContext,
-  provision: (string | number | boolean)[],
+  provision: [string, ...Value[]],
   declarations: Declaration[],
 ): boolean {
   if (
@@ -96,7 +97,7 @@ export function value(
   declarations.push({
     path: Path.parse(provision[1]),
     pathGet: 1,
-    pathSet: null,
+    pathSet: undefined,
     attrGet: { [attr]: 1 },
     attrSet: { [attr]: val },
     defer: true,
@@ -107,7 +108,7 @@ export function value(
 
 export function tag(
   sessionContext: SessionContext,
-  provision: (string | number | boolean)[],
+  provision: [string, ...Value[]],
   declarations: Declaration[],
 ): boolean {
   if (
@@ -120,7 +121,7 @@ export function tag(
   declarations.push({
     path: Path.parse(`Tags.${provision[1]}`),
     pathGet: 1,
-    pathSet: null,
+    pathSet: undefined,
     attrGet: { value: 1 },
     attrSet: { value: [provision[2]] },
     defer: true,
@@ -131,7 +132,7 @@ export function tag(
 
 export function reboot(
   sessionContext: SessionContext,
-  provision: (string | number | boolean)[],
+  provision: [string, ...Value[]],
   declarations: Declaration[],
 ): boolean {
   if (provision.length !== 1) throw new Error("Invalid arguments");
@@ -139,7 +140,7 @@ export function reboot(
   declarations.push({
     path: Path.parse("Reboot"),
     pathGet: 1,
-    pathSet: null,
+    pathSet: undefined,
     attrGet: { value: 1 },
     attrSet: { value: [sessionContext.timestamp] },
     defer: true,
@@ -150,7 +151,7 @@ export function reboot(
 
 export function reset(
   sessionContext: SessionContext,
-  provision: (string | number | boolean)[],
+  provision: [string, ...Value[]],
   declarations: Declaration[],
 ): boolean {
   if (provision.length !== 1) throw new Error("Invalid arguments");
@@ -158,7 +159,7 @@ export function reset(
   declarations.push({
     path: Path.parse("FactoryReset"),
     pathGet: 1,
-    pathSet: null,
+    pathSet: undefined,
     attrGet: { value: 1 },
     attrSet: { value: [sessionContext.timestamp] },
     defer: true,
@@ -169,7 +170,7 @@ export function reset(
 
 export function download(
   sessionContext: SessionContext,
-  provision: (string | number | boolean)[],
+  provision: [string, ...Value[]],
   declarations: Declaration[],
 ): boolean {
   if (
@@ -193,15 +194,15 @@ export function download(
     path: Path.parse(`Downloads.[${alias}]`),
     pathGet: 1,
     pathSet: 1,
-    attrGet: null,
-    attrSet: null,
+    attrGet: undefined,
+    attrSet: undefined,
     defer: true,
   });
 
   declarations.push({
     path: Path.parse(`Downloads.[${alias}].Download`),
     pathGet: 1,
-    pathSet: null,
+    pathSet: undefined,
     attrGet: { value: 1 },
     attrSet: { value: [sessionContext.timestamp] },
     defer: true,
@@ -212,7 +213,7 @@ export function download(
 
 export function instances(
   sessionContext: SessionContext,
-  provision: (string | number | boolean)[],
+  provision: [string, ...Value[]],
   declarations: Declaration[],
   startRevision: number,
   endRevision: number,
@@ -231,9 +232,9 @@ export function instances(
     declarations.push({
       path: path,
       pathGet: 1,
-      pathSet: null,
-      attrGet: null,
-      attrSet: null,
+      pathSet: undefined,
+      attrGet: undefined,
+      attrSet: undefined,
       defer: true,
     });
 
@@ -251,8 +252,8 @@ export function instances(
     path: path,
     pathGet: 1,
     pathSet: count,
-    attrGet: null,
-    attrSet: null,
+    attrGet: undefined,
+    attrSet: undefined,
     defer: true,
   });
 

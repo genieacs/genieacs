@@ -58,8 +58,9 @@ export class Cursor {
   }
 
   ascend(): void {
-    if (!this.boundryStack.length) throw new Error("Unmatched boundry");
-    this.boundry = this.boundryStack.pop();
+    const popped = this.boundryStack.pop();
+    if (!popped) throw new Error("Unmatched boundry");
+    this.boundry = popped;
     this.charCode = this.input.charCodeAt(this.pos) || 0;
   }
 
@@ -188,7 +189,7 @@ function interpretEscapes(str: string): string {
 export function parseExpression(cursor: Cursor, presedence = 0): Expression {
   cursor.skipwhitespace();
   const char = cursor.charCode;
-  let lhs: Expression;
+  let lhs: Expression | undefined;
   if (char === CHAR_OPEN_PAREN) {
     cursor.step();
     cursor.descend([CHAR_CLOSE_PAREN]);
@@ -269,7 +270,7 @@ export function parseExpression(cursor: Cursor, presedence = 0): Expression {
       }
       if (!lhs) lhs = new Expression.Literal(null);
       while (pairs.length) {
-        const [condition, then] = pairs.pop();
+        const [condition, then] = pairs.pop()!;
         lhs = new Expression.Conditional(condition, then, lhs);
       }
     } else if (cursor.charCode === CHAR_OPEN_PAREN) {
@@ -408,7 +409,7 @@ export function parsePath(cur: Cursor): Path {
   const cur2 = cur.fork();
   for (;;) {
     let char = cur2.charCode;
-    let exp: Expression;
+    let exp: Expression | undefined;
 
     if (char === CHAR_OPEN_BRACKET) {
       if (cur2.pos !== cur.pos) throw new Error("Invalid path");

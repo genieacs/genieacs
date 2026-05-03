@@ -7,7 +7,7 @@ import testCases from "./yaml-tests.json";
 
 void test("stringify", () => {
   for (const testCase of testCases) {
-    let str = stringify(testCase);
+    let str = stringify(testCase)!;
     if (str.startsWith(">2")) str = ">3" + str.slice(2);
     if (str.startsWith("|2")) str = "|3" + str.slice(2);
     assert.deepStrictEqual(

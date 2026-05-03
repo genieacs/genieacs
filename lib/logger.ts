@@ -38,10 +38,10 @@ declare module "fs" {
   }
 }
 
-let logStream = fs.createWriteStream(null, { fd: process.stderr.fd });
-let logStat = fs.fstatSync(logStream.fd);
-let accessLogStream = fs.createWriteStream(null, { fd: process.stdout.fd });
-let accessLogStat = fs.fstatSync(accessLogStream.fd);
+let logStream = fs.createWriteStream("", { fd: process.stderr.fd });
+let logStat = fs.fstatSync(logStream.fd!);
+let accessLogStream = fs.createWriteStream("", { fd: process.stdout.fd });
+let accessLogStat = fs.fstatSync(accessLogStream.fd!);
 
 // Reopen if original files have been moved (e.g. logrotate)
 function reopen(): void {
@@ -54,10 +54,10 @@ function reopen(): void {
 
       if (!(stat && stat.dev === logStat.dev && stat.ino === logStat.ino)) {
         logStream.end();
-        logStream = fs.createWriteStream(null, {
+        logStream = fs.createWriteStream("", {
           fd: fs.openSync(LOG_FILE, "a"),
         });
-        logStat = fs.fstatSync(logStream.fd);
+        logStat = fs.fstatSync(logStream.fd!);
       }
 
       if (--counter === 0)
@@ -78,10 +78,10 @@ function reopen(): void {
         )
       ) {
         accessLogStream.end();
-        accessLogStream = fs.createWriteStream(null, {
+        accessLogStream = fs.createWriteStream("", {
           fd: fs.openSync(ACCESS_LOG_FILE, "a"),
         });
-        accessLogStat = fs.fstatSync(accessLogStream.fd);
+        accessLogStat = fs.fstatSync(accessLogStream.fd!);
       }
 
       if (--counter === 0)
@@ -105,15 +105,15 @@ export function init(service: string, version: string): void {
   ) as string;
 
   if (LOG_FILE) {
-    logStream = fs.createWriteStream(null, { fd: fs.openSync(LOG_FILE, "a") });
-    logStat = fs.fstatSync(logStream.fd);
+    logStream = fs.createWriteStream("", { fd: fs.openSync(LOG_FILE, "a") });
+    logStat = fs.fstatSync(logStream.fd!);
   }
 
   if (ACCESS_LOG_FILE) {
-    accessLogStream = fs.createWriteStream(null, {
+    accessLogStream = fs.createWriteStream("", {
       fd: fs.openSync(ACCESS_LOG_FILE, "a"),
     });
-    accessLogStat = fs.fstatSync(accessLogStream.fd);
+    accessLogStat = fs.fstatSync(accessLogStream.fd!);
   }
 
   // Determine if logs are going to journald
@@ -143,9 +143,11 @@ export function flatten(
   if (details.sessionContext) {
     const sessionContext = details.sessionContext as SessionContext;
     details.deviceId = sessionContext.deviceId;
-    details.remoteAddress = getRequestOrigin(
-      sessionContext.httpRequest,
-    ).remoteAddress;
+    if (sessionContext.httpRequest) {
+      details.remoteAddress = getRequestOrigin(
+        sessionContext.httpRequest,
+      ).remoteAddress;
+    }
     delete details.sessionContext;
   }
 
@@ -187,8 +189,10 @@ export function flatten(
       }
     } else if (rpc.cpeFault) {
       details.acsRequestId = rpc.id;
-      details.cpeFaultCode = rpc.cpeFault.detail.faultCode;
-      details.cpeFaultString = rpc.cpeFault.detail.faultString;
+      if (rpc.cpeFault.detail) {
+        details.cpeFaultCode = rpc.cpeFault.detail.faultCode;
+        details.cpeFaultString = rpc.cpeFault.detail.faultString;
+      }
     }
     delete details.rpc;
   }

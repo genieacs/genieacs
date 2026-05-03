@@ -5,11 +5,11 @@ type AutocompleteCallback = (
 
 export default class Autocomplete {
   declare private callback: AutocompleteCallback;
-  declare private element: HTMLInputElement;
-  declare private hideTimeout: NodeJS.Timeout;
+  declare private element: HTMLInputElement | null;
+  declare private hideTimeout: NodeJS.Timeout | null;
   declare private visible: boolean;
-  declare private default: string;
-  declare private selection: number;
+  declare private default: string | null;
+  declare private selection: number | null;
   declare private container: HTMLElement;
 
   public constructor(callback: AutocompleteCallback) {
@@ -61,7 +61,8 @@ export default class Autocomplete {
         this.update();
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        --this.selection;
+        if (this.selection == null) this.selection = -1;
+        else --this.selection;
         this.update();
       }
     });
@@ -91,7 +92,7 @@ export default class Autocomplete {
     this.visible = false;
     this.default = null;
     this.selection = null;
-    clearTimeout(this.hideTimeout);
+    if (this.hideTimeout) clearTimeout(this.hideTimeout);
     this.hideTimeout = setTimeout(() => {
       this.hideTimeout = null;
       while (this.container.firstChild)
@@ -102,6 +103,7 @@ export default class Autocomplete {
 
   private update(): void {
     const el = this.element;
+    if (!el) return;
 
     this.callback(el.value, (suggestions) => {
       if (this.element !== el) return;
@@ -123,7 +125,7 @@ export default class Autocomplete {
           // setting it to "1", allowing the CSS transition to play.
           void window.getComputedStyle(this.container).opacity;
         } else {
-          clearTimeout(this.hideTimeout);
+          if (this.hideTimeout) clearTimeout(this.hideTimeout);
           this.hideTimeout = null;
         }
         this.container.style.opacity = "1";

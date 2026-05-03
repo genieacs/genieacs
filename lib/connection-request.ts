@@ -13,8 +13,9 @@ import * as logger from "../lib/logger.ts";
 async function extractAuth(
   exp: Expression,
   dflt: Value,
-): Promise<[string, string, Expression]> {
-  let username: string, password: string;
+): Promise<[string | undefined, string | undefined, Expression]> {
+  let username: string | undefined;
+  let password: string | undefined;
   const _exp = await exp.evaluateAsync(
     async (e: Expression): Promise<Expression> => {
       if (e instanceof Expression.Parameter)
@@ -25,7 +26,7 @@ async function extractAuth(
           if (e.name === "EXT") {
             if (!e.args.every((a) => a instanceof Expression.Literal))
               return new Expression.Literal(null);
-            const args = e.args.map((a) => a.value.toString());
+            const args = e.args.map((a) => String(a.value));
             if (typeof args[0] !== "string" || typeof args[1] !== "string")
               return new Expression.Literal(null);
 
@@ -57,7 +58,7 @@ function httpGet(
     const req = http
       .get(url, options, (res) => {
         res.resume();
-        resolve({ statusCode: res.statusCode, headers: res.headers });
+        resolve({ statusCode: res.statusCode ?? 0, headers: res.headers });
         if (_debug) {
           debug.outgoingHttpRequest(req, deviceId, "GET", url, null);
           debug.incomingHttpResponse(res, deviceId, null);
@@ -91,9 +92,9 @@ export async function httpConnectionRequest(
     agent: new http.Agent({ maxSockets: 1, keepAlive: true, timeout: timeout }),
   };
 
-  let authHeader: Record<string, string>;
-  let username: string;
-  let password: string;
+  let authHeader: Record<string, string> | undefined;
+  let username: string | undefined;
+  let password: string | undefined;
 
   while (!authHeader || (username != null && password != null)) {
     let opts = options;
@@ -104,7 +105,7 @@ export async function httpConnectionRequest(
         opts = Object.assign(
           {
             headers: {
-              Authorization: auth.basic(username || "", password || ""),
+              Authorization: auth.basic(username ?? "", password ?? ""),
             },
           },
           options,
@@ -114,11 +115,11 @@ export async function httpConnectionRequest(
           {
             headers: {
               Authorization: auth.solveDigest(
-                username,
-                password,
+                username ?? "",
+                password ?? "",
                 url.pathname + url.search,
                 "GET",
-                null,
+                "",
                 authHeader,
               ),
             },
@@ -194,8 +195,8 @@ export async function udpConnectionRequest(
   // also bind to the same port.
   if (sourcePort) client.bind({ port: sourcePort, exclusive: true });
 
-  let username: string;
-  let password: string;
+  let username: string | undefined;
+  let password: string | undefined;
 
   [username, password, authExp] = await extractAuth(authExp, null);
 
@@ -215,7 +216,7 @@ export async function udpConnectionRequest(
 
     for (let i = 0; i < 3; ++i) {
       await new Promise<void>((resolve, reject) => {
-        client.send(message, 0, message.length, port, host, (err: Error) => {
+        client.send(message, 0, message.length, port, host, (err) => {
           if (err) reject(err);
           else resolve();
           if (_debug) debug.outgoingUdpMessage(host, deviceId, port, msg);
@@ -232,7 +233,7 @@ const XMPP_JID = config.get("XMPP_JID") as string;
 const XMPP_PASSWORD = config.get("XMPP_PASSWORD") as string;
 const XMPP_RESOURCE = crypto.randomBytes(8).toString("hex");
 
-let xmppClient: XmppClient;
+let xmppClient: XmppClient | null;
 
 function xmppClientOnError(err: Error): void {
   xmppClient = null;
@@ -268,8 +269,8 @@ export async function xmppConnectionRequest(
     xmppClient.unref();
   }
 
-  let username: string;
-  let password: string;
+  let username: string | undefined;
+  let password: string | undefined;
 
   [username, password, authExp] = await extractAuth(authExp, null);
   while (username != null && password != null) {
