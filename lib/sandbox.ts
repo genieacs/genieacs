@@ -663,7 +663,10 @@ export function addObject(
   }
 
   // If the path does not end with a * or [...], return an error
-  if (!path.endsWith("*") && !(/\[[\w=\d]*\]$/).test(path)) {
+  if (
+    !path.endsWith("*") &&
+    !(/\[\]|\[(\w+):(\w+)(,(\w+):(\w+))*\]$/).test(path)
+  ) {
     ferror(
       'addObject() called with a path that does not end with "*"' +
         `or [...]: ${path}.`,
@@ -708,11 +711,14 @@ export function addObject(
  * Deletes the last object at the specified path.
  *
  * @param {string} path - The path where the object should be deleted.
+ * @param {number?} size - The new size of the objects at the path after
+ * deletion. If not provided, it will be calculated as current size minus one.
  * @return {boolean} True if the object was deleted successfully, false
  * otherwise.
  */
 export function deleteObject(
   path: string,
+  size?: number,
 ): boolean {
   // If not initialized, throw an error
   if (!state.sessionContext.customScriptInfo?.initialized)
@@ -733,6 +739,14 @@ export function deleteObject(
     return false;
   }
 
+  if (
+    typeof size === "number" &&
+    (Number.isNaN(size) || size < 0)
+  ) {
+    ferror(`deleteObject() called with an invalid size: ${size}`);
+    return false;
+  }
+
   // Get the amount of objects already present at the path
   const parameter = declare(
     path,
@@ -750,8 +764,11 @@ export function deleteObject(
     return false;
   }
 
-  // The new size will be current size minus 1 that we are deleting
-  const newSize = currentSize - 1;
+  // The new size will be provided one or the current size minus 1 that we are
+  // deleting
+  const newSize = typeof size === "number" ?
+    size :
+    currentSize - 1;
 
   // Audit this deletion
   audit(ActionType.DELETE_OBJECT, path, newSize);
