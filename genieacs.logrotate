@@ -1,0 +1,7 @@
+/var/log/genieacs/*.{log,yaml} {
+    daily
+    rotate 30
+    compress
+    delaycompress
+    dateext
+}

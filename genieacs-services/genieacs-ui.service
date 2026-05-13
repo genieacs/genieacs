@@ -1,0 +1,12 @@
+[Unit]
+Description=GenieACS UI
+After=network.target
+
+[Service]
+User=genieacs
+EnvironmentFile=/opt/genieacs/genieacs.env
+ExecStart=/opt/genieacs/bin/genieacs-ui
+KillMode=process
+
+[Install]
+WantedBy=default.target

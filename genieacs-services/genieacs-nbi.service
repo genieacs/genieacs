@@ -1,0 +1,12 @@
+[Unit]
+Description=GenieACS NBI
+After=network.target
+
+[Service]
+User=genieacs
+EnvironmentFile=/opt/genieacs/genieacs.env
+ExecStart=/opt/genieacs/bin/genieacs-nbi
+KillMode=process
+
+[Install]
+WantedBy=default.target

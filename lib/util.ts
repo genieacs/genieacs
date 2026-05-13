@@ -1,8 +1,6 @@
 import { EventEmitter } from "node:events";
 
-export function generateDeviceId(
-  deviceIdStruct: Record<string, string>,
-): string {
+export function generateDeviceId(deviceIdStruct: Record<string, string>, alternativeSerial: string): string {
   // Escapes everything except alphanumerics and underscore
   function esc(str): string {
     return str.replace(/[^A-Za-z0-9_]/g, (chr) => {
@@ -13,17 +11,17 @@ export function generateDeviceId(
     });
   }
 
+  let serialNumber = deviceIdStruct["SerialNumber"];
+
+  if (alternativeSerial !== "") {
+    // Remove some special chars
+    serialNumber = alternativeSerial.replace(/[^A-Za-z0-9_]/g, "");
+  }
   // Guaranteeing globally unique id as defined in TR-069
   if (deviceIdStruct["ProductClass"]) {
-    return (
-      esc(deviceIdStruct["OUI"]) +
-      "-" +
-      esc(deviceIdStruct["ProductClass"]) +
-      "-" +
-      esc(deviceIdStruct["SerialNumber"])
-    );
+    return esc(deviceIdStruct["OUI"]) + "-" + esc(deviceIdStruct["ProductClass"]) + "-" + esc(serialNumber);
   }
-  return esc(deviceIdStruct["OUI"]) + "-" + esc(deviceIdStruct["SerialNumber"]);
+  return esc(deviceIdStruct["OUI"]) + "-" + esc(serialNumber);
 }
 
 // Source: http://stackoverflow.com/a/6969486
@@ -33,10 +31,7 @@ export function escapeRegExp(str: string): string {
 
 export function encodeTag(tag: string): string {
   return encodeURIComponent(tag)
-    .replace(
-      /[!~*'().]/g,
-      (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase(),
-    )
+    .replace(/[!~*'().]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase())
     .replace(/0x(?=[0-9A-Z]{2})/g, "0%78")
     .replace(/%/g, "0x");
 }
@@ -45,11 +40,7 @@ export function decodeTag(tag: string): string {
   return decodeURIComponent(tag.replace(/0x(?=[0-9A-Z]{2})/g, "%"));
 }
 
-export function once(
-  emitter: EventEmitter,
-  event: string,
-  timeout: number,
-): Promise<unknown[]> {
+export function once(emitter: EventEmitter, event: string, timeout: number): Promise<unknown[]> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       reject(new Error(`Event ${event} timed out after ${timeout} ms`));
