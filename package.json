@@ -19,10 +19,10 @@
   "license": "AGPL-3.0",
   "private": true,
   "bin": {
-    "genieacs-cwmp": "bin/genieacs-cwmp",
-    "genieacs-fs": "bin/genieacs-fs",
-    "genieacs-nbi": "bin/genieacs-nbi",
-    "genieacs-ui": "bin/genieacs-ui"
+    "genieacs-cwmp": "dist/bin/genieacs-cwmp",
+    "genieacs-fs": "dist/bin/genieacs-fs",
+    "genieacs-nbi": "dist/bin/genieacs-nbi",
+    "genieacs-ui": "dist/bin/genieacs-ui"
   },
   "dependencies": {
     "@breejs/later": "^4.2.0",
