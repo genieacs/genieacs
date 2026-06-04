@@ -1,5 +1,5 @@
-import m from "mithril";
 import { postTasks } from "./api-client.ts";
+import { StateSignal } from "./signals.ts";
 import { Task } from "../lib/types.ts";
 import * as notifications from "./notifications.ts";
 
@@ -17,6 +17,28 @@ const MAX_QUEUE = 100;
 const queue: Set<QueueTask> = new Set();
 const staging: Set<StageTask> = new Set();
 
+// Signals that bump on every change — drawer reads these for reactive updates
+// Use private counters to avoid calling .get() (which would register a spurious
+// dependency if the bump happens inside a computed evaluation, e.g. doTask).
+// TODO: replace the mutate-in-place + version-counter pattern with immutable
+// updates through a signal holding the collection (as reactive-store does):
+// status changes produce replacement task objects, and the API moves from
+// object identity to task ids. Task identity then tracks content, the drawer
+// can rely on each()'s identity-based re-render instead of version ticks, and
+// its rerenderOnChange:false opt-out goes away.
+let _qv = 0;
+let _sv = 0;
+export const queueVersion = new StateSignal(0);
+export const stagingVersion = new StateSignal(0);
+
+export function bumpQueueVersion(): void {
+  queueVersion.set(++_qv);
+}
+
+export function bumpStagingVersion(): void {
+  stagingVersion.set(++_sv);
+}
+
 function canQueue(tasks: QueueTask[]): boolean {
   let count = queue.size;
   for (const task of tasks) if (!queue.has(task)) ++count;
@@ -33,11 +55,12 @@ export function queueTask(...tasks: QueueTask[]): void {
     task.status = "queued";
     queue.add(task);
   }
-  m.redraw();
+  bumpQueueVersion();
 }
 
 export function deleteTask(task: QueueTask): void {
   queue.delete(task);
+  bumpQueueVersion();
 }
 
 export function getQueue(): Set<QueueTask> {
@@ -46,6 +69,7 @@ export function getQueue(): Set<QueueTask> {
 
 export function clear(): void {
   queue.clear();
+  bumpQueueVersion();
 }
 
 export function getStaging(): Set<StageTask> {
@@ -54,6 +78,7 @@ export function getStaging(): Set<StageTask> {
 
 export function clearStaging(): void {
   staging.clear();
+  bumpStagingVersion();
 }
 
 export function stageSpv(task: StageTask): void {
@@ -62,7 +87,7 @@ export function stageSpv(task: StageTask): void {
     return;
   }
   staging.add(task);
-  m.redraw();
+  bumpStagingVersion();
 }
 
 export function stageDownload(task: StageTask): void {
@@ -71,7 +96,7 @@ export function stageDownload(task: StageTask): void {
     return;
   }
   staging.add(task);
-  m.redraw();
+  bumpStagingVersion();
 }
 
 export function commit(
@@ -94,6 +119,7 @@ export function commit(
     t.status = "queued";
     queue.add(t);
   }
+  bumpQueueVersion();
 
   return new Promise((resolve) => {
     let counter = 1;
@@ -105,11 +131,13 @@ export function commit(
             if (t.status === "pending") t.status = "stale";
             else if (t.status === "done") queue.delete(t);
           }
+          bumpQueueVersion();
           callback(deviceId, null, connectionRequestStatus, tasks2);
           if (--counter === 0) resolve();
         })
         .catch((err) => {
           for (const t of tasks2) t.status = "stale";
+          bumpQueueVersion();
           callback(deviceId, err, null, tasks2);
           if (--counter === 0) resolve();
         });

@@ -46,7 +46,6 @@
         "@types/koa-compress": "^4.0.7",
         "@types/koa-send": "^4.1.6",
         "@types/later": "^1.2.9",
-        "@types/mithril": "^2.2.7",
         "@types/node": "^25.3.5",
         "@types/seedrandom": "^3.0.8",
         "@types/sql.js": "^1.4.11",
@@ -55,7 +54,6 @@
         "eslint": "^10.0.3",
         "eslint-config-prettier": "^10.1.8",
         "globals": "^17.4.0",
-        "mithril": "^2.3.8",
         "prettier": "^3.8.1",
         "sql.js": "^1.14.1",
         "svgo": "^3.3.3",
@@ -3043,12 +3041,6 @@
       "dev": true,
       "license": "MIT"
     },
-    "node_modules/@types/mithril": {
-      "version": "2.2.7",
-      "resolved": "https://registry.npmjs.org/@types/mithril/-/mithril-2.2.7.tgz",
-      "integrity": "sha512-uetxoYizBMHPELl6DSZUfO6Q/aOm+h0NUCv9bVAX2iAxfrdBSOvU9KKFl+McTtxR13F+BReYLY814pJsZvnSxg==",
-      "dev": true
-    },
     "node_modules/@types/ms": {
       "version": "2.1.0",
       "resolved": "https://registry.npmjs.org/@types/ms/-/ms-2.1.0.tgz",
@@ -5277,12 +5269,6 @@
       "bin": {
         "mini-svg-data-uri": "cli.js"
       }
-    },
-    "node_modules/mithril": {
-      "version": "2.3.8",
-      "resolved": "https://registry.npmjs.org/mithril/-/mithril-2.3.8.tgz",
-      "integrity": "sha512-za/Yo7qXEckjm5syrSfaaI9Utf4tCUT3T1IOIYqH6Lrj7G0OZuYYLAY9SV4ygoaAf0+CNqU92MBt+7pmo53JVQ==",
-      "dev": true
     },
     "node_modules/mongodb": {
       "version": "4.17.2",
@@ -8481,12 +8467,6 @@
       "integrity": "sha512-WDRhMSfbqT+q3mC+XCMm86xXJShPMTuKeCnhpssHQUxQj9FWRQkqw3/5atBYV+MjPjCbNfLdY59IwycN+4cbIA==",
       "dev": true
     },
-    "@types/mithril": {
-      "version": "2.2.7",
-      "resolved": "https://registry.npmjs.org/@types/mithril/-/mithril-2.2.7.tgz",
-      "integrity": "sha512-uetxoYizBMHPELl6DSZUfO6Q/aOm+h0NUCv9bVAX2iAxfrdBSOvU9KKFl+McTtxR13F+BReYLY814pJsZvnSxg==",
-      "dev": true
-    },
     "@types/ms": {
       "version": "2.1.0",
       "resolved": "https://registry.npmjs.org/@types/ms/-/ms-2.1.0.tgz",
@@ -9971,12 +9951,6 @@
       "version": "1.4.4",
       "resolved": "https://registry.npmjs.org/mini-svg-data-uri/-/mini-svg-data-uri-1.4.4.tgz",
       "integrity": "sha512-r9deDe9p5FJUPZAk3A59wGH7Ii9YrjjWw0jmw/liSbHl2CHiyXj6FcDXDu2K3TjVAXqiJdaw3xxwlZZr9E6nHg==",
-      "dev": true
-    },
-    "mithril": {
-      "version": "2.3.8",
-      "resolved": "https://registry.npmjs.org/mithril/-/mithril-2.3.8.tgz",
-      "integrity": "sha512-za/Yo7qXEckjm5syrSfaaI9Utf4tCUT3T1IOIYqH6Lrj7G0OZuYYLAY9SV4ygoaAf0+CNqU92MBt+7pmo53JVQ==",
       "dev": true
     },
     "mongodb": {

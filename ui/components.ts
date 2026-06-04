@@ -6,7 +6,7 @@ import m, {
   CommonAttributes,
   ClosureComponent,
   Vnode,
-} from "mithril";
+} from "./mithril-compat.ts";
 import parameter from "./components/parameter.ts";
 import parameterList from "./components/parameter-list.ts";
 import parameterTable from "./components/parameter-table.ts";
@@ -19,7 +19,7 @@ import deviceActions from "./components/device-actions.ts";
 import tags from "./components/tags.ts";
 import ping from "./components/ping.ts";
 import deviceLink from "./components/device-link.ts";
-import longTextComponent from "./long-text-component.ts";
+import longTextComponent from "./components/long-text-component.ts";
 import loading from "./components/loading.ts";
 
 const comps: Record<string, ComponentTypes<any>> = {
@@ -40,7 +40,9 @@ const comps: Record<string, ComponentTypes<any>> = {
 };
 
 const contextifiedComponents = new WeakMap<ComponentTypes, ComponentTypes>();
-const vnodeContext = new WeakMap<Vnode, Attributes>();
+// Store context directly on vnode as a property so it survives object spreading
+// in mithril-compat.ts when creating vnodeForView
+const CONTEXT_KEY = Symbol("vnodeContext");
 
 interface MC extends Static {
   context: {
@@ -85,7 +87,7 @@ const M = new Proxy(m, {
 
 function contextFn(context: Attributes, ...argumentsList: any[]): Vnode {
   const vnode = Reflect.apply(M, undefined, argumentsList);
-  vnodeContext.set(vnode, context);
+  vnode[CONTEXT_KEY] = context;
   return vnode;
 }
 
@@ -93,9 +95,9 @@ function applyContext(vnode: any, parentContext: Attributes): void {
   if (Array.isArray(vnode)) {
     for (const c of vnode) applyContext(c, parentContext);
   } else if (vnode && typeof vnode === "object" && vnode.tag) {
-    const vc = Object.assign({}, parentContext, vnodeContext.get(vnode));
+    const vc = Object.assign({}, parentContext, vnode[CONTEXT_KEY]);
     if (typeof vnode.tag !== "string") {
-      vnodeContext.set(vnode, vc);
+      vnode[CONTEXT_KEY] = vc;
       vnode.attrs = Object.assign({}, vc, vnode.attrs);
     }
     if (vnode.children?.length)
@@ -110,7 +112,9 @@ export function contextifyComponent(component: ComponentTypes): ComponentTypes {
       c = Object.assign({}, component);
       const view = component.view;
       c.view = function (vnode) {
-        const context = vnodeContext.get(vnode) || {};
+        const context = (vnode as any)[CONTEXT_KEY] || {};
+        // Merge context into attrs so the component can access it
+        vnode.attrs = Object.assign({}, context, vnode.attrs);
         const res = Reflect.apply(view, this, [vnode]);
         applyContext(res, context);
         return res;
@@ -120,7 +124,9 @@ export function contextifyComponent(component: ComponentTypes): ComponentTypes {
         const state = (component as ClosureComponent)(initialNode);
         const view = state.view;
         state.view = function (vnode) {
-          const context = vnodeContext.get(vnode) || {};
+          const context = (vnode as any)[CONTEXT_KEY] || {};
+          // Merge context into attrs so the component can access it
+          vnode.attrs = Object.assign({}, context, vnode.attrs);
           try {
             const res = Reflect.apply(view, this, [vnode]);
             applyContext(res, context);

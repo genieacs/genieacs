@@ -1,9 +1,23 @@
-import { ClosureComponent, Component, Children } from "mithril";
-import { m } from "./components.ts";
-import { icon } from "./tailwind-utility-components.ts";
+import {
+  div,
+  table,
+  thead,
+  tbody,
+  tfoot,
+  tr,
+  th,
+  td,
+  input,
+  button,
+  a,
+  span,
+  each,
+} from "./dom.ts";
+import { StateSignal } from "./signals.ts";
+import { createIcon } from "./icons.ts";
 import debounce from "../lib/common/debounce.ts";
 
-export interface Attribute {
+export interface IndexTableAttribute {
   id?: string;
   label: string;
   type?: string;
@@ -27,372 +41,373 @@ function getExcerpt(text: string, maxLength = 80, maxLines = 10): string[] {
   return lines;
 }
 
-function renderTable(
-  attributes: Attribute[],
-  data: Record<string, any>[],
-  total: number,
-  showMoreCallback: () => void,
-  selected: Set<string>,
-  sortAttributes: Record<string, any>,
-  onSort: (i: number) => void,
-  downloadUrl?: string,
-  valueCallback?: (attr: Attribute, record: Record<string, any>) => Children,
-  actionsCallback?: Children | ((sel: Set<string>) => Children),
-  recordActionsCallback?:
-    | Children
-    | ((record: Record<string, any>) => Children),
-): Children {
-  const records = data || [];
+// Normalize callback results into a flat array suitable for spreading as children
+function asChildren(content: unknown): (Node | string)[] {
+  if (content == null) return [];
+  if (Array.isArray(content)) return content as (Node | string)[];
+  return [content] as (Node | string)[];
+}
 
-  // Actions bar
-  let buttons: Children = [];
-  if (typeof actionsCallback === "function") {
-    buttons = actionsCallback(selected);
-    if (!Array.isArray(buttons)) buttons = [buttons];
-  } else if (Array.isArray(actionsCallback)) {
-    buttons = actionsCallback;
+function getRecordId(record: Record<string, unknown>): string {
+  return (record["_id"] ?? record["DeviceID.ID"]) as string;
+}
+
+export interface IndexTableAttrs {
+  attributes: IndexTableAttribute[];
+  data: () => Record<string, unknown>[];
+  total: () => number | undefined;
+  loading: () => boolean;
+  showMoreCallback: () => void;
+  sortAttributes: Record<number, number>;
+  onSortChange: (events: number[]) => void;
+  downloadUrl?: string;
+  valueCallback?: (
+    attr: IndexTableAttribute,
+    record: Record<string, unknown>,
+  ) => unknown;
+  actionsCallback?: (sel: Set<string>) => unknown[];
+  recordActionsCallback?: (record: Record<string, unknown>) => unknown[];
+}
+
+export function createIndexTable(attrs: IndexTableAttrs): HTMLElement {
+  const {
+    attributes,
+    data,
+    total,
+    loading,
+    showMoreCallback,
+    sortAttributes,
+    onSortChange,
+    downloadUrl,
+    valueCallback,
+    actionsCallback,
+    recordActionsCallback,
+  } = attrs;
+
+  // Selection state — plain Set with a version counter for reactivity
+  const selected = new Set<string>();
+  const selVer = new StateSignal(0);
+
+  function notifySelection(): void {
+    selVer.set(selVer.get() + 1);
   }
 
-  // Table header
-  const labels = [];
-  if (buttons.length) {
-    const selectAll = m(
-      "input.focus:ring-cyan-500 h-4 w-4 text-cyan-700 border-stone-300 rounded-sm",
-      {
-        type: "checkbox",
-        checked: records.length && selected.size === records.length,
-        onchange: (e: Event) => {
-          for (const record of records) {
-            const id = record["_id"] ?? record["DeviceID.ID"];
-            if ((e.target as HTMLInputElement).checked) selected.add(id);
-            else selected.delete(id);
-          }
-        },
-        disabled: !total,
-      },
+  const hasActions = typeof actionsCallback === "function";
+
+  // Sorting
+  const onSort = debounce((args: number[]) => {
+    const sortArray = new Set(
+      Object.keys(sortAttributes)
+        .map((x) => (parseInt(x) + 1) * sortAttributes[parseInt(x)])
+        .filter((x) => x),
     );
-    labels.push(
-      m(
-        "th",
+    for (const i of args) {
+      if (sortArray.delete(i + 1)) sortArray.add(-(i + 1));
+      else if (!sortArray.delete(-(i + 1))) sortArray.add(i + 1);
+    }
+    onSortChange(Array.from(sortArray).reverse());
+  }, 500);
+
+  // Column count for colspan
+  const colCount =
+    attributes.length + (hasActions ? 1 : 0) + (recordActionsCallback ? 1 : 0);
+
+  // --- Row renderer (called once per new record by each()) ---
+  function renderRow(record: Record<string, unknown>): Node {
+    const id = getRecordId(record);
+    const cells: Node[] = [];
+
+    if (hasActions) {
+      cells.push(
+        td(
+          { class: "px-6 py-4 whitespace-nowrap text-sm text-stone-500" },
+          input({
+            type: "checkbox",
+            class:
+              "focus:ring-cyan-500 h-4 w-4 text-cyan-700 border-stone-300 rounded-sm",
+            checked: () => {
+              selVer.get();
+              return selected.has(id);
+            },
+            onchange: (e) => {
+              if ((e.target as HTMLInputElement).checked) selected.add(id);
+              else selected.delete(id);
+              notifySelection();
+            },
+            onclick: (e) => e.stopPropagation(),
+          }),
+        ),
+      );
+    }
+
+    for (const [i, attr] of attributes.entries()) {
+      let padding: string;
+      if (i === 0) padding = hasActions ? "pr-3" : "pl-6 pr-3";
+      else if (i === attributes.length - (recordActionsCallback ? 0 : 1))
+        padding = "pl-3 pr-6";
+      else padding = "px-3";
+
+      let content: unknown;
+      if (typeof valueCallback === "function") {
+        content = valueCallback(attr, record);
+      } else if (attr.type === "code" && attr.id) {
+        const excerpt = getExcerpt(record[attr.id] as string);
+        content = span(
+          { class: "font-mono", title: excerpt.join("\n") },
+          excerpt[0],
+        );
+      } else if (attr.id) {
+        content = record[attr.id];
+      }
+
+      cells.push(
+        td(
+          { class: "py-4 whitespace-nowrap text-sm text-stone-900 " + padding },
+          ...asChildren(content),
+        ),
+      );
+    }
+
+    if (typeof recordActionsCallback === "function") {
+      const recordButtons = recordActionsCallback(record);
+      const buttonList = Array.isArray(recordButtons)
+        ? recordButtons
+        : [recordButtons];
+      for (const btn of buttonList) {
+        cells.push(
+          td(
+            {
+              class:
+                "pl-3 pr-6 py-4 whitespace-nowrap text-right text-sm font-medium",
+            },
+            ...asChildren(btn),
+          ),
+        );
+      }
+    }
+
+    return tr(
+      {
+        class: () => {
+          selVer.get();
+          return selected.has(id) ? "bg-stone-50" : "";
+        },
+        onclick: (e) => {
+          if ((e.target as HTMLElement).closest("input, button, a")) return;
+          if (!selected.delete(id)) selected.add(id);
+          notifySelection();
+        },
+      },
+      ...cells,
+    );
+  }
+
+  // --- Header (static — sort state comes from URL, fixed per page) ---
+  const headerCells: Node[] = [];
+
+  if (hasActions) {
+    headerCells.push(
+      th(
         { class: "px-6 py-3.5 w-0", scope: "col" },
-        m("span.sr-only", "Select"),
-        selectAll,
+        span({ class: "sr-only" }, "Select"),
+        input({
+          type: "checkbox",
+          class:
+            "focus:ring-cyan-500 h-4 w-4 text-cyan-700 border-stone-300 rounded-sm",
+          checked: () => {
+            selVer.get();
+            const records = data();
+            return records.length > 0 && selected.size === records.length;
+          },
+          disabled: () => !total(),
+          onchange: (e) => {
+            const checked = (e.target as HTMLInputElement).checked;
+            for (const record of data()) {
+              const id = getRecordId(record);
+              if (checked) selected.add(id);
+              else selected.delete(id);
+            }
+            notifySelection();
+          },
+        }),
       ),
     );
   }
 
   for (const [i, attr] of attributes.entries()) {
     let padding: string;
-    if (i === 0) padding = buttons.length ? "pr-3" : "pl-6 pr-3";
-    else if (i === attributes.length - +!recordActionsCallback)
+    if (i === 0) padding = hasActions ? "pr-3" : "pl-6 pr-3";
+    else if (i === attributes.length - (recordActionsCallback ? 0 : 1))
       padding = "pl-3 pr-6";
     else padding = "px-3";
 
-    const label = attr.label;
     if (!sortAttributes.hasOwnProperty(i)) {
-      labels.push(
-        m(
-          "th",
+      headerCells.push(
+        th(
           {
             class:
               "py-3.5 text-left text-sm font-semibold text-stone-500 " +
               padding,
             scope: "col",
           },
-          label,
+          attr.label,
         ),
       );
       continue;
     }
 
-    let symbol: Children;
-    if (sortAttributes[i] > 0) {
-      symbol = m(icon, { name: "sorted-asc", class: "inline h-4 w-4 ml-1" });
-    } else if (sortAttributes[i] < 0) {
-      symbol = m(icon, { name: "sorted-dsc", class: "inline h-4 w-4 ml-1" });
-    } else {
-      symbol = m(icon, {
-        name: "unsorted",
-        class: "inline h-4 w-4 ml-1 opacity-50 hover:opacity-100",
-      });
+    let iconName: string;
+    let iconClass = "inline h-4 w-4 ml-1";
+    if (sortAttributes[i] > 0) iconName = "sorted-asc";
+    else if (sortAttributes[i] < 0) iconName = "sorted-dsc";
+    else {
+      iconName = "unsorted";
+      iconClass += " opacity-50 hover:opacity-100";
     }
 
-    const sortable = m(
-      "button",
-      {
-        onclick: (e: Event) => {
-          e.redraw = false;
-          onSort(i);
-        },
-      },
-      symbol,
-    );
-
-    labels.push(
-      m(
-        "th",
+    headerCells.push(
+      th(
         {
           class:
             "py-3.5 text-left text-sm font-semibold text-stone-500 whitespace-nowrap " +
             padding,
           scope: "col",
         },
-        [label, sortable],
-      ),
-    );
-  }
-
-  if (recordActionsCallback)
-    labels.push(m("th", { class: "pl-3 pr-6 py-3.5 w-0", scope: "col" }));
-
-  // Table rows
-  const rows = [];
-  for (const record of records) {
-    const id = record["_id"] ?? record["DeviceID.ID"];
-    const tds = [];
-    const isSelected = selected.has(id);
-    if (buttons.length) {
-      const checkbox = m(
-        "input.focus:ring-cyan-500 h-4 w-4 text-cyan-700 border-stone-300 rounded-sm",
-        {
-          type: "checkbox",
-          checked: isSelected,
-          onchange: (e: Event) => {
-            if ((e.target as HTMLInputElement).checked) selected.add(id);
-            else selected.delete(id);
-          },
-          onclick: (e: Event) => {
-            e.stopPropagation();
-            e.redraw = false;
-          },
-        },
-      );
-      tds.push(
-        m("td.px-6 py-4 whitespace-nowrap text-sm text-stone-500", checkbox),
-      );
-    }
-
-    for (const [i, attr] of attributes.entries()) {
-      let padding: string;
-      if (i === 0) padding = buttons.length ? "pr-3" : "pl-6 pr-3";
-      else if (i === attributes.length - +!recordActionsCallback)
-        padding = "pl-3 pr-6";
-      else padding = "px-3";
-
-      const attrs = {
-        class: "py-4 whitespace-nowrap text-sm text-stone-900 " + padding,
-      };
-      let valueComponent;
-
-      if (typeof valueCallback === "function") {
-        valueComponent = valueCallback(attr, record);
-      } else if (attr.type === "code") {
-        const excerpt = getExcerpt(record[attr.id!]);
-        valueComponent = m(
-          "span.font-mono",
-          { title: excerpt.join("\n") },
-          excerpt[0],
-        );
-      } else {
-        valueComponent = record[attr.id!];
-      }
-      // TODO automatically add long text component on long values
-
-      tds.push(m("td", attrs, valueComponent));
-    }
-
-    let recordButtons: Children = [];
-    if (typeof recordActionsCallback === "function") {
-      recordButtons = recordActionsCallback(record);
-      if (!Array.isArray(recordButtons)) recordButtons = [recordButtons];
-    } else if (Array.isArray(recordActionsCallback)) {
-      recordButtons = recordActionsCallback;
-    }
-
-    for (const button of recordButtons) {
-      tds.push(
-        m(
-          "td.pl-3 pr-6 py-4 whitespace-nowrap text-right text-sm font-medium",
-          button,
-        ),
-      );
-    }
-
-    rows.push(
-      m(
-        "tr",
-        {
-          class: isSelected ? "bg-stone-50" : "",
-          onclick: (e: Event) => {
-            if ((e.target as HTMLElement).closest("input, button, a")) {
-              e.redraw = false;
-              return;
-            }
-
-            if (!selected.delete(id)) selected.add(id);
-          },
-        },
-        tds,
-      ),
-    );
-  }
-
-  if (!rows.length) {
-    rows.push(
-      m(
-        "tr",
-        m(
-          "td.bg-stripes text-sm font-medium text-center text-stone-500 p-4",
-          { colspan: labels.length },
-          "No records",
+        attr.label,
+        button(
+          { onclick: () => onSort(i) },
+          createIcon({ name: iconName, class: iconClass }),
         ),
       ),
     );
   }
 
-  // Table footer
-  const pagination = [];
-  if (total != null) pagination.push(`${records.length} / ${total}`);
-  else pagination.push(`${records.length}`);
-
-  pagination.push(
-    m(
-      "button.px-4 py-2 border border-stone-300 rounded-md text-stone-700 bg-white hover:bg-stone-50 ml-4 disabled:opacity-50 disabled:cursor-not-allowed",
-      {
-        title: "Show more records",
-        onclick: showMoreCallback,
-        disabled:
-          !data.length || records.length >= Math.min(MAX_PAGE_SIZE, total),
-      },
-      "More",
-    ),
-  );
-
-  let download: Children;
-  if (downloadUrl) {
-    download = m(
-      "a.text-cyan-700 hover:text-cyan-900",
-      { href: downloadUrl, download: "" },
-      "Download",
-    );
+  if (recordActionsCallback) {
+    headerCells.push(th({ class: "pl-3 pr-6 py-3.5 w-0", scope: "col" }));
   }
 
-  const tfoot = m(
-    "tfoot.bg-white",
-    m(
-      "tr",
-      m(
-        "td.px-6 py-3 text-sm font-medium text-stone-700",
-        { colspan: labels.length },
-        m(
-          "div.flex items-center justify-between",
-          m("div", pagination),
-          download,
-        ),
-      ),
-    ),
-  );
-
-  const children = [
-    m(
-      "div.flex flex-col",
-      m(
-        "div.-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8",
-        m(
-          "div.py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8",
-          m(
-            "div.shadow-sm overflow-hidden border-b border-stone-200 sm:rounded-lg",
-            m(
-              "table.min-w-full divide-y divide-stone-200",
-              m("thead.bg-stone-50", m("tr", labels)),
-              m("tbody.bg-white divide-y divide-stone-200", rows),
-              tfoot,
+  // --- Table (created once, children update via signals) ---
+  const tableEl = table(
+    { class: "min-w-full divide-y divide-stone-200" },
+    thead({ class: "bg-stone-50" }, tr(...headerCells)),
+    tbody(
+      { class: "bg-white divide-y divide-stone-200" },
+      // Keyed rows — each() handles add/remove/reorder
+      each(data, (record) => getRecordId(record), renderRow),
+      // Empty / loading state (shows only when data is empty)
+      () => {
+        if (data().length > 0) return null;
+        if (loading()) {
+          return tr(
+            td(
+              {
+                class: "text-sm font-medium text-center text-stone-500 p-4",
+                colspan: colCount,
+              },
+              "Loading\u2026",
             ),
+          );
+        }
+        return tr(
+          td(
+            {
+              class:
+                "bg-stripes text-sm font-medium text-center text-stone-500 p-4",
+              colspan: colCount,
+            },
+            "No records",
+          ),
+        );
+      },
+    ),
+    tfoot(
+      { class: "bg-white" },
+      tr(
+        td(
+          {
+            class: "px-6 py-3 text-sm font-medium text-stone-700",
+            colspan: colCount,
+          },
+          div(
+            { class: "flex items-center justify-between" },
+            div(
+              {},
+              // Reactive pagination text
+              () => {
+                const t = total();
+                const len = data().length;
+                return t != null ? `${len} / ${t}` : `${len}`;
+              },
+              button(
+                {
+                  class:
+                    "px-4 py-2 border border-stone-300 rounded-md text-stone-700 bg-white hover:bg-stone-50 ml-4 disabled:opacity-50 disabled:cursor-not-allowed",
+                  title: "Show more records",
+                  disabled: () => {
+                    const records = data();
+                    const t = total();
+                    return (
+                      !records.length ||
+                      records.length >= Math.min(MAX_PAGE_SIZE, t ?? 0)
+                    );
+                  },
+                  onclick: showMoreCallback,
+                },
+                "More",
+              ),
+            ),
+            downloadUrl
+              ? a(
+                  {
+                    class: "text-cyan-700 hover:text-cyan-900",
+                    href: downloadUrl,
+                    download: "",
+                  },
+                  "Download",
+                )
+              : null,
           ),
         ),
       ),
     ),
-  ];
+  );
 
-  if (buttons.length) children.push(m("div.flex gap-3 mt-4", buttons));
-  return children;
-}
-
-export interface IndexTableAttrs {
-  attributes: Attribute[];
-  data: Record<string, any>[];
-  // Callback attribute type is caller-defined; treated as opaque here.
-  valueCallback?: (attr: any, record: Record<string, any>) => Children;
-  total: number;
-  showMoreCallback: () => void;
-  sortAttributes: Record<string, number>;
-  onSortChange: (events: number[]) => void;
-  downloadUrl?: string;
-  actionsCallback?: Children | ((sel: Set<string>) => Children);
-  recordActionsCallback?:
-    | Children
-    | ((record: Record<string, any>) => Children);
-}
-
-const component: ClosureComponent<
-  IndexTableAttrs
-> = (): Component<IndexTableAttrs> => {
-  let selected = new Set<string>();
-  let sortingfunction: (events: number[]) => void;
-  const onSort = debounce((events: number[]) => {
-    sortingfunction(events);
-  }, 500);
-  return {
-    view: (vnode) => {
-      const {
-        attributes,
-        data,
-        valueCallback,
-        total,
-        showMoreCallback,
-        sortAttributes,
-        onSortChange,
-        downloadUrl,
-        actionsCallback,
-        recordActionsCallback,
-      } = vnode.attrs;
-
-      const _selected = new Set<string>();
-      for (const record of data) {
-        const id = record["_id"] ?? record["DeviceID.ID"];
-        if (selected.has(id)) _selected.add(id);
-      }
-
-      sortingfunction = (events) => {
-        const sortArray = new Set(
-          Object.keys(sortAttributes)
-            .map((x) => (parseInt(x) + 1) * sortAttributes[x])
-            .filter((x) => x),
-        );
-        for (const num of events) {
-          if (sortArray.delete(num + 1)) sortArray.add(-(num + 1));
-          else if (!sortArray.delete((num + 1) * -1)) sortArray.add(num + 1);
+  // --- Assemble ---
+  return div(
+    { class: "flex flex-col" },
+    div(
+      { class: "-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8" },
+      div(
+        { class: "py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8" },
+        div(
+          {
+            class:
+              "shadow-sm overflow-hidden border-b border-stone-200 sm:rounded-lg",
+          },
+          tableEl,
+        ),
+      ),
+    ),
+    // Reactive actions bar
+    hasActions
+      ? () => {
+          selVer.get();
+          // Clean stale selections; notify so other reactives (e.g. select-all
+          // checkbox) re-evaluate against the pruned set.
+          const dataIds = new Set(data().map(getRecordId));
+          let pruned = false;
+          for (const id of selected) {
+            if (!dataIds.has(id)) {
+              selected.delete(id);
+              pruned = true;
+            }
+          }
+          if (pruned) notifySelection();
+          const buttons = (actionsCallback as (sel: Set<string>) => unknown[])(
+            selected,
+          );
+          return div({ class: "flex gap-3 mt-4" }, ...asChildren(buttons));
         }
-        onSortChange(Array.from(sortArray).reverse());
-      };
-
-      selected = _selected;
-
-      return renderTable(
-        attributes,
-        data,
-        total,
-        showMoreCallback,
-        selected,
-        sortAttributes,
-        onSort,
-        downloadUrl,
-        valueCallback,
-        actionsCallback,
-        recordActionsCallback,
-      );
-    },
-  };
-};
-
-export default component;
+      : null,
+  );
+}

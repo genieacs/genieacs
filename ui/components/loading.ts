@@ -1,5 +1,5 @@
-import { VnodeDOM, ClosureComponent, Component } from "mithril";
-import { QueryResponse } from "../store.ts";
+import { VnodeDOM, ClosureComponent, Component } from "../mithril-compat.ts";
+import { QueryResponse } from "../legacy-store.ts";
 
 interface Attrs {
   queries: QueryResponse[];
@@ -21,7 +21,7 @@ const component: ClosureComponent<Attrs> = (): Component<Attrs> => {
 
     if (dom && dom !== vnode.dom) dom.classList.remove("loading");
 
-    dom = vnode.dom;
+    dom = vnode.dom!;
     dom.classList.add("loading");
 
     if (!overlay) {

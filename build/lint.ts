@@ -18,6 +18,7 @@ async function runEslint(): Promise<string> {
     if (!(err instanceof Error)) throw err;
     const e = err as ExecException;
     if (e.killed || e.signal || e.stderr || e.code !== 1) throw err;
+    process.exitCode = 1;
     return e.stdout ?? "";
   }
 }
@@ -28,9 +29,17 @@ async function runTsc(): Promise<string> {
     ...(process.stdout.isTTY && { FORCE_COLOR: "1" }),
     ...process.env,
   };
-  const { stdout, stderr } = await execPromise(CMD, { env });
-  if (stderr) throw new Error(stderr);
-  return stdout;
+  try {
+    const { stdout, stderr } = await execPromise(CMD, { env });
+    if (stderr) throw new Error(stderr);
+    return stdout;
+  } catch (err) {
+    if (!(err instanceof Error)) throw err;
+    const e = err as ExecException;
+    if (e.killed || e.signal || e.stderr || !e.stdout) throw err;
+    process.exitCode = 1;
+    return e.stdout;
+  }
 }
 
 async function runPrettier(): Promise<string> {
@@ -54,4 +63,7 @@ async function runAll(): Promise<void> {
   console.log(await prom3);
 }
 
-runAll().catch(console.error);
+runAll().catch((err: unknown) => {
+  process.exitCode = 1;
+  console.error(err);
+});

@@ -1,8 +1,9 @@
-import { Attributes, ClosureComponent } from "mithril";
+import { Attributes, ClosureComponent } from "../mithril-compat.ts";
 import memoize from "../../lib/common/memoize.ts";
 import Expression, { Value } from "../../lib/common/expression.ts";
 import { m } from "../components.ts";
-import { evaluateExpression, getTimestamp } from "../store.ts";
+import { evaluateExpression } from "../reactive-store.ts";
+import { getTimestamp } from "../legacy-store.ts";
 import { FlatDevice } from "../../lib/ui/db.ts";
 
 const evaluateAttributes = memoize(

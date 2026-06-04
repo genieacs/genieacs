@@ -1,11 +1,11 @@
+import { request } from "./api-client.ts";
 import {
   SignalBase,
   ComputedSignal,
-  markSinksDirty,
   Watcher,
   registerDependency,
+  markSinksDirty,
 } from "./signals.ts";
-import { request } from "./api-client.ts";
 import { SkewedDate } from "./skewed-date.ts";
 import { subtract, covers } from "../lib/common/expression/synth.ts";
 import {
@@ -13,14 +13,27 @@ import {
   toBookmark,
 } from "../lib/common/expression/pagination.ts";
 import Expression from "../lib/common/expression.ts";
-import memoize from "../lib/common/memoize.ts";
 
-const memoizedStringify = memoize((e: Expression) => e.toString());
+// =============================================================================
+// Expression Evaluation
+// =============================================================================
+
+export function evaluateExpression(exp: Expression): Expression;
+export function evaluateExpression(
+  exp: Expression,
+  obj: Record<string, unknown>,
+): Expression.Literal;
+export function evaluateExpression(
+  exp: Expression,
+  obj?: Record<string, unknown>,
+): Expression {
+  return evaluate(exp, SkewedDate.now(), obj);
+}
 
 function evaluate(
   exp: Expression,
   timestamp: number,
-  obj: Record<string, unknown>,
+  obj?: Record<string, unknown>,
 ): Expression {
   return exp.evaluate((e) => {
     if (e instanceof Expression.Literal) return e;
@@ -29,7 +42,8 @@ function evaluate(
     } else if (e instanceof Expression.Parameter && obj) {
       let v = obj[e.path.toString()];
       if (v == null) return new Expression.Literal(null);
-      if (typeof v === "object") v = (v as { value?: unknown[] })["value"]?.[0];
+      if (typeof v === "object")
+        v = ((v as Record<string, unknown>)["value"] as unknown[])?.[0];
       return new Expression.Literal(v as string | number | boolean | null);
     }
     return e;
@@ -86,13 +100,50 @@ export class Bookmark {
   }
 }
 
+// A Set that notifies the owning QuerySignal when entries are removed,
+// so the signal can auto-dispose when no live sinks remain.
+class TrackedSinkSet extends Set<
+  globalThis.WeakRef<ComputedSignal<unknown> | Watcher>
+> {
+  private _owner: QuerySignal<unknown> | null = null;
+
+  _setOwner(owner: QuerySignal<unknown>): void {
+    this._owner = owner;
+  }
+
+  override delete(
+    value: globalThis.WeakRef<ComputedSignal<unknown> | Watcher>,
+  ): boolean {
+    const result = super.delete(value);
+    if (result && this._owner && this.size === 0) {
+      // Last sink removed — auto-dispose on next microtask so that
+      // any ongoing batch of sink removals completes first.
+      const owner = this._owner;
+      queueMicrotask(() => {
+        if (owner._disposed) return;
+        // Re-check: a new sink may have been added in the meantime
+        for (const ref of owner._sinks) {
+          const sink = ref.deref();
+          if (sink && !sink._disposed) return;
+        }
+        owner[Symbol.dispose]();
+      });
+    }
+    return result;
+  }
+}
+
 export class QuerySignal<T> extends SignalBase<QueryState<T>> {
-  declare _sinks: Set<globalThis.WeakRef<ComputedSignal<unknown> | Watcher>>;
+  declare _sinks: TrackedSinkSet;
   private _state: QueryState<T>;
+  private _onDispose: (() => void) | null = null;
 
   constructor(initialValue: T) {
     super();
-    this._sinks = new Set();
+    this._sinks = new TrackedSinkSet();
+    (this._sinks as TrackedSinkSet)._setOwner(
+      this as unknown as QuerySignal<unknown>,
+    );
     this._state = {
       value: initialValue,
       timestamp: 0,
@@ -124,10 +175,18 @@ export class QuerySignal<T> extends SignalBase<QueryState<T>> {
     }
   }
 
+  _setOnDispose(callback: () => void): void {
+    this._onDispose = callback;
+  }
+
   [Symbol.dispose](): void {
     if (this._disposed) return;
     this._disposed = true;
     this._sinks.clear();
+    if (this._onDispose) {
+      this._onDispose();
+      this._onDispose = null;
+    }
   }
 }
 
@@ -148,9 +207,9 @@ function compareFunction(
         if (v2Obj.value) v2 = v2Obj.value[0];
         else v2 = null;
       }
-      if ((v1 as any) > (v2 as any)) {
+      if ((v1 as number) > (v2 as number)) {
         return asc;
-      } else if ((v1 as any) < (v2 as any)) {
+      } else if ((v1 as number) < (v2 as number)) {
         return asc * -1;
       } else if (v1 !== v2) {
         const w: Record<string, number> = {
@@ -223,7 +282,7 @@ class ResourceStore {
     sort: Record<string, number>,
     freshness: number,
   ): QuerySignal<unknown[]> {
-    const filterStr = memoizedStringify(filter);
+    const filterStr = filter.toString();
     const key = `${filterStr}:${JSON.stringify(sort)}`;
 
     const existingEntry = this.fetchQueries.get(key);
@@ -238,9 +297,16 @@ class ResourceStore {
         }
         return existing;
       }
+      // WeakRef is dead — clean up before checking coverage
+      this.fetchQueries.delete(key);
     }
 
+    // Sweep dead entries so pruneCache clears stale fetchedRegions
+    // that would otherwise make checkCoverage skip the re-fetch.
+    this.sweepAndPrune();
+
     const signal = new QuerySignal<unknown[]>([]);
+    signal._setOnDispose(() => this.onQueryDisposed("fetch", key));
     const weakRef = new globalThis.WeakRef(signal);
     this.fetchQueries.set(key, { weakRef, filter, sort });
     this.registry.register(signal, { type: "fetch", key });
@@ -262,7 +328,7 @@ class ResourceStore {
   }
 
   count(filter: Expression, freshness: number): QuerySignal<number> {
-    const filterStr = memoizedStringify(filter);
+    const filterStr = filter.toString();
 
     const existingEntry = this.countQueries.get(filterStr);
     if (existingEntry) {
@@ -279,6 +345,7 @@ class ResourceStore {
     }
 
     const signal = new QuerySignal<number>(0);
+    signal._setOnDispose(() => this.onQueryDisposed("count", filterStr));
     const weakRef = new globalThis.WeakRef(signal);
     this.countQueries.set(filterStr, { weakRef, filter });
     this.registry.register(signal, { type: "count", key: filterStr });
@@ -304,7 +371,7 @@ class ResourceStore {
     after?: Bookmark,
   ): QuerySignal<Bookmark | null> {
     const effectiveFilter = after ? after.applySkip(filter) : filter;
-    const filterStr = memoizedStringify(effectiveFilter);
+    const filterStr = effectiveFilter.toString();
     const key = `${filterStr}:${JSON.stringify(sort)}:${offset}`;
 
     const existingEntry = this.bookmarkQueries.get(key);
@@ -321,6 +388,7 @@ class ResourceStore {
     }
 
     const signal = new QuerySignal<Bookmark | null>(null);
+    signal._setOnDispose(() => this.onQueryDisposed("bookmark", key));
     const weakRef = new globalThis.WeakRef(signal);
     this.bookmarkQueries.set(key, {
       weakRef,
@@ -399,7 +467,7 @@ class ResourceStore {
 
   // Subtract new region from existing regions to maintain non-overlapping regions
   private addFetchedRegion(filter: Expression, timestamp: number): void {
-    const filterStr = memoizedStringify(filter);
+    const filterStr = filter.toString();
     const updatedRegions: FetchedRegion[] = [];
 
     for (const region of this.cache.fetchedRegions) {
@@ -408,7 +476,7 @@ class ResourceStore {
         updatedRegions.push({
           filter: remainder,
           timestamp: region.timestamp,
-          filterStr: memoizedStringify(remainder),
+          filterStr: remainder.toString(),
         });
       }
     }
@@ -423,33 +491,43 @@ class ResourceStore {
   }
 
   // TODO: Consider batching concurrent fetch requests for the same resource.
-  // Currently each query issues its own XHR. When multiple queries are
+  // Currently each query issues its own request. When multiple queries are
   // triggered at the same time (e.g. after invalidation), they race and
   // fetch overlapping data independently. A batching mechanism could combine
   // them into fewer requests by deferring execution to the next microtask and
   // merging the filters.
+
   private triggerFetchRefresh(
     filter: Expression,
     sort: Record<string, number>,
     signal: QuerySignal<unknown[]>,
     freshness: number,
   ): void {
+    // Hold the signal via WeakRef so the async closure does not prevent
+    // the signal from being garbage-collected when no consumer remains.
+    const signalRef = new globalThis.WeakRef(signal);
+
     const doFetch = async (retryCount = 0): Promise<void> => {
       try {
+        const s = signalRef.deref();
+        if (!s || s._disposed) return;
+
         const combined = this.getCombinedFilter(freshness);
         const diff = subtract(combined, filter);
 
         if (diff instanceof Expression.Literal && !diff.value) {
           const data = this.findMatchingObjects(filter, sort);
-          signal._update(data, Date.now(), false);
+          s._update(data, Date.now(), false);
           return;
         }
 
-        const filterStr = memoizedStringify(diff);
-        const fetchRes = await request(`/api/${this.resourceType}/`, {
+        const filterStr = diff.toString();
+        const res = (await request(`/api/${this.resourceType}/`, {
           params: { filter: filterStr },
-        });
-        const res = (await fetchRes.json()) as unknown[];
+        }).then((r) => r.json())) as unknown[];
+
+        const s2 = signalRef.deref();
+        if (!s2 || s2._disposed) return;
 
         const returnedIds = new Set<string>();
         for (const obj of res) {
@@ -459,7 +537,11 @@ class ResourceStore {
             returnedIds.add(id);
           }
         }
-        for (const obj of this.findMatchingObjects(filter, {})) {
+        // Only delete objects in the region we actually queried (diff).
+        // Objects in already-covered regions are left untouched — we
+        // didn't ask the server about those so we can't know if they
+        // were deleted.
+        for (const obj of this.findMatchingObjects(diff, {})) {
           const id = getObjectId(this.resourceType, obj);
           if (!returnedIds.has(id)) this.cache.objects.delete(id);
         }
@@ -467,7 +549,7 @@ class ResourceStore {
         const now = Date.now();
         this.addFetchedRegion(diff, now);
         const data = this.findMatchingObjects(filter, sort);
-        signal._update(data, now, false);
+        s2._update(data, now, false);
       } catch (err) {
         console.error(
           `Error fetching ${this.resourceType}:`,
@@ -477,8 +559,11 @@ class ResourceStore {
           await new Promise((resolve) => globalThis.setTimeout(resolve, 1000));
           return doFetch(retryCount + 1);
         }
-        const state = signal.get();
-        signal._update(state.value, state.timestamp, false);
+        const s = signalRef.deref();
+        if (s && !s._disposed) {
+          const state = s._peek();
+          s._update(state.value, state.timestamp, false);
+        }
       }
     };
 
@@ -489,18 +574,26 @@ class ResourceStore {
     filter: Expression,
     signal: QuerySignal<number>,
   ): void {
+    const signalRef = new globalThis.WeakRef(signal);
+
     const doCount = async (retryCount = 0): Promise<void> => {
       try {
-        const filterStr = memoizedStringify(filter);
-        const countRes = await request(`/api/${this.resourceType}/`, {
+        const s = signalRef.deref();
+        if (!s || s._disposed) return;
+
+        const filterStr = filter.toString();
+        const res = await request(`/api/${this.resourceType}/`, {
           method: "HEAD",
           params: { filter: filterStr },
         });
-        const countValue = +(countRes.headers.get("x-total-count") ?? 0);
+        const countValue = +(res.headers.get("x-total-count") ?? 0);
+
+        const s2 = signalRef.deref();
+        if (!s2 || s2._disposed) return;
 
         const now = Date.now();
         this.cache.counts.set(filterStr, { value: countValue, timestamp: now });
-        signal._update(countValue, now, false);
+        s2._update(countValue, now, false);
       } catch (err) {
         console.error(
           `Error counting ${this.resourceType}:`,
@@ -510,8 +603,11 @@ class ResourceStore {
           await new Promise((resolve) => globalThis.setTimeout(resolve, 1000));
           return doCount(retryCount + 1);
         }
-        const state = signal.get();
-        signal._update(state.value, state.timestamp, false);
+        const s = signalRef.deref();
+        if (s && !s._disposed) {
+          const state = s._peek();
+          s._update(state.value, state.timestamp, false);
+        }
       }
     };
 
@@ -524,12 +620,17 @@ class ResourceStore {
     offset: number,
     signal: QuerySignal<Bookmark | null>,
   ): void {
+    const signalRef = new globalThis.WeakRef(signal);
+
     const doBookmark = async (retryCount = 0): Promise<void> => {
       try {
-        const filterStr = memoizedStringify(filter);
+        const s = signalRef.deref();
+        if (!s || s._disposed) return;
+
+        const filterStr = filter.toString();
         const projection = Object.keys(sort).join(",");
 
-        const fetchRes = await request(`/api/${this.resourceType}/`, {
+        const res = (await request(`/api/${this.resourceType}/`, {
           params: {
             filter: filterStr,
             skip: String(offset),
@@ -537,23 +638,28 @@ class ResourceStore {
             sort: JSON.stringify(sort),
             projection,
           },
-        });
-        const res = (await fetchRes.json()) as Record<
-          string,
-          string | number | boolean | null | { value: [string] }
-        >[];
+        }).then((r) => r.json())) as unknown[];
+
+        const s2 = signalRef.deref();
+        if (!s2 || s2._disposed) return;
 
         const now = Date.now();
         const key = `${filterStr}:${JSON.stringify(sort)}:${offset}`;
 
         let bookmarkData: BookmarkData | null = null;
         if (res.length > 0) {
-          bookmarkData = toBookmark(sort, res[0]);
+          bookmarkData = toBookmark(
+            sort,
+            res[0] as Record<
+              string,
+              string | number | boolean | { value: [string] } | null
+            >,
+          );
         }
 
         this.cache.bookmarks.set(key, { data: bookmarkData, timestamp: now });
         const bookmark = bookmarkData ? new Bookmark(bookmarkData, sort) : null;
-        signal._update(bookmark, now, false);
+        s2._update(bookmark, now, false);
       } catch (err) {
         console.error(
           `Error creating bookmark for ${this.resourceType}:`,
@@ -563,8 +669,11 @@ class ResourceStore {
           await new Promise((resolve) => globalThis.setTimeout(resolve, 1000));
           return doBookmark(retryCount + 1);
         }
-        const state = signal.get();
-        signal._update(state.value, state.timestamp, false);
+        const s = signalRef.deref();
+        if (s && !s._disposed) {
+          const state = s._peek();
+          s._update(state.value, state.timestamp, false);
+        }
       }
     };
 
@@ -575,9 +684,12 @@ class ResourceStore {
     // Invalidate queries whose data was fetched strictly before the given
     // timestamp. The timestamp is exclusive: data fetched at exactly the
     // given timestamp is considered fresh.
-    for (const [, entry] of this.fetchQueries) {
+    for (const [key, entry] of this.fetchQueries) {
       const signal = entry.weakRef.deref();
-      if (!signal || signal._disposed) continue;
+      if (!signal || signal._disposed) {
+        this.fetchQueries.delete(key);
+        continue;
+      }
       const state = signal._peek();
       if (state.timestamp < timestamp && !state.loading) {
         signal._update(state.value, state.timestamp, true);
@@ -586,9 +698,12 @@ class ResourceStore {
     }
 
     // Invalidate count queries
-    for (const [, entry] of this.countQueries) {
+    for (const [key, entry] of this.countQueries) {
       const signal = entry.weakRef.deref();
-      if (!signal || signal._disposed) continue;
+      if (!signal || signal._disposed) {
+        this.countQueries.delete(key);
+        continue;
+      }
       const state = signal._peek();
       if (state.timestamp < timestamp && !state.loading) {
         signal._update(state.value, state.timestamp, true);
@@ -597,9 +712,12 @@ class ResourceStore {
     }
 
     // Invalidate bookmark queries
-    for (const [, entry] of this.bookmarkQueries) {
+    for (const [key, entry] of this.bookmarkQueries) {
       const signal = entry.weakRef.deref();
-      if (!signal || signal._disposed) continue;
+      if (!signal || signal._disposed) {
+        this.bookmarkQueries.delete(key);
+        continue;
+      }
       const state = signal._peek();
       if (state.timestamp < timestamp && !state.loading) {
         signal._update(state.value, state.timestamp, true);
@@ -611,6 +729,31 @@ class ResourceStore {
         );
       }
     }
+
+    this.sweepAndPrune();
+  }
+
+  private sweepAndPrune(): void {
+    let swept = false;
+    for (const [key, entry] of this.fetchQueries) {
+      if (!entry.weakRef.deref()) {
+        this.fetchQueries.delete(key);
+        swept = true;
+      }
+    }
+    for (const [key, entry] of this.countQueries) {
+      if (!entry.weakRef.deref()) {
+        this.countQueries.delete(key);
+        this.cache.counts.delete(key);
+      }
+    }
+    for (const [key, entry] of this.bookmarkQueries) {
+      if (!entry.weakRef.deref()) {
+        this.bookmarkQueries.delete(key);
+        this.cache.bookmarks.delete(key);
+      }
+    }
+    if (swept) this.pruneCache();
   }
 
   private onQueryDisposed(type: string, key: string): void {

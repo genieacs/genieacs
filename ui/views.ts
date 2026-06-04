@@ -1,15 +1,12 @@
-import m, { ClosureComponent, ChildArray } from "mithril";
 import {
   ComputedSignal,
   ConstSignal,
   SignalBase,
   StateSignal,
-  Watcher,
   abortSignal,
   setTimeout as _setTimeout,
   setInterval as _setInterval,
 } from "./signals.ts";
-
 import views from "views-bundle";
 import { count, fetch, invalidate } from "./reactive-store.ts";
 import { SkewedDate, getClockSkew } from "./skewed-date.ts";
@@ -18,6 +15,7 @@ import * as taskQueue from "./task-queue.ts";
 import * as notifications from "./notifications.ts";
 import { deleteResource, ping, updateTags } from "./api-client.ts";
 import { stringify } from "../lib/common/yaml.ts";
+import { createElement, fragment, type Child } from "./dom.ts";
 
 type ViewElement =
   | ViewNode
@@ -282,7 +280,7 @@ function initView(context: RenderContext, node: ViewElement): ViewElement {
   const script = context.getView(node.name);
 
   if (script) {
-    const context2 = context.popView(node.name).pushDeferred(node.children);
+    const context2 = context.popView(node.name);
     const signalizedNode = signalizeNode(node);
     return new ComputedSignal<ViewElement>(() => {
       const res = script(
@@ -321,18 +319,14 @@ type ViewFunc = (
   Date: DateConstructorLike,
 ) => ViewElement;
 
+// Immutable: every derived context is constructed with its own (shallow-
+// copied) stacks map. The stack arrays are shared between contexts until
+// replaced, and are only ever rebuilt, never mutated.
 class RenderContext {
   private viewStacks: Record<string, ViewFunc[]>;
-  private deferredStack: ChildArray[];
 
-  constructor(clone?: RenderContext) {
-    if (clone) {
-      this.viewStacks = clone.viewStacks;
-      this.deferredStack = clone.deferredStack;
-    } else {
-      this.viewStacks = {};
-      this.deferredStack = [];
-    }
+  constructor(viewStacks: Record<string, ViewFunc[]> = {}) {
+    this.viewStacks = viewStacks;
   }
 
   getView(name: string): ViewFunc | undefined {
@@ -342,89 +336,87 @@ class RenderContext {
   }
 
   pushViews(_views: Record<string, ViewFunc>): RenderContext {
-    const clone = new RenderContext(this);
+    const viewStacks = { ...this.viewStacks };
     for (const [name, view] of Object.entries(_views)) {
-      clone.viewStacks[name] = [...(clone.viewStacks[name] ?? []), view];
+      viewStacks[name] = [...(viewStacks[name] ?? []), view];
     }
-    return clone;
+    return new RenderContext(viewStacks);
   }
 
   popView(name: string): RenderContext {
     const stack = this.viewStacks[name];
     if (!stack?.length) return this;
-    const clone = new RenderContext(this);
-    clone.viewStacks = { ...this.viewStacks, [name]: stack.slice(0, -1) };
-    return clone;
-  }
-
-  getDeferred(): (ViewNode | SignalBase | any)[] | undefined {
-    if (!this.deferredStack.length) return undefined;
-    return this.deferredStack[this.deferredStack.length - 1];
-  }
-
-  popDeferred(): RenderContext {
-    const clone = new RenderContext(this);
-    clone.deferredStack = this.deferredStack.slice(0, -1);
-    return clone;
-  }
-
-  pushDeferred(deferred: (ViewNode | SignalBase | any)[]): RenderContext {
-    const clone = new RenderContext(this);
-    clone.deferredStack = [...this.deferredStack, deferred];
-    return clone;
+    return new RenderContext({
+      ...this.viewStacks,
+      [name]: stack.slice(0, -1),
+    });
   }
 }
 
-function renderNode(node: ViewElement): ReturnType<typeof m> {
+// Convert a ViewElement tree into a dom.ts Child that can be rendered
+// by dom.ts's createElement/fragment. Signals become reactive functions,
+// ViewNodes become createElement calls, primitives pass through as-is.
+function toChild(node: ViewElement, nsContext?: string): Child {
+  if (node == null || typeof node === "boolean") return null;
+
+  // Signals → reactive function child (dom.ts handles the watcher/disposal)
   if (node instanceof SignalBase) {
-    return renderNode(node.get());
-  }
-  if (node instanceof ViewNode) {
-    const attrs: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(node.attributes)) {
-      attrs[k] = v instanceof SignalBase ? v.get() : v;
-    }
-    if (!node.name) return m.fragment(attrs, node.children.map(renderNode));
-    return m(node.name, attrs, node.children.map(renderNode));
+    return (() => toChild(node.get(), nsContext)) as Child;
   }
 
-  if (Array.isArray(node))
-    return m.fragment(
-      {},
-      node.map((n) => renderNode(n)),
-    );
-  return m.fragment({}, node ?? "");
+  // ViewNode → createElement
+  if (node instanceof ViewNode) {
+    if (!node.name) {
+      // Fragment — return children as array so dom.ts tracks each node
+      // individually (a DocumentFragment loses its children after append,
+      // breaking reactive update removal)
+      return node.children.map((c) => toChild(c, nsContext)) as Child;
+    }
+
+    // Resolve namespace from explicit xmlns or inherited context
+    const xmlns = node.attributes.xmlns as string | undefined;
+    const namespace = xmlns || nsContext;
+
+    // Build attrs, converting SignalBase values to reactive functions
+    // so dom.ts's createElement handles the binding
+    const attrs: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(node.attributes)) {
+      if (key === "xmlns") continue;
+      if (value instanceof SignalBase) {
+        attrs[key] = () => value.get();
+      } else {
+        attrs[key] = value;
+      }
+    }
+
+    // Convert children, propagating namespace context
+    const children = node.children.map((c) => toChild(c, namespace));
+
+    return createElement(
+      node.name,
+      attrs,
+      children,
+      namespace,
+    ) as unknown as Child;
+  }
+
+  // Arrays → map each element
+  if (Array.isArray(node)) {
+    return node.map((c) => toChild(c, nsContext)) as Child;
+  }
+
+  // Primitives (string, number) pass through directly
+  return node as Child;
 }
 
-export const ViewComponent: ClosureComponent<{
-  name: string;
-  attrs: Record<string, string>;
-}> = (vnode) => {
+// Render a view by name into a DOM node
+export function renderView(
+  name: string,
+  attrs: Record<string, unknown>,
+): DocumentFragment {
   const context = new RenderContext().pushViews(
     views as Record<string, ViewFunc>,
   );
-  const node = initView(
-    context,
-    new ViewNode(vnode.attrs.name, vnode.attrs.attrs, []),
-  );
-
-  const signal = new ComputedSignal<ReturnType<typeof renderNode>>(() => {
-    return renderNode(node);
-  });
-
-  const watcher = new Watcher(() => {
-    requestAnimationFrame(() => {
-      watcher.watch(); // Reset notification state
-      m.redraw();
-    });
-  });
-  watcher.watch(signal);
-
-  return {
-    view: () => signal.get(),
-    onremove: () => {
-      watcher[Symbol.dispose]();
-      if (node instanceof SignalBase) node[Symbol.dispose]();
-    },
-  };
-};
+  const viewNode = initView(context, new ViewNode(name, attrs, []));
+  return fragment(toChild(viewNode));
+}

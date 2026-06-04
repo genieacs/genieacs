@@ -1,6 +1,6 @@
-import { ClosureComponent, Component } from "mithril";
+import { ClosureComponent, Component } from "../mithril-compat.ts";
 import { m } from "../components.ts";
-import { evaluateExpression } from "../store.ts";
+import { evaluateExpression } from "../reactive-store.ts";
 import Expression from "../../lib/common/expression.ts";
 import { FlatDevice } from "../../lib/ui/db.ts";
 

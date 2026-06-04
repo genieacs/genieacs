@@ -1,4 +1,4 @@
-import { ClosureComponent, Component, VnodeDOM } from "mithril";
+import { ClosureComponent, Component, VnodeDOM } from "../mithril-compat.ts";
 import { m } from "../components.ts";
 import { ping } from "../api-client.ts";
 import { FlatDevice } from "../../lib/ui/db.ts";

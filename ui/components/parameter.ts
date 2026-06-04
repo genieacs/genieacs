@@ -1,12 +1,12 @@
-import { ClosureComponent, Component, VnodeDOM } from "mithril";
+import { ClosureComponent, Component, VnodeDOM } from "../mithril-compat.ts";
 import { m } from "../components.ts";
 import * as taskQueue from "../task-queue.ts";
-import { getTimestamp } from "../store.ts";
+import { getTimestamp } from "../legacy-store.ts";
 import { getClockSkew } from "../skewed-date.ts";
 import Expression, { Value } from "../../lib/common/expression.ts";
 import memoize from "../../lib/common/memoize.ts";
 import timeAgo from "../timeago.ts";
-import { icon } from "../tailwind-utility-components.ts";
+import { icon } from "../icons.ts";
 import { FlatDevice } from "../../lib/ui/db.ts";
 
 interface Attrs {
@@ -52,7 +52,11 @@ const evaluateParam = memoize(
       return new Expression.Literal(null);
     });
 
-    return { value: lit.value, timestamp, parameter: valueMap.get(lit) };
+    return {
+      value: lit.value,
+      timestamp,
+      parameter: valueMap.get(lit) as string,
+    };
   },
 );
 
@@ -101,14 +105,12 @@ const component: ClosureComponent<Attrs> = (): Component<Attrs> => {
       return m(
         "span.inline-flex overflow-hidden align-top",
         {
-          onmouseover: (e: Event) => {
-            e.redraw = false;
+          onmouseover: (e: { target: HTMLElement & { title: string } }) => {
             // Don't update any child element
             if (e.target === (el as VnodeDOM).dom) {
               const now = Date.now() + getClockSkew();
               const localeString = new Date(timestamp).toLocaleString();
-              (e.target as HTMLElement).title =
-                `${localeString} (${timeAgo(now - timestamp)})`;
+              e.target.title = `${localeString} (${timeAgo(now - timestamp)})`;
             }
           },
         },

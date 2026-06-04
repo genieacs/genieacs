@@ -1,21 +1,20 @@
-import { Children, ClosureComponent, Component, VnodeDOM } from "mithril";
-import { m } from "./components.ts";
-import { pageSize as PAGE_SIZE } from "./config.ts";
-import * as store from "./store.ts";
-import { deleteResource, resourceExists, putResource } from "./api-client.ts";
-import * as notifications from "./notifications.ts";
-import memoize from "../lib/common/memoize.ts";
 import { navigate } from "./router.ts";
-import putFormComponent from "./put-form-component.ts";
-import indexTableComponent, {
-  IndexTableAttrs,
-} from "./index-table-component.ts";
+import { pageSize as PAGE_SIZE } from "./config.ts";
+import { createFilter } from "./filter-component.ts";
+import { createIndexTable } from "./index-table-component.ts";
+import {
+  fetch as reactiveFetch,
+  count as reactiveCount,
+  invalidate,
+} from "./reactive-store.ts";
+import { StateSignal } from "./signals.ts";
+import { deleteResource, putResource, resourceExists } from "./api-client.ts";
+import * as notifications from "./notifications.ts";
+import { createPutForm, type PutFormResult } from "./put-form-component.ts";
 import * as overlay from "./overlay.ts";
 import * as smartQuery from "./smart-query.ts";
 import Expression from "../lib/common/expression.ts";
-import filterComponent from "./filter-component.ts";
-
-const memoizedParse = memoize((str) => Expression.parse(str));
+import { div, h1, button, span } from "./dom.ts";
 
 const attributes = [
   { id: "role", label: "Role" },
@@ -62,7 +61,7 @@ function getExcerpt(text: string, maxLength = 80, maxLines = 10): string[] {
   return lines;
 }
 
-const unpackSmartQuery = memoize((query: Expression) => {
+function unpackSmartQuery(query: Expression): Expression {
   return query.evaluate((e) => {
     if (e instanceof Expression.FunctionCall) {
       if (e.name === "Q") {
@@ -80,7 +79,7 @@ const unpackSmartQuery = memoize((query: Expression) => {
     }
     return e;
   });
-});
+}
 
 interface ValidationErrors {
   [prop: string]: string;
@@ -88,7 +87,7 @@ interface ValidationErrors {
 
 function putActionHandler(
   action: string,
-  _object: Record<string, any>,
+  _object: Record<string, unknown>,
   isNew: boolean,
 ): Promise<ValidationErrors | null> {
   return new Promise((resolve, reject) => {
@@ -107,7 +106,7 @@ function putActionHandler(
 
       if (object.filter) {
         try {
-          object.filter = memoizedParse(object.filter).toString();
+          object.filter = Expression.parse(object.filter as string).toString();
         } catch {
           return void resolve({
             filter: "Filter must be valid expression",
@@ -117,7 +116,9 @@ function putActionHandler(
 
       if (object.validate) {
         try {
-          object.validate = memoizedParse(object.validate).toString();
+          object.validate = Expression.parse(
+            object.validate as string,
+          ).toString();
         } catch {
           return void resolve({
             validate: "Validate must be valid expression",
@@ -128,13 +129,13 @@ function putActionHandler(
       const id = `${object.role}:${object.resource}:${object.access}`;
 
       resourceExists("permissions", id)
-        .then((exists): void => {
+        .then((exists) => {
           if (exists && isNew) {
-            store.setTimestamp(Date.now());
+            invalidate(Date.now());
             return void resolve({ _id: "Permission already exists" });
           }
           if (!exists && !isNew) {
-            store.setTimestamp(Date.now());
+            invalidate(Date.now());
             return void resolve({ _id: "Permission does not exist" });
           }
 
@@ -144,7 +145,7 @@ function putActionHandler(
                 "success",
                 `Permission ${exists ? "updated" : "created"}`,
               );
-              store.setTimestamp(Date.now());
+              invalidate(Date.now());
               resolve(null);
             })
             .catch(reject);
@@ -153,14 +154,14 @@ function putActionHandler(
     } else if (action === "delete") {
       if (!confirm("Deleting permission. Are you sure?"))
         return void resolve(null);
-      deleteResource("permissions", object["_id"])
+      deleteResource("permissions", object["_id"] as string)
         .then(() => {
           notifications.push("success", "Permission deleted");
-          store.setTimestamp(Date.now());
+          invalidate(Date.now());
           resolve(null);
         })
         .catch((err) => {
-          store.setTimestamp(Date.now());
+          invalidate(Date.now());
           reject(err);
         });
     } else {
@@ -174,292 +175,285 @@ const formData = {
   attributes: attributes,
 };
 
-const getDownloadUrl = memoize((filter: Expression) => {
+function getDownloadUrl(filter: Expression): string {
   const cols: Record<string, string> = {};
   for (const attr of attributes) cols[attr.label] = attr.id;
-  return `/api/permissions.csv?${m.buildQueryString({
+  return `/api/permissions.csv?${new URLSearchParams({
     filter: filter.toString(),
     columns: JSON.stringify(cols),
-  })}`;
-});
+  }).toString()}`;
+}
 
-export function init(
-  args: Record<string, unknown>,
-): Promise<Record<string, unknown>> {
+export interface Attrs {
+  filter?: Expression;
+  sort?: Record<string, number>;
+}
+
+export function init(args: URLSearchParams): Promise<Attrs> {
   if (!window.authorizer.hasAccess("permissions", 2)) {
     return Promise.reject(
       new Error("You are not authorized to view this page"),
     );
   }
-  let filter: Expression | undefined;
-  let sort: Record<string, number> | undefined;
-  if (args.hasOwnProperty("filter"))
-    filter = Expression.parse(args["filter"] as string);
-  if (args.hasOwnProperty("sort")) sort = JSON.parse(args["sort"] as string);
-  return Promise.resolve({ filter, sort });
+  const filterStr = args.get("filter");
+  const sortStr = args.get("sort");
+  return Promise.resolve({
+    filter: filterStr ? Expression.parse(filterStr) : undefined,
+    sort: sortStr ? JSON.parse(sortStr) : undefined,
+  });
 }
 
-interface Attrs {
-  filter?: Expression;
-  sort?: Record<string, number>;
-}
+export function createPage(attrs: Attrs): HTMLElement {
+  document.title = "Permissions - GenieACS";
 
-export const component: ClosureComponent<Attrs> = (): Component<Attrs> => {
-  let showCount: number;
+  const showCount = new StateSignal(PAGE_SIZE);
 
-  return {
-    view: (vnode) => {
-      document.title = "Permissions - GenieACS";
+  const sort = attrs.sort ?? {};
 
-      function showMore(): void {
-        showCount = (showCount || PAGE_SIZE) + PAGE_SIZE;
-        m.redraw();
-      }
+  const filter = unpackSmartQuery(attrs.filter ?? new Expression.Literal(true));
 
-      function onFilterChanged(filter: Expression): void {
-        const ops: Record<string, string> = {};
-        if (!(filter instanceof Expression.Literal && filter.value))
-          ops["filter"] = filter.toString();
-        if (vnode.attrs.sort) ops["sort"] = JSON.stringify(vnode.attrs.sort);
-        navigate("/permissions", ops).catch(console.error);
-      }
+  // Reactive data signals
+  const permissionsQuery = reactiveFetch("permissions", filter, { sort });
+  const countQuery = reactiveCount("permissions", filter);
 
-      const sort = vnode.attrs.sort || {};
+  const downloadUrl = getDownloadUrl(filter);
 
-      const sortAttributes: Record<number, number> = {};
-      for (let i = 0; i < attributes.length; i++) {
-        const attr = attributes[i];
-        if (!(attr.id === "filter" || attr.id === "validate"))
-          sortAttributes[i] = sort[attr.id] || 0;
-      }
+  const sortAttributes: Record<number, number> = {};
+  for (let i = 0; i < attributes.length; i++) {
+    const attr = attributes[i];
+    if (!(attr.id === "filter" || attr.id === "validate"))
+      sortAttributes[i] = sort[attr.id] || 0;
+  }
 
-      function onSortChange(sortAttrs: number[]): void {
-        const _sort: Record<string, number> = {};
-        for (const index of sortAttrs)
-          _sort[attributes[Math.abs(index) - 1].id] = Math.sign(index);
-        const ops: Record<string, string> = { sort: JSON.stringify(_sort) };
-        if (vnode.attrs.filter) ops["filter"] = vnode.attrs.filter.toString();
-        navigate("/permissions", ops).catch(console.error);
-      }
+  function onFilterChanged(f: Expression): void {
+    const ops: Record<string, string> = {};
+    if (!(f instanceof Expression.Literal && f.value))
+      ops["filter"] = f.toString();
+    if (attrs.sort) ops["sort"] = JSON.stringify(attrs.sort);
+    void navigate("/permissions", ops);
+  }
 
-      const filter = unpackSmartQuery(
-        vnode.attrs.filter ?? new Expression.Literal(true),
+  function onSortChange(sortAttrs: number[]): void {
+    const _sort: Record<string, number> = {};
+    for (const index of sortAttrs)
+      _sort[attributes[Math.abs(index) - 1].id] = Math.sign(index);
+    const ops: Record<string, string> = { sort: JSON.stringify(_sort) };
+    if (attrs.filter) ops["filter"] = attrs.filter.toString();
+    void navigate("/permissions", ops);
+  }
+
+  // Value callback returns DOM nodes or strings
+  const valueCallback = (
+    attr: { id?: string; label: string },
+    permission: Record<string, unknown>,
+  ): Node | string => {
+    if (attr.id === "access") {
+      const val = permission["access"];
+      if (val === 1) return "1: count";
+      else if (val === 2) return "2: read";
+      else if (val === 3) return "3: write";
+      return val as string;
+    } else if (attr.id === "validate" || attr.id === "filter") {
+      const excerpt = getExcerpt(permission[attr.id] as string, 80, 1);
+      return span(
+        { class: "font-mono", title: permission[attr.id] as string },
+        excerpt[0],
       );
+    }
 
-      const permissions = store.fetch("permissions", filter, {
-        limit: showCount || PAGE_SIZE,
-        sort: sort,
-      });
+    return permission[attr.id as string] as string;
+  };
 
-      const count = store.count("permissions", filter);
+  // Record actions callback
+  let recordActionsCallback: ((permission: any) => Node[]) | undefined;
+  let actionsCallback: ((selected: Set<string>) => Node[]) | undefined;
 
-      const downloadUrl = getDownloadUrl(filter);
-
-      const valueCallback = (
-        attr: (typeof attributes)[number],
-        permission: Record<string, any>,
-      ): Children => {
-        if (attr.id === "access") {
-          const val = permission["access"];
-          if (val === 1) return "1: count";
-          else if (val === 2) return "2: read";
-          else if (val === 3) return "3: write";
-          return val;
-        } else if (attr.id === "validate" || attr.id === "filter") {
-          const except = getExcerpt(permission[attr.id], 80, 1);
-          return m("span.font-mono", { title: permission[attr.id] }, except[0]);
-        }
-
-        return permission[attr.id];
-      };
-
-      const attrs: IndexTableAttrs = {
-        attributes,
-        data: permissions.value,
-        total: count.value,
-        valueCallback,
-        showMoreCallback: showMore,
-        sortAttributes,
-        onSortChange,
-        downloadUrl,
-      };
-
-      if (window.authorizer.hasAccess("permissions", 3)) {
-        attrs.recordActionsCallback = (permission: Record<string, any>) => {
-          const val = permission["access"];
-          if (val === 1) permission["access"] = "1: count";
-          if (val === 2) permission["access"] = "2: read";
-          if (val === 3) permission["access"] = "3: write";
-          return [
-            m(
-              "button.text-cyan-700 hover:text-cyan-900 font-medium",
-              {
-                onclick: () => {
-                  let cb: (() => Children) | null = null;
-                  const comp = m(
-                    putFormComponent,
-                    Object.assign(
-                      {
-                        base: permission,
-                        oncreate: (_vnode: VnodeDOM<any, any>) => {
-                          const dom = _vnode.dom as HTMLElement;
-                          dom.querySelector<HTMLInputElement>(
-                            "input[name='role']",
-                          )!.disabled = true;
-                          dom.querySelector<HTMLSelectElement>(
-                            "select[name='access']",
-                          )!.disabled = true;
-                          dom.querySelector<HTMLSelectElement>(
-                            "select[name='resource']",
-                          )!.disabled = true;
-                        },
-                        actionHandler: (
-                          action: string,
-                          object: Record<string, any>,
-                        ) => {
-                          return new Promise<void>((resolve) => {
-                            putActionHandler(action, object, false)
-                              .then((errors) => {
-                                const errorList = errors
-                                  ? Object.values(errors)
-                                  : [];
-                                if (errorList.length) {
-                                  for (const err of errorList)
-                                    notifications.push("error", err);
-                                } else {
-                                  overlay.close(cb);
-                                }
-                                resolve();
-                              })
-                              .catch((err) => {
-                                notifications.push("error", err.message);
-                                resolve();
-                              });
-                          });
-                        },
-                      },
-                      formData,
-                    ),
-                  );
-                  cb = () => comp;
-                  overlay.open(
-                    cb,
-                    () =>
-                      !(comp.state as any)["current"]["modified"] ||
-                      confirm("You have unsaved changes. Close anyway?"),
-                  );
-                },
-              },
-              "Show",
-            ),
-          ];
-        };
-
-        attrs.actionsCallback = (selected: Set<string>): Children => {
-          return [
-            m(
-              "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
-              {
-                title: "Create new permission",
-                onclick: () => {
-                  let cb: (() => Children) | null = null;
-                  const comp = m(
-                    putFormComponent,
-                    Object.assign(
-                      {
-                        actionHandler: (
-                          action: string,
-                          object: Record<string, any>,
-                        ) => {
-                          return new Promise<void>((resolve) => {
-                            putActionHandler(action, object, true)
-                              .then((errors) => {
-                                const errorList = errors
-                                  ? Object.values(errors)
-                                  : [];
-                                if (errorList.length) {
-                                  for (const err of errorList)
-                                    notifications.push("error", err);
-                                } else {
-                                  overlay.close(cb);
-                                }
-                                resolve();
-                              })
-                              .catch((err) => {
-                                notifications.push("error", err.message);
-                                resolve();
-                              });
-                          });
-                        },
-                      },
-                      formData,
-                    ),
-                  );
-                  cb = () => comp;
-                  overlay.open(
-                    cb,
-                    () =>
-                      !(comp.state as any)["current"]["modified"] ||
-                      confirm("You have unsaved changes. Close anyway?"),
-                  );
-                },
-              },
-              "New",
-            ),
-            m(
-              "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
-              {
-                title: "Delete selected permissions",
-                disabled: !selected.size,
-                onclick: (e: Event) => {
-                  if (
-                    !confirm(
-                      `Deleting ${selected.size} permissions. Are you sure?`,
-                    )
-                  )
-                    return;
-
-                  e.redraw = false;
-                  (e.target as HTMLButtonElement).disabled = true;
-                  Promise.all(
-                    Array.from(selected).map((id) =>
-                      deleteResource("permissions", id),
-                    ),
-                  )
-                    .then((res) => {
-                      notifications.push(
-                        "success",
-                        `${res.length} permissions deleted`,
-                      );
-                      store.setTimestamp(Date.now());
-                    })
-                    .catch((err) => {
-                      notifications.push("error", err.message);
-                      store.setTimestamp(Date.now());
-                    });
-                },
-              },
-              "Delete",
-            ),
-          ];
-        };
-      }
-
-      const filterAttrs = {
-        resource: "permissions" as const,
-        filter: vnode.attrs.filter,
-        onChange: onFilterChanged,
-      };
-
+  if (window.authorizer.hasAccess("permissions", 3)) {
+    recordActionsCallback = (permission: Record<string, unknown>): Node[] => {
       return [
-        m("h1.text-xl font-medium text-stone-900 mb-5", "Listing permissions"),
-        m(filterComponent, filterAttrs),
-        m(
-          "loading",
-          { queries: [permissions, count] },
-          m(indexTableComponent, attrs),
+        button(
+          {
+            class: "text-cyan-700 hover:text-cyan-900 font-medium",
+            onclick: () => {
+              const base = { ...permission };
+              if (base["access"] === 1) base["access"] = "1: count";
+              else if (base["access"] === 2) base["access"] = "2: read";
+              else if (base["access"] === 3) base["access"] = "3: write";
+              let cb: (() => Node) | null = null;
+              let formResult: PutFormResult | null = null;
+              cb = () => {
+                if (!formResult) {
+                  formResult = createPutForm({
+                    base,
+                    actionHandler: (action, object) => {
+                      return new Promise<void>((resolve) => {
+                        putActionHandler(
+                          action,
+                          object as Record<string, unknown>,
+                          false,
+                        )
+                          .then((errors) => {
+                            const errorList = errors
+                              ? Object.values(errors)
+                              : [];
+                            if (errorList.length) {
+                              for (const err of errorList)
+                                notifications.push("error", err);
+                            } else {
+                              overlay.close(cb!);
+                            }
+                            resolve();
+                          })
+                          .catch((err) => {
+                            notifications.push("error", err.message);
+                            resolve();
+                          });
+                      });
+                    },
+                    ...formData,
+                  });
+
+                  // Disable identity fields when editing an existing permission
+                  for (const name of ["role", "resource", "access"]) {
+                    const el = formResult.element.querySelector<
+                      HTMLInputElement | HTMLSelectElement
+                    >(`[name='${name}']`);
+                    if (el) el.disabled = true;
+                  }
+                }
+                return formResult.element;
+              };
+              overlay.open(
+                cb,
+                () =>
+                  !formResult?.isModified() ||
+                  confirm("You have unsaved changes. Close anyway?"),
+              );
+            },
+          },
+          "Show",
         ),
       ];
-    },
-  };
-};
+    };
+
+    actionsCallback = (selected: Set<string>): Node[] => {
+      const newBtn = button(
+        {
+          class:
+            "px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
+          title: "Create new permission",
+          onclick: () => {
+            let cb: (() => Node) | null = null;
+            let formResult: PutFormResult | null = null;
+            cb = () => {
+              if (!formResult) {
+                formResult = createPutForm({
+                  actionHandler: (action, object) => {
+                    return new Promise<void>((resolve) => {
+                      putActionHandler(
+                        action,
+                        object as Record<string, unknown>,
+                        true,
+                      )
+                        .then((errors) => {
+                          const errorList = errors ? Object.values(errors) : [];
+                          if (errorList.length) {
+                            for (const err of errorList)
+                              notifications.push("error", err);
+                          } else {
+                            overlay.close(cb!);
+                          }
+                          resolve();
+                        })
+                        .catch((err) => {
+                          notifications.push("error", err.message);
+                          resolve();
+                        });
+                    });
+                  },
+                  ...formData,
+                });
+              }
+              return formResult.element;
+            };
+            overlay.open(
+              cb,
+              () =>
+                !formResult?.isModified() ||
+                confirm("You have unsaved changes. Close anyway?"),
+            );
+          },
+        },
+        "New",
+      );
+
+      const deleteBtn = button(
+        {
+          class:
+            "px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
+          title: "Delete selected permissions",
+          disabled: !selected.size,
+          onclick: (e: MouseEvent) => {
+            if (
+              !confirm(`Deleting ${selected.size} permissions. Are you sure?`)
+            )
+              return;
+
+            const btn = e.currentTarget as HTMLButtonElement;
+            btn.disabled = true;
+            Promise.all(
+              Array.from(selected).map((id) =>
+                deleteResource("permissions", id),
+              ),
+            )
+              .then((res) => {
+                notifications.push(
+                  "success",
+                  `${res.length} permissions deleted`,
+                );
+                invalidate(Date.now());
+              })
+              .catch((err) => {
+                notifications.push("error", err.message);
+                invalidate(Date.now());
+              });
+          },
+        },
+        "Delete",
+      );
+
+      return [newBtn, deleteBtn];
+    };
+  }
+
+  // Build DOM once — table updates itself via signals
+  return div(
+    {},
+    h1(
+      { class: "text-xl font-medium text-stone-900 mb-5" },
+      "Listing permissions",
+    ),
+    createFilter({
+      resource: "permissions",
+      filter: attrs.filter,
+      onChange: onFilterChanged,
+    }),
+    createIndexTable({
+      attributes,
+      data: () =>
+        permissionsQuery.get().value.slice(0, showCount.get()) as Record<
+          string,
+          unknown
+        >[],
+      total: () => countQuery.get().value,
+      loading: () => permissionsQuery.get().loading,
+      valueCallback,
+      showMoreCallback: () => showCount.set(showCount.get() + PAGE_SIZE),
+      sortAttributes,
+      onSortChange,
+      downloadUrl,
+      recordActionsCallback,
+      actionsCallback,
+    }),
+  );
+}

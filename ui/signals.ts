@@ -345,7 +345,7 @@ export class ComputedSignal<T> extends SignalBase<T> {
 export class Watcher implements Disposable {
   private _callback: () => void;
   private _notified: boolean = false;
-  private _disposed: boolean = false;
+  _disposed: boolean = false;
   private _watching: Set<SignalBase<unknown>> = new Set();
   readonly _selfRef: WeakRef<Watcher>;
 

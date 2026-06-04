@@ -39,7 +39,7 @@ const chart = new Signal.Computed(() => {
   for (const slice of slices) total += slice.count.get();
 
   const renderSlice = (slice) => {
-    const percent = (slice.count.get() || 0) / total;
+    const percent = total > 0 ? (slice.count.get() || 0) / total : 0;
     const [startX, startY] = getCoordinates(cumulative);
     cumulative += percent;
     const [endX, endY] = getCoordinates(cumulative);
@@ -99,7 +99,7 @@ const chart = new Signal.Computed(() => {
             </td>
             <td class="w-full">{slice.label}</td>
             <td class="text-stone-500 text-right tabular-nums">
-              {Math.round((slice.count.get() * 100) / total) || 0}%
+              {total > 0 ? Math.round((slice.count.get() * 100) / total) : 0}%
             </td>
             <td class="text-right tabular-nums">
               <a

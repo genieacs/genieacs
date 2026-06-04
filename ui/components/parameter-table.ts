@@ -1,8 +1,9 @@
-import { ClosureComponent } from "mithril";
+import { ClosureComponent } from "../mithril-compat.ts";
 import { m } from "../components.ts";
 import * as taskQueue from "../task-queue.ts";
-import { QueryResponse, evaluateExpression } from "../store.ts";
-import { icon } from "../tailwind-utility-components.ts";
+import { QueryResponse } from "../legacy-store.ts";
+import { evaluateExpression } from "../reactive-store.ts";
+import { icon } from "../icons.ts";
 import { FlatDevice } from "../../lib/ui/db.ts";
 import Expression from "../../lib/common/expression.ts";
 import Path from "../../lib/common/path.ts";

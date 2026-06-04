@@ -164,3 +164,32 @@
     @apply outline-2 outline-cyan-500;
   }
 }
+
+/* Legacy component styles — remove when legacy mithril components are dropped */
+@scope (.legacy-host) {
+  .loading {
+    opacity: 0.6;
+  }
+
+  .loading-overlay {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .loading-overlay::after {
+    content: "";
+    width: 48px;
+    height: 48px;
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+    background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJ4TWlkWU1pZCI+PHBhdGggZD0iTTEwIDUwYTQwIDQwIDAgMDA4MCAwIDQwIDQyIDAgMDEtODAgMCIgZmlsbD0iI2IxMmQ1YyIgLz48L3N2Zz4=");
+    animation: _legacy-spin 1s linear infinite;
+  }
+
+  @keyframes _legacy-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+}

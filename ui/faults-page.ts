@@ -1,18 +1,20 @@
-import { ClosureComponent, Component, Children } from "mithril";
-import { m } from "./components.ts";
+import { navigate } from "./router.ts";
 import { pageSize as PAGE_SIZE } from "./config.ts";
-import indexTableComponent, {
-  IndexTableAttrs,
-} from "./index-table-component.ts";
-import filterComponent from "./filter-component.ts";
-import * as store from "./store.ts";
+import { createFilter } from "./filter-component.ts";
+import { createIndexTable } from "./index-table-component.ts";
+import {
+  fetch as reactiveFetch,
+  count as reactiveCount,
+  invalidate,
+} from "./reactive-store.ts";
+import { StateSignal } from "./signals.ts";
 import { deleteResource } from "./api-client.ts";
 import * as notifications from "./notifications.ts";
-import { navigate } from "./router.ts";
-import memoize from "../lib/common/memoize.ts";
 import * as smartQuery from "./smart-query.ts";
 import { stringify as yamlStringify } from "../lib/common/yaml.ts";
 import Expression from "../lib/common/expression.ts";
+import { div, h1, button, a } from "./dom.ts";
+import { createLongText } from "./long-text-component.ts";
 
 const attributes = [
   { id: "device", label: "Device" },
@@ -24,20 +26,20 @@ const attributes = [
   { id: "timestamp", label: "Timestamp" },
 ];
 
-const getDownloadUrl = memoize((filter: Expression) => {
+function getDownloadUrl(filter: Expression): string {
   const cols: Record<string, string> = {};
   for (const attr of attributes) {
     cols[attr.label] =
       attr.id === "timestamp" ? `DATE_STRING(${attr.id})` : attr.id;
   }
 
-  return `/api/faults.csv?${m.buildQueryString({
+  return `/api/faults.csv?${new URLSearchParams({
     filter: filter.toString(),
     columns: JSON.stringify(cols),
-  })}`;
-});
+  }).toString()}`;
+}
 
-const unpackSmartQuery = memoize((query: Expression) => {
+function unpackSmartQuery(query: Expression): Expression {
   return query.evaluate((e) => {
     if (e instanceof Expression.FunctionCall) {
       if (e.name === "Q") {
@@ -55,7 +57,7 @@ const unpackSmartQuery = memoize((query: Expression) => {
     }
     return e;
   });
-});
+}
 
 async function deleteFaults(faults: Iterable<string>): Promise<void> {
   const proms: Map<string, Promise<void>> = new Map();
@@ -69,163 +71,160 @@ async function deleteFaults(faults: Iterable<string>): Promise<void> {
   await Promise.all(proms.values());
 }
 
-export function init(
-  args: Record<string, unknown>,
-): Promise<Record<string, unknown>> {
+export interface Attrs {
+  filter?: Expression;
+  sort?: Record<string, number>;
+}
+
+export function init(args: URLSearchParams): Promise<Attrs> {
   if (!window.authorizer.hasAccess("faults", 2)) {
     return Promise.reject(
       new Error("You are not authorized to view this page"),
     );
   }
-  let filter: Expression | undefined;
-  let sort: Record<string, number> | undefined;
-  if (args.hasOwnProperty("filter"))
-    filter = Expression.parse(args["filter"] as string);
-  if (args.hasOwnProperty("sort")) sort = JSON.parse(args["sort"] as string);
-  return Promise.resolve({ filter, sort });
+  const filterStr = args.get("filter");
+  const sortStr = args.get("sort");
+  return Promise.resolve({
+    filter: filterStr ? Expression.parse(filterStr) : undefined,
+    sort: sortStr ? JSON.parse(sortStr) : undefined,
+  });
 }
 
-interface Attrs {
-  filter?: Expression;
-  sort?: Record<string, number>;
-}
+export function createPage(attrs: Attrs): HTMLElement {
+  document.title = "Faults - GenieACS";
 
-export const component: ClosureComponent<Attrs> = (): Component<Attrs> => {
-  let showCount: number;
+  const showCount = new StateSignal(PAGE_SIZE);
 
-  return {
-    view: (vnode) => {
-      document.title = "Faults - GenieACS";
+  const sort = attrs.sort ?? {};
 
-      function showMore(): void {
-        showCount = (showCount || PAGE_SIZE) + PAGE_SIZE;
-        m.redraw();
-      }
+  const filter = unpackSmartQuery(attrs.filter ?? new Expression.Literal(true));
 
-      function onFilterChanged(filter: Expression): void {
-        const ops: Record<string, string> = {};
-        if (!(filter instanceof Expression.Literal && filter.value))
-          ops["filter"] = filter.toString();
-        if (vnode.attrs.sort) ops["sort"] = JSON.stringify(vnode.attrs.sort);
-        navigate("/faults", ops).catch(console.error);
-      }
+  // Reactive data signals
+  const faultsQuery = reactiveFetch("faults", filter, { sort });
+  const countQuery = reactiveCount("faults", filter);
 
-      const sort = vnode.attrs.sort || {};
+  const downloadUrl = getDownloadUrl(filter);
 
-      const sortAttributes: Record<number, number> = {};
-      for (let i = 0; i < attributes.length; i++) {
-        const attr = attributes[i];
-        if (attr.id !== "detail") sortAttributes[i] = sort[attr.id] || 0;
-      }
+  const sortAttributes: Record<number, number> = {};
+  for (let i = 0; i < attributes.length; i++) {
+    const attr = attributes[i];
+    if (attr.id !== "detail") sortAttributes[i] = sort[attr.id] || 0;
+  }
 
-      function onSortChange(sortAttrs: number[]): void {
-        const _sort: Record<string, number> = {};
-        for (const index of sortAttrs)
-          _sort[attributes[Math.abs(index) - 1].id] = Math.sign(index);
-        const ops: Record<string, string> = { sort: JSON.stringify(_sort) };
-        if (vnode.attrs.filter) ops["filter"] = vnode.attrs.filter.toString();
-        navigate("/faults", ops).catch(console.error);
-      }
+  function onFilterChanged(f: Expression): void {
+    const ops: Record<string, string> = {};
+    if (!(f instanceof Expression.Literal && f.value))
+      ops["filter"] = f.toString();
+    if (attrs.sort) ops["sort"] = JSON.stringify(attrs.sort);
+    void navigate("/faults", ops);
+  }
 
-      const filter = unpackSmartQuery(
-        vnode.attrs.filter ?? new Expression.Literal(true),
+  function onSortChange(sortAttrs: number[]): void {
+    const _sort: Record<string, number> = {};
+    for (const index of sortAttrs)
+      _sort[attributes[Math.abs(index) - 1].id] = Math.sign(index);
+    const ops: Record<string, string> = { sort: JSON.stringify(_sort) };
+    if (attrs.filter) ops["filter"] = attrs.filter.toString();
+    void navigate("/faults", ops);
+  }
+
+  // Value callback returns DOM nodes or primitives
+  const valueCallback = (
+    attr: { id?: string; label: string },
+    fault: Record<string, unknown>,
+  ): Node | string => {
+    if (attr.id === "device") {
+      return a(
+        {
+          href: `/devices/${encodeURIComponent(fault["device"] as string)}`,
+          class: "text-cyan-700 hover:text-cyan-900 font-medium",
+        },
+        fault["device"] as string,
       );
+    }
 
-      const faults = store.fetch("faults", filter, {
-        limit: showCount || PAGE_SIZE,
-        sort: sort,
+    if (attr.id === "message") {
+      return createLongText({
+        text: fault["message"] as string,
+        class: "max-w-xs",
       });
-      const count = store.count("faults", filter);
+    }
 
-      const downloadUrl = getDownloadUrl(filter);
+    if (attr.id === "detail") {
+      return createLongText({
+        text: yamlStringify(fault["detail"] as Record<string, unknown> | null),
+        class: "max-w-xs",
+      });
+    }
 
-      const valueCallback = (
-        attr: (typeof attributes)[number],
-        fault: Record<string, any>,
-      ): Children => {
-        if (attr.id === "device") {
-          const deviceHref = `/devices/${encodeURIComponent(fault["device"])}`;
+    if (attr.id === "timestamp")
+      return new Date(fault["timestamp"] as string | number).toLocaleString();
 
-          return m(
-            "a.text-cyan-700 hover:text-cyan-900 font-medium",
-            { href: deviceHref },
-            fault["device"],
-          );
-        }
+    return fault[attr.id as string] as string;
+  };
 
-        if (attr.id === "message")
-          return m("long-text", { text: fault["message"], class: "max-w-xs" });
-
-        if (attr.id === "detail") {
-          return m("long-text", {
-            text: yamlStringify(fault["detail"] ?? null),
-            class: "max-w-xs",
-          });
-        }
-
-        if (attr.id === "timestamp")
-          return new Date(fault["timestamp"]).toLocaleString();
-
-        return fault[attr.id];
-      };
-
-      const attrs: IndexTableAttrs = {
-        attributes,
-        data: faults.value,
-        valueCallback,
-        total: count.value,
-        showMoreCallback: showMore,
-        sortAttributes,
-        onSortChange,
-        downloadUrl,
-      };
-
-      if (window.authorizer.hasAccess("faults", 3)) {
-        attrs.actionsCallback = (selected: Set<string>): Children => {
-          return m(
-            "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
-            {
-              disabled: selected.size === 0,
-              title: "Delete selected faults",
-              onclick: (e: Event) => {
-                e.redraw = false;
-                (e.target as HTMLButtonElement).disabled = true;
-
-                if (!confirm(`Deleting ${selected.size} faults. Are you sure?`))
-                  return;
-
-                const c = selected.size;
-                deleteFaults(selected)
-                  .then(() => {
-                    notifications.push("success", `${c} faults deleted`);
-                    store.setTimestamp(Date.now());
-                  })
-                  .catch((err) => {
-                    notifications.push("error", err.message);
-                    store.setTimestamp(Date.now());
-                  });
-              },
-            },
-            "Delete",
-          );
-        };
-      }
-
-      const filterAttrs = {
-        resource: "faults" as const,
-        filter: vnode.attrs.filter,
-        onChange: onFilterChanged,
-      };
-
+  // Actions callback returns DOM nodes
+  let actionsCallback: ((selected: Set<string>) => Node[]) | undefined;
+  if (window.authorizer.hasAccess("faults", 3)) {
+    actionsCallback = (selected: Set<string>): Node[] => {
       return [
-        m("h1.text-xl font-medium text-stone-900 mb-5", "Listing faults"),
-        m(filterComponent, filterAttrs),
-        m(
-          "loading",
-          { queries: [faults, count] },
-          m(indexTableComponent, attrs),
+        button(
+          {
+            class:
+              "px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
+            disabled: selected.size === 0,
+            title: "Delete selected faults",
+            onclick: (e: MouseEvent) => {
+              const btn = e.currentTarget as HTMLButtonElement;
+              btn.disabled = true;
+
+              if (!confirm(`Deleting ${selected.size} faults. Are you sure?`)) {
+                btn.disabled = selected.size === 0;
+                return;
+              }
+
+              const c = selected.size;
+              deleteFaults(selected)
+                .then(() => {
+                  notifications.push("success", `${c} faults deleted`);
+                  invalidate(Date.now());
+                })
+                .catch((err) => {
+                  notifications.push("error", err.message);
+                  invalidate(Date.now());
+                });
+            },
+          },
+          "Delete",
         ),
       ];
-    },
-  };
-};
+    };
+  }
+
+  // Build DOM once — table updates itself via signals
+  return div(
+    {},
+    h1({ class: "text-xl font-medium text-stone-900 mb-5" }, "Listing faults"),
+    createFilter({
+      resource: "faults",
+      filter: attrs.filter,
+      onChange: onFilterChanged,
+    }),
+    createIndexTable({
+      attributes,
+      data: () =>
+        faultsQuery.get().value.slice(0, showCount.get()) as Record<
+          string,
+          unknown
+        >[],
+      total: () => countQuery.get().value,
+      loading: () => faultsQuery.get().loading,
+      valueCallback,
+      showMoreCallback: () => showCount.set(showCount.get() + PAGE_SIZE),
+      sortAttributes,
+      onSortChange,
+      downloadUrl,
+      actionsCallback,
+    }),
+  );
+}

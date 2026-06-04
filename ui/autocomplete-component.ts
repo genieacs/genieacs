@@ -1,3 +1,5 @@
+import { div, disposeElement } from "./dom.ts";
+
 type AutocompleteCallback = (
   value: string,
   callback: (suggestions: { value: string; tip?: string }[]) => void,
@@ -20,16 +22,14 @@ export default class Autocomplete {
     this.default = null;
     this.selection = null;
 
-    this.container = document.createElement("div");
-    this.container.style.position = "absolute";
-    this.container.style.display = "block";
-    this.container.style.opacity = "0";
-    this.container.className =
-      "absolute py-1 mt-2 rounded-md shadow-lg bg-white";
+    this.container = div({
+      class: "absolute py-1 mt-2 rounded-md shadow-lg bg-white",
+      style: "position:absolute;display:block;opacity:0",
+    });
   }
 
   public attach(el: HTMLInputElement): void {
-    el.setAttribute("autocomplete", "off");
+    el.autocomplete = "off";
 
     el.addEventListener("focus", () => {
       this.element = el;
@@ -95,10 +95,16 @@ export default class Autocomplete {
     if (this.hideTimeout) clearTimeout(this.hideTimeout);
     this.hideTimeout = setTimeout(() => {
       this.hideTimeout = null;
-      while (this.container.firstChild)
-        this.container.removeChild(this.container.firstChild);
-      document.body.removeChild(this.container);
+      this.clearContainer();
+      this.container.remove();
     }, 500);
+  }
+
+  private clearContainer(): void {
+    for (const child of Array.from(this.container.childNodes)) {
+      disposeElement(child);
+      child.parentNode?.removeChild(child);
+    }
   }
 
   private update(): void {
@@ -115,12 +121,11 @@ export default class Autocomplete {
         return;
       }
 
-      while (this.container.firstChild)
-        this.container.removeChild(this.container.firstChild);
+      this.clearContainer();
 
       if (!this.visible) {
         if (!this.hideTimeout) {
-          document.body.appendChild(this.container);
+          document.body.append(this.container);
           // Force style recalc so the initial opacity is resolved before
           // setting it to "1", allowing the CSS transition to play.
           void window.getComputedStyle(this.container).opacity;
@@ -141,26 +146,26 @@ export default class Autocomplete {
         this.default = suggestions[0].value;
       }
 
-      let selectedElement;
+      let selectedElement: HTMLElement | undefined;
       for (const [idx, suggestion] of suggestions.entries()) {
-        const e = document.createElement("div");
-        if (suggestion.tip) e.title = suggestion.tip;
-        e.className =
-          "text-stone-700 block px-4 py-2 text-sm hover:bg-stone-100 hover:text-stone-900";
-        if (idx === this.selection) {
-          e.classList.add("bg-stone-100", "text-stone-900");
-          selectedElement = e;
-        }
+        const item = div(
+          {
+            class:
+              "text-stone-700 block px-4 py-2 text-sm hover:bg-stone-100 hover:text-stone-900" +
+              (idx === this.selection ? " bg-stone-100 text-stone-900" : ""),
+            title: suggestion.tip || undefined,
+            onmousedown: (ev) => {
+              ev.preventDefault();
+              el.value = suggestion.value;
+              el.dispatchEvent(new InputEvent("input"));
+              if (this.element === el) this.update();
+            },
+          },
+          suggestion.value,
+        );
 
-        const t = document.createTextNode(suggestion.value);
-        e.appendChild(t);
-        e.addEventListener("mousedown", (ev) => {
-          ev.preventDefault();
-          el.value = suggestion.value;
-          el.dispatchEvent(new InputEvent("input"));
-          if (this.element === el) this.update();
-        });
-        this.container.appendChild(e);
+        if (idx === this.selection) selectedElement = item;
+        this.container.append(item);
       }
 
       // Ensure selected element is in view

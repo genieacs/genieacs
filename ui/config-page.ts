@@ -1,15 +1,15 @@
-import { ClosureComponent, Component, Children } from "mithril";
-import { m } from "./components.ts";
-import * as store from "./store.ts";
-import type { QueryResponse } from "./store.ts";
-import { resourceExists, putResource, deleteResource } from "./api-client.ts";
+import { fetch as reactiveFetch, invalidate } from "./reactive-store.ts";
+import { StateSignal } from "./signals.ts";
+import { deleteResource, putResource, resourceExists } from "./api-client.ts";
 import * as notifications from "./notifications.ts";
-import putFormComponent from "./put-form-component.ts";
-import uiConfigComponent from "./ui-config-component.ts";
+import { createPutForm, type PutFormResult } from "./put-form-component.ts";
+import { createUiConfig, type UiConfigResult } from "./ui-config-component.ts";
 import * as overlay from "./overlay.ts";
 import Expression from "../lib/common/expression.ts";
 import { loadCodeMirror, loadYaml } from "./dynamic-loader.ts";
-import { icon } from "./tailwind-utility-components.ts";
+import { div, h1, button, input, table, tbody, tr, td } from "./dom.ts";
+import { createLongText } from "./long-text-component.ts";
+import { createIcon } from "./icons.ts";
 
 const attributes = [
   { id: "_id", label: "Key" },
@@ -22,13 +22,13 @@ interface ValidationErrors {
 
 function putActionHandler(
   action: string,
-  _object: Record<string, any>,
+  _object: Record<string, unknown>,
   isNew?: boolean,
 ): Promise<ValidationErrors | null> {
   return new Promise((resolve, reject) => {
     const object = Object.assign({}, _object);
     if (action === "save") {
-      let id = object["_id"] || "";
+      let id = (object["_id"] as string) || "";
       delete object["_id"];
 
       const regex = /^[0-9a-zA-Z_.-]+$/;
@@ -36,7 +36,9 @@ function putActionHandler(
       if (!id.match(regex)) return void resolve({ _id: "Invalid ID" });
 
       try {
-        object.value = Expression.parse(object.value || "").toString();
+        object.value = Expression.parse(
+          (object.value as string) || "",
+        ).toString();
       } catch {
         return void resolve({
           value: "Config value must be valid expression",
@@ -44,14 +46,14 @@ function putActionHandler(
       }
 
       resourceExists("config", id)
-        .then((exists): void => {
+        .then((exists) => {
           if (exists && isNew) {
-            store.setTimestamp(Date.now());
+            invalidate(Date.now());
             return void resolve({ _id: "Config already exists" });
           }
 
           if (!exists && !isNew) {
-            store.setTimestamp(Date.now());
+            invalidate(Date.now());
             return void resolve({ _id: "Config does not exist" });
           }
 
@@ -61,7 +63,7 @@ function putActionHandler(
                 "success",
                 `Config ${exists ? "updated" : "created"}`,
               );
-              store.setTimestamp(Date.now());
+              invalidate(Date.now());
               resolve(null);
             })
             .catch(reject);
@@ -69,14 +71,14 @@ function putActionHandler(
         .catch(reject);
     } else if (action === "delete") {
       if (!confirm("Deleting config. Are you sure?")) return void resolve(null);
-      deleteResource("config", object["_id"])
+      deleteResource("config", object["_id"] as string)
         .then(() => {
           notifications.push("success", "Config deleted");
-          store.setTimestamp(Date.now());
+          invalidate(Date.now());
           resolve(null);
         })
         .catch((err) => {
-          store.setTimestamp(Date.now());
+          invalidate(Date.now());
           reject(err);
         });
     } else {
@@ -94,309 +96,328 @@ function escapeRegExp(str: string): string {
   return str.replace(/[-[\]/{}()*+?.\\^$|]/g, "\\$&");
 }
 
-export function init(): Promise<Record<string, unknown>> {
+export function init(): Promise<Attrs> {
   if (!window.authorizer.hasAccess("config", 2)) {
     return Promise.reject(
       new Error("You are not authorized to view this page"),
     );
   }
-  return new Promise((resolve, reject) => {
-    Promise.all([loadCodeMirror(), loadYaml()])
-      .then(() => {
-        resolve({});
-      })
-      .catch(reject);
+  return Promise.all([loadCodeMirror(), loadYaml()]).then(() => ({}) as Attrs);
+}
+
+function createTableRow(conf: Record<string, unknown>): HTMLTableRowElement {
+  const editBtn = button(
+    {
+      title: "Edit config value",
+      onclick: () => {
+        let cb: (() => Node) | null = null;
+        let formResult: PutFormResult | null = null;
+        cb = () => {
+          if (!formResult) {
+            formResult = createPutForm({
+              base: conf,
+              actionHandler: (action, object) => {
+                return new Promise<void>((resolve) => {
+                  putActionHandler(
+                    action,
+                    object as Record<string, unknown>,
+                    false,
+                  )
+                    .then((errors) => {
+                      const errorList = errors ? Object.values(errors) : [];
+                      if (errorList.length) {
+                        for (const err of errorList)
+                          notifications.push("error", err);
+                      } else {
+                        overlay.close(cb!);
+                      }
+                      resolve();
+                    })
+                    .catch((err) => {
+                      notifications.push("error", err.message);
+                      resolve();
+                    });
+                });
+              },
+              ...formData,
+            });
+          }
+          return formResult.element;
+        };
+        overlay.open(
+          cb,
+          () =>
+            !formResult?.isModified() ||
+            confirm("You have unsaved changes. Close anyway?"),
+        );
+      },
+    },
+    createIcon({
+      name: "edit",
+      class: "inline h-4 w-4 ml-1 text-cyan-700 hover:text-cyan-900",
+    }),
+  );
+
+  const deleteBtn = button(
+    {
+      title: "Delete config",
+      onclick: () => {
+        if (!confirm(`Deleting ${conf._id} config. Are you sure?`)) return;
+
+        putActionHandler("delete", conf).catch((err) => {
+          throw err;
+        });
+      },
+    },
+    createIcon({
+      name: "remove",
+      class: "inline h-4 w-4 ml-1 text-cyan-700 hover:text-cyan-900",
+    }),
+  );
+
+  return tr(
+    {},
+    td(
+      { class: "pl-4 pr-2 py-2 truncate" },
+      createLongText({ text: conf._id as string }),
+    ),
+    td(
+      { class: "px-2 py-2 text-right truncate" },
+      createLongText({ text: `${conf.value}` }),
+    ),
+    td({ class: "pl-2 pr-4 py-2 w-max" }, editBtn, deleteBtn),
+  );
+}
+
+function buildTableRows(
+  confs: any[],
+  searchStr: string,
+): HTMLTableRowElement[] {
+  const sortedConfs = [...confs].sort((a, b) => {
+    return a._id < b._id ? -1 : 1;
+  });
+
+  if (!sortedConfs.length) {
+    return [tr({}, td({ colspan: 3 }, "No config"))];
+  }
+
+  let regex: RegExp | undefined;
+  if (searchStr) {
+    const keywords = searchStr.split(" ").filter((s) => s);
+    if (keywords.length)
+      regex = new RegExp(keywords.map((s) => escapeRegExp(s)).join(".*"), "i");
+  }
+
+  return sortedConfs.map((conf) => {
+    const row = createTableRow(conf);
+    if (regex && !regex.test(conf._id) && !regex.test(conf.value)) {
+      row.style.display = "none";
+    }
+    return row;
   });
 }
 
-function renderTable(
-  confsResponse: QueryResponse,
-  searchString: string,
-): Children {
-  const confs = confsResponse.value.sort(
-    (a: { _id: string }, b: { _id: string }) => {
-      return a._id < b._id ? -1 : 1;
-    },
-  );
-
-  let regex: RegExp | undefined;
-  if (searchString) {
-    const keywords = searchString.split(" ").filter((s: string) => s);
-    if (keywords.length)
-      regex = new RegExp(
-        keywords.map((s: string) => escapeRegExp(s)).join(".*"),
-        "i",
-      );
-  }
-
-  const rows = [];
-  for (const conf of confs) {
-    const attrs: Record<string, string> = {};
-    if (regex && !regex.test(conf._id) && !regex.test(conf.value))
-      attrs["style"] = "display: none;";
-
-    const edit = m(
-      "button",
-      {
-        title: "Edit config value",
-        onclick: () => {
-          let cb: (() => Children) | null = null;
-          const comp = m(
-            putFormComponent,
-            Object.assign(
-              {
-                base: conf,
-                actionHandler: (
-                  action: string,
-                  object: Record<string, any>,
-                ) => {
-                  return new Promise<void>((resolve) => {
-                    putActionHandler(action, object, false)
-                      .then((errors) => {
-                        const ErrorList = errors ? Object.values(errors) : [];
-                        if (ErrorList.length) {
-                          for (const err of ErrorList)
-                            notifications.push("error", err);
-                        } else {
-                          overlay.close(cb);
-                        }
-                        resolve();
-                      })
-                      .catch((err) => {
-                        notifications.push("error", err.message);
-                        resolve();
-                      });
-                  });
-                },
+function createNewConfigButton(): HTMLButtonElement {
+  return button(
+    {
+      class:
+        "mr-4 px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500",
+      title: "Create new config",
+      onclick: () => {
+        let cb: (() => Node) | null = null;
+        let formResult: PutFormResult | null = null;
+        cb = () => {
+          if (!formResult) {
+            formResult = createPutForm({
+              actionHandler: (action, object) => {
+                return new Promise<void>((resolve) => {
+                  putActionHandler(
+                    action,
+                    object as Record<string, unknown>,
+                    true,
+                  )
+                    .then((errors) => {
+                      const errorList = errors ? Object.values(errors) : [];
+                      if (errorList.length) {
+                        for (const err of errorList)
+                          notifications.push("error", err);
+                      } else {
+                        overlay.close(cb!);
+                      }
+                      resolve();
+                    })
+                    .catch((err) => {
+                      notifications.push("error", err.message);
+                      resolve();
+                    });
+                });
               },
-              formData,
-            ),
-          );
-          cb = () => comp;
-          overlay.open(
-            cb,
-            () =>
-              !(comp.state as any)["current"]["modified"] ||
-              confirm("You have unsaved changes. Close anyway?"),
-          );
-        },
+              ...formData,
+            });
+          }
+          return formResult.element;
+        };
+        overlay.open(
+          cb,
+          () =>
+            !formResult?.isModified() ||
+            confirm("You have unsaved changes. Close anyway?"),
+        );
       },
-      m(icon, {
-        name: "edit",
-        class: "inline h-4 w-4 ml-1 text-cyan-700 hover:text-cyan-900",
-      }),
-    );
-
-    const del = m(
-      "button",
-      {
-        title: "Delete config",
-        onclick: () => {
-          if (!confirm(`Deleting ${conf._id} config. Are you sure?`)) return;
-
-          putActionHandler("delete", conf).catch((err) => {
-            throw err;
-          });
-        },
-      },
-      m(icon, {
-        name: "remove",
-        class: "inline h-4 w-4 ml-1 text-cyan-700 hover:text-cyan-900",
-      }),
-    );
-
-    rows.push(
-      m(
-        "tr",
-        attrs,
-        m("td.pl-4 pr-2 py-2 truncate", m("long-text", { text: conf._id })),
-        m(
-          "td.px-2 py-2 text-right truncate",
-          m("long-text", { text: `${conf.value}` }),
-        ),
-        m("td.pl-2 pr-4 py-2 w-max", edit, del),
-      ),
-    );
-  }
-
-  if (!rows.length) rows.push(m("tr", m("td", { colspan: 3 }, "No config")));
-
-  return m(
-    "table.w-full table-fixed font-mono text-sm text-stone-700",
-    m("tbody.bg-white divide-y divide-stone-200", rows),
+    },
+    "New config",
   );
 }
 
-export const component: ClosureComponent = (): Component => {
-  let searchString: string;
-  let searchTimeout: ReturnType<typeof setTimeout>;
+function createSubConfigButton(sub: {
+  name: string;
+  prefix: string;
+  data: any[];
+}): HTMLButtonElement {
+  return button(
+    {
+      class:
+        "mr-4 px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500",
+      onclick: () => {
+        let cb: (() => Node) | null = null;
+        let configResult: UiConfigResult | null = null;
+        cb = () => {
+          if (!configResult) {
+            configResult = createUiConfig({
+              prefix: sub.prefix,
+              name: sub.name,
+              data: sub.data,
+              onUpdate: (errs: Record<string, string> | null) => {
+                const errors = errs ? Object.values(errs) : [];
+                if (errors.length) {
+                  for (const err of errors) notifications.push("error", err);
+                } else {
+                  notifications.push(
+                    "success",
+                    `${sub.name.replace(
+                      /^[a-z]/,
+                      sub.name[0].toUpperCase(),
+                    )} config updated`,
+                  );
+                  overlay.close(cb!);
+                }
+                invalidate(Date.now());
+              },
+              onError: (err) => {
+                notifications.push("error", err.message);
+                invalidate(Date.now());
+                overlay.close(cb!);
+              },
+            });
+          }
+          return configResult.element;
+        };
+        overlay.open(
+          cb,
+          () =>
+            !configResult?.isModified() ||
+            confirm("You have unsaved changes. Close anyway?"),
+        );
+      },
+    },
+    `Edit ${sub.name}`,
+  );
+}
 
-  return {
-    view: () => {
-      document.title = "Config - GenieACS";
+export type Attrs = Record<string, never>;
 
-      const search = m(
-        "input.appearance-none block w-full px-3 py-2 border-stone-300 placeholder-stone-500 text-stone-900 focus:ring-cyan-500 focus:border-cyan-500 sm:text-sm rounded-md mt-1 max-w-screen-sm shadow-sm mb-5",
+export function createPage(): HTMLElement {
+  document.title = "Config - GenieACS";
+
+  const searchString = new StateSignal<string>("");
+  let searchTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  // Reactive data signal
+  const confsQuery = reactiveFetch("config", new Expression.Literal(true));
+
+  // Search input is created once, outside the reactive child below: it only
+  // *writes* searchString (debounced), and rebuilding it on each committed
+  // keystroke would drop focus and caret. Its value is deliberately not a
+  // reactive binding — nothing else writes searchString, and echoing the
+  // committed value back would clobber keystrokes typed within the debounce
+  // window.
+  const searchInput = input({
+    type: "text",
+    class:
+      "appearance-none block w-full px-3 py-2 border border-stone-300 placeholder-stone-500 text-stone-900 focus:ring-cyan-500 focus:border-cyan-500 sm:text-sm rounded-md mt-1 max-w-screen-sm shadow-sm mb-5",
+    placeholder: "Search config",
+    value: "",
+    oninput: (e) => {
+      const inputValue = (e.target as HTMLInputElement).value;
+      if (searchTimeout) clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => searchString.set(inputValue), 250);
+    },
+  });
+
+  // Build DOM once -- reactive child handles data updates
+  return div(
+    {},
+    h1({ class: "text-xl font-medium text-stone-900 mb-5" }, "Listing config"),
+    searchInput,
+    // Reactive: rebuilds only this subtree when data signals change
+    () => {
+      const confs = confsQuery.get();
+      const currentSearch = searchString.get();
+
+      if (confs.loading && !confs.value.length) {
+        return div({ class: "animate-pulse bg-stone-200 h-64 rounded-md" });
+      }
+
+      // Table rows
+      const rows = buildTableRows(confs.value || [], currentSearch);
+
+      const tableWrapper = div(
         {
-          type: "text",
-          placeholder: "Search config",
-          oninput: (e: Event) => {
-            searchString = (e.target as HTMLInputElement).value;
-            e.redraw = false;
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(m.redraw, 250);
-          },
+          class:
+            "shadow-sm overflow-hidden border-b border-stone-200 rounded-lg bg-white",
         },
+        div(
+          { class: "overflow-y-scroll h-96" },
+          table(
+            { class: "w-full table-fixed font-mono text-sm text-stone-700" },
+            tbody({ class: "bg-white divide-y divide-stone-200" }, ...rows),
+          ),
+        ),
       );
 
-      const confs = store.fetch("config", new Expression.Literal(true));
-
-      let newConfig;
-      const subs = [];
+      // Buttons section
+      const buttons: Node[] = [];
 
       if (window.authorizer.hasAccess("config", 3)) {
-        newConfig = m(
-          "button.mr-4 px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500",
-          {
-            title: "Create new config",
-            onclick: () => {
-              let cb: (() => Children) | null = null;
-              const comp = m(
-                putFormComponent,
-                Object.assign(
-                  {
-                    actionHandler: (
-                      action: string,
-                      object: Record<string, any>,
-                    ) => {
-                      return new Promise<void>((resolve) => {
-                        putActionHandler(action, object, true)
-                          .then((errors) => {
-                            const errorList = errors
-                              ? Object.values(errors)
-                              : [];
-                            if (errorList.length) {
-                              for (const err of errorList)
-                                notifications.push("error", err);
-                            } else {
-                              overlay.close(cb);
-                            }
-                            resolve();
-                          })
-                          .catch((err) => {
-                            notifications.push("error", err.message);
-                            resolve();
-                          });
-                      });
-                    },
-                  },
-                  formData,
-                ),
-              );
-              cb = () => comp;
-              overlay.open(
-                cb,
-                () =>
-                  !(comp.state as any)["current"]["modified"] ||
-                  confirm("You have unsaved changes. Close anyway?"),
-              );
-            },
-          },
-          "New config",
-        );
+        buttons.push(createNewConfigButton());
 
-        const subsData: {
-          name: string;
-          prefix: string;
-          data: { _id: string; value: string }[];
-        }[] = [
-          { name: "overview", prefix: "ui.overview.groups.", data: [] },
-          { name: "charts", prefix: "ui.overview.charts.", data: [] },
-          { name: "filters", prefix: "ui.filters.", data: [] },
-          { name: "index page", prefix: "ui.index.", data: [] },
-          { name: "device page", prefix: "ui.device.", data: [] },
+        const subsData = [
+          {
+            name: "overview",
+            prefix: "ui.overview.groups.",
+            data: [] as any[],
+          },
+          { name: "charts", prefix: "ui.overview.charts.", data: [] as any[] },
+          { name: "filters", prefix: "ui.filters.", data: [] as any[] },
+          { name: "index page", prefix: "ui.index.", data: [] as any[] },
+          { name: "device page", prefix: "ui.device.", data: [] as any[] },
         ];
 
-        if (confs.fulfilled) {
-          for (const conf of confs.value) {
-            for (const sub of subsData) {
-              if (conf["_id"].startsWith(sub["prefix"])) {
-                sub["data"].push(conf);
-                break;
-              }
+        for (const conf of confs.value as Array<Record<string, unknown>>) {
+          for (const sub of subsData) {
+            if ((conf["_id"] as string).startsWith(sub["prefix"])) {
+              sub["data"].push(conf);
+              break;
             }
           }
         }
 
         for (const sub of subsData) {
-          const attrs = { prefix: sub.prefix, name: sub.name, data: sub.data };
-          subs.push(
-            m(
-              "button.mr-4 px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500",
-              {
-                onclick: () => {
-                  let cb: (() => Children) | null = null;
-                  const comp = m(
-                    uiConfigComponent,
-                    Object.assign(
-                      {
-                        onUpdate: (errs: Record<string, string>) => {
-                          const errors = errs ? Object.values(errs) : [];
-                          if (errors.length) {
-                            for (const err of errors)
-                              notifications.push("error", err);
-                          } else {
-                            notifications.push(
-                              "success",
-                              `${sub.name.replace(
-                                /^[a-z]/,
-                                sub.name[0].toUpperCase(),
-                              )} config updated`,
-                            );
-                            overlay.close(cb);
-                          }
-                          store.setTimestamp(Date.now());
-                        },
-                        onError: (err: Error) => {
-                          notifications.push("error", err.message);
-                          store.setTimestamp(Date.now());
-                          overlay.close(cb);
-                        },
-                      },
-                      attrs,
-                    ),
-                  );
-                  cb = () => comp;
-                  overlay.open(
-                    cb,
-                    () =>
-                      !(comp.state as any)["modified"] ||
-                      confirm("You have unsaved changes. Close anyway?"),
-                  );
-                },
-              },
-              `Edit ${sub.name}`,
-            ),
-          );
+          buttons.push(createSubConfigButton(sub));
         }
       }
 
-      return [
-        m("h1.text-xl font-medium text-stone-900 mb-5", "Listing config"),
-        m(
-          "loading",
-          { queries: [confs] },
-          m(
-            "div",
-            search,
-            m(
-              ".shadow-sm overflow-hidden border-b border-stone-200 rounded-lg bg-white",
-              m(".overflow-y-scroll h-96", renderTable(confs, searchString)),
-            ),
-            m(".mt-5", [newConfig].concat(subs)),
-          ),
-        ),
-      ];
+      return div({}, tableWrapper, div({ class: "mt-5" }, ...buttons));
     },
-  };
-};
+  );
+}

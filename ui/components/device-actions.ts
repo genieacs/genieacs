@@ -1,4 +1,4 @@
-import { ClosureComponent, Component } from "mithril";
+import { ClosureComponent, Component } from "../mithril-compat.ts";
 import { m } from "../components.ts";
 import * as taskQueue from "../task-queue.ts";
 import * as notifications from "../notifications.ts";

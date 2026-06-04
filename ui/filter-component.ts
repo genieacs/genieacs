@@ -1,6 +1,7 @@
-import m, { ClosureComponent } from "mithril";
+import { div, label, input, each } from "./dom.ts";
+import { StateSignal } from "./signals.ts";
 import memoize from "../lib/common/memoize.ts";
-import Autocomplete from "./autocomplete-compnent.ts";
+import Autocomplete from "./autocomplete-component.ts";
 import * as smartQuery from "./smart-query.ts";
 import { validQuery } from "../lib/db/synth.ts";
 import Expression from "../lib/common/expression.ts";
@@ -88,84 +89,81 @@ interface Attrs {
   onChange: (filter: Expression) => void;
 }
 
-const component: ClosureComponent<Attrs> = (initialVnode) => {
-  let filterList = splitFilter(initialVnode.attrs.filter);
-  let filterInvalid = 0;
+const BASE_INPUT_CLASS =
+  "appearance-none rounded-none relative block w-full px-3 py-2 border-stone-300 placeholder-stone-500 text-stone-900 focus:ring-cyan-500 focus:border-cyan-500 focus:z-10 sm:text-sm";
+
+export function createFilter(attrs: Attrs): HTMLElement {
+  const filterList = new StateSignal<string[]>(splitFilter(attrs.filter));
+  const filterInvalid = new StateSignal(0);
   let filterTouched = false;
-  let attrs: Attrs = initialVnode.attrs;
 
   function onChange(): void {
     filterTouched = false;
-    filterInvalid = 0;
-    filterList = filterList.filter((f) => f);
+    const list = filterList.get().filter((f) => f);
+    let invalid = 0;
     let filter: Expression = new Expression.Literal(true);
-    for (const [idx, f] of filterList.entries()) {
+    for (const [idx, f] of list.entries()) {
       try {
         filter = Expression.and(filter, parseFilter(attrs.resource, f));
       } catch {
-        filterInvalid |= 1 << idx;
+        invalid |= 1 << idx;
       }
     }
-    filterList.push("");
+    list.push("");
+    filterInvalid.set(invalid);
+    filterList.set(list);
 
-    if (filterInvalid) {
-      m.redraw();
-      return;
-    }
-    if (!filterList.length) attrs.onChange(new Expression.Literal(true));
+    if (invalid) return;
+    if (!list.length) attrs.onChange(new Expression.Literal(true));
     else attrs.onChange(filter);
   }
 
-  return {
-    onupdate: (vnode) => {
-      getAutocomplete(vnode.attrs.resource).reposition();
-    },
-    view: (vnode) => {
-      if (attrs.filter !== vnode.attrs.filter) {
-        filterInvalid = 0;
-        filterList = splitFilter(vnode.attrs.filter);
-      }
+  return div(
+    { class: "mb-5" },
+    label({ class: "text-sm font-semibold text-stone-700" }, "Filter"),
+    div(
+      { class: "shadow-sm rounded-md mt-1 max-w-screen-sm -space-y-px" },
+      each(
+        filterList,
+        (_, idx) => idx,
+        (_fltr, getIdx) => {
+          const inputEl = input({
+            type: "text",
+            class: () => {
+              const idx = getIdx();
+              const list = filterList.get();
+              let c = BASE_INPUT_CLASS;
+              if (idx === 0) c += " rounded-t-md";
+              if (idx === list.length - 1) c += " rounded-b-md";
+              if (filterInvalid.get() & (1 << idx)) c += " !text-red-700";
+              return c;
+            },
+            value: () => filterList.get()[getIdx()] ?? "",
+            oninput: (e) => {
+              filterList.get()[getIdx()] = (e.target as HTMLInputElement).value;
+              filterTouched = true;
+            },
+            onblur: () => {
+              if (filterTouched) onChange();
+            },
+          });
 
-      attrs = vnode.attrs;
-
-      return m("div.mb-5", [
-        m("label.text-sm font-semibold text-stone-700", "Filter"),
-        m(
-          "div.shadow-sm rounded-md mt-1 max-w-screen-sm -space-y-px",
-          ...filterList.map((fltr, idx) => {
-            let classNames =
-              "appearance-none rounded-none relative block w-full px-3 py-2 border-stone-300 placeholder-stone-500 text-stone-900 focus:ring-cyan-500 focus:border-cyan-500 focus:z-10 sm:text-sm";
-            if (idx === 0) classNames += " rounded-t-md";
-            if (idx === filterList.length - 1) classNames += " rounded-b-md";
-            if (filterInvalid & (1 << idx)) classNames += " !text-red-700";
-
-            return m(`input`, {
-              type: "text",
-              class: classNames,
-              value: fltr,
-              oninput: (e: Event) => {
-                e.redraw = false;
-                filterList[idx] = (e.target as HTMLInputElement).value;
-                filterTouched = true;
-              },
-              oncreate: (vn) => {
-                const el = vn.dom as HTMLInputElement;
-                getAutocomplete(vnode.attrs.resource).attach(el);
-
-                el.addEventListener("blur", () => {
-                  if (filterTouched) onChange();
-                });
-
-                el.addEventListener("keydown", (e) => {
-                  if (e.key === "Enter" && filterTouched) onChange();
-                });
-              },
-            });
-          }),
-        ),
-      ]);
-    },
-  };
-};
-
-export default component;
+          getAutocomplete(attrs.resource).attach(inputEl);
+          // Attach Enter handler after autocomplete so its stopImmediatePropagation
+          // on suggestion-pick can suppress this.
+          inputEl.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && filterTouched) onChange();
+          });
+          return inputEl;
+        },
+        // Rows are editable inputs keyed by index over raw strings; value and
+        // class read filterList reactively, and an identity-based re-render on
+        // commit would drop focus mid-edit (Enter).
+        // TODO: model rows as stable { id, text: StateSignal } entities keyed
+        // by id (editing writes the row's signal instead of mutating the list
+        // in place); then drop this opt-out.
+        { rerenderOnChange: false },
+      ),
+    ),
+  );
+}

@@ -1,7 +1,7 @@
-import { ClosureComponent } from "mithril";
+import { ClosureComponent } from "../mithril-compat.ts";
 import { m } from "../components.ts";
 import * as taskQueue from "../task-queue.ts";
-import * as store from "../store.ts";
+import * as store from "../legacy-store.ts";
 import { invalidate } from "../reactive-store.ts";
 import * as notifications from "../notifications.ts";
 import Expression from "../../lib/common/expression.ts";

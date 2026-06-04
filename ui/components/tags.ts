@@ -1,10 +1,10 @@
-import { ClosureComponent } from "mithril";
+import { ClosureComponent } from "../mithril-compat.ts";
 import { m } from "../components.ts";
 import * as notifications from "../notifications.ts";
-import * as store from "../store.ts";
+import * as store from "../legacy-store.ts";
 import { updateTags } from "../api-client.ts";
-import { invalidate } from "../reactive-store.ts";
-import { icon } from "../tailwind-utility-components.ts";
+import { evaluateExpression, invalidate } from "../reactive-store.ts";
+import { icon } from "../icons.ts";
 import { decodeTag } from "../../lib/util.ts";
 import Expression from "../../lib/common/expression.ts";
 import { FlatDevice } from "../../lib/ui/db.ts";
@@ -20,8 +20,7 @@ const component: ClosureComponent<Attrs> = () => {
       const device = vnode.attrs.device;
       let writable = true;
       if (vnode.attrs.writable)
-        writable = !!store.evaluateExpression(vnode.attrs.writable, device)
-          .value;
+        writable = !!evaluateExpression(vnode.attrs.writable, device).value;
 
       const tags = [];
       for (const p of Object.keys(device))
@@ -62,13 +61,13 @@ const component: ClosureComponent<Attrs> = () => {
                 title: "Remove tag",
                 class:
                   "flex-shrink-0 ml-0.5 h-4 w-4 rounded-full inline-flex items-center justify-center text-yellow-400 hover:bg-yellow-200 hover:text-yellow-500 focus:outline-hidden focus:bg-yellow-500 focus:text-white",
-                onclick: (e: Event) => {
-                  const target = e.target as HTMLButtonElement;
-                  target.disabled = true;
+                onclick: (e: MouseEvent) => {
+                  const btn = e.currentTarget as HTMLButtonElement;
+                  btn.disabled = true;
                   const deviceId = device["DeviceID.ID"] as string;
                   updateTags(deviceId, { [tag]: false })
                     .then(() => {
-                      target.disabled = false;
+                      btn.disabled = false;
                       notifications.push(
                         "success",
                         `${deviceId}: Tags updated`,
@@ -77,7 +76,7 @@ const component: ClosureComponent<Attrs> = () => {
                       invalidate(Date.now());
                     })
                     .catch((err) => {
-                      target.disabled = false;
+                      btn.disabled = false;
                       notifications.push(
                         "error",
                         `${deviceId}: ${err.message}`,
@@ -99,32 +98,32 @@ const component: ClosureComponent<Attrs> = () => {
             class:
               "inline-flex items-center pl-1 pr-1 py-0.5 rounded-full text-sm font-medium bg-yellow-50 ring-1 ring-yellow-200",
           },
-          m.trust("&#x200B;"),
+          "\u200B",
           m(
             "button",
             {
               title: "Add tag",
               class:
                 "flex-shrink-0 h-4 w-4 rounded-full inline-flex items-center justify-center text-yellow-400 hover:bg-yellow-200 hover:text-yellow-500 focus:outline-hidden focus:bg-yellow-500 focus:text-white",
-              onclick: (e: Event) => {
-                const target = e.target as HTMLButtonElement;
-                target.disabled = true;
+              onclick: (e: MouseEvent) => {
+                const btn = e.currentTarget as HTMLButtonElement;
+                btn.disabled = true;
                 const deviceId = device["DeviceID.ID"] as string;
                 const tag = prompt(`Enter tag to assign to device:`);
                 if (!tag) {
-                  target.disabled = false;
+                  btn.disabled = false;
                   return;
                 }
 
                 updateTags(deviceId, { [tag]: true })
                   .then(() => {
-                    target.disabled = false;
+                    btn.disabled = false;
                     notifications.push("success", `${deviceId}: Tags updated`);
                     store.setTimestamp(Date.now());
                     invalidate(Date.now());
                   })
                   .catch((err) => {
-                    target.disabled = false;
+                    btn.disabled = false;
                     notifications.push("error", `${deviceId}: ${err.message}`);
                   });
               },

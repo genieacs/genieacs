@@ -1,6 +1,6 @@
-import { ClosureComponent, Component } from "mithril";
+import { ClosureComponent, Component } from "../mithril-compat.ts";
 import { m } from "../components.ts";
-import * as store from "../store.ts";
+import * as store from "../legacy-store.ts";
 import { deleteResource } from "../api-client.ts";
 import { invalidate } from "../reactive-store.ts";
 import * as notifications from "../notifications.ts";
@@ -56,17 +56,17 @@ const component: ClosureComponent<Attrs> = (): Component<Attrs> => {
       const thead = m("thead.bg-stone-50", m("tr", headers));
 
       const rows = [];
-      for (const f of faults.value) {
+      for (const f of faults.value as Record<string, unknown>[]) {
         rows.push(
           m(
             "tr",
             m(
               "td.whitespace-nowrap pl-6 pr-3 py-4 text-sm text-stone-900",
-              f["channel"],
+              f["channel"] as string,
             ),
             m(
               "td.whitespace-nowrap px-3 py-4 text-sm text-stone-900",
-              f["code"],
+              f["code"] as string,
             ),
             m(
               "td.whitespace-nowrap px-3 py-4 text-sm text-stone-900",
@@ -75,18 +75,18 @@ const component: ClosureComponent<Attrs> = (): Component<Attrs> => {
             m(
               "td.whitespace-nowrap px-3 py-4 text-sm text-stone-900",
               m("long-text", {
-                text: stringify(f["detail"] ?? null),
+                text: stringify(f["detail"] as Record<string, unknown> | null),
                 class: "max-w-xs",
               }),
             ),
 
             m(
               "td.whitespace-nowrap px-3 py-4 text-sm text-stone-900",
-              f["retries"],
+              f["retries"] as number,
             ),
             m(
               "td.whitespace-nowrap px-3 py-4 text-sm text-stone-900",
-              new Date(f["timestamp"]).toLocaleString(),
+              new Date(f["timestamp"] as string | number).toLocaleString(),
             ),
             m(
               "td.whitespace-nowrap pl-3 pr-6 py-4 text-sm text-stone-900",
@@ -95,9 +95,8 @@ const component: ClosureComponent<Attrs> = (): Component<Attrs> => {
                 {
                   class: "text-cyan-700 hover:text-cyan-900 font-medium",
                   title: "Delete fault",
-                  onclick: (e: Event) => {
-                    e.redraw = false;
-                    deleteResource("faults", f["_id"])
+                  onclick: () => {
+                    deleteResource("faults", f["_id"] as string)
                       .then(() => {
                         notifications.push("success", "Fault deleted");
                         store.setTimestamp(Date.now());

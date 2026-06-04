@@ -1,9 +1,10 @@
-import { ClosureComponent } from "mithril";
+import { ClosureComponent } from "../mithril-compat.ts";
 import { m } from "../components.ts";
 import * as taskQueue from "../task-queue.ts";
 import memoize from "../../lib/common/memoize.ts";
-import { icon } from "../tailwind-utility-components.ts";
-import { QueryResponse, evaluateExpression } from "../store.ts";
+import { icon } from "../icons.ts";
+import { QueryResponse } from "../legacy-store.ts";
+import { evaluateExpression } from "../reactive-store.ts";
 import debounce from "../../lib/common/debounce.ts";
 import Expression, { Value } from "../../lib/common/expression.ts";
 import { FlatDevice } from "../../lib/ui/db.ts";
@@ -78,9 +79,8 @@ const component: ClosureComponent<Attrs> = () => {
         {
           type: "text",
           placeholder: "Search parameters",
-          oninput: (e: Event) => {
-            formQueryString((e.target as HTMLInputElement).value);
-            e.redraw = false;
+          oninput: (e: { target: HTMLInputElement }) => {
+            formQueryString(e.target.value);
           },
         },
       );

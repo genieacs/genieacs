@@ -1,6 +1,7 @@
-import { ClosureComponent, VnodeDOM } from "mithril";
+import { ClosureComponent, VnodeDOM } from "../mithril-compat.ts";
 import { m } from "../components.ts";
-import { QueryResponse, evaluateExpression } from "../store.ts";
+import { QueryResponse } from "../legacy-store.ts";
+import { evaluateExpression } from "../reactive-store.ts";
 import { FlatDevice } from "../../lib/ui/db.ts";
 import Expression from "../../lib/common/expression.ts";
 
@@ -36,12 +37,12 @@ const component: ClosureComponent<Attrs> = () => {
         return m(
           "div.py-3 grid grid-cols-3 gap-4 px-6",
           {
-            oncreate: (vn) => {
+            oncreate: (vn: VnodeDOM) => {
               (vn.dom as HTMLElement).style.display = (p as VnodeDOM).dom
                 ? ""
                 : "none";
             },
-            onupdate: (vn) => {
+            onupdate: (vn: VnodeDOM) => {
               (vn.dom as HTMLElement).style.display = (p as VnodeDOM).dom
                 ? ""
                 : "none";

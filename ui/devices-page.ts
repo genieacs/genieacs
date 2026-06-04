@@ -1,42 +1,44 @@
-import { ClosureComponent, Children } from "mithril";
-import { m } from "./components.ts";
+import { m as mContext } from "./components.ts";
+import { createMithrilHost } from "./mithril-compat.ts";
+import { navigate } from "./router.ts";
 import { pageSize as PAGE_SIZE, index as indexConfig } from "./config.ts";
-import indexTableComponent, {
-  IndexTableAttrs,
-} from "./index-table-component.ts";
-import filterComponent from "./filter-component.ts";
-import * as store from "./store.ts";
+import { createFilter } from "./filter-component.ts";
+import { createIndexTable } from "./index-table-component.ts";
+import {
+  fetch as reactiveFetch,
+  count as reactiveCount,
+  invalidate,
+} from "./reactive-store.ts";
+import * as store from "./legacy-store.ts";
+import { StateSignal } from "./signals.ts";
 import { deleteResource, updateTags } from "./api-client.ts";
-import { invalidate } from "./reactive-store.ts";
 import { queueTask, stageDownload } from "./task-queue.ts";
 import * as notifications from "./notifications.ts";
 import Expression, { extractPaths } from "../lib/common/expression.ts";
-import memoize from "../lib/common/memoize.ts";
+import Path from "../lib/common/path.ts";
 import * as smartQuery from "./smart-query.ts";
-import { ViewComponent } from "./views.ts";
-import { navigate } from "./router.ts";
+import { renderView } from "./views.ts";
+import { div, h1, button, a } from "./dom.ts";
 
-const memoizedGetSortable = memoize((p: Expression) => {
+function getSortable(p: Expression): Path | null {
   const expressionParams = extractPaths(p);
   if (expressionParams.length === 1) return expressionParams[0];
   return null;
-});
+}
 
-const getDownloadUrl = memoize(
-  (
-    filter: Expression,
-    indexParameters: { label: string; parameter: Expression }[],
-  ) => {
-    const columns: Record<string, string> = {};
-    for (const p of indexParameters) columns[p.label] = p.parameter.toString();
-    return `/api/devices.csv?${m.buildQueryString({
-      filter: filter.toString(),
-      columns: JSON.stringify(columns),
-    })}`;
-  },
-);
+function getDownloadUrl(
+  filter: Expression,
+  indexParameters: { label: string; parameter: Expression }[],
+): string {
+  const columns: Record<string, string> = {};
+  for (const p of indexParameters) columns[p.label] = p.parameter.toString();
+  return `/api/devices.csv?${new URLSearchParams({
+    filter: filter.toString(),
+    columns: JSON.stringify(columns),
+  }).toString()}`;
+}
 
-const unpackSmartQuery = memoize((query: Expression) => {
+function unpackSmartQuery(query: Expression): Expression {
   return query.evaluate((e) => {
     if (e instanceof Expression.FunctionCall) {
       if (e.name === "Q") {
@@ -54,38 +56,40 @@ const unpackSmartQuery = memoize((query: Expression) => {
     }
     return e;
   });
-});
+}
 
-export function init(args: Record<string, unknown>): Promise<Attrs> {
-  return new Promise((resolve, reject) => {
-    if (!window.authorizer.hasAccess("devices", 2))
-      return void reject(new Error("You are not authorized to view this page"));
-
-    let filter: Expression | undefined;
-    let sort: Record<string, number> | undefined;
-    if (args.hasOwnProperty("filter"))
-      filter = Expression.parse(args["filter"] as string);
-    if (args.hasOwnProperty("sort")) sort = JSON.parse(args["sort"] as string);
-    const indexParameters = indexConfig;
-    if (!indexParameters.length) {
-      indexParameters.push({
-        label: "ID",
-        parameter: Expression.parse("DeviceID.ID"),
-        unsortable: false,
-        raw: {},
-      });
-    }
-    resolve({ filter, indexParameters, sort });
+export function init(args: URLSearchParams): Promise<Attrs> {
+  if (!window.authorizer.hasAccess("devices", 2)) {
+    return Promise.reject(
+      new Error("You are not authorized to view this page"),
+    );
+  }
+  const filterStr = args.get("filter");
+  const sortStr = args.get("sort");
+  const indexParameters = indexConfig;
+  if (!indexParameters.length) {
+    indexParameters.push({
+      label: "ID",
+      parameter: Expression.parse("DeviceID.ID"),
+      unsortable: false,
+      raw: {},
+    });
+  }
+  return Promise.resolve({
+    filter: filterStr ? Expression.parse(filterStr) : undefined,
+    sort: sortStr ? JSON.parse(sortStr) : undefined,
+    indexParameters,
   });
 }
 
-function renderActions(selected: Set<string>): Children {
-  const buttons = [];
+function renderActions(selected: Set<string>): Node[] {
+  const buttons: Node[] = [];
 
   buttons.push(
-    m(
-      "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
+    button(
       {
+        class:
+          "px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
         title: "Reboot selected devices",
         disabled: !selected.size,
         onclick: () => {
@@ -101,9 +105,10 @@ function renderActions(selected: Set<string>): Children {
   );
 
   buttons.push(
-    m(
-      "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
+    button(
       {
+        class:
+          "px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
         title: "Factory reset selected devices",
         disabled: !selected.size,
         onclick: () => {
@@ -119,9 +124,10 @@ function renderActions(selected: Set<string>): Children {
   );
 
   buttons.push(
-    m(
-      "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
+    button(
       {
+        class:
+          "px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
         title: "Push a firmware or a config file",
         disabled: !selected.size,
         onclick: () => {
@@ -136,38 +142,27 @@ function renderActions(selected: Set<string>): Children {
   );
 
   buttons.push(
-    m(
-      "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
+    button(
       {
+        class:
+          "px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
         title: "Delete selected devices",
         disabled: !selected.size,
         onclick: () => {
           const ids = Array.from(selected);
           if (!confirm(`Deleting ${ids.length} devices. Are you sure?`)) return;
 
-          let counter = 1;
-          for (const id of ids) {
-            ++counter;
+          const tasks = ids.map((id) =>
             deleteResource("devices", id)
-              .then(() => {
-                notifications.push("success", `${id}: Deleted`);
-                if (--counter === 0) {
-                  store.setTimestamp(Date.now());
-                  invalidate(Date.now());
-                }
-              })
-              .catch((err) => {
-                notifications.push("error", `${id}: ${err.message}`);
-                if (--counter === 0) {
-                  store.setTimestamp(Date.now());
-                  invalidate(Date.now());
-                }
-              });
-          }
-          if (--counter === 0) {
+              .then(() => notifications.push("success", `${id}: Deleted`))
+              .catch((err) =>
+                notifications.push("error", `${id}: ${err.message}`),
+              ),
+          );
+          void Promise.allSettled(tasks).then(() => {
             store.setTimestamp(Date.now());
             invalidate(Date.now());
-          }
+          });
         },
       },
       "Delete",
@@ -175,9 +170,10 @@ function renderActions(selected: Set<string>): Children {
   );
 
   buttons.push(
-    m(
-      "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
+    button(
       {
+        class:
+          "px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
         title: "Tag selected devices",
         disabled: !selected.size,
         onclick: () => {
@@ -185,29 +181,17 @@ function renderActions(selected: Set<string>): Children {
           const tag = prompt(`Enter tag to assign to ${ids.length} devices:`);
           if (!tag) return;
 
-          let counter = 1;
-          for (const id of ids) {
-            ++counter;
+          const tasks = ids.map((id) =>
             updateTags(id, { [tag]: true })
-              .then(() => {
-                notifications.push("success", `${id}: Tags updated`);
-                if (--counter === 0) {
-                  store.setTimestamp(Date.now());
-                  invalidate(Date.now());
-                }
-              })
-              .catch((err) => {
-                notifications.push("error", `${id}: ${err.message}`);
-                if (--counter === 0) {
-                  store.setTimestamp(Date.now());
-                  invalidate(Date.now());
-                }
-              });
-          }
-          if (--counter === 0) {
+              .then(() => notifications.push("success", `${id}: Tags updated`))
+              .catch((err) =>
+                notifications.push("error", `${id}: ${err.message}`),
+              ),
+          );
+          void Promise.allSettled(tasks).then(() => {
             store.setTimestamp(Date.now());
             invalidate(Date.now());
-          }
+          });
         },
       },
       "Tag",
@@ -215,9 +199,10 @@ function renderActions(selected: Set<string>): Children {
   );
 
   buttons.push(
-    m(
-      "button.px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
+    button(
       {
+        class:
+          "px-4 py-2 border border-stone-300 shadow-xs text-sm font-medium rounded-md text-stone-700 bg-white hover:bg-stone-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed",
         title: "Untag selected devices",
         disabled: !selected.size,
         onclick: () => {
@@ -227,29 +212,17 @@ function renderActions(selected: Set<string>): Children {
           );
           if (!tag) return;
 
-          let counter = 1;
-          for (const id of ids) {
-            ++counter;
+          const tasks = ids.map((id) =>
             updateTags(id, { [tag]: false })
-              .then(() => {
-                notifications.push("success", `${id}: Tags updated`);
-                if (--counter === 0) {
-                  store.setTimestamp(Date.now());
-                  invalidate(Date.now());
-                }
-              })
-              .catch((err) => {
-                notifications.push("error", `${id}: ${err.message}`);
-                if (--counter === 0) {
-                  store.setTimestamp(Date.now());
-                  invalidate(Date.now());
-                }
-              });
-          }
-          if (--counter === 0) {
+              .then(() => notifications.push("success", `${id}: Tags updated`))
+              .catch((err) =>
+                notifications.push("error", `${id}: ${err.message}`),
+              ),
+          );
+          void Promise.allSettled(tasks).then(() => {
             store.setTimestamp(Date.now());
             invalidate(Date.now());
-          }
+          });
         },
       },
       "Untag",
@@ -259,130 +232,119 @@ function renderActions(selected: Set<string>): Children {
   return buttons;
 }
 
-interface Attrs {
+export interface Attrs {
   indexParameters: typeof indexConfig;
   filter?: Expression;
   sort?: Record<string, number>;
 }
 
-export const component: ClosureComponent<Attrs> = () => {
-  let showCount: number;
+export function createPage(attrs: Attrs): HTMLElement {
+  document.title = "Devices - GenieACS";
 
-  return {
-    view: (vnode) => {
-      document.title = "Devices - GenieACS";
-      const attributes = vnode.attrs.indexParameters;
+  const showCount = new StateSignal(PAGE_SIZE);
 
-      function showMore(): void {
-        showCount = (showCount || PAGE_SIZE) + PAGE_SIZE;
-        m.redraw();
-      }
+  const attributes = attrs.indexParameters;
+  const sort = attrs.sort || {};
 
-      function onFilterChanged(filter: Expression): void {
-        const ops: Record<string, string> = {};
-        if (!(filter instanceof Expression.Literal && filter.value))
-          ops["filter"] = filter.toString();
-        if (vnode.attrs.sort) ops["sort"] = JSON.stringify(vnode.attrs.sort);
-        navigate("/devices", ops).catch(console.error);
-      }
+  const filter = unpackSmartQuery(attrs.filter ?? new Expression.Literal(true));
 
-      const sort = vnode.attrs.sort || {};
+  // Reactive data signals
+  const devsQuery = reactiveFetch("devices", filter, { sort });
+  const countQuery = reactiveCount("devices", filter);
 
-      const sortAttributes: Record<number, number> = {};
-      for (let i = 0; i < attributes.length; i++) {
-        const attr = attributes[i];
-        if (attr.unsortable) continue;
-        const param = memoizedGetSortable(attr.parameter);
-        if (param) sortAttributes[i] = sort[param.toString()] || 0;
-      }
+  const downloadUrl = getDownloadUrl(filter, attributes);
 
-      function onSortChange(sortedAttrs: number[]): void {
-        const _sort: Record<string, number> = {};
-        for (const index of sortedAttrs) {
-          const param = memoizedGetSortable(
-            attributes[Math.abs(index) - 1].parameter,
-          );
-          if (param) _sort[param.toString()] = Math.sign(index);
-        }
-        const ops: Record<string, string> = { sort: JSON.stringify(_sort) };
-        if (vnode.attrs.filter) ops["filter"] = vnode.attrs.filter.toString();
-        navigate("/devices", ops).catch(console.error);
-      }
+  const sortAttributes: Record<number, number> = {};
+  for (let i = 0; i < attributes.length; i++) {
+    const attr = attributes[i];
+    if (attr.unsortable) continue;
+    const param = getSortable(attr.parameter);
+    if (param) sortAttributes[i] = sort[param.toString()] || 0;
+  }
 
-      const filter = unpackSmartQuery(
-        vnode.attrs.filter ?? new Expression.Literal(true),
+  function onFilterChanged(f: Expression): void {
+    const ops: Record<string, string> = {};
+    if (!(f instanceof Expression.Literal && f.value))
+      ops["filter"] = f.toString();
+    if (attrs.sort) ops["sort"] = JSON.stringify(attrs.sort);
+    void navigate("/devices", ops);
+  }
+
+  function onSortChange(sortedAttrs: number[]): void {
+    const _sort: Record<string, number> = {};
+    for (const index of sortedAttrs) {
+      const param = getSortable(attributes[Math.abs(index) - 1].parameter);
+      if (param) _sort[param.toString()] = Math.sign(index);
+    }
+    const ops: Record<string, string> = { sort: JSON.stringify(_sort) };
+    if (attrs.filter) ops["filter"] = attrs.filter.toString();
+    void navigate("/devices", ops);
+  }
+
+  // Value callback — renders content into a DOM container
+  const valueCallback = (attr: any, device: any): Node => {
+    if (!attr.type && !attr.components && attr.component) {
+      return div(
+        {},
+        renderView(attr.component, {
+          ...attr,
+          deviceId: device["DeviceID.ID"],
+        }),
       );
-
-      const devs = store.fetch("devices", filter, {
-        limit: showCount || PAGE_SIZE,
-        sort: sort,
-      });
-      const count = store.count("devices", filter);
-
-      const downloadUrl = getDownloadUrl(filter, attributes);
-
-      const valueCallback = (
-        attr: (typeof attributes)[number] & {
-          component?: string;
-          components?: unknown;
-        },
-        device: Record<string, any>,
-      ): Children => {
-        if (!attr.type && !attr.components && attr.component) {
-          return m(ViewComponent, {
-            name: attr.component,
-            attrs: {
-              ...(attr as unknown as Record<string, string>),
-              deviceId: device["DeviceID.ID"] as string,
-            },
-          });
-        } else {
-          return m.context(
-            { device: device, parameter: attr.parameter },
-            attr.type || "parameter",
-            attr.raw,
-          );
-        }
-      };
-
-      const attrs: IndexTableAttrs = {
-        attributes: attributes.map((a) => ({
-          ...a,
-          label: a.label,
-          type: a.type,
-        })),
-        data: devs.value,
-        total: count.value,
-        showMoreCallback: showMore,
-        sortAttributes,
-        onSortChange,
-        downloadUrl,
-        valueCallback,
-        recordActionsCallback: (device: Record<string, any>): Children => {
-          return m(
-            "a.text-cyan-700 hover:text-cyan-900",
-            {
-              href: `/devices/${encodeURIComponent(device["DeviceID.ID"])}`,
-            },
-            "Show",
-          );
-        },
-      };
-
-      if (window.authorizer.hasAccess("devices", 3))
-        attrs.actionsCallback = renderActions;
-
-      const filterAttrs = {
-        resource: "devices" as const,
-        filter: vnode.attrs.filter,
-        onChange: onFilterChanged,
-      };
-
-      return [
-        m("h1.text-xl font-medium text-stone-900 mb-5", "Listing devices"),
-        m(filterComponent, filterAttrs),
-        m("loading", { queries: [devs, count] }, m(indexTableComponent, attrs)),
-      ];
-    },
+    }
+    return createMithrilHost(() => {
+      return mContext.context(
+        { device: device, parameter: attr.parameter },
+        attr.type || "parameter",
+        attr.raw,
+      );
+    });
   };
-};
+
+  // Record actions callback returns DOM node
+  const recordActionsCallback = (device: any): Node[] => {
+    return [
+      a(
+        {
+          class: "text-cyan-700 hover:text-cyan-900",
+          href: `/devices/${encodeURIComponent(device["DeviceID.ID"])}`,
+        },
+        "Show",
+      ),
+    ];
+  };
+
+  // Build DOM once — table updates itself via signals
+  return div(
+    {},
+    h1({ class: "text-xl font-medium text-stone-900 mb-5" }, "Listing devices"),
+    createFilter({
+      resource: "devices",
+      filter: attrs.filter,
+      onChange: onFilterChanged,
+    }),
+    createIndexTable({
+      attributes: attributes.map((attr) => ({
+        ...attr,
+        label: attr.label,
+        type: attr.type,
+      })),
+      data: () =>
+        devsQuery.get().value.slice(0, showCount.get()) as Record<
+          string,
+          unknown
+        >[],
+      total: () => countQuery.get().value,
+      loading: () => devsQuery.get().loading,
+      showMoreCallback: () => showCount.set(showCount.get() + PAGE_SIZE),
+      sortAttributes,
+      onSortChange,
+      downloadUrl,
+      valueCallback,
+      recordActionsCallback,
+      actionsCallback: window.authorizer.hasAccess("devices", 3)
+        ? renderActions
+        : undefined,
+    }),
+  );
+}
