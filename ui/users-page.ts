@@ -4,6 +4,7 @@ import { createFilter } from "./filter-component.ts";
 import { createIndexTable } from "./index-table-component.ts";
 import {
   fetch as reactiveFetch,
+  pagedFetch,
   count as reactiveCount,
   invalidate,
 } from "./reactive-store.ts";
@@ -171,7 +172,8 @@ export function createPage(attrs: Attrs): HTMLElement {
   const filter = unpackSmartQuery(attrs.filter ?? new Expression.Literal(true));
 
   // Reactive data signals
-  const usersQuery = reactiveFetch("users", filter, { sort });
+  const usersQuery = (): { value: unknown[]; loading: boolean } =>
+    pagedFetch("users", filter, { sort, limit: showCount.get() });
   const countQuery = reactiveCount("users", filter);
 
   // Fetch permissions for role options
@@ -429,13 +431,10 @@ export function createPage(attrs: Attrs): HTMLElement {
         // disposed signal" (getRoleOptions alone reads it from the form's
         // reactive subtree, which unsubscribes when the overlay closes).
         permissionsQuery.get();
-        return usersQuery.get().value.slice(0, showCount.get()) as Record<
-          string,
-          unknown
-        >[];
+        return usersQuery().value as Record<string, unknown>[];
       },
       total: () => countQuery.get().value,
-      loading: () => usersQuery.get().loading,
+      loading: () => usersQuery().loading,
       showMoreCallback: () => showCount.set(showCount.get() + PAGE_SIZE),
       sortAttributes,
       onSortChange,

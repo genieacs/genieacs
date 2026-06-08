@@ -3,7 +3,7 @@ import { pageSize as PAGE_SIZE } from "./config.ts";
 import { createFilter } from "./filter-component.ts";
 import { createIndexTable } from "./index-table-component.ts";
 import {
-  fetch as reactiveFetch,
+  pagedFetch,
   count as reactiveCount,
   invalidate,
 } from "./reactive-store.ts";
@@ -152,7 +152,8 @@ export function createPage(attrs: Attrs): HTMLElement {
   const filter = unpackSmartQuery(attrs.filter ?? new Expression.Literal(true));
 
   // Reactive data signals
-  const provisionsQuery = reactiveFetch("provisions", filter, { sort });
+  const provisionsQuery = (): { value: unknown[]; loading: boolean } =>
+    pagedFetch("provisions", filter, { sort, limit: showCount.get() });
   const countQuery = reactiveCount("provisions", filter);
 
   const downloadUrl = getDownloadUrl(filter);
@@ -339,13 +340,9 @@ export function createPage(attrs: Attrs): HTMLElement {
     }),
     createIndexTable({
       attributes,
-      data: () =>
-        provisionsQuery.get().value.slice(0, showCount.get()) as Record<
-          string,
-          unknown
-        >[],
+      data: () => provisionsQuery().value as Record<string, unknown>[],
       total: () => countQuery.get().value,
-      loading: () => provisionsQuery.get().loading,
+      loading: () => provisionsQuery().loading,
       showMoreCallback: () => showCount.set(showCount.get() + PAGE_SIZE),
       sortAttributes,
       onSortChange,

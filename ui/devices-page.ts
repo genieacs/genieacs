@@ -5,7 +5,7 @@ import { pageSize as PAGE_SIZE, index as indexConfig } from "./config.ts";
 import { createFilter } from "./filter-component.ts";
 import { createIndexTable } from "./index-table-component.ts";
 import {
-  fetch as reactiveFetch,
+  pagedFetch,
   count as reactiveCount,
   invalidate,
 } from "./reactive-store.ts";
@@ -248,8 +248,10 @@ export function createPage(attrs: Attrs): HTMLElement {
 
   const filter = unpackSmartQuery(attrs.filter ?? new Expression.Literal(true));
 
-  // Reactive data signals
-  const devsQuery = reactiveFetch("devices", filter, { sort });
+  // Reactive data signals — the device list is limit-bounded so only the
+  // visible page is ever fetched
+  const devsQuery = (): { value: unknown[]; loading: boolean } =>
+    pagedFetch("devices", filter, { sort, limit: showCount.get() });
   const countQuery = reactiveCount("devices", filter);
 
   const downloadUrl = getDownloadUrl(filter, attributes);
@@ -329,13 +331,9 @@ export function createPage(attrs: Attrs): HTMLElement {
         label: attr.label,
         type: attr.type,
       })),
-      data: () =>
-        devsQuery.get().value.slice(0, showCount.get()) as Record<
-          string,
-          unknown
-        >[],
+      data: () => devsQuery().value as Record<string, unknown>[],
       total: () => countQuery.get().value,
-      loading: () => devsQuery.get().loading,
+      loading: () => devsQuery().loading,
       showMoreCallback: () => showCount.set(showCount.get() + PAGE_SIZE),
       sortAttributes,
       onSortChange,

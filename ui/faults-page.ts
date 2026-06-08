@@ -3,7 +3,7 @@ import { pageSize as PAGE_SIZE } from "./config.ts";
 import { createFilter } from "./filter-component.ts";
 import { createIndexTable } from "./index-table-component.ts";
 import {
-  fetch as reactiveFetch,
+  pagedFetch,
   count as reactiveCount,
   invalidate,
 } from "./reactive-store.ts";
@@ -99,8 +99,10 @@ export function createPage(attrs: Attrs): HTMLElement {
 
   const filter = unpackSmartQuery(attrs.filter ?? new Expression.Literal(true));
 
-  // Reactive data signals
-  const faultsQuery = reactiveFetch("faults", filter, { sort });
+  // Reactive data signals — the fault list is limit-bounded so only the
+  // visible page is ever fetched
+  const faultsQuery = (): { value: unknown[]; loading: boolean } =>
+    pagedFetch("faults", filter, { sort, limit: showCount.get() });
   const countQuery = reactiveCount("faults", filter);
 
   const downloadUrl = getDownloadUrl(filter);
@@ -212,13 +214,9 @@ export function createPage(attrs: Attrs): HTMLElement {
     }),
     createIndexTable({
       attributes,
-      data: () =>
-        faultsQuery.get().value.slice(0, showCount.get()) as Record<
-          string,
-          unknown
-        >[],
+      data: () => faultsQuery().value as Record<string, unknown>[],
       total: () => countQuery.get().value,
-      loading: () => faultsQuery.get().loading,
+      loading: () => faultsQuery().loading,
       valueCallback,
       showMoreCallback: () => showCount.set(showCount.get() + PAGE_SIZE),
       sortAttributes,

@@ -13,10 +13,16 @@ import {
   fetch as reactiveStoreFetch,
   count as reactiveStoreCount,
   createBookmark as reactiveStoreCreateBookmark,
+  pagedFetch,
   invalidate,
+  evaluateExpression,
   QuerySignal,
   Bookmark,
 } from "../ui/reactive-store.ts";
+import {
+  toBookmark,
+  bookmarkToExpression,
+} from "../lib/common/expression/pagination.ts";
 
 // Test-only exports added by build/test.ts plugin at build time
 import * as reactiveStore from "../ui/reactive-store.ts";
@@ -408,15 +414,71 @@ void test("count() returns same signal for same query", () => {
 });
 
 // =============================================================================
-// createBookmark() Tests
+// createBookmark() / pagedFetch() Tests
 // =============================================================================
 
-void test("createBookmark() returns QuerySignal with Bookmark", async () => {
+// A mock GET handler that honors filter, sort, skip and limit query params —
+// createBookmark's coverage-anchored probes depend on all four.
+function mockQueryHandler(
+  urlPattern: string,
+  data: unknown[],
+  delayMs = 0,
+): (options: { url: string; method: string }) => unknown {
+  return (options) => {
+    if (options.method && options.method !== "GET") return undefined;
+    if (!options.url.includes(urlPattern)) return undefined;
+
+    const queryStart = options.url.indexOf("?");
+    const params = Object.fromEntries(
+      new URLSearchParams(
+        queryStart === -1 ? "" : options.url.slice(queryStart + 1),
+      ),
+    );
+
+    let rows = data;
+    if (params["filter"]) {
+      const expr = Expression.parse(params["filter"]);
+      rows = rows.filter((obj) => {
+        const result = evaluateExpression(expr, obj as Record<string, unknown>);
+        return !!result.value;
+      });
+    }
+    if (params["sort"])
+      rows = [...rows].sort(
+        compareFunction(JSON.parse(params["sort"]) as Record<string, number>),
+      );
+    if (params["skip"]) rows = rows.slice(+params["skip"]);
+    if (params["limit"]) rows = rows.slice(0, +params["limit"]);
+
+    if (delayMs > 0)
+      return new Promise((resolve) => setTimeout(() => resolve(rows), delayMs));
+    return rows;
+  };
+}
+
+function getRequestParams(url: string): Record<string, string> {
+  const queryStart = url.indexOf("?");
+  return Object.fromEntries(
+    new URLSearchParams(queryStart === -1 ? "" : url.slice(queryStart + 1)),
+  );
+}
+
+// Rows of `data` matching the given filter string
+function matchingRows(data: unknown[], filterStr: string): unknown[] {
+  const expr = Expression.parse(filterStr);
+  return data.filter(
+    (obj) => !!evaluateExpression(expr, obj as Record<string, unknown>).value,
+  );
+}
+
+void test("createBookmark() probes the remainder and bounds the first `limit` records", async () => {
   mockClearHandlers();
+  clearStores();
 
-  const rowAtOffset = [{ _id: "preset-5", name: "Fifth" }];
-
-  mockRegisterHandler(mockFetchHandler("api/presets/", rowAtOffset));
+  const testData = Array.from({ length: 12 }, (_, i) => ({
+    _id: `preset-${String(i + 1).padStart(2, "0")}`,
+  }));
+  mockRegisterHandler(mockQueryHandler("api/presets/", testData));
 
   const filter: Expression = new Expression.Literal(true);
   const sort = { _id: 1 };
@@ -429,12 +491,31 @@ void test("createBookmark() returns QuerySignal with Bookmark", async () => {
   const state = signal.get();
   assert.strictEqual(state.loading, false);
   assert.ok(state.value instanceof Bookmark);
+  assert.ok(state.timestamp > 0);
+
+  // With no coverage the probe targets the whole filter at skip = limit − 1
+  const log = mockGetRequestLog();
+  assert.strictEqual(log.length, 1);
+  const params = getRequestParams(log[0].url);
+  assert.strictEqual(params["filter"], "TRUE");
+  assert.strictEqual(params["skip"], "4");
+  assert.strictEqual(params["limit"], "1");
+  assert.strictEqual(params["projection"], "_id");
+
+  // The bookmark must bound exactly the first 5 records
+  const bounded = state.value!.applySkip(filter);
+  assert.deepStrictEqual(
+    matchingRows(testData, bounded.toString()),
+    testData.slice(0, 5),
+  );
 });
 
-void test("createBookmark() returns null when offset is beyond result count", async () => {
+void test("createBookmark() returns null when limit exceeds result count", async () => {
   mockClearHandlers();
+  clearStores();
 
-  mockRegisterHandler(mockFetchHandler("api/presets/", []));
+  const testData = [{ _id: "preset-1" }, { _id: "preset-2" }];
+  mockRegisterHandler(mockQueryHandler("api/presets/", testData));
 
   const filter: Expression = new Expression.Literal(true);
   const sort = { _id: 1 };
@@ -445,13 +526,60 @@ void test("createBookmark() returns null when offset is beyond result count", as
   const state = signal.get();
   assert.strictEqual(state.loading, false);
   assert.strictEqual(state.value, null);
+  assert.ok(state.timestamp > 0, "resolved null must not look unresolved");
+});
+
+void test("createBookmark() resolves synchronously without requests when limit records are cached", async () => {
+  mockClearHandlers();
+  clearStores();
+
+  const testData = Array.from({ length: 8 }, (_, i) => ({
+    _id: `fault-${i + 1}`,
+  }));
+  mockRegisterHandler(mockQueryHandler("api/faults/", testData));
+
+  // Cover the whole filter so all 8 objects are cached and fresh
+  const filter: Expression = new Expression.Literal(true);
+  reactiveStoreFetch("faults", filter);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  mockClearRequestLog();
+
+  // m = 8 ≥ limit = 5 → bound by the 5th cached match, zero requests,
+  // resolved synchronously (no await needed)
+  const sort = { _id: 1 };
+  const signal = reactiveStoreCreateBookmark("faults", filter, sort, 5);
+
+  const state = signal.get();
+  assert.strictEqual(state.loading, false);
+  assert.ok(state.value instanceof Bookmark);
+  assert.strictEqual(mockGetRequestLog().length, 0);
+
+  const bounded = state.value!.applySkip(filter);
+  assert.deepStrictEqual(
+    matchingRows(testData, bounded.toString()),
+    testData.slice(0, 5),
+  );
+
+  // Fully covered with m = 8 < limit → null (fewer than limit records
+  // exist), still synchronous and request-free
+  const signal2 = reactiveStoreCreateBookmark("faults", filter, sort, 20);
+  const state2 = signal2.get();
+  assert.strictEqual(state2.loading, false);
+  assert.strictEqual(state2.value, null);
+  assert.ok(state2.timestamp > 0);
+  assert.strictEqual(mockGetRequestLog().length, 0);
 });
 
 void test("Bookmark.applySkip() and applyLimit() modify filter correctly", async () => {
   mockClearHandlers();
+  clearStores();
 
-  const rowAtOffset = [{ _id: "preset-10", active: true }];
-  mockRegisterHandler(mockFetchHandler("api/presets/", rowAtOffset));
+  const testData = Array.from({ length: 12 }, (_, i) => ({
+    _id: `preset-${String(i + 1).padStart(2, "0")}`,
+    active: true,
+  }));
+  mockRegisterHandler(mockQueryHandler("api/presets/", testData));
 
   const filter: Expression = Expression.parse("active = true");
   const sort = { _id: 1 };
@@ -485,12 +613,246 @@ void test("Bookmark.applySkip() and applyLimit() modify filter correctly", async
   );
 });
 
+void test('pagedFetch() "show more" probes the remainder and fetches only the new chunk', async () => {
+  mockClearHandlers();
+  clearStores();
+
+  const testData = Array.from({ length: 25 }, (_, i) => ({
+    "DeviceID.ID": { value: [`device-${String(i + 1).padStart(2, "0")}`] },
+  }));
+  mockRegisterHandler(mockQueryHandler("api/devices/", testData));
+
+  const filter: Expression = new Expression.Literal(true);
+  const ids = (rows: unknown[]): string[] =>
+    rows.map(
+      (r) =>
+        (r as { "DeviceID.ID": { value: string[] } })["DeviceID.ID"].value[0],
+    );
+
+  // --- Page 1: limit 10 ---
+  // pagedFetch is a snapshot; re-call it after each resolution step the way
+  // a reactive computation would re-run.
+  const q1 = pagedFetch("devices", filter, { limit: 10 });
+  assert.deepStrictEqual(q1, { value: [], loading: true });
+
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  const q2 = pagedFetch("devices", filter, { limit: 10 });
+  assert.strictEqual(q2.loading, true, "bounded fetch should be in flight");
+
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  const q3 = pagedFetch("devices", filter, { limit: 10 });
+  assert.strictEqual(q3.loading, false);
+  assert.deepStrictEqual(ids(q3.value), ids(testData.slice(0, 10)));
+
+  // Two requests: the probe (skip=9, limit=1) and the bounded chunk fetch
+  const log1 = mockGetRequestLog();
+  assert.strictEqual(log1.length, 2);
+  const probe1 = getRequestParams(log1[0].url);
+  assert.strictEqual(probe1["skip"], "9");
+  assert.strictEqual(probe1["limit"], "1");
+  assert.strictEqual(probe1["filter"], "TRUE");
+  const chunk1 = getRequestParams(log1[1].url);
+  assert.strictEqual(chunk1["limit"], undefined);
+  assert.deepStrictEqual(
+    ids(matchingRows(testData, chunk1["filter"])),
+    ids(testData.slice(0, 10)),
+    "chunk fetch must cover exactly the first 10 records",
+  );
+
+  mockClearRequestLog();
+
+  // --- "Show more": limit 20 ---
+  // While the new bookmark probe is in flight, the cached covered prefix
+  // (the 10 records already on screen) is served — no blank flash
+  const p1 = pagedFetch("devices", filter, { limit: 20 });
+  assert.strictEqual(p1.loading, true);
+  assert.deepStrictEqual(ids(p1.value), ids(testData.slice(0, 10)));
+
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  pagedFetch("devices", filter, { limit: 20 });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  const p3 = pagedFetch("devices", filter, { limit: 20 });
+  assert.strictEqual(p3.loading, false);
+  assert.deepStrictEqual(ids(p3.value), ids(testData.slice(0, 20)));
+
+  const log2 = mockGetRequestLog();
+  assert.strictEqual(log2.length, 2);
+
+  // The probe is coverage-anchored: it targets the remainder (everything
+  // after the 10 cached records) at skip = 20 − 10 − 1 = 9, not skip 19
+  const probe2 = getRequestParams(log2[0].url);
+  assert.strictEqual(probe2["skip"], "9");
+  assert.strictEqual(probe2["limit"], "1");
+  assert.deepStrictEqual(
+    ids(matchingRows(testData, probe2["filter"])),
+    ids(testData.slice(10)),
+    "probe must exclude the covered region",
+  );
+
+  // The chunk fetch covers only (bm10, bm20] — no covered row re-fetched
+  const chunk2 = getRequestParams(log2[1].url);
+  assert.deepStrictEqual(
+    ids(matchingRows(testData, chunk2["filter"])),
+    ids(testData.slice(10, 20)),
+    "chunk fetch must cover exactly records 11–20",
+  );
+});
+
+void test("invalidate() while a bookmark probe is in flight does not double-fire", async () => {
+  mockClearHandlers();
+  clearStores();
+
+  const testData = Array.from({ length: 12 }, (_, i) => ({
+    _id: `file-${String(i + 1).padStart(2, "0")}`,
+  }));
+  mockRegisterHandler(mockQueryHandler("api/files/", testData, 100));
+
+  const filter: Expression = new Expression.Literal(true);
+  const sort = { _id: 1 };
+  const signal = reactiveStoreCreateBookmark("files", filter, sort, 5);
+  assert.strictEqual(signal.get().loading, true);
+
+  // Invalidate mid-probe: the !state.loading guard must skip re-triggering
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  const invalidationTime = Date.now();
+  invalidate(invalidationTime);
+
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  const state = signal.get();
+  assert.strictEqual(state.loading, false);
+  assert.ok(state.value instanceof Bookmark);
+  assert.strictEqual(mockGetRequestLog().length, 1, "must not double-fire");
+
+  // The probe predates the invalidation, so the result resolved stale —
+  // the next demand at that freshness re-probes
+  assert.ok(state.timestamp < invalidationTime);
+  const signal2 = reactiveStoreCreateBookmark("files", filter, sort, 5, {
+    freshness: invalidationTime,
+  });
+  assert.strictEqual(signal2, signal);
+  assert.strictEqual(signal2.get().loading, true);
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  assert.strictEqual(signal2.get().loading, false);
+  assert.strictEqual(mockGetRequestLog().length, 2);
+});
+
+void test("pagedFetch() never falls through to an unbounded fetch while the probe is pending", async () => {
+  mockClearHandlers();
+  clearStores();
+
+  const testData = Array.from({ length: 12 }, (_, i) => ({
+    _id: `provision-${String(i + 1).padStart(2, "0")}`,
+  }));
+  mockRegisterHandler(mockQueryHandler("api/provisions/", testData, 100));
+
+  const filter: Expression = new Expression.Literal(true);
+
+  const q1 = pagedFetch("provisions", filter, { limit: 5 });
+  assert.deepStrictEqual(q1, { value: [], loading: true });
+  const q2 = pagedFetch("provisions", filter, { limit: 5 });
+  assert.deepStrictEqual(q2, { value: [], loading: true });
+
+  // Only the probe may have been issued — nothing unbounded
+  let log = mockGetRequestLog();
+  assert.strictEqual(log.length, 1);
+  assert.strictEqual(getRequestParams(log[0].url)["limit"], "1");
+
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  pagedFetch("provisions", filter, { limit: 5 });
+  await new Promise((resolve) => setTimeout(resolve, 150));
+
+  const q3 = pagedFetch("provisions", filter, { limit: 5 });
+  assert.strictEqual(q3.loading, false);
+  assert.strictEqual(q3.value.length, 5);
+
+  // Every data request (the non-probe) was bounded by the bookmark
+  log = mockGetRequestLog();
+  assert.strictEqual(log.length, 2);
+  const chunk = getRequestParams(log[1].url);
+  assert.strictEqual(
+    matchingRows(testData, chunk["filter"]).length,
+    5,
+    "data fetch must be bounded to the first 5 records",
+  );
+});
+
+void test("pagedFetch() serves only the sort-contiguous covered prefix while the probe is pending", async () => {
+  mockClearHandlers();
+  clearStores();
+
+  const testData = Array.from({ length: 10 }, (_, i) => ({
+    _id: `item-${i}`,
+  }));
+  mockRegisterHandler(mockQueryHandler("api/config/", testData));
+  const itemIds = (rows: unknown[]): string[] =>
+    rows.map((r) => (r as { _id: string })._id);
+
+  // Cover only a middle slice: item-3..5 get cached
+  reactiveStoreFetch(
+    "config",
+    Expression.parse('_id >= "item-3" AND _id < "item-6"'),
+  );
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  // A paged query over the whole collection must NOT present the cached
+  // middle records as its first rows — they aren't a prefix of the sort
+  // order, so the gate shows nothing until the probe resolves
+  const filter: Expression = new Expression.Literal(true);
+  const q1 = pagedFetch("config", filter, { limit: 2 });
+  assert.deepStrictEqual(q1, { value: [], loading: true });
+
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  pagedFetch("config", filter, { limit: 2 });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  const q2 = pagedFetch("config", filter, { limit: 2 });
+  assert.strictEqual(q2.loading, false);
+  assert.deepStrictEqual(itemIds(q2.value), ["item-0", "item-1"]);
+
+  mockClearRequestLog();
+
+  // "Show more": the contiguous prefix is item-0..1; the cached middle
+  // slice still isn't part of it (item-2 is uncovered), so the gate
+  // serves exactly the records already on screen
+  const q3 = pagedFetch("config", filter, { limit: 4 });
+  assert.strictEqual(q3.loading, true);
+  assert.deepStrictEqual(itemIds(q3.value), ["item-0", "item-1"]);
+
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  pagedFetch("config", filter, { limit: 4 });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  const q4 = pagedFetch("config", filter, { limit: 4 });
+  assert.strictEqual(q4.loading, false);
+  assert.deepStrictEqual(itemIds(q4.value), [
+    "item-0",
+    "item-1",
+    "item-2",
+    "item-3",
+  ]);
+
+  // m counted only the contiguous prefix (2 records), not the cached
+  // middle slice: the probe ran over the remainder (item-2 onward,
+  // including the covered slice — the server counts it) at
+  // skip = 4 − 2 − 1 = 1, landing exactly on item-3
+  const log = mockGetRequestLog();
+  assert.strictEqual(log.length, 2);
+  const probe = getRequestParams(log[0].url);
+  assert.strictEqual(probe["skip"], "1");
+  assert.strictEqual(probe["limit"], "1");
+  // ... while the chunk fetch requested only the uncovered gap (item-2),
+  // not the already-cached item-3
+  const chunk = getRequestParams(log[1].url);
+  assert.deepStrictEqual(itemIds(matchingRows(testData, chunk["filter"])), [
+    "item-2",
+  ]);
+});
+
 // =============================================================================
 // Caching Tests - fetch() results caching
 // =============================================================================
 
 void test("fetch() uses cached data without making new request", async () => {
   mockClearHandlers();
+  clearStores();
 
   const testData = [
     { _id: "item-1", name: "First" },
@@ -1449,4 +1811,140 @@ void test("fetch() removes deleted records from cache on refresh", async () => {
     ["p-1", "p-3"],
     "Only non-deleted records remain",
   );
+});
+
+// =============================================================================
+// Ordering Parity Tests
+// =============================================================================
+//
+// Bookmark pagination depends on three orderings agreeing:
+//   1. compareFunction      — orders cached objects for display
+//   2. bookmarkToExpression — evaluated client-side by findMatchingObjects to
+//                             decide which cached rows fall inside a bounded
+//                             region
+//   3. MongoDB              — the probe's sort order and the bounded fetch's
+//                             range matching (via toMongoQuery; see the
+//                             bookmark translation test in test/db.ts)
+//
+// The pagination contract: each sort key holds values of a single scalar type,
+// or null/missing. Mixed number/string within one key also works (all sides
+// agree strings sort after numbers). Booleans mixed with numbers within one
+// key are OUTSIDE the contract for expression evaluation: the client
+// evaluator (lib/common/expression/evaluate.ts compare) coerces booleans to
+// numbers, disagreeing with MongoDB's type-bracket order (booleans after
+// strings) which compareFunction follows. In practice boolean params (Tags)
+// are boolean-or-missing only. String caveat: MongoDB compares UTF-8 bytes,
+// JS UTF-16 code units — parity holds for ASCII; exotic code points may order
+// differently (same as master).
+
+const PARITY_DOMAINS: Record<
+  string,
+  (string | number | boolean | null | undefined)[]
+> = {
+  number: [null, undefined, -10, 0, 10],
+  string: [null, undefined, "", "a", "ab"],
+  boolean: [null, undefined, false, true],
+};
+
+function parityRow(
+  v1: string | number | boolean | null | undefined,
+  v2: string | number | boolean | null | undefined,
+  wrapped: boolean,
+): Record<string, unknown> {
+  // undefined = missing param; null = present but null. Wrapped mimics the
+  // device object shape ({value: [v]}) that both compareFunction and
+  // evaluateExpression unwrap.
+  const row: Record<string, unknown> = {};
+  if (v1 !== undefined)
+    row["p1"] = wrapped && v1 !== null ? { value: [v1] } : v1;
+  if (v2 !== undefined)
+    row["p2"] = wrapped && v2 !== null ? { value: [v2] } : v2;
+  return row;
+}
+
+void test("ordering parity: bookmarkToExpression matches compareFunction under client evaluation", () => {
+  const types = Object.keys(PARITY_DOMAINS);
+  for (const t1 of types) {
+    for (const t2 of types) {
+      for (const d1 of [1, -1]) {
+        for (const d2 of [1, -1]) {
+          for (const wrapped of [false, true]) {
+            const sort = { p1: d1, p2: d2 };
+            const cmp = compareFunction(sort);
+            const rows: Record<string, unknown>[] = [];
+            for (const v1 of PARITY_DOMAINS[t1])
+              for (const v2 of PARITY_DOMAINS[t2])
+                rows.push(parityRow(v1, v2, wrapped));
+
+            for (const b of rows) {
+              const bookmark = toBookmark(
+                sort,
+                b as Parameters<typeof toBookmark>[1],
+              );
+              const expr = bookmarkToExpression(bookmark, sort);
+              for (const a of rows) {
+                // Row a is inside the bounded region (<= bookmark position)
+                // iff compareFunction places it at or before row b
+                const expected = (cmp(a, b) as number) <= 0;
+                const res = evaluateExpression(expr, a);
+                const actual = res instanceof Expression.Literal && !!res.value;
+                assert.strictEqual(
+                  actual,
+                  expected,
+                  `row=${JSON.stringify(a)} bookmark-row=${JSON.stringify(b)} ` +
+                    `sort=${JSON.stringify(sort)} wrapped=${wrapped}: ` +
+                    `expression says ${actual}, compareFunction says ${expected}`,
+                );
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+});
+
+void test("ordering parity: compareFunction matches MongoDB type-bracket sort order", () => {
+  // Expected orderings per MongoDB's documented comparison/sort order
+  // (bson-type-comparison-order): null/missing < numbers < strings; numeric
+  // within numbers, lexicographic (ASCII) within strings, false < true.
+  // Each case lists values in ascending MongoDB order; null and undefined
+  // (missing) tie.
+  const cases: (string | number | boolean | null | undefined)[][] = [
+    [null, undefined, -10, -1.5, 0, 10],
+    [null, undefined, "", "5", "A", "Z", "a", "ab", "b"],
+    [null, undefined, false, true],
+    // Full bracket order: numbers < strings < booleans. Mixed-type params
+    // occur in practice; "" and "5" are numeric-coercible strings that JS
+    // comparison would misorder against numbers.
+    [null, undefined, -10, 0, 10, "", "5", "A", "a", false, true],
+  ];
+
+  for (const ordered of cases) {
+    for (const dir of [1, -1]) {
+      const cmp = compareFunction({ p: dir });
+      // rank: position in expected ascending order; null/missing tie at 0
+      const rank = (i: number): number => (ordered[i] == null ? 0 : i);
+      // deterministic shuffle: odd indices first, then evens reversed
+      const idx = ordered.map((_, i) => i);
+      const shuffled = [
+        ...idx.filter((i) => i % 2),
+        ...idx.filter((i) => !(i % 2)).reverse(),
+      ];
+      const rows = shuffled.map((i) => ({
+        i,
+        row: ordered[i] === undefined ? {} : { p: ordered[i] },
+      }));
+
+      rows.sort((x, y) => cmp(x.row, y.row) as number);
+
+      const ranks = rows.map((x) => rank(x.i));
+      const expectedRanks = [...ranks].sort((a, b) => (a - b) * dir);
+      assert.deepStrictEqual(
+        ranks,
+        expectedRanks,
+        `dir=${dir} case=${JSON.stringify(ordered)}`,
+      );
+    }
+  }
 });

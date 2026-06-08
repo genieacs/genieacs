@@ -4,6 +4,7 @@ import { createFilter } from "./filter-component.ts";
 import { createIndexTable } from "./index-table-component.ts";
 import {
   fetch as reactiveFetch,
+  pagedFetch,
   count as reactiveCount,
   invalidate,
 } from "./reactive-store.ts";
@@ -183,7 +184,8 @@ export function createPage(attrs: Attrs): HTMLElement {
   const filter = unpackSmartQuery(attrs.filter ?? new Expression.Literal(true));
 
   // Reactive data signals
-  const presetsQuery = reactiveFetch("presets", filter, { sort });
+  const presetsQuery = (): { value: unknown[]; loading: boolean } =>
+    pagedFetch("presets", filter, { sort, limit: showCount.get() });
   const countQuery = reactiveCount("presets", filter);
   const provisionsQuery = reactiveFetch(
     "provisions",
@@ -466,13 +468,10 @@ export function createPage(attrs: Attrs): HTMLElement {
         // would let this shared signal auto-dispose mid-navigation and then
         // throw "Cannot read disposed signal" on the next row re-render.
         provisionsQuery.get();
-        return presetsQuery.get().value.slice(0, showCount.get()) as Record<
-          string,
-          unknown
-        >[];
+        return presetsQuery().value as Record<string, unknown>[];
       },
       total: () => countQuery.get().value,
-      loading: () => presetsQuery.get().loading,
+      loading: () => presetsQuery().loading,
       valueCallback,
       showMoreCallback: () => showCount.set(showCount.get() + PAGE_SIZE),
       sortAttributes,

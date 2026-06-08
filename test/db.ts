@@ -5,6 +5,7 @@ import { Filter } from "mongodb";
 import Expression from "../lib/common/expression.ts";
 import { convertOldPrecondition } from "../lib/db/util.ts";
 import { toMongoQuery } from "../lib/db/synth.ts";
+import { bookmarkToExpression } from "../lib/common/expression/pagination.ts";
 
 void test("convertOldPrecondition", () => {
   const tests = [
@@ -161,5 +162,69 @@ void test("toMongoQuery", async () => {
     assert.throws(() => toMongoQuery(exp, "devices"), {
       message: err,
     });
+  }
+});
+
+// Bookmark pagination depends on the bookmark expressions produced by
+// bookmarkToExpression surviving translation to MongoDB queries with the
+// right range semantics: device params map to ._value (and special params to
+// their raw fields), <+= consolidates to $lte/$gte, IS NULL becomes
+// {$eq: null} (matching both null values and missing fields, consistent with
+// the client evaluator treating missing as null), and date-bracket params
+// translate range bounds to Date values so they compare within MongoDB's
+// date type bracket. Counterpart of the client-side ordering parity tests in
+// test/reactive-store.ts.
+void test("toMongoQuery translates bookmark expressions", () => {
+  const cases: [
+    Record<string, number>,
+    Record<string, string | number | boolean | null>,
+    Filter<unknown>,
+  ][] = [
+    // Composite sort, descending non-unique key + ascending unique key
+    [
+      { Param1: -1, "DeviceID.ID": 1 },
+      { Param1: "abc", "DeviceID.ID": "device-1" },
+      {
+        $or: [
+          { "Param1._value": { $eq: "abc" }, _id: { $lte: "device-1" } },
+          { "Param1._value": { $gt: "abc" } },
+        ],
+      },
+    ],
+    // Null bookmark value on the descending key (row had no Param1)
+    [
+      { Param1: -1, "DeviceID.ID": 1 },
+      { Param1: null, "DeviceID.ID": "device-1" },
+      {
+        $or: [
+          { _id: { $lte: "device-1" } },
+          { "Param1._value": { $ne: null } },
+        ],
+      },
+    ],
+    // Timestamp sort key: flattened to a number on the client, must
+    // translate back to a Date bound for MongoDB's date bracket
+    [
+      { "Events.Inform": 1, "DeviceID.ID": 1 },
+      { "Events.Inform": 1657844103524, "DeviceID.ID": "device-1" },
+      {
+        $or: [
+          {
+            _lastInform: { $eq: { $date: "2022-07-15T00:15:03.524Z" } },
+            _id: { $lte: "device-1" },
+          },
+          { _lastInform: { $lt: { $date: "2022-07-15T00:15:03.524Z" } } },
+          { _lastInform: { $eq: null } },
+        ],
+      },
+    ],
+  ];
+
+  for (const [sort, bookmark, expected] of cases) {
+    const expr = bookmarkToExpression(bookmark, sort);
+    let query = toMongoQuery(expr, "devices");
+    assert.notStrictEqual(query, false, `untranslatable: ${expr.toString()}`);
+    if (query) query = EJSON.serialize(query);
+    assert.deepStrictEqual(query, expected, expr.toString());
   }
 });

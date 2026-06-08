@@ -10,6 +10,7 @@ import { SkewedDate } from "./skewed-date.ts";
 import { subtract, covers } from "../lib/common/expression/synth.ts";
 import {
   bookmarkToExpression,
+  paginate,
   toBookmark,
 } from "../lib/common/expression/pagination.ts";
 import Expression from "../lib/common/expression.ts";
@@ -77,7 +78,7 @@ interface CachedBookmark {
 interface ResourceCache {
   objects: Map<string, unknown>; // Cached objects by ID
   counts: Map<string, CachedCount>; // Count cache keyed by stringified filter
-  bookmarks: Map<string, CachedBookmark>; // Bookmark cache keyed by (filter, sort, offset)
+  bookmarks: Map<string, CachedBookmark>; // Bookmark cache keyed by (filter, sort, limit)
   fetchedRegions: FetchedRegion[]; // Tracks what filter regions were fetched when
 }
 
@@ -207,23 +208,43 @@ function compareFunction(
         if (v2Obj.value) v2 = v2Obj.value[0];
         else v2 = null;
       }
+      // Nulls and missing params tie with each other and sort first,
+      // matching MongoDB's type bracket order. Checked explicitly because
+      // JS comparison operators coerce null to 0, which would misorder
+      // null against negative numbers.
+      if (v1 == null || v2 == null) {
+        if (v1 == null && v2 == null) continue;
+        return (v1 == null ? -1 : 1) * asc;
+      }
+      // Compare type brackets before magnitude (number < string < other),
+      // matching MongoDB's sort order. The magnitude comparison must never
+      // see mixed-type operands: JS coercion would misorder numeric-looking
+      // strings and booleans against numbers.
+      const w: Record<string, number> = {
+        number: 2,
+        string: 3,
+      };
+      const w1 = w[typeof v1] || 4;
+      const w2 = w[typeof v2] || 4;
+      if (w1 !== w2) return Math.max(-1, Math.min(1, w1 - w2)) * asc;
       if ((v1 as number) > (v2 as number)) {
         return asc;
       } else if ((v1 as number) < (v2 as number)) {
         return asc * -1;
-      } else if (v1 !== v2) {
-        const w: Record<string, number> = {
-          null: 1,
-          number: 2,
-          string: 3,
-        };
-        const w1 = w[v1 == null ? "null" : typeof v1] || 4;
-        const w2 = w[v2 == null ? "null" : typeof v2] || 4;
-        return Math.max(-1, Math.min(1, w1 - w2)) * asc;
       }
     }
     return 0;
   };
+}
+
+// Cast a cached object or probe response row to the shape toBookmark expects
+function asRow(
+  obj: unknown,
+): Record<string, string | number | boolean | { value: [string] } | null> {
+  return obj as Record<
+    string,
+    string | number | boolean | { value: [string] } | null
+  >;
 }
 
 function getObjectId(resourceType: string, obj: unknown): string {
@@ -248,7 +269,7 @@ interface BookmarkQueryEntry {
   weakRef: globalThis.WeakRef<QuerySignal<Bookmark | null>>;
   filter: Expression;
   sort: Record<string, number>;
-  offset: number;
+  limit: number;
 }
 
 class ResourceStore {
@@ -363,16 +384,21 @@ class ResourceStore {
     return signal;
   }
 
+  // Resolves to a Bookmark bounding (at least) the first `limit` records of
+  // the filter, or null when fewer than `limit` records exist. The bound is
+  // anchored to current cache coverage: cached fresh matches are counted
+  // locally and only the remainder is probed, so the probe's skip stays
+  // below one page regardless of pagination depth. Consequently the same
+  // (filter, sort, limit) can yield different — equally valid — bookmarks
+  // depending on coverage state at probe time; freshness governs staleness.
   createBookmark(
     filter: Expression,
     sort: Record<string, number>,
-    offset: number,
+    limit: number,
     freshness: number,
-    after?: Bookmark,
   ): QuerySignal<Bookmark | null> {
-    const effectiveFilter = after ? after.applySkip(filter) : filter;
-    const filterStr = effectiveFilter.toString();
-    const key = `${filterStr}:${JSON.stringify(sort)}:${offset}`;
+    const filterStr = filter.toString();
+    const key = `${filterStr}:${JSON.stringify(sort)}:${limit}`;
 
     const existingEntry = this.bookmarkQueries.get(key);
     if (existingEntry) {
@@ -381,7 +407,8 @@ class ResourceStore {
         // Use _peek() to avoid registering a dependency on the caller
         const state = existing._peek();
         if (state.timestamp < freshness && !state.loading) {
-          this.triggerBookmarkRefresh(effectiveFilter, sort, offset, existing);
+          existing._update(state.value, state.timestamp, true);
+          this.triggerBookmarkRefresh(filter, sort, limit, freshness, existing);
         }
         return existing;
       }
@@ -392,9 +419,9 @@ class ResourceStore {
     const weakRef = new globalThis.WeakRef(signal);
     this.bookmarkQueries.set(key, {
       weakRef,
-      filter: effectiveFilter,
+      filter,
       sort,
-      offset,
+      limit,
     });
     this.registry.register(signal, { type: "bookmark", key });
 
@@ -407,7 +434,7 @@ class ResourceStore {
         const bookmark = cached.data ? new Bookmark(cached.data, sort) : null;
         signal._update(bookmark, cached.timestamp, true);
       }
-      this.triggerBookmarkRefresh(effectiveFilter, sort, offset, signal);
+      this.triggerBookmarkRefresh(filter, sort, limit, freshness, signal);
     }
 
     return signal;
@@ -463,6 +490,21 @@ class ResourceStore {
     }
 
     return matches.sort(compareFunction(sort));
+  }
+
+  // Cached objects forming the sort-contiguous covered prefix of the
+  // filter — provably the first records of the query result (as of the
+  // coverage's freshness). Purely a cache read; never issues a request.
+  coveredPrefix(
+    filter: Expression,
+    sort: Record<string, number>,
+    freshness: number,
+  ): unknown[] {
+    const combined = this.getCombinedFilter(freshness);
+    if (combined instanceof Expression.Literal && !combined.value) return [];
+    const [satisfied] = paginate(combined, filter, sort);
+    if (satisfied instanceof Expression.Literal && !satisfied.value) return [];
+    return this.findMatchingObjects(satisfied, sort);
   }
 
   // Subtract new region from existing regions to maintain non-overlapping regions
@@ -617,49 +659,93 @@ class ResourceStore {
   private triggerBookmarkRefresh(
     filter: Expression,
     sort: Record<string, number>,
-    offset: number,
+    limit: number,
+    freshness: number,
     signal: QuerySignal<Bookmark | null>,
   ): void {
     const signalRef = new globalThis.WeakRef(signal);
+    const key = `${filter.toString()}:${JSON.stringify(sort)}:${limit}`;
+
+    const settle = (
+      s: QuerySignal<Bookmark | null>,
+      data: BookmarkData | null,
+      timestamp: number,
+    ): void => {
+      this.cache.bookmarks.set(key, { data, timestamp });
+      s._update(data ? new Bookmark(data, sort) : null, timestamp, false);
+    };
 
     const doBookmark = async (retryCount = 0): Promise<void> => {
       try {
         const s = signalRef.deref();
         if (!s || s._disposed) return;
 
-        const filterStr = filter.toString();
-        const projection = Object.keys(sort).join(",");
+        // Split the filter into the sort-contiguous covered prefix and the
+        // remainder, count the cached prefix matches, and probe only the
+        // remainder. Anchoring to the prefix keeps the probe's skip below
+        // one page regardless of pagination depth, makes the skip
+        // arithmetic exact even when coverage is scattered (non-prefix
+        // coverage stays in the remainder, where the server counts it),
+        // and inserts before the covered region can't starve the next
+        // chunk of new rows.
+        const freshRegions = this.cache.fetchedRegions.filter(
+          (region) => region.timestamp >= freshness,
+        );
+        const combined = freshRegions.reduce(
+          (acc, region) => Expression.or(acc, region.filter),
+          new Expression.Literal(false) as Expression,
+        );
+        // The resolved bookmark is only as fresh as the oldest region that
+        // contributed to the match count
+        const timestamp = freshRegions.length
+          ? Math.min(...freshRegions.map((r) => r.timestamp))
+          : Date.now();
+
+        const [satisfied, remainder] = paginate(combined, filter, sort);
+        const cachedMatches = this.findMatchingObjects(satisfied, sort);
+        const m = cachedMatches.length;
+
+        if (m >= limit) {
+          // The first `limit` records are all cached — bound by the
+          // limit-th match without any request
+          settle(
+            s,
+            toBookmark(sort, asRow(cachedMatches[limit - 1])),
+            timestamp,
+          );
+          return;
+        }
+
+        if (remainder instanceof Expression.Literal && !remainder.value) {
+          // The filter is fully covered and only m < limit records exist
+          settle(s, null, timestamp);
+          return;
+        }
 
         const res = (await request(`/api/${this.resourceType}/`, {
           params: {
-            filter: filterStr,
-            skip: String(offset),
+            filter: remainder.toString(),
+            skip: String(limit - m - 1),
             limit: "1",
             sort: JSON.stringify(sort),
-            projection,
+            projection: Object.keys(sort).join(","),
           },
         }).then((r) => r.json())) as unknown[];
 
         const s2 = signalRef.deref();
         if (!s2 || s2._disposed) return;
 
-        const now = Date.now();
-        const key = `${filterStr}:${JSON.stringify(sort)}:${offset}`;
-
-        let bookmarkData: BookmarkData | null = null;
-        if (res.length > 0) {
-          bookmarkData = toBookmark(
-            sort,
-            res[0] as Record<
-              string,
-              string | number | boolean | { value: [string] } | null
-            >,
-          );
+        if (res.length === 0) {
+          // Fewer than limit − m records in the remainder → total < limit
+          settle(s2, null, timestamp);
+          return;
         }
 
-        this.cache.bookmarks.set(key, { data: bookmarkData, timestamp: now });
-        const bookmark = bookmarkData ? new Bookmark(bookmarkData, sort) : null;
-        s2._update(bookmark, now, false);
+        // The probe row bounds the whole first-`limit` set: paginate
+        // guarantees every record of the satisfied prefix (the m cached
+        // matches) sorts before every record of the remainder, so the
+        // (limit − m)-th remainder record is the limit-th record overall.
+        settle(s2, toBookmark(sort, asRow(res[0])), timestamp);
       } catch (err) {
         console.error(
           `Error creating bookmark for ${this.resourceType}:`,
@@ -724,7 +810,8 @@ class ResourceStore {
         this.triggerBookmarkRefresh(
           entry.filter,
           entry.sort,
-          entry.offset,
+          entry.limit,
+          timestamp,
           signal,
         );
       }
@@ -876,10 +963,9 @@ export function createBookmark(
   resource: string,
   filter: Expression,
   sort: Record<string, number>,
-  offset: number,
+  limit: number,
   options: {
     freshness?: number;
-    after?: Bookmark;
   } = {},
 ): QuerySignal<Bookmark | null> {
   const normalizedSort = applyDefaultSort(resource, sort);
@@ -887,10 +973,51 @@ export function createBookmark(
   return getStore(resource).createBookmark(
     filter,
     normalizedSort,
-    offset,
+    limit,
     freshness,
-    options.after,
   );
+}
+
+// Composes createBookmark and fetch into a limit-bounded query: probe for a
+// bookmark bounding the first `limit` records, then fetch only the bounded
+// region. Call inside a reactive computation — repeated calls are cheap
+// (signals are deduplicated by the store) and register dependencies, so the
+// computation re-runs as the bookmark and then the data resolve. Without
+// `limit` this degrades to a plain fetch.
+export function pagedFetch(
+  resource: string,
+  filter: Expression,
+  options: {
+    sort?: Record<string, number>;
+    limit?: number;
+    freshness?: number;
+  } = {},
+): { value: unknown[]; loading: boolean } {
+  const { sort, limit, freshness } = options;
+  if (!limit) {
+    const q = fetch(resource, filter, { sort, freshness }).get();
+    return { value: q.value, loading: q.loading };
+  }
+  const bm = createBookmark(resource, filter, sort ?? {}, limit, {
+    freshness,
+  }).get();
+  // An unresolved probe must not fall through to an unbounded fetch.
+  // timestamp === 0 means "never resolved" (vs. a resolved null value,
+  // which means the whole collection holds fewer than `limit` records).
+  // While the probe resolves, show the cached sort-contiguous covered
+  // prefix of this query — provably its first records — so e.g. a "show
+  // more" doesn't blank the records already on screen.
+  if (bm.timestamp === 0) {
+    const prefix = getStore(resource).coveredPrefix(
+      filter,
+      applyDefaultSort(resource, sort),
+      freshness ?? 0,
+    );
+    return { value: prefix.slice(0, limit), loading: true };
+  }
+  const effective = bm.value ? bm.value.applySkip(filter) : filter;
+  const q = fetch(resource, effective, { sort, freshness }).get();
+  return { value: q.value.slice(0, limit), loading: q.loading || bm.loading };
 }
 
 export function invalidate(timestamp: number): void {

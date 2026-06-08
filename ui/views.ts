@@ -8,7 +8,7 @@ import {
   setInterval as _setInterval,
 } from "./signals.ts";
 import views from "views-bundle";
-import { count, fetch, invalidate } from "./reactive-store.ts";
+import { count, pagedFetch, invalidate } from "./reactive-store.ts";
 import { SkewedDate, getClockSkew } from "./skewed-date.ts";
 import Expression from "../lib/common/expression.ts";
 import * as taskQueue from "./task-queue.ts";
@@ -99,18 +99,29 @@ function doFetch(node: SignalizedViewNode): ViewElement {
     const arg = node.attributes["arg"]?.get() as {
       resource: string;
       filter: string;
+      sort?: Record<string, number>;
+      limit?: number;
       freshness?: number;
     } | null;
     if (!arg) return null;
     const res = node.attributes["res"] as StateSignal<unknown[]>;
+    const loading = node.attributes["loading"] as
+      | StateSignal<boolean>
+      | undefined;
 
     const localFreshness = arg.freshness ? arg.freshness - getClockSkew() : 0;
-    const querySignal = fetch(arg.resource, Expression.parse(arg.filter), {
-      freshness: localFreshness,
-    });
+    const filter = Expression.parse(arg.filter);
 
     const sig = new ComputedSignal((): null => {
-      if (res) res.set(querySignal.get().value);
+      const query = pagedFetch(arg.resource, filter, {
+        sort: arg.sort,
+        limit: arg.limit,
+        freshness: localFreshness,
+      });
+      if (loading) loading.set(query.loading);
+      // Only publish settled results — views keep displaying the previous
+      // result while a refresh or page boundary resolves
+      if (res && !query.loading) res.set(query.value);
       return null;
     });
     return sig;

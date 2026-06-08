@@ -3,7 +3,7 @@ import { pageSize as PAGE_SIZE } from "./config.ts";
 import { createFilter } from "./filter-component.ts";
 import { createIndexTable } from "./index-table-component.ts";
 import {
-  fetch as reactiveFetch,
+  pagedFetch,
   count as reactiveCount,
   invalidate,
 } from "./reactive-store.ts";
@@ -213,7 +213,8 @@ export function createPage(attrs: Attrs): HTMLElement {
   const filter = unpackSmartQuery(attrs.filter ?? new Expression.Literal(true));
 
   // Reactive data signals
-  const permissionsQuery = reactiveFetch("permissions", filter, { sort });
+  const permissionsQuery = (): { value: unknown[]; loading: boolean } =>
+    pagedFetch("permissions", filter, { sort, limit: showCount.get() });
   const countQuery = reactiveCount("permissions", filter);
 
   const downloadUrl = getDownloadUrl(filter);
@@ -440,13 +441,9 @@ export function createPage(attrs: Attrs): HTMLElement {
     }),
     createIndexTable({
       attributes,
-      data: () =>
-        permissionsQuery.get().value.slice(0, showCount.get()) as Record<
-          string,
-          unknown
-        >[],
+      data: () => permissionsQuery().value as Record<string, unknown>[],
       total: () => countQuery.get().value,
-      loading: () => permissionsQuery.get().loading,
+      loading: () => permissionsQuery().loading,
       valueCallback,
       showMoreCallback: () => showCount.set(showCount.get() + PAGE_SIZE),
       sortAttributes,
