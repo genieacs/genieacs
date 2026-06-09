@@ -16,6 +16,7 @@ import {
   pagedFetch,
   invalidate,
   evaluateExpression,
+  resetRetryState,
   QuerySignal,
   Bookmark,
 } from "../ui/reactive-store.ts";
@@ -29,9 +30,11 @@ import * as reactiveStore from "../ui/reactive-store.ts";
 const compareFunction = (reactiveStore as Record<string, unknown>)[
   "_testCompareFunction"
 ] as (sort: Record<string, number>) => (a: unknown, b: unknown) => number;
-const getObjectId = (reactiveStore as Record<string, unknown>)[
-  "_testGetObjectId"
-] as (resourceType: string, obj: unknown) => string;
+function getObjectId(resourceType: string, obj: unknown): string {
+  const record = obj as Record<string, unknown>;
+  const key = resourceType === "devices" ? "DeviceID.ID" : "_id";
+  return (record[key] as string) ?? "";
+}
 const applyDefaultSort = (reactiveStore as Record<string, unknown>)[
   "_testApplyDefaultSort"
 ] as (
@@ -47,16 +50,21 @@ const getStore = (reactiveStore as Record<string, unknown>)[
   "_testGetStore"
 ] as (resource: string) => unknown;
 
-interface FetchedRegion {
+// The region store's internals: an
+// immutable array of disjoint regions, each owning its objects.
+interface TestRegion {
   filter: Expression;
+  state: "fresh" | "stale" | "pending";
   timestamp: number;
-  filterStr: string;
+  issuedAt: number;
+  objects: unknown[];
 }
-interface ResourceCache {
-  objects: Map<string, unknown>;
-  counts: Map<string, unknown>;
-  bookmarks: Map<string, unknown>;
-  fetchedRegions: FetchedRegion[];
+
+function getRegions(resource: string): TestRegion[] {
+  const store = getStore(resource);
+  return (
+    store as { regionsSignal: { get(): TestRegion[] } }
+  ).regionsSignal.get();
 }
 
 function getCacheState(resource: string): {
@@ -66,7 +74,7 @@ function getCacheState(resource: string): {
   fetchQueryCount: number;
 } {
   const store = getStore(resource);
-  const cache = (store as { cache: ResourceCache }).cache;
+  const regions = getRegions(resource);
   const fetchQueries = (
     store as {
       fetchQueries: Map<
@@ -81,10 +89,13 @@ function getCacheState(resource: string): {
     if (entry.weakRef.deref()) activeFetchQueries++;
   }
 
+  let objectCount = 0;
+  for (const region of regions) objectCount += region.objects.length;
+
   return {
-    objectCount: cache.objects.size,
-    regionCount: cache.fetchedRegions.length,
-    regions: cache.fetchedRegions.map((r) => ({
+    objectCount,
+    regionCount: regions.length,
+    regions: regions.map((r) => ({
       filter: r.filter,
       timestamp: r.timestamp,
     })),
@@ -93,7 +104,17 @@ function getCacheState(resource: string): {
 }
 
 function clearStores(): void {
+  // Cancel scheduled retries first: a zombie retry from a failure test must
+  // not fire requests into a later test's mock handlers and request log.
+  resetRetryState();
   stores.clear();
+}
+
+function getCachedObjectIds(resource: string): string[] {
+  const ids: string[] = [];
+  for (const region of getRegions(resource))
+    for (const obj of region.objects) ids.push(getObjectId(resource, obj));
+  return ids;
 }
 
 function forcePruneCache(resource: string): void {
@@ -169,22 +190,6 @@ void test("compareFunction handles mixed types with correct ordering", () => {
   assert.strictEqual(items[0].value, null);
   assert.strictEqual(items[1].value, 5);
   assert.strictEqual(items[2].value, "z");
-});
-
-// =============================================================================
-// getObjectId Tests
-// =============================================================================
-
-void test("getObjectId extracts correct ID based on resource type", () => {
-  const device = {
-    "DeviceID.ID": "device-123",
-    _id: "should-not-use",
-  };
-  const preset = { _id: "preset-123", name: "My Preset" };
-
-  assert.strictEqual(getObjectId("devices", device), "device-123");
-  assert.strictEqual(getObjectId("presets", preset), "preset-123");
-  assert.strictEqual(getObjectId("faults", {}), "");
 });
 
 // =============================================================================
@@ -1357,7 +1362,7 @@ void test("cache is cleared when all fetch signals are disposed", async () => {
   const signal = reactiveStoreFetch(resource, new Expression.Literal(true));
   await new Promise((resolve) => setTimeout(resolve, 50));
 
-  const state = getCacheState(resource);
+  let state = getCacheState(resource);
   assert.strictEqual(state.objectCount, 2, "Should have 2 objects cached");
   assert.strictEqual(state.regionCount, 1, "Should have 1 region");
   assert.strictEqual(state.fetchQueryCount, 1, "Should have 1 active query");
@@ -1367,7 +1372,10 @@ void test("cache is cleared when all fetch signals are disposed", async () => {
 
   forcePruneCache(resource);
 
-  void getCacheState(resource);
+  state = getCacheState(resource);
+  assert.strictEqual(state.fetchQueryCount, 0, "no live queries remain");
+  assert.strictEqual(state.regionCount, 0, "regions dropped");
+  assert.strictEqual(state.objectCount, 0, "objects dropped");
 });
 
 void test("regions not serving active queries are pruned", async () => {
@@ -1498,6 +1506,155 @@ void test("overlapping regions are consolidated after pruning", async () => {
   );
 
   void signalA;
+});
+
+void test("a live bookmark query pins regions through pruning", async () => {
+  mockClearHandlers();
+  clearStores();
+
+  const resource = "files";
+  const data = Array.from({ length: 10 }, (_, i) => ({ _id: `f-${i}` }));
+  mockRegisterHandler(mockQueryHandler(`api/${resource}/`, data));
+
+  const signal = reactiveStoreFetch(resource, new Expression.Literal(true));
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.strictEqual(getCacheState(resource).objectCount, 10);
+
+  const bookmark = reactiveStoreCreateBookmark(
+    resource,
+    new Expression.Literal(true),
+    { _id: 1 },
+    5,
+  );
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  signal[Symbol.dispose]();
+  forcePruneCache(resource);
+
+  // The bookmark query anchors on cached regions (and pagedFetch displays
+  // the covered prefix while a probe resolves), so it pins like a fetch
+  // query does.
+  const state = getCacheState(resource);
+  assert.strictEqual(state.regionCount, 1, "region pinned by the bookmark");
+  assert.strictEqual(state.objectCount, 10, "rows pinned by the bookmark");
+
+  void bookmark;
+});
+
+void test("a disposal during the bookmark probe window does not flush the displayed rows", async () => {
+  mockClearHandlers();
+  clearStores();
+
+  const resource = "presets";
+  const data = Array.from({ length: 10 }, (_, i) => ({ _id: `p-${i}` }));
+  // Latency so the back-navigation's bookmark probe is still in flight when
+  // the outgoing page's signal is disposed
+  mockRegisterHandler(mockQueryHandler(`api/${resource}/`, data, 30));
+
+  // List page loads, then a detail page query (covered, freshness 0) takes
+  // over; the list signal is disposed and the post-navigation invalidate
+  // carves the detail footprint and prunes the orphaned remainder, leaving
+  // only the detail region.
+  const list = reactiveStoreFetch(resource, new Expression.Literal(true));
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  const detail = reactiveStoreFetch(resource, Expression.parse('_id = "p-0"'));
+  list[Symbol.dispose]();
+  invalidate(Date.now());
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  let state = getCacheState(resource);
+  assert.strictEqual(state.regionCount, 1, "only the detail region remains");
+  assert.strictEqual(state.objectCount, 1);
+
+  // Back to the list: first render starts the bookmark probe (the one-row
+  // detail region cannot anchor a 10-row bookmark); no data fetch query
+  // exists until the probe resolves.
+  let page = pagedFetch(resource, new Expression.Literal(true), { limit: 10 });
+  assert.strictEqual(page.loading, true);
+
+  // The detail signal's disposal lands inside the probe window. The live
+  // bookmark query must keep the detail region pinned — it feeds the
+  // provisional display and the probe's anchoring.
+  detail[Symbol.dispose]();
+  state = getCacheState(resource);
+  assert.strictEqual(
+    state.regionCount,
+    1,
+    "region survives the mid-probe prune",
+  );
+  assert.strictEqual(state.objectCount, 1);
+
+  // Probe resolves, the data fetch issues; the cached detail row shows
+  // provisionally while the rest loads, then the page settles fresh.
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  page = pagedFetch(resource, new Expression.Literal(true), { limit: 10 });
+  assert.strictEqual(page.value.length, 1, "cached row shown while loading");
+  assert.strictEqual(page.loading, true);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  page = pagedFetch(resource, new Expression.Literal(true), { limit: 10 });
+  assert.strictEqual(page.value.length, 10);
+  assert.strictEqual(page.loading, false, "settled fresh");
+});
+
+void test("invalidate() prunes a carve remainder no live query overlaps", async () => {
+  mockClearHandlers();
+  clearStores();
+
+  const resource = "files";
+  const data = Array.from({ length: 10 }, (_, i) => ({ _id: `f-${i}` }));
+  mockRegisterHandler(mockQueryHandler(`api/${resource}/`, data));
+
+  // List page caches 10 rows; a detail query (freshness 0) settles on the
+  // same region; the list signal dies with the navigation. The whole region
+  // stays pinned by overlap with the detail demand.
+  const list = reactiveStoreFetch(resource, new Expression.Literal(true));
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  const detail = reactiveStoreFetch(resource, Expression.parse('_id = "f-0"'));
+  list[Symbol.dispose]();
+  assert.strictEqual(getCacheState(resource).objectCount, 10);
+
+  // The post-navigation invalidate stales the region and refetches only the
+  // detail footprint; the carve orphans the 9-row remainder, which must be
+  // pruned right away — not left around until some later prune (often
+  // GC-timed) happens to drop it.
+  invalidate(Date.now());
+  assert.strictEqual(
+    getCacheState(resource).regionCount,
+    1,
+    "remainder pruned at invalidate",
+  );
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.strictEqual(getCacheState(resource).objectCount, 1);
+
+  void detail;
+});
+
+void test("disposing the last bookmark query prunes the regions it pinned", async () => {
+  mockClearHandlers();
+  clearStores();
+
+  const resource = "files";
+  const data = Array.from({ length: 10 }, (_, i) => ({ _id: `f-${i}` }));
+  mockRegisterHandler(mockQueryHandler(`api/${resource}/`, data));
+
+  const signal = reactiveStoreFetch(resource, new Expression.Literal(true));
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  const bookmark = reactiveStoreCreateBookmark(
+    resource,
+    new Expression.Literal(true),
+    { _id: 1 },
+    5,
+  );
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  signal[Symbol.dispose]();
+  forcePruneCache(resource);
+  assert.strictEqual(getCacheState(resource).regionCount, 1);
+
+  // The bookmark was the last pin; its disposal must prune what it pinned —
+  // a prune that ran only on fetch disposals would strand these regions.
+  bookmark[Symbol.dispose]();
+  const state = getCacheState(resource);
+  assert.strictEqual(state.regionCount, 0, "store flushed");
+  assert.strictEqual(state.objectCount, 0);
 });
 
 // =============================================================================
@@ -1631,15 +1788,19 @@ void test("invalidate() preserves stale data while loading", async () => {
   );
 });
 
-void test("invalidate() skips queries that are already loading", async () => {
+void test("invalidate() supersedes an in-flight fetch with a fresh request", async () => {
   mockClearHandlers();
   clearStores();
 
   const resource = "config";
-  const data = [{ _id: "cfg-1", value: "test" }];
+  const preInvalidation = [{ _id: "cfg-1", value: "old" }];
+  const postInvalidation = [{ _id: "cfg-1", value: "new" }];
 
-  // Use a slow handler so initial fetch is still in-flight
-  mockRegisterHandler(mockFetchHandler(`api/${resource}/`, data, 200));
+  // Use a slow handler so the initial fetch is still in-flight when the
+  // invalidation fires
+  mockRegisterHandler(
+    mockFetchHandler(`api/${resource}/`, preInvalidation, 200),
+  );
 
   const signal = reactiveStoreFetch(resource, new Expression.Literal(true));
 
@@ -1651,24 +1812,33 @@ void test("invalidate() skips queries that are already loading", async () => {
     "Should be loading from initial fetch",
   );
 
-  mockClearRequestLog();
+  mockClearHandlers();
+  mockRegisterHandler(mockFetchHandler(`api/${resource}/`, postInvalidation));
 
-  // Invalidate while still loading — should be a no-op
+  // Invalidate while the request is in flight: the pending region was issued
+  // before the invalidation, so its response can no longer satisfy any
+  // demand. It is superseded — a replacement request fires immediately and
+  // the doomed response is discarded when it lands.
   invalidate(Date.now() + 100000);
 
   const log = mockGetRequestLog();
   assert.strictEqual(
     log.length,
-    0,
-    "Should not trigger additional request while already loading",
+    1,
+    "Should re-request the superseded footprint",
   );
+  assert.strictEqual(signal._peek().loading, true);
 
-  // Wait for original fetch to complete
+  // Wait for both the replacement and the superseded response to land
   await new Promise((resolve) => setTimeout(resolve, 250));
 
   const finalState = signal.get();
   assert.strictEqual(finalState.loading, false);
-  assert.strictEqual(finalState.value.length, 1);
+  assert.deepStrictEqual(
+    finalState.value.map((r) => (r as { value: string }).value),
+    ["new"],
+    "Should settle on the post-invalidation response; the superseded one is discarded",
+  );
 });
 
 void test("invalidate() skips queries newer than the given timestamp", async () => {
@@ -1814,6 +1984,474 @@ void test("fetch() removes deleted records from cache on refresh", async () => {
 });
 
 // =============================================================================
+// Coherence for signals minted after an invalidation
+// =============================================================================
+//
+// Two guarantees under test:
+//   - pagedFetch fetches the rows shown under a bookmark at a freshness
+//     floored by the bookmark's timestamp, so a freshly re-probed bookmark
+//     cannot pair with rows settled from stale pre-invalidation coverage.
+//   - invalidate() marks affected regions themselves stale, so a signal born
+//     after an invalidation cannot satisfy itself from pre-invalidation
+//     coverage even at freshness 0.
+// Staleness deliberately does NOT affect the display path (coveredPrefix),
+// preserving stale-while-revalidate.
+
+const wait = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+const rowIds = (rows: unknown[]): string[] =>
+  rows.map((r) => (r as { _id: string })._id);
+
+void test("paged rows are floored by the bookmark's freshness", async () => {
+  // No invalidate() here, so only the freshness floor is under test: a
+  // bookmark resolved fresh from the server while the object cache still
+  // holds a since-deleted row. Without the floor the rows settle from that
+  // stale cache and show the deleted row.
+  mockClearHandlers();
+  clearStores();
+
+  const resource = "presets";
+  const fullData = Array.from({ length: 5 }, (_, i) => ({
+    _id: `item-${String(i + 1).padStart(2, "0")}`,
+  }));
+  mockRegisterHandler(mockQueryHandler(`api/${resource}/`, fullData));
+
+  const filter: Expression = new Expression.Literal(true);
+
+  // Cover the whole collection — all 5 rows cached at t0. Keep the signal
+  // alive so the region (and stale objects) survive pruning.
+  const broad = reactiveStoreFetch(resource, filter, { sort: { _id: 1 } });
+  await wait(50);
+  assert.strictEqual(broad.get().value.length, 5);
+
+  // Server-side delete of item-02; advance the clock so any new fetch is
+  // strictly newer than the cached region.
+  await wait(10);
+  mockClearHandlers();
+  const afterDelete = fullData.filter((r) => r._id !== "item-02");
+  mockRegisterHandler(mockQueryHandler(`api/${resource}/`, afterDelete));
+
+  // Force a fresh bookmark via an explicit future freshness: it probes the
+  // server (post-delete) and resolves <= item-04, timestamp ~ now.
+  const future = Date.now() + 100000;
+  const bmSignal = reactiveStoreCreateBookmark(
+    resource,
+    filter,
+    { _id: 1 },
+    3,
+    { freshness: future },
+  );
+  await wait(50);
+  assert.strictEqual(bmSignal.get().loading, false);
+  assert.ok(bmSignal.get().value instanceof Bookmark);
+  // The object cache still holds the stale item-02 (bookmark probes don't
+  // write objects).
+  assert.ok(
+    getCachedObjectIds(resource).includes("item-02"),
+    "precondition: stale item-02 still cached",
+  );
+
+  mockClearRequestLog();
+
+  // pagedFetch passes freshness 0; the cached fresh bookmark (timestamp ~now)
+  // must floor the data fetch so it goes to the server, not the stale cache.
+  pagedFetch(resource, filter, { limit: 3, sort: { _id: 1 } });
+  await wait(50);
+  const q = pagedFetch(resource, filter, { limit: 3, sort: { _id: 1 } });
+
+  assert.strictEqual(q.loading, false);
+  assert.deepStrictEqual(
+    rowIds(q.value),
+    ["item-01", "item-03", "item-04"],
+    "deleted row must not appear; rows come from the server, not stale cache",
+  );
+  const log = mockGetRequestLog();
+  assert.ok(
+    log.some((e) => !getRequestParams(e.url)["limit"]),
+    "the bounded data fetch must hit the server (not settle from cache)",
+  );
+
+  void bmSignal;
+  void broad;
+});
+
+void test("a fetch minted after invalidate() does not settle on pre-invalidation coverage", async () => {
+  mockClearHandlers();
+  clearStores();
+
+  const resource = "faults";
+  const initial = [{ _id: "p-1" }, { _id: "p-2" }, { _id: "p-3" }];
+  mockRegisterHandler(mockQueryHandler(`api/${resource}/`, initial));
+
+  const filter: Expression = new Expression.Literal(true);
+  const broad = reactiveStoreFetch(resource, filter);
+  await wait(50);
+  assert.strictEqual(broad.get().value.length, 3);
+
+  // Delete p-2; use a delayed handler so the invalidation's own refetch is
+  // still in flight (region stays stale) when the new signal is minted.
+  mockClearHandlers();
+  const afterDelete = [{ _id: "p-1" }, { _id: "p-3" }];
+  mockRegisterHandler(mockQueryHandler(`api/${resource}/`, afterDelete, 100));
+
+  invalidate(Date.now() + 100000);
+  mockClearRequestLog();
+
+  // A brand-new filter string at freshness 0. The stale region (t0) would
+  // have covered it under the old model; staleness now lives on the region
+  // itself, so the only coverage that counts is the invalidation's own
+  // refetch — issued post-invalidation and still in flight. The new demand
+  // dedups against it (no request of its own) and waits for its land.
+  const subset = reactiveStoreFetch(resource, Expression.parse('_id = "p-2"'), {
+    freshness: 0,
+  });
+  assert.strictEqual(
+    mockGetRequestLog().length,
+    0,
+    "new demand dedups against the post-invalidation in-flight request",
+  );
+  assert.strictEqual(
+    subset.get().loading,
+    true,
+    "must not settle on pre-invalidation coverage",
+  );
+
+  await wait(150);
+  assert.strictEqual(subset.get().loading, false);
+  assert.strictEqual(
+    subset.get().value.length,
+    0,
+    "must settle on server truth (p-2 deleted), not the stale cached row",
+  );
+
+  void broad;
+});
+
+void test("a paged query minted after invalidate() re-probes instead of counting stale cache", async () => {
+  mockClearHandlers();
+  clearStores();
+
+  const resource = "provisions";
+  const fullData = Array.from({ length: 5 }, (_, i) => ({
+    _id: `item-${String(i + 1).padStart(2, "0")}`,
+  }));
+  mockRegisterHandler(mockQueryHandler(`api/${resource}/`, fullData));
+
+  const filter: Expression = new Expression.Literal(true);
+  const broad = reactiveStoreFetch(resource, filter, { sort: { _id: 1 } });
+  await wait(50);
+  assert.strictEqual(broad.get().value.length, 5);
+
+  // Delete item-02 server-side; delayed so coverage stays stale across mint.
+  mockClearHandlers();
+  const afterDelete = fullData.filter((r) => r._id !== "item-02");
+  mockRegisterHandler(mockQueryHandler(`api/${resource}/`, afterDelete, 100));
+
+  invalidate(Date.now() + 100000);
+  mockClearRequestLog();
+
+  // Brand-new (filter, sort, limit) key. Without the floor the bookmark would
+  // be counted from the stale cached matches (m = 5 >= limit) and resolve with
+  // zero requests, bounding the deleted row. With it, the stale region is
+  // excluded so the bookmark must probe.
+  pagedFetch(resource, filter, { limit: 3, sort: { _id: 1 } });
+  assert.ok(
+    mockGetRequestLog().some((e) => getRequestParams(e.url)["limit"] === "1"),
+    "bookmark must probe rather than count stale cached matches",
+  );
+
+  await wait(150);
+  pagedFetch(resource, filter, { limit: 3, sort: { _id: 1 } });
+  await wait(150);
+  const q = pagedFetch(resource, filter, { limit: 3, sort: { _id: 1 } });
+
+  assert.strictEqual(q.loading, false);
+  assert.deepStrictEqual(
+    rowIds(q.value),
+    ["item-01", "item-03", "item-04"],
+    "paged value settles on truth, deleted row excluded",
+  );
+
+  void broad;
+});
+
+void test("display carve-out: covered prefix still shows stale rows after invalidate() while probing", async () => {
+  mockClearHandlers();
+  clearStores();
+
+  const resource = "config";
+  const data = Array.from({ length: 10 }, (_, i) => ({
+    _id: `item-${String(i + 1).padStart(2, "0")}`,
+  }));
+  mockRegisterHandler(mockQueryHandler(`api/${resource}/`, data));
+
+  const filter: Expression = new Expression.Literal(true);
+  const broad = reactiveStoreFetch(resource, filter, { sort: { _id: 1 } });
+  await wait(50);
+  assert.strictEqual(broad.get().value.length, 10);
+
+  // Delayed handler so the invalidation refetch and the new probe both stay
+  // in flight — coverage remains stale (t0) for the duration of the check.
+  mockClearHandlers();
+  mockRegisterHandler(mockQueryHandler(`api/${resource}/`, data, 200));
+
+  invalidate(Date.now() + 100000);
+
+  // Brand-new paged key (limit 4); its probe is in flight. The covered prefix
+  // is a display path and must NOT be floored — the stale-but-provably-prefix
+  // rows stay on screen with loading:true rather than blanking.
+  const q = pagedFetch(resource, filter, { limit: 4, sort: { _id: 1 } });
+  assert.strictEqual(q.loading, true);
+  assert.deepStrictEqual(
+    rowIds(q.value),
+    ["item-01", "item-02", "item-03", "item-04"],
+    "stale prefix must remain visible during the post-invalidate probe",
+  );
+
+  await wait(250); // let the in-flight requests settle before teardown
+  void broad;
+});
+
+void test("regression: re-rendering a resolved paged query issues no new requests", async () => {
+  // Guards pagedFetch's freshness floor: once resolved, the bookmark's
+  // timestamp must not exceed the data region's, so a re-render stays covered.
+  mockClearHandlers();
+  clearStores();
+
+  const resource = "users";
+  const data = Array.from({ length: 8 }, (_, i) => ({
+    _id: `item-${String(i + 1).padStart(2, "0")}`,
+  }));
+  mockRegisterHandler(mockQueryHandler(`api/${resource}/`, data));
+
+  const filter: Expression = new Expression.Literal(true);
+
+  pagedFetch(resource, filter, { limit: 5, sort: { _id: 1 } });
+  await wait(50);
+  pagedFetch(resource, filter, { limit: 5, sort: { _id: 1 } });
+  await wait(50);
+  const resolved = pagedFetch(resource, filter, { limit: 5, sort: { _id: 1 } });
+  assert.strictEqual(resolved.loading, false);
+  assert.strictEqual(resolved.value.length, 5);
+
+  mockClearRequestLog();
+  const again = pagedFetch(resource, filter, { limit: 5, sort: { _id: 1 } });
+  assert.strictEqual(again.loading, false);
+  assert.deepStrictEqual(rowIds(again.value), rowIds(resolved.value));
+  assert.strictEqual(
+    mockGetRequestLog().length,
+    0,
+    "a settled paged query must not refetch on re-render",
+  );
+});
+
+// =============================================================================
+// Responses are retained independent of the initiating query
+// =============================================================================
+//
+// A response lands into the regions its request still owns even when the
+// initiating signal was disposed mid-flight; pruneCache then decides
+// retention. The count/bookmark settle guards stay (their caches are
+// per-query-keyed and would be orphaned by a post-disposal write).
+
+void test("a disposed initiator's response is kept when a live overlapping query needs it", async () => {
+  mockClearHandlers();
+  clearStores();
+
+  const resource = "files";
+  const allData = [
+    { _id: "file-1", region: "A" },
+    { _id: "file-2", region: "A" },
+    { _id: "file-3", region: "B" },
+  ];
+  mockRegisterHandler(mockQueryHandler(`api/${resource}/`, allData, 100));
+
+  // A: broad query (covers region B too) — the one we dispose mid-flight.
+  // B: a subset query (region A) kept alive; it overlaps A so pruneCache
+  // retains A's whole region — including the region-B slice only A fetched.
+  const a = reactiveStoreFetch(resource, new Expression.Literal(true));
+  const b = reactiveStoreFetch(resource, Expression.parse('region = "A"'));
+  a[Symbol.dispose]();
+
+  await wait(150); // both responses land; A's initiator is gone
+
+  assert.strictEqual(b.get().loading, false);
+  assert.strictEqual(b.get().value.length, 2, "B settles on region A");
+
+  // A's response was written despite its signal being disposed: all three
+  // objects are cached, retained because B keeps the overlapping region.
+  assert.strictEqual(
+    getCacheState(resource).objectCount,
+    3,
+    "the disposed initiator's objects (incl. file-3) must survive",
+  );
+
+  // The slice only A fetched (region B) is now servable from cache.
+  mockClearRequestLog();
+  const c = reactiveStoreFetch(resource, Expression.parse('region = "B"'), {
+    freshness: 0,
+  });
+  assert.strictEqual(c.get().loading, false, "region B settles from cache");
+  assert.deepStrictEqual(rowIds(c.get().value), ["file-3"]);
+  assert.strictEqual(
+    mockGetRequestLog().length,
+    0,
+    "no request needed — A's once-discarded response now lives in cache",
+  );
+
+  void b;
+});
+
+void test("a disposed initiator's response is pruned when nothing live needs it", async () => {
+  mockClearHandlers();
+  clearStores();
+
+  const resource = "provisions";
+  const data = [{ _id: "p-1" }, { _id: "p-2" }];
+  mockRegisterHandler(mockQueryHandler(`api/${resource}/`, data, 100));
+
+  // No other live query: the unconditional write must be reclaimed by the
+  // prune that runs after it, leaving the same empty end state as before.
+  const a = reactiveStoreFetch(resource, new Expression.Literal(true));
+  a[Symbol.dispose]();
+
+  await wait(150);
+
+  const state = getCacheState(resource);
+  assert.strictEqual(
+    state.objectCount,
+    0,
+    "objects pruned (nobody needs them)",
+  );
+  assert.strictEqual(state.regionCount, 0, "region pruned");
+});
+
+// =============================================================================
+// In-flight request dedup via pending regions
+// =============================================================================
+//
+// The settle pass counts a pending region toward a demand's coverage when its
+// request was issued no earlier than the demanded freshness, so a query that
+// arrives while an overlapping one is in flight fetches only the non-overlap.
+// A request issued before the demanded freshness is too stale to reuse.
+
+void test("an overlapping in-flight query is deduped — only the non-overlap is re-fetched", async () => {
+  mockClearHandlers();
+  clearStores();
+
+  const resource = "faults";
+  const data = [
+    { _id: "r1", priority: 1 },
+    { _id: "r2", priority: 2 },
+    { _id: "r3", priority: 3 },
+  ];
+  mockRegisterHandler(mockQueryHandler(`api/${resource}/`, data, 100));
+
+  // A in flight over priority<=2 (r1,r2). B over priority>=2 (r2,r3) starts
+  // before A lands: it must reuse A's in-flight region for the r2 overlap and
+  // request only priority>2 (r3) itself.
+  const a = reactiveStoreFetch(resource, Expression.parse("priority <= 2"));
+  const b = reactiveStoreFetch(resource, Expression.parse("priority >= 2"));
+
+  const log = mockGetRequestLog();
+  assert.strictEqual(log.length, 2, "A's request + B's non-overlap only");
+  assert.deepStrictEqual(
+    rowIds(matchingRows(data, getRequestParams(log[1].url)["filter"])),
+    ["r3"],
+    "B fetches only the part A isn't already fetching",
+  );
+
+  await wait(150);
+  assert.strictEqual(b.get().loading, false);
+  assert.deepStrictEqual(
+    rowIds(b.get().value),
+    ["r2", "r3"],
+    "B settles complete — the r2 overlap came from A's request",
+  );
+  assert.deepStrictEqual(rowIds(a.get().value), ["r1", "r2"]);
+
+  void a;
+  void b;
+});
+
+void test("when an awaited in-flight request fails, the dependent query refetches the hole", async (t) => {
+  mockClearHandlers();
+  clearStores();
+  // The store logs the simulated failure to the console — silence it
+  t.mock.method(console, "error", () => {});
+
+  const resource = "faults";
+  const data = [
+    { _id: "r1", priority: 1 },
+    { _id: "r2", priority: 2 },
+    { _id: "r3", priority: 3 },
+  ];
+  // Fail any request whose result would include r1 — i.e. A's priority<=2.
+  // B's narrower requests (priority>2, then the r2 hole) don't include r1, so
+  // they fall through to the normal handler and succeed.
+  mockRegisterHandler((opts: { url: string; method: string }) => {
+    if (opts.method && opts.method !== "GET") return undefined;
+    if (!opts.url.includes(`api/${resource}/`)) return undefined;
+    const f = getRequestParams(opts.url)["filter"];
+    if (f && rowIds(matchingRows(data, f)).includes("r1"))
+      return Promise.reject(new Error("simulated failure"));
+    return undefined;
+  });
+  mockRegisterHandler(mockQueryHandler(`api/${resource}/`, data, 50));
+
+  const a = reactiveStoreFetch(resource, Expression.parse("priority <= 2"));
+  const b = reactiveStoreFetch(resource, Expression.parse("priority >= 2"));
+
+  // B reused A's in-flight region for the r2 overlap; once A fails (parking
+  // only A until the retry timer), the immediate settle has B re-request r2
+  // itself and settle whole. A stays loading — that's the indefinite retry
+  // contract.
+  await wait(300);
+  assert.strictEqual(b.get().loading, false);
+  assert.deepStrictEqual(
+    rowIds(b.get().value),
+    ["r2", "r3"],
+    "B refetched the hole A's failure left and settled complete",
+  );
+
+  void a;
+  void b;
+});
+
+void test("a demand fresher than an in-flight request does not reuse it", async () => {
+  mockClearHandlers();
+  clearStores();
+
+  const resource = "provisions";
+  const data = [
+    { _id: "r1", priority: 1 },
+    { _id: "r2", priority: 2 },
+    { _id: "r3", priority: 3 },
+  ];
+  mockRegisterHandler(mockQueryHandler(`api/${resource}/`, data, 100));
+
+  // A in flight over priority<=3 at freshness 0. B wants priority<=2 but at a
+  // freshness newer than A's issue time, so A's in-flight data is too stale to
+  // count — B must issue its own request for the whole region (no dedup).
+  const a = reactiveStoreFetch(resource, Expression.parse("priority <= 3"));
+  const b = reactiveStoreFetch(resource, Expression.parse("priority <= 2"), {
+    freshness: Date.now() + 100000,
+  });
+
+  const log = mockGetRequestLog();
+  assert.strictEqual(log.length, 2);
+  assert.deepStrictEqual(
+    rowIds(matchingRows(data, getRequestParams(log[1].url)["filter"])),
+    ["r1", "r2"],
+    "B requests the full region, not deduped against the staler in-flight A",
+  );
+
+  void a;
+  void b;
+});
+
+// =============================================================================
 // Ordering Parity Tests
 // =============================================================================
 //
@@ -1947,4 +2585,129 @@ void test("ordering parity: compareFunction matches MongoDB type-bracket sort or
       );
     }
   }
+});
+
+// =============================================================================
+// Region lifecycle
+// =============================================================================
+//
+// The cache region is the unit of storage and reactivity: queries are pure
+// projections over the regions they overlap, so landing a region heals every
+// overlapping query (passive propagation), and carve-on-touch refetches at
+// the granularity of the demand footprint, never the whole region.
+
+void test("passive propagation: a settled query heals when another query refreshes its region", async () => {
+  mockClearHandlers();
+  clearStores();
+
+  const resource = "presets";
+  const before = [
+    { _id: "p-1", name: "old" },
+    { _id: "p-2", name: "old" },
+  ];
+  mockRegisterHandler(mockQueryHandler(`api/${resource}/`, before));
+
+  const filter: Expression = new Expression.Literal(true);
+  const broad = reactiveStoreFetch(resource, filter);
+  await wait(50);
+  assert.strictEqual(broad.get().loading, false);
+  const settled = broad.get().value;
+  assert.strictEqual(settled.length, 2);
+
+  // Server-side update of p-1; a DIFFERENT query forces a refresh of just
+  // that sliver.
+  mockClearHandlers();
+  mockRegisterHandler(
+    mockQueryHandler(`api/${resource}/`, [
+      { _id: "p-1", name: "new" },
+      { _id: "p-2", name: "old" },
+    ]),
+  );
+  const sliver = reactiveStoreFetch(resource, Expression.parse('_id = "p-1"'), {
+    freshness: Date.now() + 100000,
+  });
+
+  // The broad query overlaps the now-pending sliver: stale-while-revalidate
+  // shows its old rows under a loading flag.
+  assert.strictEqual(broad.get().loading, true);
+  assert.strictEqual(broad.get().value.length, 2);
+
+  await wait(50);
+
+  // When the sliver lands, the broad query heals automatically — it issued
+  // no request of its own and was never re-created.
+  assert.strictEqual(sliver.get().loading, false);
+  assert.strictEqual(broad.get().loading, false);
+  const healed = broad.get().value;
+  assert.strictEqual(
+    (healed[0] as { name: string }).name,
+    "new",
+    "the settled query must pick up the other query's refresh",
+  );
+  // The untouched row kept its identity: rows are moved between regions on
+  // a carve, never copied
+  assert.strictEqual(healed[1], settled[1]);
+});
+
+void test("carve-on-touch: only the demanded sliver is refetched; the remainder keeps its rows", async () => {
+  mockClearHandlers();
+  clearStores();
+
+  const resource = "faults";
+  const data = [
+    { _id: "r1", priority: 1 },
+    { _id: "r2", priority: 2 },
+    { _id: "r3", priority: 3 },
+  ];
+  mockRegisterHandler(mockQueryHandler(`api/${resource}/`, data, 50));
+
+  const broad = reactiveStoreFetch(resource, new Expression.Literal(true));
+  await wait(100);
+  assert.strictEqual(broad.get().value.length, 3);
+  const t0 = broad.get().timestamp;
+
+  mockClearRequestLog();
+
+  // Force-refresh a narrow slice of the broad region
+  const narrow = reactiveStoreFetch(
+    resource,
+    Expression.parse("priority <= 2"),
+    { freshness: Date.now() + 100000 },
+  );
+
+  // Exactly one request, scoped to the carved sliver — not the whole region
+  const log = mockGetRequestLog();
+  assert.strictEqual(log.length, 1);
+  assert.deepStrictEqual(
+    rowIds(matchingRows(data, getRequestParams(log[0].url)["filter"])),
+    ["r1", "r2"],
+    "request must cover exactly the demanded sliver",
+  );
+
+  // Mid-flight: a pending region over the sliver carrying the provisional
+  // rows, plus the fresh remainder keeping its rows and original timestamp,
+  // disjoint from each other.
+  const regions = getRegions(resource);
+  assert.strictEqual(regions.length, 2);
+  const pending = regions.find((r) => r.state === "pending");
+  const remainder = regions.find((r) => r.state === "fresh");
+  assert.ok(pending && remainder, "one pending sliver + one fresh remainder");
+  assert.deepStrictEqual(rowIds(pending.objects).sort(), ["r1", "r2"]);
+  assert.deepStrictEqual(rowIds(remainder.objects), ["r3"]);
+  assert.strictEqual(remainder.timestamp, t0);
+  assert.ok(
+    covers(
+      new Expression.Literal(false),
+      Expression.and(pending.filter, remainder.filter),
+    ),
+    "carved regions must be disjoint",
+  );
+
+  // The narrow query shows the provisional rows while loading (SWR built in)
+  assert.strictEqual(narrow.get().loading, true);
+  assert.deepStrictEqual(rowIds(narrow.get().value), ["r1", "r2"]);
+
+  await wait(100);
+  assert.strictEqual(narrow.get().loading, false);
+  assert.deepStrictEqual(rowIds(narrow.get().value), ["r1", "r2"]);
 });

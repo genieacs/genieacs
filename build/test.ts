@@ -36,7 +36,6 @@ const exportPrivateFunctionsPlugin: esbuild.Plugin = {
       const exports = `
 // Test-only exports (added by build/test.ts)
 export { compareFunction as _testCompareFunction };
-export { getObjectId as _testGetObjectId };
 export { applyDefaultSort as _testApplyDefaultSort };
 export { stores as _testStores };
 export { getStore as _testGetStore };

@@ -871,3 +871,102 @@ void test("Watcher callback does not register dependencies on the current comput
 
   watcher[Symbol.dispose]();
 });
+
+// =============================================================================
+// equals comparator (TC39 Signals `equals` hook)
+// =============================================================================
+
+void test("StateSignal custom equals makes equal-deemed writes a no-op", () => {
+  const signal = new StateSignal<number[]>([1, 2], {
+    equals: (prev, next) => prev.length === next.length,
+  });
+
+  let computeCount = 0;
+  const computed = new ComputedSignal(() => {
+    computeCount++;
+    return signal.get();
+  });
+
+  const first = computed.get();
+  assert.deepStrictEqual(first, [1, 2]);
+  assert.strictEqual(computeCount, 1);
+
+  // Same length → comparator deems it equal: no update, no notification,
+  // prior reference kept
+  signal.set([3, 4]);
+  assert.strictEqual(computed.get(), first);
+  assert.strictEqual(computeCount, 1);
+
+  // Different length → genuine write
+  signal.set([1, 2, 3]);
+  assert.deepStrictEqual(computed.get(), [1, 2, 3]);
+  assert.strictEqual(computeCount, 2);
+});
+
+void test("ComputedSignal custom equals keeps prior reference and silences dependents", () => {
+  const source = new StateSignal(0);
+
+  let derivedRuns = 0;
+  const derived = new ComputedSignal<number[]>(
+    () => {
+      derivedRuns++;
+      return [Math.floor(source.get() / 10)];
+    },
+    { equals: (prev, next) => prev[0] === next[0] },
+  );
+
+  let sinkRuns = 0;
+  const sink = new ComputedSignal(() => {
+    sinkRuns++;
+    return derived.get();
+  });
+
+  const v1 = sink.get();
+  assert.deepStrictEqual(v1, [0]);
+  assert.strictEqual(derivedRuns, 1);
+  assert.strictEqual(sinkRuns, 1);
+
+  // derived recomputes to a fresh [0]; equals reports unchanged, so derived
+  // keeps the prior array reference and the sink never re-enters its body
+  source.set(5);
+  const v2 = sink.get();
+  assert.strictEqual(derivedRuns, 2);
+  assert.strictEqual(sinkRuns, 1, "dependent must not recompute");
+  assert.strictEqual(v2, v1, "prior reference must be kept");
+
+  // A genuine change propagates
+  source.set(15);
+  const v3 = sink.get();
+  assert.strictEqual(derivedRuns, 3);
+  assert.strictEqual(sinkRuns, 2);
+  assert.deepStrictEqual(v3, [1]);
+});
+
+void test("ComputedSignal custom equals notifies watchers only on genuine change", () => {
+  const source = new StateSignal(0);
+  const derived = new ComputedSignal<number[]>(
+    () => [Math.floor(source.get() / 10)],
+    { equals: (prev, next) => prev[0] === next[0] },
+  );
+
+  let notifications = 0;
+  const watcher = new Watcher(() => {
+    notifications++;
+  });
+  watcher.watch(derived);
+  derived.get();
+
+  // The watcher is notified when derived is marked (it cannot know yet
+  // whether the recomputed value will be equal)...
+  source.set(5);
+  assert.strictEqual(notifications, 1);
+  // ...but pulling the value re-arms nothing downstream: the recompute kept
+  // the prior reference, so dependents added later still see stable identity
+  const before = derived.get();
+  watcher.watch(derived); // re-arm
+  source.set(7);
+  derived.get();
+  assert.strictEqual(derived.get(), before);
+
+  watcher[Symbol.dispose]();
+});

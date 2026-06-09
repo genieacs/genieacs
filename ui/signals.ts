@@ -41,6 +41,13 @@ function createSafeProxy<T extends object>(target: T): T {
   });
 }
 
+// Optional change gate for StateSignal/ComputedSignal, the TC39 Signals
+// `equals` hook. When it reports the next value equal to the previous one,
+// the signal keeps the previous reference and does not notify dependents.
+export interface SignalOptions<T> {
+  equals?: (prev: T, next: T) => boolean;
+}
+
 // Tracks the currently computing signal for automatic dependency registration
 let computing: ComputedSignal<unknown> | null = null;
 
@@ -182,11 +189,13 @@ export class ConstSignal<T> extends SignalBase<T> {
 
 export class StateSignal<T> extends SignalBase<T> {
   private _value: T;
+  private _equals: (prev: T, next: T) => boolean;
 
-  constructor(initialValue: T) {
+  constructor(initialValue: T, options?: SignalOptions<T>) {
     super();
     this._sinks = new Set();
     this._value = initialValue;
+    this._equals = options?.equals ?? Object.is;
 
     // Register disposal if created inside a computation
     if (computing !== null) {
@@ -202,7 +211,7 @@ export class StateSignal<T> extends SignalBase<T> {
 
   set(newValue: T): void {
     if (this._disposed) throw new Error("Cannot write to disposed signal");
-    if (Object.is(this._value, newValue)) return;
+    if (this._equals(this._value, newValue)) return;
     this._value = newValue;
     markSinksDirty(this._sinks);
   }
@@ -220,6 +229,8 @@ export class ComputedSignal<T> extends SignalBase<T> {
   private _value: T | undefined;
   private _error: unknown;
   private _hasError: boolean = false;
+  private _hasValue: boolean = false;
+  private _equals: ((prev: T, next: T) => boolean) | null;
 
   _state: ComputedState = ComputedState.Dirty;
   _sources: Set<SignalBase<unknown>> = new Set();
@@ -229,10 +240,11 @@ export class ComputedSignal<T> extends SignalBase<T> {
   // Single WeakRef reused when registering with sources for memory efficiency
   readonly _selfRef: WeakRef<ComputedSignal<unknown>>;
 
-  constructor(callback: () => T) {
+  constructor(callback: () => T, options?: SignalOptions<T>) {
     super();
     this._sinks = new Set();
     this._callback = callback;
+    this._equals = options?.equals ?? null;
     this._selfRef = new WeakRef(this as ComputedSignal<unknown>);
 
     // Register disposal if created inside a computation
@@ -291,11 +303,22 @@ export class ComputedSignal<T> extends SignalBase<T> {
     try {
       const oldValue = this._value;
       const hadError = this._hasError;
+      const hadValue = this._hasValue;
       this._value = this._callback();
       this._hasError = false;
+      this._hasValue = true;
       this._state = ComputedState.Clean;
-      // If value changed, mark sinks dirty (for Checking optimization)
-      if (hadError || !Object.is(oldValue, this._value)) {
+      if (
+        !hadError &&
+        hadValue &&
+        this._equals &&
+        this._equals(oldValue as T, this._value)
+      ) {
+        // The comparator deems the recomputed value unchanged: keep the
+        // prior reference and stay silent so dependents see stable identity.
+        this._value = oldValue as T;
+      } else if (hadError || !Object.is(oldValue, this._value)) {
+        // Value changed, mark sinks dirty (for Checking optimization)
         markSinksDirty(this._sinks);
       }
       return this._value;
@@ -334,6 +357,7 @@ export class ComputedSignal<T> extends SignalBase<T> {
 
     // Release references for GC
     this._value = undefined;
+    this._hasValue = false;
     this._error = undefined;
   }
 }
@@ -428,8 +452,8 @@ class SafeStateSignal<T> extends StateSignal<T> {
     return instance instanceof StateSignal;
   }
 
-  constructor(initialValue: T) {
-    super(initialValue);
+  constructor(initialValue: T, options?: SignalOptions<T>) {
+    super(initialValue, options);
     return createSafeProxy(this);
   }
 }
@@ -439,8 +463,8 @@ class SafeComputedSignal<T> extends ComputedSignal<T> {
     return instance instanceof ComputedSignal;
   }
 
-  constructor(callback: () => T) {
-    super(callback);
+  constructor(callback: () => T, options?: SignalOptions<T>) {
+    super(callback, options);
     return createSafeProxy(this);
   }
 }
