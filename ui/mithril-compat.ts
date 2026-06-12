@@ -395,11 +395,19 @@ function flattenChildren(children: Children): Child[] {
 // Store rendered result for component diffing (declared early for use in removeVnodeDom)
 const componentRenderedResults = new WeakMap<Component, VnodeDOM | null>();
 
-// Recursively remove DOM nodes from a vnode and its children
+// Recursively remove DOM nodes from a vnode and its children.
+// callOnRemove handles the lifecycle (onremove + element disposal) for the
+// whole tree in one pass; removeDom then detaches the DOM and clears stored
+// rendered results.
 function removeVnodeDom(vnode: VnodeDOM | null): void {
   if (!vnode) return;
-
   callOnRemove(vnode);
+  removeDom(vnode);
+}
+
+// Structural removal only — no lifecycle callbacks (callOnRemove covers those).
+function removeDom(vnode: VnodeDOM | null): void {
+  if (!vnode) return;
 
   // For component vnodes, check if there's a rendered result stored
   // This must come FIRST because vnode.dom only points to the first element,
@@ -409,7 +417,7 @@ function removeVnodeDom(vnode: VnodeDOM | null): void {
     if (hasRendered) {
       const rendered = componentRenderedResults.get(vnode.state as Component);
       if (rendered) {
-        removeVnodeDom(rendered);
+        removeDom(rendered);
       }
       componentRenderedResults.delete(vnode.state as Component);
       return;
@@ -421,7 +429,7 @@ function removeVnodeDom(vnode: VnodeDOM | null): void {
   if (vnode.tag === "[" && Array.isArray(vnode.children)) {
     for (const child of vnode.children) {
       if (child && typeof child === "object") {
-        removeVnodeDom(child as VnodeDOM);
+        removeDom(child as VnodeDOM);
       }
     }
     return;
@@ -437,7 +445,7 @@ function removeVnodeDom(vnode: VnodeDOM | null): void {
   if (Array.isArray(vnode.children)) {
     for (const child of vnode.children) {
       if (child && typeof child === "object" && "dom" in child) {
-        removeVnodeDom(child as VnodeDOM);
+        removeDom(child as VnodeDOM);
       }
     }
   }
@@ -789,6 +797,17 @@ function callOnRemove(vnode: VnodeDOM | null): void {
     }
   }
 
+  // Descend into the component's rendered subtree: vnode.children only holds
+  // the slot children PASSED to a component, while what it rendered (where
+  // nested components and their onremove live) is in componentRenderedResults.
+  // Without this, unmounting (which goes through callOnRemove alone, not
+  // removeVnodeDom) never reaches nested components — leaking their timers
+  // and listeners.
+  if (vnode.state) {
+    const rendered = componentRenderedResults.get(vnode.state as Component);
+    if (rendered) callOnRemove(rendered);
+  }
+
   // Dispose the DOM element's DisposableStack
   if (vnode.dom) {
     disposeElement(vnode.dom);
@@ -844,8 +863,9 @@ interface MountPoint {
   // mount point's render — e.g. legacy-store's per-query redraw watchers. Run
   // when the mount point is unmounted, so those watchers are disposed and their
   // query signals can be released. Scoped to the mount point rather than to
-  // individual component onremove, because callOnRemove on unmount does not
-  // descend into a component's rendered subtree.
+  // individual component onremove, because the registering code (a plain
+  // function call inside a view) has no component of its own to hang an
+  // onremove on.
   cleanups: Set<() => void>;
 }
 

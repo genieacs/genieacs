@@ -471,6 +471,20 @@ function createReactiveNode(
   return frag;
 }
 
+// A zero-footprint node carrying a disposable: include it in rendered output
+// (after the content it owns) so disposeElement releases the disposable
+// together with the surrounding DOM. Same pattern as the reactive anchor in
+// createReactiveNode, for callers outside this module.
+export function disposalAnchor(disposable: Disposable): Node {
+  const anchor = document.createComment("") as Comment & {
+    __disposables?: DisposableStack;
+  };
+  const stack = new DisposableStack();
+  stack.use(disposable);
+  anchor.__disposables = stack;
+  return anchor;
+}
+
 // Dispose an element and all its children
 export function disposeElement(node: Node): void {
   if (node instanceof Element) {

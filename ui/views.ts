@@ -15,7 +15,7 @@ import * as taskQueue from "./task-queue.ts";
 import * as notifications from "./notifications.ts";
 import { deleteResource, ping, updateTags } from "./api-client.ts";
 import { stringify } from "../lib/common/yaml.ts";
-import { createElement, fragment, type Child } from "./dom.ts";
+import { createElement, disposalAnchor, fragment, type Child } from "./dom.ts";
 
 type ViewElement =
   | ViewNode
@@ -428,6 +428,21 @@ export function renderView(
   const context = new RenderContext().pushViews(
     views as Record<string, ViewFunc>,
   );
-  const viewNode = initView(context, new ViewNode(name, attrs, []));
-  return fragment(toChild(viewNode));
+  // The view's signal graph (script computeds, do-* effects) needs an owner:
+  // signals constructed inside a computation register their disposal on it
+  // (signals.ts registerCleanup), so disposing the owner cascades through the
+  // whole graph — clearing intervals, aborting in-flight requests, releasing
+  // query signals. Without an owner the graph is reclaimed only by GC, and
+  // until then its intervals keep firing and its query signals keep regions
+  // pinned in the reactive store. The owner rides a disposal anchor in the
+  // returned fragment, torn down with the rest of the view's DOM.
+  //
+  // This top-level initView pass only CONSTRUCTS signals; it must not read
+  // any (a read would register a dependency, and that dependency changing
+  // would re-run cleanups — disposing the live view's graph mid-display).
+  const owner = new ComputedSignal<ViewElement>(() =>
+    initView(context, new ViewNode(name, attrs, [])),
+  );
+  const viewNode = owner.get();
+  return fragment(toChild(viewNode), disposalAnchor(owner));
 }
