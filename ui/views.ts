@@ -8,7 +8,7 @@ import {
   setInterval as _setInterval,
 } from "./signals.ts";
 import views from "views-bundle";
-import { count, pagedFetch, invalidate } from "./reactive-store.ts";
+import { count, pagedFetch, invalidate, sameRefs } from "./reactive-store.ts";
 import { SkewedDate, getClockSkew } from "./skewed-date.ts";
 import Expression from "../lib/common/expression.ts";
 import * as taskQueue from "./task-queue.ts";
@@ -112,6 +112,24 @@ function doFetch(node: SignalizedViewNode): ViewElement {
     const localFreshness = arg.freshness ? arg.freshness - getClockSkew() : 0;
     const filter = Expression.parse(arg.filter);
 
+    // Results are published unconditionally, provisional rows included: the
+    // store keeps query.value displayable at all times (adopted rows during
+    // revalidation, the covered prefix during a bookmark probe), and a newly
+    // created view has no previous result to keep showing — gating on
+    // loading would leave it blank despite a populated cache. pagedFetch
+    // mints a new array per call, so the equals hook pins the published
+    // identity while the rows are unchanged; res only notifies its
+    // dependents on actual row changes.
+    const value = new ComputedSignal<unknown[]>(
+      () =>
+        pagedFetch(arg.resource, filter, {
+          sort: arg.sort,
+          limit: arg.limit,
+          freshness: localFreshness,
+        }).value,
+      { equals: sameRefs },
+    );
+
     const sig = new ComputedSignal((): null => {
       const query = pagedFetch(arg.resource, filter, {
         sort: arg.sort,
@@ -119,9 +137,7 @@ function doFetch(node: SignalizedViewNode): ViewElement {
         freshness: localFreshness,
       });
       if (loading) loading.set(query.loading);
-      // Only publish settled results — views keep displaying the previous
-      // result while a refresh or page boundary resolves
-      if (res && !query.loading) res.set(query.value);
+      if (res) res.set(value.get());
       return null;
     });
     return sig;

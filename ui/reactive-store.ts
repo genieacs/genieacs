@@ -409,7 +409,9 @@ export function resetRetryState(): void {
 // equals comparator for the read-graph computeds: same length and
 // element-wise identical references. Exact because regions are immutable and
 // rows are moved-not-copied, so an unchanged element keeps its reference.
-function sameRefs<T>(prev: readonly T[], next: readonly T[]): boolean {
+// Exported for consumers that re-derive arrays from query results (e.g.
+// pagedFetch's per-call slices) and want the same identity stability.
+export function sameRefs<T>(prev: readonly T[], next: readonly T[]): boolean {
   if (prev.length !== next.length) return false;
   for (let i = 0; i < prev.length; i++)
     if (!Object.is(prev[i], next[i])) return false;
