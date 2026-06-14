@@ -321,7 +321,7 @@ koa.use(async (ctx, next) => {
   try {
     await koaSend(ctx, ctx.path, { root: config.ROOT_DIR + "/public" });
   } catch (err) {
-    if (!(err instanceof Koa.HttpError) || err.status !== 404) throw err;
+    if ((err as { status?: number }).status !== 404) throw err;
   }
 });
 
