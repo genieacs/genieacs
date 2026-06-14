@@ -31,7 +31,7 @@ export function parsePing(
   switch (osPlatform) {
     case "linux":
       parseRegExp1 =
-        /(\d+) packets transmitted, (\d+) .*received, ([\d.]+)% .*loss[^]*= ([\d.]+)\/([\d.]+)\/([\d.]+)\/([\d.]+)/;
+        /(\d+) packets transmitted, (\d+) .*received, ([\d.]+)% .*loss[^]*= ([\d.]+)\/([\d.]+)\/([\d.]+)\/?([\d.]+)/;
       parseRegExp2 =
         /(\d+) packets transmitted, (\d+) .*received, ([\d.]+)% .*loss/;
       break;

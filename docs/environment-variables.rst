@@ -88,6 +88,12 @@ CWMP_ACCESS_LOG_FILE
 
   Default: unset
 
+CWMP_COMPACT_DEVICE_ID
+  For bug-compatibility with other ACS software, never include the device class
+  when generating a device ID.
+
+  Default: ``false``
+
 NBI_WORKER_PROCESSES
   The number of worker processes to spawn for genieacs-nbi. A value of 0 means
   as many as there are CPU cores available.
