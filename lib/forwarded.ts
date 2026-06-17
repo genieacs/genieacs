@@ -90,13 +90,14 @@ export function getRequestOrigin(request: IncomingMessage): RequestOrigin {
       encrypted: !!(request.socket as TLSSocket).encrypted,
     };
 
-    const header = request.headers["forwarded"];
-    if (header) {
-      const ip = parse(socketEndpoints.remoteAddress);
-      if (
-        cidrs.some((cidr) => ip.kind() === cidr[0].kind() && ip.match(cidr))
-      ) {
-        const parsed = parseForwardedHeader(header);
+    const ip = parse(socketEndpoints.remoteAddress);
+
+    if (cidrs.some((cidr) => ip.kind() === cidr[0].kind() && ip.match(cidr))) {
+      const header = request.headers["forwarded"];
+      if (header) {
+        const parsed = parseForwardedHeader(
+          (Array.isArray(header) ? header[0] : header) as string
+        );
 
         if (parsed["proto"] === "https") {
           origin.encrypted = true;
@@ -150,6 +151,38 @@ export function getRequestOrigin(request: IncomingMessage): RequestOrigin {
               origin.localAddress = parsed["by"];
             }
           }
+        }
+      } else {
+        const xForwardedFor = request.headers["x-forwarded-for"];
+        if (xForwardedFor) {
+          const fwd = Array.isArray(xForwardedFor)
+            ? xForwardedFor[0]
+            : xForwardedFor;
+          origin.remoteAddress = fwd.split(",")[0].trim();
+        }
+
+        const xForwardedProto = request.headers["x-forwarded-proto"];
+        if (xForwardedProto) {
+          const proto = Array.isArray(xForwardedProto)
+            ? xForwardedProto[0]
+            : xForwardedProto;
+          if (proto.split(",")[0].trim() === "https") {
+            origin.encrypted = true;
+            origin.localPort = 443;
+          } else {
+            origin.encrypted = false;
+            origin.localPort = 80;
+          }
+        }
+
+        const xForwardedHost = request.headers["x-forwarded-host"];
+        if (xForwardedHost) {
+          const host = Array.isArray(xForwardedHost)
+            ? xForwardedHost[0]
+            : xForwardedHost;
+          origin.host = host.split(",")[0].trim();
+          const [, port] = origin.host.split(":", 2);
+          origin.localPort = +port || origin.localPort;
         }
       }
     }
