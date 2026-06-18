@@ -1,4 +1,4 @@
-// Device page for TR-181 (Device:2) data model.
+// Device page for TR-098 (InternetGatewayDevice) data model.
 //
 // Displays device information, parameters, LAN hosts, faults, and data model.
 // Customize the 'parameters' array below to change displayed fields.
@@ -14,6 +14,8 @@ const delCmd = new Signal.State(null);
 const delStatus = new Signal.State(null);
 const overlayOpen = new Signal.State(false);
 const overlayContent = new Signal.State(null);
+const deviceUploads = new Signal.State(null);
+
 const overlayDialog = new Signal.Computed(() => {
   if (!overlayOpen.get() || !overlayContent.get()) return null;
   return (
@@ -214,6 +216,96 @@ const faultsTable = new Signal.Computed(() => {
   });
 });
 
+const uploadRows = new Signal.Computed(() => {
+  const files = deviceUploads.get() || [];
+  const fileIds = new Set(files.map((f) => f._id));
+  const uploads = {};
+
+  for (const [key, value] of Object.entries(device)) {
+    if (!key.startsWith("Uploads.") || key.includes(":")) continue;
+    const parts = key.split(".");
+    if (parts.length !== 3) continue;
+    uploads[parts[1]] = uploads[parts[1]] || {};
+    uploads[parts[1]][parts[2]] = value;
+  }
+
+  const uploadsSorted = Object.values(uploads)
+    .filter((u) => u["Upload"])
+    .sort((a, b) => a["Upload"] - b["Upload"]);
+
+  const render = [];
+  for (const u of uploadsSorted) {
+    const filePath = `${deviceId}/${u["FileName"]}`;
+    const ready = u?.["LastUpload"] >= u?.["Upload"];
+    if (ready && !fileIds.has(filePath)) {
+      continue;
+    }
+    render.push(
+      Object.assign({}, u, {
+        status: ready ? "Ready" : "Waiting for Upload",
+      }),
+    );
+  }
+  if (render.length === 0) {
+    return (
+      <tr>
+        <td
+          class="bg-stripes text-sm font-medium text-center text-stone-500 p-4"
+          colspan={5}
+        >
+          No Uploads
+        </td>
+      </tr>
+    );
+  }
+  return render.map((u) => {
+    const filePath = `${deviceId}/${u["FileName"]}`;
+
+    return (
+      <tr>
+        <td class="pl-6 pr-3 py-4 whitespace-nowrap text-sm text-stone-900">
+          {u["FileName"]}
+        </td>
+        <td class="px-3 py-4 whitespace-nowrap text-sm text-stone-500">
+          {u["FileType"]}
+        </td>
+        <td class="px-3 py-4 whitespace-nowrap text-sm text-stone-500">
+          {new Date(u["LastUpload"]).toLocaleString()}
+        </td>
+        {u.status === "Ready" ? (
+          <td class="px-3 py-4 whitespace-nowrap text-sm">
+            <a
+              href={`/api/uploads/blob/${encodeURIComponent(filePath)}`}
+              class="text-cyan-600 hover:text-cyan-900 font-medium"
+            >
+              Ready
+            </a>
+          </td>
+        ) : (
+          <td class="px-3 py-4 whitespace-nowrap text-sm text-stone-500">
+            Waiting for Upload
+          </td>
+        )}
+        <td class="pl-3 pr-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+          {u.status === "Ready" && (
+            <button
+              onclick={() => {
+                delCmd.set({ resource: "uploads", id: filePath });
+              }}
+              title="Delete file"
+            >
+              <icon
+                name="delete-instance"
+                class="inline h-4 w-4 text-cyan-700 hover:text-cyan-900"
+              />
+            </button>
+          )}
+        </td>
+      </tr>
+    );
+  });
+});
+
 // @ts-expect-error: top-level return (script is wrapped in a function at runtime)
 return (
   <>
@@ -330,6 +422,59 @@ return (
             action: () => {
               if (confirm(`Delete device ${deviceId}?`))
                 delCmd.set({ resource: "devices", id: deviceId });
+            },
+          },
+          {
+            label: "Upload",
+            title: "Upload a file from the device",
+            action: () => {
+              overlayContent.set(
+                <>
+                  <h2 class="text-lg font-medium leading-6 text-stone-900">
+                    Uploads from {deviceId}
+                  </h2>
+                  <do-fetch
+                    arg={{
+                      resource: "uploads",
+                      filter: `_id > '${deviceId}/' AND _id < '${deviceId}/zzzz'`,
+                    }}
+                    res={deviceUploads}
+                  />
+                  <div class="shadow overflow-hidden rounded-lg w-full">
+                    <table class="w-full divide-y divide-stone-200">
+                      <thead class="bg-stone-50">
+                        <tr>
+                          {["Filename", "Type", "Timestamp", "Status"].map(
+                            (label, i) => (
+                              <th
+                                class={`py-3.5 text-left text-sm font-semibold text-stone-500 ${i ? "px-3" : "pl-6 pr-3"}`}
+                              >
+                                {label}
+                              </th>
+                            ),
+                          )}
+                          <th class="pl-3" />
+                        </tr>
+                      </thead>
+                      <tbody class="bg-white divide-y divide-stone-200">
+                        {uploadRows}
+                      </tbody>
+                    </table>
+                  </div>
+                  <button
+                    onclick={() =>
+                      taskCmd.set({ name: "upload", devices: [deviceId] })
+                    }
+                    title="Fetch a new file from device"
+                  >
+                    <icon
+                      name="add-instance"
+                      class="inline h-4 w-4 mr-1 text-cyan-700"
+                    />
+                  </button>
+                </>,
+              );
+              overlayOpen.set(true);
             },
           },
         ].map(({ label, title, task: t, action }) => (

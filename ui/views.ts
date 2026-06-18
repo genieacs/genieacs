@@ -182,8 +182,13 @@ function doTask(node: SignalizedViewNode): ViewElement {
           if (signal.aborted) return;
           if (res) res.set("stale");
         });
-    } else if (task.name === "setParameterValues" || task.name === "download") {
+    } else if (
+      task.name === "setParameterValues" ||
+      task.name === "download" ||
+      task.name === "upload"
+    ) {
       if (task.name === "download") taskQueue.stageDownload(task);
+      else if (task.name === "upload") taskQueue.stageUpload(task);
       else taskQueue.stageSpv(task);
       if (res) res.set("staging");
     } else {

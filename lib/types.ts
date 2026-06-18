@@ -101,6 +101,10 @@ export interface SyncState {
   downloadsToCreate: InstanceSet;
   downloadsValues: Map<Path, string | number>;
   downloadsDownload: Map<Path, number>;
+  uploadsToDelete: Set<Path>;
+  uploadsToCreate: InstanceSet;
+  uploadsValues: Map<Path, string | number>;
+  uploadsUpload: Map<Path, number>;
   reboot: number;
   factoryReset: number;
 }
@@ -172,7 +176,7 @@ export interface Operation {
     instance: string;
     fileType: string;
     fileName: string;
-    targetFileName: string;
+    targetFileName?: string;
   };
 }
 
@@ -186,7 +190,8 @@ export type AcsRequest =
   | DeleteObject
   | FactoryReset
   | Reboot
-  | Download;
+  | Download
+  | Upload;
 
 export interface GetParameterNames {
   name: "GetParameterNames";
@@ -256,6 +261,20 @@ export interface Download {
   failureUrl?: string;
 }
 
+export interface Upload {
+  name: "Upload";
+  commandKey: string;
+  instance: string;
+  fileType: string;
+  fileName?: string;
+  url?: string;
+  username?: string;
+  password?: string;
+  delaySeconds?: number;
+  successUrl?: string;
+  failureUrl?: string;
+}
+
 export interface SpvFault {
   parameterName: string;
   faultCode: string;
@@ -284,7 +303,8 @@ export type CpeResponse =
   | DeleteObjectResponse
   | RebootResponse
   | FactoryResetResponse
-  | DownloadResponse;
+  | DownloadResponse
+  | UploadResponse;
 
 export interface GetParameterNamesResponse {
   name: "GetParameterNamesResponse";
@@ -331,6 +351,13 @@ export interface FactoryResetResponse {
 
 export interface DownloadResponse {
   name: "DownloadResponse";
+  status: number;
+  startTime?: number;
+  completeTime?: number;
+}
+
+export interface UploadResponse {
+  name: "UploadResponse";
   status: number;
   startTime?: number;
   completeTime?: number;

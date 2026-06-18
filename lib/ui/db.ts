@@ -1,9 +1,9 @@
 import { Script } from "node:vm";
 import { Readable } from "node:stream";
 import { ObjectId, WithoutId } from "mongodb";
-import { encodeTag } from "../util.ts";
+import { encodeTag, escapeRegExp } from "../util.ts";
 import { Fault, SessionFault, Task } from "../types.ts";
-import { collections, filesBucket } from "../db/db.ts";
+import { collections, filesBucket, uploadsBucket } from "../db/db.ts";
 import { validateViewScript } from "../bundle-views.ts";
 import { convertOldPrecondition, optimizeProjection } from "../db/util.ts";
 import * as MongoTypes from "../db/types.ts";
@@ -235,6 +235,12 @@ function flattenFile(file: Record<string, unknown>): Record<string, unknown> {
   return f;
 }
 
+function flattenUpload(file: Record<string, unknown>): Record<string, unknown> {
+  const f: Record<string, unknown> = {};
+  f["_id"] = file["_id"];
+  return f;
+}
+
 function preProcessPreset(data: Record<string, unknown>): MongoTypes.Preset {
   const preset = Object.assign({}, data);
 
@@ -336,6 +342,7 @@ export async function* query(
     else if (resource === "tasks") doc = flattenTask(doc);
     else if (resource === "presets") doc = flattenPreset(doc);
     else if (resource === "files") doc = flattenFile(doc);
+    else if (resource === "uploads") doc = flattenUpload(doc);
 
     yield doc;
   }
@@ -533,6 +540,24 @@ export async function deleteFault(id: string): Promise<void> {
 
 export async function deleteTask(id: ObjectId): Promise<void> {
   await collections.tasks.deleteOne({ _id: id });
+}
+export async function deleteUpload(filename: string): Promise<void> {
+  await uploadsBucket.delete(filename as any);
+}
+
+export async function getUploadBlob(filename: string): Promise<Readable> {
+  return uploadsBucket.openDownloadStreamByName(filename);
+}
+
+export async function deleteDeviceUploads(deviceId: string): Promise<void> {
+  const files = await collections.uploads
+    .find({
+      _id: {
+        $regex: `^${escapeRegExp(deviceId)}\\/`,
+      },
+    })
+    .toArray();
+  await Promise.all(files.map((f) => uploadsBucket.delete(f["_id"] as any)));
 }
 
 export async function putView(
