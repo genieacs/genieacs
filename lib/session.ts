@@ -35,6 +35,7 @@ import {
   AddObject,
   DeleteObject,
   Download,
+  Upload,
   Reboot,
   FactoryReset,
   AddObjectResponse,
@@ -87,6 +88,10 @@ function initSyncState(): SyncState {
     downloadsToCreate: new InstanceSet(),
     downloadsValues: new Map(),
     downloadsDownload: new Map(),
+    uploadsToDelete: new Set(),
+    uploadsToCreate: new InstanceSet(),
+    uploadsValues: new Map(),
+    uploadsUpload: new Map(),
     reboot: 0,
     factoryReset: 0,
   };
@@ -337,7 +342,10 @@ export async function transferComplete(
   sessionContext.operationsTouched[commandKey] = 1;
 
   if (rpcReq.faultStruct && rpcReq.faultStruct.faultCode !== "0") {
-    revertDownloadParameters(sessionContext, instance);
+    if (operation.name === "Download")
+      revertDownloadParameters(sessionContext, instance);
+    else if (operation.name === "Upload")
+      revertUploadParameters(sessionContext, instance);
 
     const fault: Fault = {
       code: `cwmp.${rpcReq.faultStruct.faultCode}`,
@@ -356,6 +364,44 @@ export async function transferComplete(
   let toClear: Clear[] = [];
   const timestamp = sessionContext.timestamp + sessionContext.iteration + 1;
 
+  if (operation.name === "Download") {
+    toClear = commitDownloadOperation(
+      sessionContext,
+      operation,
+      rpcReq,
+      timestamp,
+      toClear,
+    );
+  } else if (operation.name === "Upload") {
+    toClear = commitUploadOperation(
+      sessionContext,
+      operation,
+      rpcReq,
+      timestamp,
+      toClear,
+    );
+  }
+
+  if (toClear) {
+    for (const c of toClear)
+      device.clear(sessionContext.deviceData, c[0], c[1], c[2], c[3]);
+  }
+
+  return {
+    acsResponse: { name: "TransferCompleteResponse" },
+    operation: operation,
+    fault: null,
+  };
+}
+
+function commitDownloadOperation(
+  sessionContext: SessionContext,
+  operation: Operation,
+  rpcReq: TransferCompleteRequest,
+  timestamp: number,
+  toClear: Clear[],
+): Clear[] {
+  const instance = operation.args.instance;
   toClear = device.set(
     sessionContext.deviceData,
     `Downloads.${instance}.LastDownload`,
@@ -384,7 +430,7 @@ export async function transferComplete(
     sessionContext.deviceData,
     `Downloads.${instance}.LastTargetFileName`,
     timestamp,
-    { value: [timestamp, [operation.args.targetFileName, "xsd:string"]] },
+    { value: [timestamp, [operation.args.targetFileName ?? "", "xsd:string"]] },
     toClear,
   );
 
@@ -404,16 +450,85 @@ export async function transferComplete(
     toClear,
   );
 
+  return toClear;
+}
+
+function commitUploadOperation(
+  sessionContext: SessionContext,
+  operation: Operation,
+  rpcReq: TransferCompleteRequest,
+  timestamp: number,
+  toClear: Clear[],
+): Clear[] {
+  const instance = operation.args.instance;
+
+  toClear = device.set(
+    sessionContext.deviceData,
+    `Uploads.${instance}.LastUpload`,
+    timestamp,
+    { value: [timestamp, [operation.timestamp, "xsd:dateTime"]] },
+    toClear,
+  );
+
+  toClear = device.set(
+    sessionContext.deviceData,
+    `Uploads.${instance}.LastFileType`,
+    timestamp,
+    { value: [timestamp, [operation.args.fileType, "xsd:string"]] },
+    toClear,
+  );
+
+  toClear = device.set(
+    sessionContext.deviceData,
+    `Uploads.${instance}.LastFileName`,
+    timestamp,
+    { value: [timestamp, [operation.args.fileName, "xsd:string"]] },
+    toClear,
+  );
+
+  toClear = device.set(
+    sessionContext.deviceData,
+    `Uploads.${instance}.StartTime`,
+    timestamp,
+    { value: [timestamp, [rpcReq.startTime ?? 0, "xsd:dateTime"]] },
+    toClear,
+  );
+
+  toClear = device.set(
+    sessionContext.deviceData,
+    `Uploads.${instance}.CompleteTime`,
+    timestamp,
+    { value: [timestamp, [rpcReq.completeTime ?? 0, "xsd:dateTime"]] },
+    toClear,
+  );
+
+  return toClear;
+}
+
+function revertUploadParameters(
+  sessionContext: SessionContext,
+  instance: string,
+): void {
+  const timestamp = sessionContext.timestamp + sessionContext.iteration + 1;
+  const lastUploadPath = sessionContext.deviceData.paths.add(
+    `Uploads.${instance}.LastUpload`,
+  );
+
+  const lastUpload = sessionContext.deviceData.attributes.get(lastUploadPath);
+
+  const toClear = device.set(
+    sessionContext.deviceData,
+    `Uploads.${instance}.Upload`,
+    timestamp,
+    {
+      value: [timestamp, [lastUpload?.value?.[1]?.[0] || 0, "xsd:dateTime"]],
+    },
+  );
+
   if (toClear) {
     for (const c of toClear)
       device.clear(sessionContext.deviceData, c[0], c[1], c[2], c[3]);
   }
-
-  return {
-    acsResponse: { name: "TransferCompleteResponse" },
-    operation: operation,
-    fault: null,
-  };
 }
 
 function revertDownloadParameters(
@@ -457,58 +572,86 @@ export async function timeoutOperations(
   for (const [commandKey, operation] of Object.entries(
     sessionContext.operations,
   )) {
-    if (operation.name !== "Download")
-      throw new Error(`Unknown operation name ${operation.name}`);
+    if (operation.name === "Download") {
+      const DOWNLOAD_TIMEOUT =
+        localCache.getConfig(
+          sessionContext.cacheSnapshot,
+          "cwmp.downloadTimeout",
+          3600,
+          (e) => configContextCallback(sessionContext, e),
+        ) * 1000;
 
-    const DOWNLOAD_TIMEOUT =
-      localCache.getConfig(
-        sessionContext.cacheSnapshot,
-        "cwmp.downloadTimeout",
-        3600,
-        (e) => configContextCallback(sessionContext, e),
-      ) * 1000;
+      if (sessionContext.timestamp < operation.timestamp + DOWNLOAD_TIMEOUT)
+        continue;
 
-    if (sessionContext.timestamp < operation.timestamp + DOWNLOAD_TIMEOUT)
-      continue;
-
-    logger.accessWarn({
-      sessionContext: sessionContext,
-      message: "Download operation timed out",
-      commandKey: commandKey,
-    });
-
-    const SUCCESS_ON_TIMEOUT = localCache.getConfig(
-      sessionContext.cacheSnapshot,
-      "cwmp.downloadSuccessOnTimeout",
-      false,
-      (e) => configContextCallback(sessionContext, e),
-    );
-
-    if (SUCCESS_ON_TIMEOUT) {
-      const r = {
-        name: "TransferComplete" as const,
+      logger.accessWarn({
+        sessionContext: sessionContext,
+        message: "Download operation timed out",
         commandKey: commandKey,
-        startTime: 0,
-        completeTime: 0,
-      };
+      });
 
-      // Call transferComplete code and ignore the response
-      await transferComplete(sessionContext, r);
-      continue;
+      const SUCCESS_ON_TIMEOUT = localCache.getConfig(
+        sessionContext.cacheSnapshot,
+        "cwmp.downloadSuccessOnTimeout",
+        false,
+        (e) => configContextCallback(sessionContext, e),
+      );
+
+      if (SUCCESS_ON_TIMEOUT) {
+        const r = {
+          name: "TransferComplete" as const,
+          commandKey: commandKey,
+          startTime: 0,
+          completeTime: 0,
+        };
+
+        // Call transferComplete code and ignore the response
+        await transferComplete(sessionContext, r);
+        continue;
+      }
+
+      delete sessionContext.operations[commandKey];
+      if (!sessionContext.operationsTouched)
+        sessionContext.operationsTouched = {};
+      sessionContext.operationsTouched[commandKey] = 1;
+
+      faults.push({
+        code: "timeout",
+        message: "Download operation timed out",
+        timestamp: operation.timestamp,
+      });
+
+      operations.push(operation);
+
+      revertDownloadParameters(sessionContext, operation.args.instance);
+    } else if (operation.name === "Upload") {
+      const UPLOAD_TIMEOUT =
+        localCache.getConfig(
+          sessionContext.cacheSnapshot,
+          "cwmp.uploadTimeout",
+          3600,
+          (e) => configContextCallback(sessionContext, e),
+        ) * 1000;
+
+      if (sessionContext.timestamp > operation.timestamp + UPLOAD_TIMEOUT) {
+        delete sessionContext.operations[commandKey];
+        if (!sessionContext.operationsTouched)
+          sessionContext.operationsTouched = {};
+        sessionContext.operationsTouched[commandKey] = 1;
+
+        faults.push({
+          code: "timeout",
+          message: "Upload operation timed out",
+          timestamp: operation.timestamp,
+        });
+
+        operations.push(operation);
+
+        revertUploadParameters(sessionContext, operation.args.instance);
+      }
+    } else {
+      throw new Error(`Unknown operation name ${operation.name}`);
     }
-
-    delete sessionContext.operations[commandKey];
-    sessionContext.operationsTouched[commandKey] = 1;
-
-    faults.push({
-      code: "timeout",
-      message: "Download operation timed out",
-      timestamp: operation.timestamp,
-    });
-
-    operations.push(operation);
-
-    revertDownloadParameters(sessionContext, operation.args.instance);
   }
 
   return { faults, operations };
@@ -1477,6 +1620,129 @@ export async function rpcRequest(
         }
       }
 
+      // Uploads
+      let upIdx = 0;
+      let uploadIndexInit = false;
+      for (const instance of syncState.uploadsToCreate) {
+        if (!uploadIndexInit) {
+          uploadIndexInit = true;
+          for (const p of sessionContext.deviceData.paths.findCompat(
+            Path.parse("Uploads.*"),
+            false,
+            true,
+          )) {
+            if (
+              +p.segments[1] > upIdx &&
+              sessionContext.deviceData.attributes.has(p)
+            )
+              upIdx = +p.segments[1];
+          }
+        }
+
+        ++upIdx;
+
+        toClear = device.set(
+          sessionContext.deviceData,
+          "Uploads",
+          timestamp,
+          { object: [timestamp, 1], writable: [timestamp, 1] },
+          toClear,
+        );
+
+        toClear = device.set(
+          sessionContext.deviceData,
+          `Uploads.${upIdx}`,
+          timestamp,
+          { object: [timestamp, 1], writable: [timestamp, 1] },
+          toClear,
+        );
+
+        const params = {
+          FileType: {
+            writable: 1,
+            value: [instance.FileType || "", "xsd:string"],
+          },
+          FileName: {
+            writable: 1,
+            value: [instance.FileName || "", "xsd:string"],
+          },
+          Upload: {
+            writable: 1,
+            value: [instance.Upload || 0, "xsd:dateTime"],
+          },
+          LastFileType: { writable: 0, value: ["", "xsd:string"] },
+          LastFileName: { writable: 0, value: ["", "xsd:string"] },
+          LastTargetFileName: { writable: 0, value: ["", "xsd:string"] },
+          LastUpload: { writable: 0, value: [0, "xsd:dateTime"] },
+          StartTime: { writable: 0, value: [0, "xsd:dateTime"] },
+          CompleteTime: { writable: 0, value: [0, "xsd:dateTime"] },
+        };
+
+        for (const [k, v] of Object.entries(params)) {
+          toClear = device.set(
+            sessionContext.deviceData,
+            `Uploads.${upIdx}.${k}`,
+            timestamp,
+            {
+              object: [timestamp, 0],
+              writable: [timestamp, v.writable as 0 | 1],
+              value: [
+                timestamp,
+                v.value as [string | number | boolean, string],
+              ],
+            },
+            toClear,
+          );
+        }
+
+        toClear = device.set(
+          sessionContext.deviceData,
+          `Uploads.${upIdx}.*`,
+          timestamp,
+          undefined,
+          toClear,
+        );
+      }
+
+      syncState.uploadsToCreate.clear();
+
+      for (const instance of syncState.uploadsToDelete) {
+        toClear = device.set(
+          sessionContext.deviceData,
+          instance.toString(),
+          timestamp,
+          undefined,
+          toClear,
+        );
+        for (const p of syncState.uploadsValues.keys()) {
+          if (p.segments[1] === instance.segments[1])
+            syncState.uploadsValues.delete(p);
+        }
+      }
+
+      syncState.uploadsToDelete.clear();
+
+      for (const [p, v] of syncState.uploadsValues) {
+        const attrs = sessionContext.deviceData.attributes.get(p);
+        if (attrs) {
+          if (attrs.writable && attrs.writable[1] && attrs.value) {
+            const val = device.sanitizeParameterValue([
+              v,
+              attrs.value[1][1],
+            ]) as [string | number | boolean, string];
+            if (val[0] !== attrs.value[1][0]) {
+              toClear = device.set(
+                sessionContext.deviceData,
+                p.toString(),
+                timestamp,
+                { value: [timestamp, val] },
+                toClear,
+              );
+            }
+          }
+        }
+      }
+
       if (toClear || sessionContext.deviceData.changes.has("prerequisite")) {
         if (toClear) {
           for (const c of toClear)
@@ -1798,6 +2064,7 @@ function generateSetRpcRequest(
       | FactoryReset
       | Reboot
       | Download
+      | Upload
     ) & { next?: string })
   | null {
   const syncState = sessionContext.syncState;
@@ -1963,6 +2230,33 @@ function generateSetRpcRequest(
         fileType: fileTypeAttrs?.value?.[1][0] as string,
         fileName: fileNameAttrs?.value?.[1][0] as string,
         targetFileName: targetFileNameAttrs?.value?.[1][0] as string,
+      };
+    }
+  }
+
+  // Uploads
+  for (const [p, t] of syncState.uploadsUpload) {
+    const attrs = deviceData.attributes.get(p);
+    const t2 = attrs?.value?.[1]?.[0] as number;
+    if (!(t <= t2)) {
+      const base = p.slice(0, -1).toString();
+      const fileTypePath = deviceData.paths.get(`${base}.FileType`);
+      const fileNamePath = deviceData.paths.get(`${base}.FileName`);
+      const fileTypeAttrs = fileTypePath
+        ? deviceData.attributes.get(fileTypePath)
+        : undefined;
+      const fileNameAttrs = fileNamePath
+        ? deviceData.attributes.get(fileNamePath)
+        : undefined;
+      return {
+        name: "Upload",
+        commandKey: generateRpcId(sessionContext),
+        instance: p.segments[1] as string,
+        fileType: fileTypeAttrs?.value?.[1][0] as string,
+        fileName:
+          sessionContext.deviceId +
+          "/" +
+          (fileNameAttrs?.value?.[1][0] as string),
       };
     }
   }
@@ -2281,6 +2575,27 @@ function processDeclarations(
           }
         }
         break;
+
+      case "Uploads":
+        if (
+          currentPath.length === 3 &&
+          currentPath.wildcard === 0 &&
+          declareAttributeValues &&
+          declareAttributeValues.value
+        ) {
+          if (currentPath.segments[2] === "Upload") {
+            syncState.uploadsUpload.set(
+              currentPath,
+              declareAttributeValues.value[0] as number,
+            );
+          } else {
+            syncState.uploadsValues.set(
+              currentPath,
+              declareAttributeValues.value[0] as string | number,
+            );
+          }
+        }
+        break;
       case "VirtualParameters":
         if (currentPath.length <= 2) {
           let d: VirtualParameterDeclaration | undefined;
@@ -2462,6 +2777,10 @@ function processInstances(
     if (parent.length !== 1) return;
     instancesToDelete = syncState.downloadsToDelete;
     instancesToCreate = syncState.downloadsToCreate;
+  } else if (parent.segments[0] === "Uploads") {
+    if (parent.length !== 1) return;
+    instancesToDelete = syncState.uploadsToDelete;
+    instancesToCreate = syncState.uploadsToCreate;
   } else {
     let existingDelete = syncState.instancesToDelete.get(parent);
     if (existingDelete == null) {
@@ -2753,6 +3072,7 @@ export async function rpcResponse(
         "FactoryReset",
         "VirtualParameters",
         "Downloads",
+        "Uploads",
       ]) {
         const p = sessionContext.deviceData.paths.get(n);
         if (p && sessionContext.deviceData.attributes.has(p))
@@ -2968,6 +3288,83 @@ export async function rpcResponse(
           fileType: rpcReq.fileType,
           fileName: rpcReq.fileName ?? "",
           targetFileName: rpcReq.targetFileName ?? "",
+        },
+      };
+      for (const channel of Object.keys(sessionContext.channels)) {
+        if (sessionContext.retries[channel] != null)
+          operation.retries[channel] = sessionContext.retries[channel];
+      }
+
+      sessionContext.operations[rpcReq.commandKey] = operation;
+      sessionContext.operationsTouched[rpcReq.commandKey] = 1;
+    }
+  } else if (rpcRes.name === "UploadResponse") {
+    if (rpcReq.name !== "Upload")
+      return invalidResponse("Response name does not match request name");
+
+    toClear = device.set(
+      sessionContext.deviceData,
+      `Uploads.${rpcReq.instance}.Upload`,
+      timestamp + 1,
+      { value: [timestamp + 1, [sessionContext.timestamp, "xsd:dateTime"]] },
+      toClear,
+    );
+
+    if (rpcRes.status === 0) {
+      toClear = device.set(
+        sessionContext.deviceData,
+        `Uploads.${rpcReq.instance}.LastUpload`,
+        timestamp + 1,
+        {
+          value: [timestamp + 1, [sessionContext.timestamp, "xsd:dateTime"]],
+        },
+        toClear,
+      );
+
+      toClear = device.set(
+        sessionContext.deviceData,
+        `Uploads.${rpcReq.instance}.LastFileType`,
+        timestamp + 1,
+        { value: [timestamp + 1, [rpcReq.fileType, "xsd:string"]] },
+        toClear,
+      );
+
+      toClear = device.set(
+        sessionContext.deviceData,
+        `Uploads.${rpcReq.instance}.LastFileName`,
+        timestamp + 1,
+        { value: [timestamp + 1, [rpcReq.fileType, "xsd:string"]] },
+        toClear,
+      );
+
+      toClear = device.set(
+        sessionContext.deviceData,
+        `Uploads.${rpcReq.instance}.StartTime`,
+        timestamp + 1,
+        { value: [timestamp + 1, [+(rpcRes.startTime ?? 0), "xsd:dateTime"]] },
+        toClear,
+      );
+
+      toClear = device.set(
+        sessionContext.deviceData,
+        `Uploads.${rpcReq.instance}.CompleteTime`,
+        timestamp + 1,
+        {
+          value: [timestamp + 1, [+(rpcRes.completeTime ?? 0), "xsd:dateTime"]],
+        },
+        toClear,
+      );
+    } else {
+      const operation: Operation = {
+        name: "Upload",
+        timestamp: sessionContext.timestamp,
+        provisions: sessionContext.provisions,
+        channels: sessionContext.channels,
+        retries: {},
+        args: {
+          instance: rpcReq.instance,
+          fileType: rpcReq.fileType,
+          fileName: rpcReq.fileName ?? "",
         },
       };
 

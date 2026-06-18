@@ -211,6 +211,44 @@ export function download(
   return true;
 }
 
+export function upload(
+  sessionContext: SessionContext,
+  provision: [string, ...Value[]],
+  declarations: Declaration[],
+): boolean {
+  if (
+    provision.length !== 3 ||
+    typeof provision[1] !== "string" ||
+    typeof provision[2] !== "string"
+  )
+    throw new Error("Invalid arguments");
+
+  const alias = [
+    `FileType:${JSON.stringify(provision[1] || "")}`,
+    `FileName:${JSON.stringify(provision[2] || "")}`,
+  ].join(",");
+
+  declarations.push({
+    path: Path.parse(`Uploads.[${alias}]`),
+    pathGet: 1,
+    pathSet: 1,
+    attrGet: undefined,
+    attrSet: undefined,
+    defer: true,
+  });
+
+  declarations.push({
+    path: Path.parse(`Uploads.[${alias}].Upload`),
+    pathGet: 1,
+    pathSet: undefined,
+    attrGet: { value: 1 },
+    attrSet: { value: [sessionContext.timestamp] },
+    defer: true,
+  });
+
+  return true;
+}
+
 export function instances(
   sessionContext: SessionContext,
   provision: [string, ...Value[]],

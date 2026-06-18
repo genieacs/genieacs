@@ -17,6 +17,7 @@ import {
   StageTask,
 } from "./task-queue.ts";
 import Expression from "../lib/common/expression.ts";
+import Path from "../lib/common/path.ts";
 
 // Stable per-task ids so `each` can preserve DOM across re-renders:
 // — staging items keep input focus/cursor while you type
@@ -236,6 +237,134 @@ function renderStagingDownload(
   );
 }
 
+const uploadTypesForDevice: WeakMap<
+  Record<string, string | number | boolean>,
+  Record<string, string>
+> = new WeakMap();
+
+function getUploadTypesForDevice(
+  device: Record<string, string | number | boolean>,
+): Record<string, string> {
+  if (uploadTypesForDevice.has(device))
+    return uploadTypesForDevice.get(device)!;
+  const instances: Set<string> = new Set();
+  const filenames: Record<string, string> = {};
+  const versions: Record<string, string> = {};
+
+  if (device) {
+    for (const [k, v] of Object.entries(device)) {
+      if (/DeviceInfo\.VendorConfigFile\.[0-9]+(\.Name|\.Version)?$/.test(k)) {
+        const p = k.split(".");
+        if (p[p.length - 1] === "Name") {
+          const n = `3 Vendor Configuration File ${p[p.length - 2]}`;
+          instances.add(n);
+          if (v) filenames[n] = v as string;
+        } else if (p[p.length - 1] === "Version") {
+          const n = `3 Vendor Configuration File ${p[p.length - 2]}`;
+          instances.add(n);
+          if (v) versions[n] = v as string;
+        } else {
+          const n = `3 Vendor Configuration File ${p[p.length - 1]}`;
+          instances.add(n);
+        }
+      } else if (/DeviceInfo\.VendorLogFile\.[0-9]+(\.Name)?$/.test(k)) {
+        const p = k.split(".");
+        if (p[p.length - 1] === "Name") {
+          const n = `4 Vendor Log File ${p[p.length - 2]}`;
+          instances.add(n);
+          if (v) filenames[n] = v as string;
+        } else {
+          const n = `4 Vendor Log File ${p[p.length - 1]}`;
+          instances.add(n);
+        }
+      }
+    }
+  }
+
+  if (!instances.size) {
+    instances.add("1 Vendor Configuration File");
+    instances.add("2 Vendor Log File");
+  }
+  const res: Record<string, string> = {};
+
+  for (const i of instances) {
+    let n = filenames[i];
+    const v = versions[i];
+    if (!n) n = i.replace(/\s+/g, "_") + ".txt";
+    if (v) n = `${n}-${v}`;
+    res[i] = n;
+  }
+  uploadTypesForDevice.set(device, res);
+  return res;
+}
+
+function renderStagingUpload(
+  task: StageTask,
+  onUpdate: () => void,
+): HTMLElement {
+  const commonTypes: Record<string, number> = {};
+  const filenames: Record<string, string> = {};
+
+  for (const d of task.devices) {
+    const deviceFilter = new Expression.Binary(
+      "=",
+      new Expression.Parameter(Path.parse("DeviceID.ID")),
+      new Expression.Literal(d),
+    );
+
+    const dev = reactiveFetch("devices", deviceFilter).get();
+    const devValue = dev.value?.[0] as Record<
+      string,
+      string | number | boolean
+    >;
+    if (devValue) {
+      const u = getUploadTypesForDevice(devValue);
+      Object.assign(filenames, u);
+      for (const k of Object.keys(u))
+        commonTypes[k] = (commonTypes[k] || 0) + 1;
+    }
+  }
+  const typesList = [""];
+  typesList.push(
+    ...Object.entries(commonTypes)
+      .filter(([, c]) => c === task.devices.length)
+      .map(([k]) => k)
+      .sort(),
+  );
+
+  return div(
+    { class: "flex items-center gap-2 text-sm text-stone-700 max-w-full" },
+    "Fetch ",
+    select(
+      {
+        class:
+          "min-w-0 pl-3 pr-10 py-2 text-base border-stone-300 focus:outline-hidden focus:ring-cyan-500 focus:border-cyan-500 sm:text-sm rounded-md",
+        onchange: (e) => {
+          task.fileType = (e.target as HTMLSelectElement).value;
+          task.fileName = task.fileType.replace(/\s+/g, "_") + ".txt";
+          onUpdate();
+        },
+      },
+      ...typesList.map((t) =>
+        option(
+          { disabled: !t, value: t, selected: (task.fileType || "") === t },
+          t,
+        ),
+      ),
+    ),
+    " as ",
+    input({
+      class:
+        "mt-1 w-full shadow-xs focus:ring-cyan-500 focus:border-cyan-500 block sm:text-sm border-stone-300 rounded-md",
+      oninput: (e) => {
+        task.fileName = (e.target as HTMLInputElement).value;
+        onUpdate();
+      },
+      value: task.fileName || "",
+    }),
+  );
+}
+
 function renderStagingItem(s: StageTask): HTMLElement {
   const staging = getStaging();
   const queueFunc = (): void => {
@@ -263,6 +392,11 @@ function renderStagingItem(s: StageTask): HTMLElement {
       stagingVersion.get();
       return renderStagingDownload(s, bumpStagingVersion);
     };
+  } else if (s.name === "upload") {
+    elContainer = () => {
+      stagingVersion.get();
+      return renderStagingUpload(s, bumpStagingVersion);
+    };
   } else {
     elContainer = div();
   }
@@ -289,7 +423,10 @@ function renderStagingItem(s: StageTask): HTMLElement {
           onclick: queueFunc,
           disabled: () => {
             stagingVersion.get();
-            return s.name === "download" && (!s.fileName || !s.fileType);
+            return (
+              (s.name === "download" || s.name === "upload") &&
+              (!s.fileName || !s.fileType)
+            );
           },
         },
         "Queue",
@@ -405,6 +542,11 @@ function renderTaskRow(t: QueueTask): HTMLElement {
     taskEl = span(
       { class: "text-stone-900" },
       `Push file: ${t.fileName} (${t.fileType})`,
+    );
+  } else if (t.name === "upload") {
+    taskEl = span(
+      { class: "text-stone-900" },
+      `Upload file: ${t.fileName} (${t.fileType})`,
     );
   } else {
     taskEl = span({ class: "text-stone-900" }, t.name);

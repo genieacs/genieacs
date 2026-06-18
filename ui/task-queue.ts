@@ -99,6 +99,15 @@ export function stageDownload(task: StageTask): void {
   bumpStagingVersion();
 }
 
+export function stageUpload(task: StageTask): void {
+  if (queue.size + task.devices.length > MAX_QUEUE) {
+    notifications.push("error", "Too many tasks in queue");
+    return;
+  }
+  staging.add(task);
+  bumpStagingVersion();
+}
+
 export function commit(
   tasks: QueueTask[],
   callback: (
