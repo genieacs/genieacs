@@ -12,6 +12,40 @@ const taskCmd = new Signal.State(null);
 const deviceFaults = new Signal.State(null);
 const delCmd = new Signal.State(null);
 const delStatus = new Signal.State(null);
+const overlayOpen = new Signal.State(false);
+const overlayContent = new Signal.State(null);
+const overlayDialog = new Signal.Computed(() => {
+  if (!overlayOpen.get() || !overlayContent.get()) return null;
+  return (
+    <div
+      class="fixed z-20 inset-0 overflow-y-auto"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div class="relative flex min-h-screen w-full">
+        <div class="absolute inset-0 bg-black/50" aria-hidden="true" />
+        <div class="relative z-20 min-h-screen w-full bg-white p-4 pt-14 text-left overflow-auto shadow-xl">
+          <div class="block absolute top-0 right-0 pt-4 pr-4">
+            <button
+              type="button"
+              class="bg-white rounded-md text-stone-400 hover:text-stone-500 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500"
+              onclick={() => overlayOpen.set(false)}
+            >
+              <span class="sr-only">Close</span>
+              <icon name="close" class="h-6 w-6" />{" "}
+            </button>
+          </div>
+          <div>{overlayContent}</div>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+const handleOverlayEscape = (e) => {
+  if (e.key === "Escape" && overlayOpen.get()) overlayOpen.set(false);
+};
+addEventListener("keydown", handleOverlayEscape);
 
 const delMessage = new Signal.Computed(() => {
   const s = delStatus.get();
@@ -142,6 +176,21 @@ const faultsTable = new Signal.Computed(() => {
             onmouseover={(e) => {
               e.target.title = e.target.textContent;
             }}
+            onclick={() => {
+              overlayContent.set(
+                <>
+                  <textarea
+                    class="font-mono text-sm w-full border border-stone-300 rounded-md"
+                    cols="80"
+                    rows="24"
+                    readonly=""
+                  >
+                    {yamlOut}
+                  </textarea>
+                </>,
+              );
+              overlayOpen.set(true);
+            }}
           >
             {yamlOut}
           </span>
@@ -257,6 +306,7 @@ return (
       </div>
       <h2>Data model</h2>
       <datamodel-explorer device={device} />
+      {overlayDialog}
       <div class="space-x-3 mt-4">
         {[
           {
