@@ -129,7 +129,7 @@ export default class VersionedMap<K, V> {
     const revisions = [];
 
     let prev: V | symbol = NONEXISTENT;
-    for (let i = 0; mutations >> i; ++i) {
+    for (let i = 0; i < 32 && mutations >> i; ++i) {
       let v = prev;
       if (del & (1 << i)) v = NONEXISTENT;
       else if (i in revisionsObj) v = revisionsObj[i];
