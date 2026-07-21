@@ -138,7 +138,7 @@ function parameterInfoList(xml: Element): [Path, boolean, boolean][] {
     }
 
     try {
-      if (!nameEl) throw new Error("Missing Name element");
+      if (!nameEl?.text) throw new Error("Missing or empty Name element");
       const param = nameEl.text;
       if (!param.endsWith(".")) result.push([Path.parse(param), false, parsed]);
       else result.push([Path.parse(param.slice(0, -1)), true, parsed]);
@@ -227,7 +227,7 @@ function parameterValueList(
     }
 
     try {
-      if (!nameEl) throw new Error("Missing Name element");
+      if (!nameEl?.text) throw new Error("Missing or empty Name element");
       result.push([Path.parse(nameEl.text), parsed, valueType]);
     } catch {
       warnings.push({
@@ -279,7 +279,7 @@ function parameterAttributeList(xml: Element): [Path, number, string[]][] {
       .map((c) => decodeEntities(c.text));
 
     try {
-      if (!nameEl) throw new Error("Missing Name element");
+      if (!nameEl?.text) throw new Error("Missing or empty Name element");
       result.push([Path.parse(nameEl.text), notification, accessList]);
     } catch {
       warnings.push({
