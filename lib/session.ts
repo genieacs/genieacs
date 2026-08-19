@@ -3447,9 +3447,26 @@ export async function rpcFault(
     }
   }
 
+  let message = faultResponse.detail?.faultString ?? "";
+  const spvFault = faultResponse.detail?.setParameterValuesFault;
+  if (spvFault?.length) {
+    // CPE detailed exactly which parameter(s) it rejected
+    message +=
+      ": " +
+      spvFault
+        .map((f) => `${f.parameterName} (${f.faultCode}: ${f.faultString})`)
+        .join("; ");
+  } else if (rpcReq?.name === "SetParameterValues") {
+    // CPE gave a generic fault only; name the parameters we attempted to set
+    const names = (
+      rpcReq.parameterList as [string, string | number | boolean, string][]
+    ).map((p) => p[0]);
+    message += `: parameter(s) ${names.join(", ")}`;
+  }
+
   const fault: Fault = {
     code: `cwmp.${faultResponse.detail?.faultCode ?? ""}`,
-    message: faultResponse.detail?.faultString ?? "",
+    message,
     detail: faultResponse.detail,
   };
 
