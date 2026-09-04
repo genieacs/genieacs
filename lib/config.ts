@@ -72,6 +72,7 @@ const options: Record<
 
   DOWNLOAD_TIMEOUT: { type: "int", default: 3600 },
   EXT_TIMEOUT: { type: "int", default: 3000 },
+  SCRIPT_TIMEOUT: { type: "int", default: 100 },
   MAX_CACHE_TTL: { type: "int", default: 86400 },
   DEBUG_FILE: { type: "path", default: "" },
   DEBUG_FORMAT: { type: "string", default: "yaml" },
