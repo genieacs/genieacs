@@ -26,6 +26,12 @@ EXT_TIMEOUT
 
   Default: ``3000``
 
+SCRIPT_TIMEOUT
+  Timeout (in milliseconds) for executing provision and virtual parameter
+  scripts. Values below 50 are clamped to 50.
+
+  Default: ``100``
+
 DEBUG_FILE
   File to dump CPE debug log.
 
