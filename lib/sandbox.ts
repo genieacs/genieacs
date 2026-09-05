@@ -176,10 +176,23 @@ function random(): number {
   return state.rng();
 }
 
+/** Replace the PRNG seed entirely (legacy behavior). */
 random.seed = function (s: string) {
+  state.rng = seedrandom(String(s ?? ""));
+};
+
+/**
+ * Reseed using device ID, optional CWMP_RANDOM_SEED, and extra material.
+ * Prefer this when the sequence should stay device-bound.
+ */
+random.seedCombine = function (extra: string) {
   const randomSeed = configString("cwmp.randomSeed", resolveRandomSeedSync);
   state.rng = seedrandom(
-    buildRngSeed(state.sessionContext.deviceId, randomSeed, String(s ?? "")),
+    buildRngSeed(
+      state.sessionContext.deviceId,
+      randomSeed,
+      String(extra ?? ""),
+    ),
   );
 };
 

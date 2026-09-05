@@ -228,10 +228,13 @@ CWMP_CREDENTIALS_SECRET
   Default: unset (auto-generated into the database)
 
 CWMP_RANDOM_SEED
-  Optional extra material mixed into the deterministic ``Math.random()`` seed
-  used by provision and virtual parameter scripts. When unset, seeding matches
-  previous releases (device ID only). When set, stable ``Math.random()``
-  sequences become installation-specific. Can also be stored as
-  ``cwmp.randomSeed`` in the config collection. This is not auto-generated.
+  Optional extra material mixed into the default deterministic ``Math.random()``
+  seed used by provision and virtual parameter scripts. When unset, the default
+  seed matches previous releases (device ID only). When set, default
+  ``Math.random()`` sequences become installation-specific. Does not affect
+  ``Math.random.seed()`` (full replace). Use ``Math.random.seedCombine()`` to
+  mix this value with extra material while keeping the device binding. Can also
+  be stored as ``cwmp.randomSeed`` in the config collection. This is not
+  auto-generated.
 
   Default: unset

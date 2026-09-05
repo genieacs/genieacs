@@ -153,16 +153,19 @@ The result is stable for a given secret and inputs so provision replay remains
 correct, but it cannot be computed without the secret. Throws if no
 credentials secret is configured.
 
-``Math.random()`` / ``Math.random.seed(extra)``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``Math.random()`` / ``Math.random.seed()`` / ``Math.random.seedCombine()``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``Math.random()`` is deterministic per device so scripts can be replayed safely
 within a session. By default it is seeded with the device ID. If
 ``CWMP_RANDOM_SEED`` (or ``cwmp.randomSeed``) is set, that value is mixed into
-the seed as well.
+the default seed as well.
 
-``Math.random.seed(extra)`` mixes ``extra`` into the seed together with the
-device ID (and optional random seed). It does not replace the device binding.
+``Math.random.seed(value)`` replaces the PRNG seed entirely with ``value``
+(legacy behavior).
+
+``Math.random.seedCombine(extra)`` reseeds using the device ID, optional
+``CWMP_RANDOM_SEED``, and ``extra``, keeping sequences device-bound.
 
 .. _path-format:
 

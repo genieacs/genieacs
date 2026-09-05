@@ -11,10 +11,10 @@
   previous default script. Changing the secret causes new passwords to be pushed
   on the next inform.
 
-- Optional `CWMP_RANDOM_SEED` / `cwmp.randomSeed` mixes into the deterministic
-  `Math.random()` seed used by provisions. `Math.random.seed(extra)` now
-  combines with the device ID (and optional random seed) instead of replacing
-  the seed entirely.
+- Optional `CWMP_RANDOM_SEED` / `cwmp.randomSeed` mixes into the default
+  deterministic `Math.random()` seed used by provisions. `Math.random.seed()`
+  still replaces the seed entirely (unchanged). Use `Math.random.seedCombine()`
+  to mix extra material with the device ID and optional random seed.
 
 ## 1.2.14 (2026-03-12)
 
