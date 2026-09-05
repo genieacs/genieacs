@@ -44,6 +44,8 @@ declare function ext(...args: unknown[]): unknown;
 
 declare function log(msg: string, meta?: Record<string, unknown>): void;
 
+declare function HASH_CREDENTIAL(...parts: unknown[]): string;
+
 declare const args: unknown[];
 
 interface DateConstructor {

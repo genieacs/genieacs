@@ -5,6 +5,7 @@ import * as server from "../lib/server.ts";
 import * as cwmp from "../lib/cwmp.ts";
 import * as db from "../lib/db/db.ts";
 import * as extensions from "../lib/extensions.ts";
+import { ensureCredentials } from "../lib/credentials.ts";
 import { version as VERSION } from "../package.json";
 
 logger.init("cwmp", VERSION);
@@ -89,6 +90,7 @@ if (!cluster.worker) {
 
   const initPromise = db
     .connect()
+    .then(() => ensureCredentials())
     .then(() => {
       server.start(options, cwmp.listener);
     })

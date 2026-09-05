@@ -63,6 +63,7 @@ export default defineConfig(
         commit: "readonly",
         ext: "readonly",
         log: "readonly",
+        HASH_CREDENTIAL: "readonly",
         args: "readonly",
       },
     },

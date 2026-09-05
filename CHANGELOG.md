@@ -1,5 +1,21 @@
 # Change Log
 
+## Unreleased
+
+- Harden default connection request password generation. Passwords are now
+  derived with HMAC-SHA256 using an installation-specific secret
+  (`CWMP_CREDENTIALS_SECRET` / `cwmp.credentialsSecret`) via the new provision
+  function `HASH_CREDENTIAL()`, instead of a device-ID-only `Math.random()` seed
+  that was reproducible across GenieACS installs. On CWMP startup the stock
+  `inform` provision is migrated automatically when it still matches the
+  previous default script. Changing the secret causes new passwords to be pushed
+  on the next inform.
+
+- Optional `CWMP_RANDOM_SEED` / `cwmp.randomSeed` mixes into the deterministic
+  `Math.random()` seed used by provisions. `Math.random.seed(extra)` now
+  combines with the device ID (and optional random seed) instead of replacing
+  the seed entirely.
+
 ## 1.2.14 (2026-03-12)
 
 - Prevent UI crash when a malformed URL is sent to the server.

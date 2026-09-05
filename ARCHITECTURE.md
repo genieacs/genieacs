@@ -230,7 +230,10 @@ The sandbox API: `declare(path, timestamps, values)` returns a
 `ParameterWrapper` proxy; `clear(path, timestamp, attributes)` invalidates
 cached data; `ext(...args)` calls external extensions (results are cached per
 revision to survive replays); `commit()` explicitly triggers a fetch cycle.
-`Math.random()` is replaced with a seeded PRNG for determinism.
+`Math.random()` is replaced with a seeded PRNG for determinism. The default seed
+is the device ID; optional `CWMP_RANDOM_SEED` and `Math.random.seed(extra)` mix
+additional material. Connection-request passwords use `HASH_CREDENTIAL()` (HMAC
+with an installation secret) rather than raw `Math.random()`.
 
 ### Device Data Model (`lib/types.ts`, `lib/device.ts`)
 
@@ -459,8 +462,9 @@ following SQL semantics.
   `lib/common/expression/` modules are pure and shared across all services.
 
 - **The sandbox is deterministic across replays.** `Math.random()` is seeded
-  from the device ID, `Date.now()` is controlled, and extension results are
-  cached. A script re-run with the same inputs produces the same outputs.
+  from the device ID (plus optional `CWMP_RANDOM_SEED` /
+  `Math.random.seed(extra)`), `Date.now()` is controlled, and extension results
+  are cached. A script re-run with the same inputs produces the same outputs.
 
 - **Services share no in-process state.** All cross-process coordination goes
   through MongoDB (the `cache` and `locks` collections). Each worker process is

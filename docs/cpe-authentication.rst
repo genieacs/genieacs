@@ -69,4 +69,21 @@ the credentials from an external source:
 ACS to CPE
 ----------
 
-TODO
+GenieACS authenticates connection requests to the CPE using the username and
+password stored under:
+
+- ``Device.ManagementServer.ConnectionRequestUsername`` /
+  ``ConnectionRequestPassword``, or
+- ``InternetGatewayDevice.ManagementServer.ConnectionRequestUsername`` /
+  ``ConnectionRequestPassword``
+
+The default ``inform`` provision sets the username to ``DeviceID.ID`` and the
+password to ``HASH_CREDENTIAL(username)``, which is an HMAC of the device ID
+with the installation secret ``CWMP_CREDENTIALS_SECRET`` (or
+``cwmp.credentialsSecret`` in the database). Connection request authentication
+defaults to ``AUTH(USERNAME(), PASSWORD())``, i.e. the values from the device
+data model.
+
+Customize authentication with the config key ``cwmp.connectionRequestAuth``
+(expression). See :ref:`environment-variables` for ``CWMP_CREDENTIALS_SECRET``
+and the optional ``CWMP_RANDOM_SEED``.

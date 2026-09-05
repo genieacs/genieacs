@@ -66,6 +66,8 @@ const options: Record<
   UI_LOG_FILE: { type: "path", default: "" },
   UI_ACCESS_LOG_FILE: { type: "path", default: "" },
   UI_JWT_SECRET: { type: "string", default: "" },
+  CWMP_CREDENTIALS_SECRET: { type: "string", default: "" },
+  CWMP_RANDOM_SEED: { type: "string", default: "" },
 
   UDP_CONNECTION_REQUEST_PORT: { type: "int", default: 0 },
   FORWARDED_HEADER: { type: "string", default: "" },

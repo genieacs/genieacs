@@ -5,6 +5,14 @@ import * as extensions from "./extensions.ts";
 import * as logger from "./logger.ts";
 import * as scheduling from "./scheduling.ts";
 import Path from "./common/path.ts";
+import Expression from "./common/expression.ts";
+import * as localCache from "./cwmp/local-cache.ts";
+import {
+  buildRngSeed,
+  deriveCredentialHash,
+  resolveCredentialsSecretSync,
+  resolveRandomSeedSync,
+} from "./credentials.ts";
 import {
   Attributes,
   Fault,
@@ -129,14 +137,50 @@ class SandboxDate {
   }
 }
 
+function configString(
+  key: string,
+  resolveEnv: (fromDb: string) => string,
+): string {
+  const fromDb = localCache.getConfig(
+    state.sessionContext.cacheSnapshot,
+    key,
+    "",
+    (e) => {
+      if (e instanceof Expression.Literal) return e;
+      return new Expression.Literal("");
+    },
+  );
+  return resolveEnv(typeof fromDb === "string" ? fromDb : "");
+}
+
+function hashCredential(...parts: unknown[]): string {
+  const secret = configString(
+    "cwmp.credentialsSecret",
+    resolveCredentialsSecretSync,
+  );
+  if (!secret)
+    throw new Error(
+      "HASH_CREDENTIAL requires CWMP_CREDENTIALS_SECRET or cwmp.credentialsSecret",
+    );
+  return deriveCredentialHash(secret, ...parts.map((p) => String(p ?? "")));
+}
+
 function random(): number {
-  if (!state.rng) state.rng = seedrandom(state.sessionContext.deviceId);
+  if (!state.rng) {
+    const randomSeed = configString("cwmp.randomSeed", resolveRandomSeedSync);
+    state.rng = seedrandom(
+      buildRngSeed(state.sessionContext.deviceId, randomSeed),
+    );
+  }
 
   return state.rng();
 }
 
 random.seed = function (s: string) {
-  state.rng = seedrandom(s);
+  const randomSeed = configString("cwmp.randomSeed", resolveRandomSeedSync);
+  state.rng = seedrandom(
+    buildRngSeed(state.sessionContext.deviceId, randomSeed, String(s ?? "")),
+  );
 };
 
 class ParameterWrapper {
@@ -346,6 +390,7 @@ Object.defineProperty(context, "clear", { value: clear });
 Object.defineProperty(context, "commit", { value: commit });
 Object.defineProperty(context, "ext", { value: ext });
 Object.defineProperty(context, "log", { value: log });
+Object.defineProperty(context, "HASH_CREDENTIAL", { value: hashCredential });
 
 // Monkey-patch Math.random() to make it deterministic
 context.random = random;

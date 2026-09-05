@@ -5,6 +5,18 @@ import * as esbuild from "esbuild";
 
 const INPUT_DIR = process.cwd();
 
+// Support `import x from "./file" with { type: "text" }` like the production build.
+const textImportPlugin: esbuild.Plugin = {
+  name: "text-import",
+  setup(build) {
+    build.onLoad({ filter: /.*/ }, async (args) => {
+      if (args.with?.["type"] !== "text") return undefined;
+      const contents = await readFile(args.path);
+      return { contents, loader: "text" };
+    });
+  },
+};
+
 // Redirect ui/api-client.ts imports to test/mocks/api-client.ts
 const mockApiClientPlugin: esbuild.Plugin = {
   name: "mock-api-client",
@@ -63,7 +75,11 @@ async function buildTests(): Promise<void> {
     sourcemap: "inline",
     outdir: "test",
     logLevel: "warning",
-    plugins: [mockApiClientPlugin, exportPrivateFunctionsPlugin],
+    plugins: [
+      textImportPlugin,
+      mockApiClientPlugin,
+      exportPrivateFunctionsPlugin,
+    ],
   });
 }
 

@@ -11,8 +11,9 @@ a load-balancing/failover setup.
 .. attention::
 
   For production deployments make sure to configure TLS and change
-  ``UI_JWT_SECRET`` to a unique and secure string. Refer to :ref:`https`
-  section for how to enable TLS to encrypt traffic.
+  ``UI_JWT_SECRET`` and ``CWMP_CREDENTIALS_SECRET`` to unique and secure
+  strings. Refer to :ref:`https` section for how to enable TLS to encrypt
+  traffic.
 
 Prerequisites
 -------------
@@ -81,6 +82,13 @@ Configure systemd
   .. code:: bash
 
     node -e "console.log(\"GENIEACS_UI_JWT_SECRET=\" + require('crypto').randomBytes(128).toString('hex'))" >> /opt/genieacs/genieacs.env
+
+  Generate a connection-request credentials secret (recommended for production)
+  and append it as well:
+
+  .. code:: bash
+
+    node -e "console.log(\"GENIEACS_CWMP_CREDENTIALS_SECRET=\" + require('crypto').randomBytes(32).toString('hex'))" >> /opt/genieacs/genieacs.env
   
   Set file ownership and permissions:
 

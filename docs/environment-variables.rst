@@ -215,3 +215,23 @@ UI_JWT_SECRET
   string can be up to 64 characters in length.
 
   Default: unset
+
+CWMP_CREDENTIALS_SECRET
+  Installation-specific secret used by ``HASH_CREDENTIAL()`` in provision
+  scripts to derive connection request passwords (and any other
+  credential-like values). If unset, GenieACS generates a random secret on
+  CWMP startup and stores it in the database as ``cwmp.credentialsSecret``.
+  Set this explicitly in production so the secret survives database resets and
+  is consistent across CWMP workers/hosts. Changing the secret changes derived
+  passwords; devices pick up the new value on the next inform.
+
+  Default: unset (auto-generated into the database)
+
+CWMP_RANDOM_SEED
+  Optional extra material mixed into the deterministic ``Math.random()`` seed
+  used by provision and virtual parameter scripts. When unset, seeding matches
+  previous releases (device ID only). When set, stable ``Math.random()``
+  sequences become installation-specific. Can also be stored as
+  ``cwmp.randomSeed`` in the config collection. This is not auto-generated.
+
+  Default: unset
