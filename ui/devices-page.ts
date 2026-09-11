@@ -44,6 +44,56 @@ const unpackSmartQuery = memoize((query) => {
   });
 });
 
+function getPrimitiveValue(value: unknown): unknown {
+  if (
+    value != null &&
+    typeof value === "object" &&
+    Array.isArray((value as { value?: unknown[] }).value)
+  ) {
+    return (value as { value: unknown[] }).value[0];
+  }
+
+  return value;
+}
+
+function isValidDeviceWebIp(value: unknown): value is string {
+  const rawValue = getPrimitiveValue(value);
+  if (typeof rawValue !== "string") return false;
+
+  const ip = rawValue.trim();
+  if (ip === "0.0.0.0") return false;
+  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) return false;
+
+  return ip.split(".").every((part) => {
+    const number = Number(part);
+    return Number.isInteger(number) && number >= 0 && number <= 255;
+  });
+}
+
+function getDeviceWebIp(attr, device): string | null {
+  const label = store.evaluateExpression(attr.label, null);
+  if (String(label || "").trim().toLowerCase() !== "ip") return null;
+
+  const value = store.evaluateExpression(attr.parameter, device);
+  if (!isValidDeviceWebIp(value)) return null;
+
+  return String(getPrimitiveValue(value)).trim();
+}
+
+function renderDeviceWebIpLink(content: Children, ip: string): Children {
+  return m(
+    "a",
+    {
+      href: `http://${ip}`,
+      target: "_blank",
+      rel: "noopener noreferrer",
+      title: `Open device Web UI: http://${ip}`,
+      onclick: (e) => e.stopPropagation(),
+    },
+    content,
+  );
+}
+
 export function init(
   args: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
@@ -277,11 +327,14 @@ export const component: ClosureComponent = (): Component => {
       const downloadUrl = getDownloadUrl(filter, attributes);
 
       const valueCallback = (attr, device): Children => {
-        return m.context(
-          { device: device, parameter: attr.parameter },
-          attr.type || "parameter",
-          attr,
-        );
+	const content = m.context(
+	  { device: device, parameter: attr.parameter },
+	  attr.type || "parameter",
+	  attr,
+	);
+
+	const deviceWebIp = getDeviceWebIp(attr, device);
+	return deviceWebIp ? renderDeviceWebIpLink(content, deviceWebIp) : content;
       };
 
       const attrs = {};
