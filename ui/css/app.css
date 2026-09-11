@@ -5,9 +5,9 @@
   --base-font-size: 13px;
   --base-line-height: 16px;
 
-  --color1: #ebe0bf;
+  --color1: #9fbf86;
   --color2: #b9b098;
-  --color3: #f2ebd5;
+  --color3: #e8f0c2;
   --color4: #046380;
   --color5: #002f2f;
 
@@ -83,7 +83,7 @@ body {
 }
 
 #header {
-  background-color: #f2eddf;
+  background-color: #ffffcc;
   border-bottom: 1px solid var(--color1);
   overflow: visible;
   position: relative;
