@@ -1,0 +1,86 @@
+services:
+
+  builder:
+    build:
+      context: .
+      dockerfile: Dockerfile.builder
+    container_name: build-artifacts
+    command: sleep infinity
+    volumes:
+      - build_volume:/app/
+
+  geniacs-ui:
+    image: node:18
+    container_name: genieacs-ui
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mongo
+      - builder
+    working_dir: /app
+    volumes:
+      - build_volume:/app/:ro
+    networks:
+      - app-network
+    command: node dist/bin/genieacs-ui --ui-jwt-secret secret
+ 
+  geniacs-cwmp:
+    image: node:18
+    container_name: genieacs-cwmp
+    ports:
+      - "7547:7547"
+    depends_on:
+      - mongo
+      - builder
+    working_dir: /app
+    volumes:
+      - build_volume:/app/:ro
+    networks:
+      - app-network
+    command: node dist/bin/genieacs-cwmp
+  
+  geniacs-nbi:
+    image: node:18
+    container_name: genieacs-nbi
+    ports:
+      - "7557:7557"
+    depends_on:
+      - mongo
+      - builder
+    working_dir: /app
+    volumes:
+      - build_volume:/app/:ro
+    networks:
+      - app-network
+    command: node dist/bin/genieacs-nbi
+   
+  geniacs-fs:
+    image: node:18
+    container_name: genieacs-fs
+    ports:
+      - "7567:7567"
+    depends_on:
+      - mongo
+      - builder
+    working_dir: /app
+    volumes:
+      - build_volume:/app/:ro
+    networks:
+      - app-network
+    command: node dist/bin/genieacs-fs
+
+  mongo:
+    image: mongo:latest
+    container_name: mongo-geniacs
+    ports:
+      - "27017:27017"
+    volumes:
+      - geniacs-data:/data/db
+    networks:
+      - app-network
+
+volumes:
+  build_volume:
+  geniacs-data:
+networks:
+  app-network:
