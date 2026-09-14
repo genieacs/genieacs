@@ -116,8 +116,9 @@ function parameterInfoList(xml: Element): [Path, boolean, boolean][] {
       }
 
       try {
-        if (param && !param.endsWith("."))
-          return [Path.parse(param), false, parsed];
+        if (!param || param === ".")
+          throw new Error("Missing or empty Name element");
+        if (!param.endsWith(".")) return [Path.parse(param), false, parsed];
         else return [Path.parse(param.slice(0, -1)), true, parsed];
       } catch (err) {
         warnings.push({
@@ -200,6 +201,7 @@ function parameterValueList(
         }
       }
       try {
+        if (!param) throw new Error("Missing or empty Name element");
         return [Path.parse(param), parsed, valueType];
       } catch (err) {
         warnings.push({
@@ -249,6 +251,7 @@ function parameterAttributeList(xml: Element): [Path, number, string[]][] {
         .map((c) => decodeEntities(c.text));
 
       try {
+        if (!param) throw new Error("Missing or empty Name element");
         return [Path.parse(param), notification, accessList];
       } catch (err) {
         warnings.push({
