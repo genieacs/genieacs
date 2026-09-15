@@ -563,7 +563,7 @@ router.post("/devices/:id/tasks", async (ctx) => {
 
   let device;
 
-  let statuses: { _id: string; status: string }[];
+  let statuses: { _id: string; name: string; status: string }[];
 
   try {
     const filter = and(authorizer.getFilter("devices", 3), [
@@ -591,7 +591,11 @@ router.post("/devices/:id/tasks", async (ctx) => {
 
     tasks = await apiFunctions.insertTasks(tasks);
 
-    statuses = tasks.map((t) => ({ _id: t._id, status: "pending" }));
+    statuses = tasks.map((t) => ({
+      _id: t._id,
+      name: t.name,
+      status: "pending",
+    }));
   } finally {
     await releaseLock(`cwmp_session_${deviceId}`, token);
   }
@@ -646,7 +650,16 @@ router.post("/devices/:id/tasks", async (ctx) => {
       r.status = res[i] ? "fault" : "done";
   }
 
-  await Promise.all(statuses.map((t) => db.deleteTask(new ObjectId(t._id))));
+  const tasksToDelete = statuses.filter(
+    (t) => !(status && t.name === "download"),
+  );
+  await Promise.all(
+    tasksToDelete.map((t) => db.deleteTask(new ObjectId(t._id))),
+  );
+
+  if (status) {
+    for (const t of statuses) if (t.name === "download") t.status = "stale";
+  }
 
   // Restore socket timeout
   if (socketTimeout) ctx.socket.setTimeout(socketTimeout);
