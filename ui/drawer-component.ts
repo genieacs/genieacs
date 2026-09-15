@@ -418,6 +418,20 @@ const component: ClosureComponent = (): Component => {
                       return;
                     }
 
+                    const downloadQueuedForInform =
+                      tasks2.length > 0 &&
+                      tasks2.every(
+                        (t) => t.name === "download" && t.status === "stale",
+                      );
+
+                    if (downloadQueuedForInform) {
+                      notifications.push(
+                        "success",
+                        `${deviceId}: Download queued; waiting for next Inform`,
+                      );
+                      return;
+                    }
+
                     if (connectionRequestStatus !== "OK") {
                       notifications.push(
                         "error",
