@@ -425,6 +425,7 @@ const component: ClosureComponent = (): Component => {
                       );
 
                     if (downloadQueuedForInform) {
+                      for (const t of tasks2) deleteTask(t);
                       notifications.push(
                         "success",
                         `${deviceId}: Download queued; waiting for next Inform`,
