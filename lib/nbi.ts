@@ -31,13 +31,23 @@ const VIRTUAL_PARAMETERS_REGEX =
   /^\/virtual_parameters\/([a-zA-Z0-9\-_%]+)\/?$/;
 const FAULTS_REGEX = /^\/faults\/([a-zA-Z0-9\-_%:]+)\/?$/;
 
+// Upper bound on the buffered request body to prevent memory-exhaustion from
+// unauthenticated clients. Generous enough for firmware images uploaded via
+// PUT /files; raise it only if larger uploads are required.
+const MAX_BODY_LENGTH = 256 * 1024 * 1024;
+
 async function getBody(request: IncomingMessage): Promise<Buffer> {
   const chunks: Buffer[] = [];
   let readableEnded = false;
+  let length = 0;
   request.on("end", () => {
     readableEnded = true;
   });
-  for await (const chunk of request) chunks.push(chunk);
+  for await (const chunk of request) {
+    length += chunk.length;
+    if (length > MAX_BODY_LENGTH) throw new Error("Request body too large");
+    chunks.push(chunk);
+  }
   // In Node versions prior to 15, the stream will not emit an error if the
   // connection is closed before the stream is finished.
   // For Node 12.9+ we can just use stream.readableEnded
