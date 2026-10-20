@@ -16,6 +16,29 @@ import { acquireLock, releaseLock } from "./lock.ts";
 import { ResourceLockedError } from "./common/errors.ts";
 import Expression from "./common/expression.ts";
 
+// MongoDB query operators that permit server-side JavaScript evaluation. They
+// must never be honored in a client-supplied ?query= filter, independent of
+// the mongod server-side-scripting setting.
+const DISALLOWED_QUERY_OPERATORS = new Set([
+  "$where",
+  "$function",
+  "$accumulator",
+]);
+
+// Recursively reject a parsed query filter that contains any disallowed
+// operator. Throws an Error (surfaced to the caller as HTTP 400).
+function assertSafeQueryFilter(value: unknown): void {
+  if (Array.isArray(value)) {
+    for (const v of value) assertSafeQueryFilter(v);
+  } else if (value && typeof value === "object") {
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (DISALLOWED_QUERY_OPERATORS.has(k))
+        throw new Error(`Disallowed query operator: ${k}`);
+      assertSafeQueryFilter(v);
+    }
+  }
+}
+
 const DEVICE_TASKS_REGEX = /^\/devices\/([a-zA-Z0-9\-_%]+)\/tasks\/?$/;
 const TASKS_REGEX = /^\/tasks\/([a-zA-Z0-9\-_%]+)(\/[a-zA-Z_]*)?$/;
 const TAGS_REGEX =
@@ -631,6 +654,7 @@ async function handler(
     if (url.searchParams.has("query")) {
       try {
         q = JSON.parse(url.searchParams.get("query") as string);
+        assertSafeQueryFilter(q);
       } catch (err) {
         if (!(err instanceof Error)) throw err;
         response.writeHead(400);
