@@ -9,6 +9,80 @@ import XmppClient from "./xmpp-client.ts";
 import * as config from "../lib/config.ts";
 import { encodeEntities, parseAttrs, Element } from "./xml-parser.ts";
 import * as logger from "../lib/logger.ts";
+import * as dns from "node:dns/promises";
+import * as net from "node:net";
+
+function ipv4ToInt(ip: string): number {
+  const p = ip.split(".");
+  return ((+p[0] << 24) | (+p[1] << 16) | (+p[2] << 8) | +p[3]) >>> 0;
+}
+
+function ipv4InCidr(ipInt: number, network: string, bits: number): boolean {
+  const netInt = ipv4ToInt(network);
+  const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0;
+  return (ipInt & mask) === (netInt & mask);
+}
+
+function isReservedIPv4(ip: string): boolean {
+  const n = ipv4ToInt(ip);
+  return (
+    ipv4InCidr(n, "0.0.0.0", 8) ||
+    ipv4InCidr(n, "10.0.0.0", 8) ||
+    ipv4InCidr(n, "100.64.0.0", 10) ||
+    ipv4InCidr(n, "127.0.0.0", 8) ||
+    ipv4InCidr(n, "169.254.0.0", 16) ||
+    ipv4InCidr(n, "172.16.0.0", 12) ||
+    ipv4InCidr(n, "192.168.0.0", 16)
+  );
+}
+
+function isReservedIPv6(ip: string): boolean {
+  const lower = ip.toLowerCase();
+  const mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (mapped) return isReservedIPv4(mapped[1]);
+  if (lower === "::1" || lower === "::") return true;
+  const firstHextet = parseInt(lower.split(":")[0] || "", 16);
+  if (!Number.isNaN(firstHextet)) {
+    if ((firstHextet & 0xfe00) === 0xfc00) return true; // fc00::/7 (ULA)
+    if ((firstHextet & 0xffc0) === 0xfe80) return true; // fe80::/10 (link-local)
+  }
+  return false;
+}
+
+function isReservedAddress(ip: string): boolean {
+  if (net.isIPv4(ip)) return isReservedIPv4(ip);
+  if (net.isIPv6(ip)) return isReservedIPv6(ip);
+  return true; // not a recognizable IP literal -> treat as unsafe
+}
+
+// Reject connection-request URLs whose host resolves to a loopback, link-local,
+// or private address. This closes the SSRF + credential-leak primitive where
+// the ACS answers Digest/Basic challenges from an attacker host using the
+// device's stored connection-request credentials. DNS names are resolved and
+// every returned address is checked. Set CONNECTION_REQUEST_ALLOW_PRIVATE=true
+// to opt out (e.g. a management network where CPEs share the ACS's RFC1918
+// range).
+async function isConnectionRequestHostAllowed(
+  hostname: string,
+): Promise<boolean> {
+  const allowPrivate = String(config.get("CONNECTION_REQUEST_ALLOW_PRIVATE"))
+    .trim()
+    .toLowerCase();
+  if (allowPrivate === "true" || allowPrivate === "1") return true;
+  let addresses: string[];
+  if (net.isIP(hostname)) {
+    addresses = [hostname];
+  } else {
+    try {
+      const resolved = await dns.lookup(hostname, { all: true });
+      addresses = resolved.map((r) => r.address);
+    } catch {
+      return false;
+    }
+    if (addresses.length === 0) return false;
+  }
+  return addresses.every((a) => !isReservedAddress(a));
+}
 
 async function extractAuth(
   exp: Expression,
@@ -87,6 +161,9 @@ export async function httpConnectionRequest(
   const url = new URL(address);
   if (url.protocol !== "http:")
     return "Invalid connection request URL or protocol";
+
+  if (!(await isConnectionRequestHostAllowed(url.hostname)))
+    return "Connection request URL host not allowed";
 
   const options: http.RequestOptions = {
     agent: new http.Agent({ maxSockets: 1, keepAlive: true, timeout: timeout }),

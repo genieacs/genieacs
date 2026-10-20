@@ -38,6 +38,21 @@ if (!cluster.worker) {
     version: VERSION,
   });
 
+  // The NBI exposes no authentication on any route. Warn loudly when it is
+  // bound to a non-loopback interface so operators do not unknowingly expose
+  // provisions, file upload, and the Mongo query interface to the network.
+  // Restrict access with NBI_INTERFACE, a firewall, or an authenticating proxy.
+  if (!["127.0.0.1", "::1", "localhost"].includes(SERVICE_ADDRESS)) {
+    logger.warn({
+      message:
+        "genieacs-nbi has no authentication and is bound to a non-loopback " +
+        "interface; restrict access via NBI_INTERFACE, a firewall, or an " +
+        "authenticating reverse proxy",
+      interface: SERVICE_ADDRESS,
+      pid: process.pid,
+    });
+  }
+
   cluster.start(WORKER_COUNT, SERVICE_PORT, SERVICE_ADDRESS);
 
   process.on("SIGINT", () => {
