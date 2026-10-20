@@ -1198,7 +1198,7 @@ export function response(
     data: `<?xml version="1.0" encoding="UTF-8"?>\n<soap-env:Envelope ${
       namespacesAttrs[rpc.cwmpVersion]
     }><soap-env:Header><cwmp:ID soap-env:mustUnderstand="1">${
-      rpc.id
+      encodeEntities(rpc.id)
     }</cwmp:ID></soap-env:Header><soap-env:Body>${body}</soap-env:Body></soap-env:Envelope>`,
   };
 }
