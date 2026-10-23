@@ -200,6 +200,12 @@ Configure systemd
       [Install]
       WantedBy=default.target
 
+.. attention::
+   If you need to listen to HTTPS and HTTP at the same time because you have 
+   devices that supports either, this is the location you want to configure it.
+   To do so you add a second service such as genieacs-cwmp-http whose EnvironmentFile 
+   points to e.g. /opt/genieacs/genieacs-http.env
+
 .. topic:: Configure log file rotation using logrotate
 
   Save the following as :file:`/etc/logrotate.d/genieacs`
