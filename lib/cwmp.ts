@@ -54,6 +54,7 @@ const deflatePromisified = promisify(zlib.deflate);
 const REALM = "GenieACS";
 const MAX_CYCLES = 4;
 const MAX_CONCURRENT_REQUESTS = Number(config.get("MAX_CONCURRENT_REQUESTS"));
+const MAX_BODY_SIZE = Number(config.get("CWMP_MAX_BODY_SIZE"));
 
 const MAX_SESSION_DURATION = 300000;
 const LOCK_REFRESH_INTERVAL = 10000;
@@ -1402,13 +1403,29 @@ async function listenerAsync(
     }
   }
 
+  const rejectTooLarge = (): void => {
+    logger.accessError({
+      message: "Request body too large",
+      remoteAddress: getRequestOrigin(httpRequest).remoteAddress,
+    });
+    httpRequest.socket.destroy();
+  };
+
+  if (Number(httpRequest.headers["content-length"]) > MAX_BODY_SIZE)
+    return rejectTooLarge();
+
   const chunks: Buffer[] = [];
   try {
     let readableEnded = false;
     stream.on("end", () => {
       readableEnded = true;
     });
-    for await (const chunk of stream) chunks.push(chunk);
+    let size = 0;
+    for await (const chunk of stream) {
+      size += chunk.length;
+      if (size > MAX_BODY_SIZE) return rejectTooLarge();
+      chunks.push(chunk);
+    }
     // In Node versions prior to 15, the stream will not emit an error if the
     // connection is closed before the stream is finished.
     // For Node 12.9+ we can just use stream.readableEnded

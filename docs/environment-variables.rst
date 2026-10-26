@@ -94,6 +94,13 @@ CWMP_ACCESS_LOG_FILE
 
   Default: unset
 
+CWMP_MAX_BODY_SIZE
+  Maximum size of a CWMP request body in bytes, counted after decompression.
+  The connection of a request exceeding this limit is closed without a
+  response.
+
+  Default: ``4194304``
+
 NBI_WORKER_PROCESSES
   The number of worker processes to spawn for genieacs-nbi. A value of 0 means
   as many as there are CPU cores available.
