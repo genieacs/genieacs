@@ -1,6 +1,56 @@
-import test from "node:test";
+import test, { TestContext } from "node:test";
 import assert from "node:assert";
-import { parsePing } from "../lib/ping.ts";
+import childProcess from "node:child_process";
+import os from "node:os";
+import { parsePing, ping } from "../lib/ping.ts";
+
+function mockExecFile(t: TestContext): () => string[] | undefined {
+  let args: string[] | undefined;
+  t.mock.method(
+    childProcess,
+    "execFile",
+    (
+      _file: string,
+      a: string[],
+      callback: (err: Error | null, stdout: string) => void,
+    ) => {
+      args = a;
+      callback(null, "");
+    },
+  );
+  return () => args;
+}
+
+void test("passes host to ping as a single argument after --", (t) => {
+  const getArgs = mockExecFile(t);
+  const platform = t.mock.method(os, "platform");
+  const hosts = {
+    "example.com": "example.com",
+    "192.0.2.1": "192.0.2.1",
+    "[2001:db8::1]": "2001:db8::1",
+    "bücher.example": "bücher.example",
+    "-n": "-n",
+  };
+  for (const osPlatform of ["linux", "freebsd"] as const) {
+    platform.mock.mockImplementation(() => osPlatform);
+    for (const [host, expected] of Object.entries(hosts)) {
+      ping(host, () => {});
+      assert.deepStrictEqual(getArgs()?.slice(-2), ["--", expected], host);
+    }
+  }
+});
+
+void test("rejects invalid hosts without running ping", (t) => {
+  const getArgs = mockExecFile(t);
+  // The first is stripped to "example.com" by domainToASCII
+  const hosts = ["example.com/;id", "a;id", "$(id)", "`id`", "a b", "a\nb"];
+  for (const host of hosts) {
+    let message: string | undefined;
+    ping(host, (err) => (message = err?.message));
+    assert.strictEqual(message, "Invalid host", host);
+  }
+  assert.strictEqual(getArgs(), undefined);
+});
 
 void test("linux Case-1", () => {
   const platform = "linux";
