@@ -27,7 +27,7 @@ const DISALLOWED_QUERY_OPERATORS = new Set([
 
 // Recursively reject a parsed query filter that contains any disallowed
 // operator. Throws an Error (surfaced to the caller as HTTP 400).
-function assertSafeQueryFilter(value: unknown): void {
+export function assertSafeQueryFilter(value: unknown): void {
   if (Array.isArray(value)) {
     for (const v of value) assertSafeQueryFilter(v);
   } else if (value && typeof value === "object") {
@@ -671,7 +671,7 @@ async function handler(
         });
     }
 
-    let projection: Record<string, 1> | undefined;
+    let projection: Record<string, number> | undefined;
     if (url.searchParams.has("projection")) {
       projection = {};
       for (const p of (url.searchParams.get("projection") as string).split(","))
