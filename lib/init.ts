@@ -91,11 +91,29 @@ export async function getStatus(): Promise<Status> {
   return status;
 }
 
-export async function seed(options: Record<string, boolean>): Promise<void> {
+export class SeedValidationError extends Error {}
+
+export interface SeedOptions {
+  users?: boolean;
+  presets?: boolean;
+  filters?: boolean;
+  device?: boolean;
+  index?: boolean;
+  overview?: boolean;
+  username?: string;
+  password?: string;
+}
+
+export async function seed(options: SeedOptions): Promise<void> {
   const resources: Resources = {};
   const proms = [];
 
   if (options.users) {
+    if (typeof options.username !== "string" || !options.username.trim())
+      throw new SeedValidationError("Username required for admin user");
+    if (typeof options.password !== "string" || !options.password)
+      throw new SeedValidationError("Password required for admin user");
+
     resources.permissions = [
       { role: "admin", resource: "devices", access: 3, validate: "true" },
       { role: "admin", resource: "faults", access: 3, validate: "true" },
@@ -121,7 +139,11 @@ export async function seed(options: Record<string, boolean>): Promise<void> {
     ];
 
     resources.users = [
-      { username: "admin", password: "admin", roles: ["admin"] },
+      {
+        username: options.username.trim(),
+        password: options.password,
+        roles: ["admin"],
+      },
     ];
   }
 

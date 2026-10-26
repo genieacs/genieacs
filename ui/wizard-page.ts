@@ -18,6 +18,9 @@ export function createPage(attrs: Attrs): HTMLElement {
   const selected = new Set<string>();
   for (const [k, v] of Object.entries(options)) if (v) selected.add(k);
   const version = new StateSignal(0);
+  let adminUsername = "admin";
+  let adminPassword = "";
+  let adminPasswordConfirm = "";
 
   const items = [
     { key: "users", label: "Users, roles and permissions" },
@@ -54,8 +57,18 @@ export function createPage(attrs: Attrs): HTMLElement {
       function handleSubmit(): void {
         submitBtn.disabled = true;
 
-        const opts: Record<string, boolean> = {};
+        const opts: Record<string, unknown> = {};
         for (const s of selected) opts[s] = true;
+
+        if (opts["users"]) {
+          if (adminPassword !== adminPasswordConfirm) {
+            submitBtn.disabled = false;
+            notifications.push("error", "Passwords do not match");
+            return;
+          }
+          opts["username"] = adminUsername.trim();
+          opts["password"] = adminPassword;
+        }
 
         request("/init", { method: "POST", body: opts })
           .then(() => {
@@ -67,6 +80,8 @@ export function createPage(attrs: Attrs): HTMLElement {
                   selected.clear();
                   for (const [k, v] of Object.entries(options))
                     if (v) selected.add(k);
+                  adminPassword = "";
+                  adminPasswordConfirm = "";
                   version.set(version.get() + 1);
                   notifications.push("success", "Initialization complete", {
                     "Open Sesame!": () => {
@@ -80,9 +95,7 @@ export function createPage(attrs: Attrs): HTMLElement {
                 });
             }, 3000);
             if (opts["users"]) {
-              alert(
-                "An administrator user has been created for you. Use admin/admin to log in. Don't forget to change the default password.",
-              );
+              alert(`Administrator user "${adminUsername.trim()}" created.`);
             }
           })
           .catch((err) => {
@@ -113,11 +126,57 @@ export function createPage(attrs: Attrs): HTMLElement {
                 selected.delete(item.key);
               }
               updateButtonState();
+              if (item.key === "users") version.set(version.get() + 1);
             },
           }),
           span({ class: "ml-2" }, item.label),
         );
       });
+
+      const credentialFields = selected.has("users")
+        ? div(
+            { class: "flex flex-col gap-3 mb-6" },
+            label(
+              { class: "block text-sm font-semibold text-stone-700" },
+              "Admin username",
+              input({
+                type: "text",
+                value: adminUsername,
+                class:
+                  "shadow-sm focus:ring-cyan-500 focus:border-cyan-500 block sm:text-sm border-stone-300 rounded-md",
+                oninput: (e) => {
+                  adminUsername = (e.target as HTMLInputElement).value;
+                },
+              }),
+            ),
+            label(
+              { class: "block text-sm font-semibold text-stone-700" },
+              "Admin password",
+              input({
+                type: "password",
+                value: adminPassword,
+                class:
+                  "shadow-sm focus:ring-cyan-500 focus:border-cyan-500 block sm:text-sm border-stone-300 rounded-md",
+                oninput: (e) => {
+                  adminPassword = (e.target as HTMLInputElement).value;
+                },
+              }),
+            ),
+            label(
+              { class: "block text-sm font-semibold text-stone-700" },
+              "Confirm password",
+              input({
+                type: "password",
+                value: adminPasswordConfirm,
+                class:
+                  "shadow-sm focus:ring-cyan-500 focus:border-cyan-500 block sm:text-sm border-stone-300 rounded-md",
+                oninput: (e) => {
+                  adminPasswordConfirm = (e.target as HTMLInputElement).value;
+                },
+              }),
+            ),
+          )
+        : null;
 
       return div(
         { class: "bg-white shadow-sm rounded-lg p-6 sm:p-8 max-w-lg" },
@@ -126,6 +185,7 @@ export function createPage(attrs: Attrs): HTMLElement {
           "This wizard will seed the database with a minimal initial configuration to serve as a starting point. Select what you want to initialize and click the button below.",
         ),
         div({ class: "flex flex-col gap-3 mb-6" }, ...checkboxes),
+        credentialFields,
         submitBtn,
       );
     },

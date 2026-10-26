@@ -197,7 +197,7 @@ router.get("/init", async (ctx) => {
 });
 
 router.post("/init", async (ctx) => {
-  const status = ctx.request.body;
+  const status = ctx.request.body as Record<string, unknown>;
   if (Object.keys(localCache.getUsers(ctx.state.configSnapshot)).length) {
     if (!ctx.state.authorizer.hasAccess("users", 3)) status["users"] = false;
     if (!ctx.state.authorizer.hasAccess("permissions", 3))
@@ -213,7 +213,17 @@ router.post("/init", async (ctx) => {
     if (!ctx.state.authorizer.hasAccess("provisions", 3))
       status["presets"] = false;
   }
-  await init.seed(status);
+
+  try {
+    await init.seed(status);
+  } catch (err) {
+    if (err instanceof init.SeedValidationError) {
+      ctx.status = 400;
+      ctx.body = err.message;
+      return;
+    }
+    throw err;
+  }
   ctx.body = "";
 });
 
