@@ -673,14 +673,13 @@ async function handler(
 
     let projection: Record<string, number> | undefined;
     if (url.searchParams.has("projection")) {
-      projection = {};
+      const requested: Record<string, 1> = {};
       for (const p of (url.searchParams.get("projection") as string).split(","))
-        projection[p.trim()] = 1;
-      projection = optimizeProjection(projection);
+        requested[p.trim()] = 1;
+      projection = optimizeProjection(requested);
     }
 
-    const cur = collection.find(q, { projection: projection });
-
+    let sort: Record<string, 1 | -1> | undefined;
     if (url.searchParams.has("sort")) {
       let s;
       try {
@@ -691,17 +690,37 @@ async function handler(
         response.end(`${err.name}: ${err.message}`);
         return;
       }
-      const sort: Record<string, unknown> = {};
+      sort = {};
       for (const [k, v] of Object.entries(s)) {
         if (k[k.lastIndexOf(".") + 1] !== "_" && collectionName === "devices")
-          sort[`${k}._value`] = v;
-        else sort[k] = v;
+          sort[`${k}._value`] = v as 1 | -1;
+        else sort[k] = v as 1 | -1;
       }
-
-      cur.sort(sort as Record<string, 1 | -1>);
     }
 
-    const total = await collection.countDocuments(q);
+    const skip = url.searchParams.has("skip")
+      ? parseInt(url.searchParams.get("skip") as string)
+      : undefined;
+    const limit = url.searchParams.has("limit")
+      ? parseInt(url.searchParams.get("limit") as string)
+      : undefined;
+
+    // Credentials are removed before the client's filter and sort are applied
+    // so that neither can be used to probe their values
+    const pipeline =
+      collectionName === "users"
+        ? [{ $project: { password: 0, salt: 0 } }, { $match: q }]
+        : null;
+
+    let total: number;
+    if (pipeline) {
+      const [res] = await collection
+        .aggregate([...pipeline, { $count: "total" }])
+        .toArray();
+      total = (res?.total as number) ?? 0;
+    } else {
+      total = await collection.countDocuments(q);
+    }
 
     response.writeHead(200, {
       "Content-Type": "application/json",
@@ -713,11 +732,17 @@ async function handler(
       return;
     }
 
-    if (url.searchParams.has("skip"))
-      cur.skip(parseInt(url.searchParams.get("skip") as string));
-
-    if (url.searchParams.has("limit"))
-      cur.limit(parseInt(url.searchParams.get("limit") as string));
+    // Mirror find(), which ignores a zero or NaN skip/limit and an empty sort,
+    // and treats a negative limit as its absolute value
+    const cur = pipeline
+      ? collection.aggregate([
+          ...pipeline,
+          ...(sort && Object.keys(sort).length ? [{ $sort: sort }] : []),
+          ...(skip ? [{ $skip: skip }] : []),
+          ...(limit ? [{ $limit: Math.abs(limit) }] : []),
+          ...(projection ? [{ $project: projection }] : []),
+        ])
+      : collection.find(q, { projection, sort, skip, limit });
 
     response.write("[\n");
     i = 0;
