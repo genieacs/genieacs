@@ -44,7 +44,7 @@ const options: Record<
 
   NBI_WORKER_PROCESSES: { type: "int", default: 0 },
   NBI_PORT: { type: "int", default: 7557 },
-  NBI_INTERFACE: { type: "string", default: "::" },
+  NBI_INTERFACE: { type: "string", default: "127.0.0.1" },
   NBI_SSL_CERT: { type: "string", default: "" },
   NBI_SSL_KEY: { type: "string", default: "" },
   NBI_LOG_FILE: { type: "path", default: "" },

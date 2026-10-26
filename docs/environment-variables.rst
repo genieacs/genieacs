@@ -113,9 +113,14 @@ NBI_PORT
   Default: ``7557``
 
 NBI_INTERFACE
-  The network interface that genieacs-nbi binds to.
+  The network interface that genieacs-nbi binds to. The NBI is
+  unauthenticated by design and must not be reachable from untrusted
+  networks; it binds to the loopback interface by default. Set this to
+  ``::`` (or another address) only when access from other hosts is
+  required and protected, for example by a reverse proxy adding
+  authentication.
 
-  Default: ``::``
+  Default: ``127.0.0.1``
 
 NBI_SSL_CERT
   Path to certificate file. If omitted, non-secure HTTP will be used.
