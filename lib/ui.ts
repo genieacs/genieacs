@@ -198,6 +198,9 @@ router.get("/init", async (ctx) => {
 
 router.post("/init", async (ctx) => {
   const status = ctx.request.body as Record<string, unknown>;
+  // Only seed what isn't set up yet, as seeding bypasses permission validators
+  for (const [k, v] of Object.entries(await init.getStatus()))
+    if (!v) status[k] = false;
   if (Object.keys(localCache.getUsers(ctx.state.configSnapshot)).length) {
     if (!ctx.state.authorizer.hasAccess("users", 3)) status["users"] = false;
     if (!ctx.state.authorizer.hasAccess("permissions", 3))
