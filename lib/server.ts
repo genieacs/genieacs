@@ -91,9 +91,11 @@ export function start(
     _listener(req, res).catch((err) => {
       try {
         res.socket?.unref();
-        if (res.headersSent) {
+        if (!res.headersSent) {
           res.writeHead(500, { Connection: "close" });
           res.end(`${err.name}: ${err.message}`);
+        } else {
+          res.destroy();
         }
       } catch {
         // Ignore
