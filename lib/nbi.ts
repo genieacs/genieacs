@@ -1,6 +1,11 @@
 import * as vm from "node:vm";
 import { IncomingMessage, ServerResponse } from "node:http";
-import { ObjectId } from "mongodb";
+import {
+  AbstractCursor,
+  MongoInvalidArgumentError,
+  MongoServerError,
+  ObjectId,
+} from "mongodb";
 import { getRevision, getConfig } from "./ui/local-cache.ts";
 import { filesBucket, collections } from "./db/db.ts";
 import { optimizeProjection } from "./db/util.ts";
@@ -712,38 +717,60 @@ async function handler(
         ? [{ $project: { password: 0, salt: 0 } }, { $match: q }]
         : null;
 
+    // Errors from MongoDB rejecting the client's query or options
+    const rejectInvalid = (err: unknown): void => {
+      if (
+        !(err instanceof MongoServerError) &&
+        !(err instanceof MongoInvalidArgumentError)
+      )
+        throw err;
+      response.writeHead(400);
+      response.end(`${err.name}: ${err.message}`);
+    };
+
     let total: number;
-    if (pipeline) {
-      const [res] = await collection
-        .aggregate([...pipeline, { $count: "total" }])
-        .toArray();
-      total = (res?.total as number) ?? 0;
-    } else {
-      total = await collection.countDocuments(q);
+    try {
+      if (pipeline) {
+        const [res] = await collection
+          .aggregate([...pipeline, { $count: "total" }])
+          .toArray();
+        total = (res?.total as number) ?? 0;
+      } else {
+        total = await collection.countDocuments(q);
+      }
+    } catch (err) {
+      return rejectInvalid(err);
     }
 
-    response.writeHead(200, {
-      "Content-Type": "application/json",
-      total: total,
-    });
+    const headers = { "Content-Type": "application/json", total: total };
 
     if (request.method === "HEAD") {
+      response.writeHead(200, headers);
       response.end();
       return;
     }
 
-    // Mirror find(), which ignores a zero or NaN skip/limit and an empty sort,
-    // and treats a negative limit as its absolute value
-    const cur = pipeline
-      ? collection.aggregate([
-          ...pipeline,
-          ...(sort && Object.keys(sort).length ? [{ $sort: sort }] : []),
-          ...(skip ? [{ $skip: skip }] : []),
-          ...(limit ? [{ $limit: Math.abs(limit) }] : []),
-          ...(projection ? [{ $project: projection }] : []),
-        ])
-      : collection.find(q, { projection, sort, skip, limit });
+    let cur: AbstractCursor;
+    try {
+      // Mirror find(), which ignores a zero or NaN skip/limit and an empty
+      // sort, and treats a negative limit as its absolute value
+      cur = pipeline
+        ? collection.aggregate([
+            ...pipeline,
+            ...(sort && Object.keys(sort).length ? [{ $sort: sort }] : []),
+            ...(skip ? [{ $skip: skip }] : []),
+            ...(limit ? [{ $limit: Math.abs(limit) }] : []),
+            ...(projection ? [{ $project: projection }] : []),
+          ])
+        : collection.find(q, { projection, sort, skip, limit });
+      // Run the query now as some invalid options (e.g. a negative skip) are
+      // only rejected then, and the response hasn't started yet
+      await cur.hasNext();
+    } catch (err) {
+      return rejectInvalid(err);
+    }
 
+    response.writeHead(200, headers);
     response.write("[\n");
     i = 0;
     for await (const item of cur) {
