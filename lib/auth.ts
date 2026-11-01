@@ -96,26 +96,46 @@ export function digest(
   body?: string | Buffer,
   cnonce?: string | Buffer,
   nc?: string | Buffer,
+  algorithm: string = "MD5",
 ): string {
-  const ha1 = createHash("md5");
+  const hashAlgorithm = algorithm.toUpperCase();
+
+  if (!["MD5", "SHA-256"].includes(hashAlgorithm)) {
+    throw new Error(`Unsupported Digest algorithm: ${algorithm}`);
+  }
+
+  const ha1 = createHash(
+    hashAlgorithm === "SHA-256" ? "sha256" : "md5",
+  );
+
   ha1.update(username).update(":").update(realm).update(":").update(password);
-  // TODO support "MD5-sess" algorithm directive
+
   const ha1d = ha1.digest("hex");
 
-  const ha2 = createHash("md5");
+  const ha2 = createHash(
+    hashAlgorithm === "SHA-256" ? "sha256" : "md5",
+  );
+
   ha2.update(httpMethod).update(":").update(uri);
 
   if (qop === "auth-int") {
-    const bodyHash = createHash("md5")
+    const bodyHash = createHash(
+      hashAlgorithm === "SHA-256" ? "sha256" : "md5",
+    )
       .update(body || "")
       .digest("hex");
+
     ha2.update(":").update(bodyHash);
   }
 
   const ha2d = ha2.digest("hex");
 
-  const hash = createHash("md5");
+  const hash = createHash(
+    hashAlgorithm === "SHA-256" ? "sha256" : "md5",
+  );
+
   hash.update(ha1d).update(":").update(nonce);
+
   if (qop) {
     hash
       .update(":")
@@ -125,6 +145,7 @@ export function digest(
       .update(":")
       .update(qop);
   }
+
   hash.update(":").update(ha2d);
 
   return hash.digest("hex");
@@ -148,6 +169,8 @@ export function solveDigest(
     else qop = authHeader.qop;
   }
 
+  const algorithm = authHeader.algorithm || "MD5";
+
   const hash = digest(
     username,
     authHeader.realm,
@@ -159,6 +182,7 @@ export function solveDigest(
     body,
     cnonce,
     nc,
+    algorithm,
   );
 
   let authString = `Digest username="${username}"`;
