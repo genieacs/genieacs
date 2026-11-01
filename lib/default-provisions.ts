@@ -39,7 +39,8 @@ export function refresh(
     for (const a of provision.slice(4)) attrGet[a as string] = t;
   }
 
-  let path = Path.parse(provision[1]);
+  // The documented "refresh all device parameters" passes an empty objectName
+  let path = provision[1] ? Path.parse(provision[1]) : Path.root;
   let l = path.length;
   if (refreshChildren) {
     const segments = path.segments.slice();
@@ -49,7 +50,7 @@ export function refresh(
     path = Path.parse(segments.join("."));
   }
 
-  for (let i = l; i <= path.length; ++i) {
+  for (let i = Math.max(l, 1); i <= path.length; ++i) {
     declarations.push({
       path: path.slice(0, i),
       pathGet: t,

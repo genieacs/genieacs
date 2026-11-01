@@ -73,7 +73,14 @@ export default class Path {
     return this.colon;
   }
 
+  public get parent(): Path | undefined {
+    if (!this.length) return undefined;
+    return this.slice(0, -1);
+  }
+
   public toString(): string {
+    if (!this.length)
+      throw new Error("The root path has no string representation");
     return this._string;
   }
 

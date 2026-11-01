@@ -1090,7 +1090,7 @@ function runDeclarations(
       }
     }
 
-    if (declaration.pathSet != null) {
+    if (declaration.pathSet != null && path.length > 1) {
       let minInstances: number, maxInstances: number;
       if (Array.isArray(declaration.pathSet)) {
         minInstances = declaration.pathSet[0];
@@ -1099,7 +1099,7 @@ function runDeclarations(
         minInstances = maxInstances = declaration.pathSet;
       }
 
-      let parent = path.slice(0, -1);
+      let parent = path.parent!;
 
       const keys: Record<string, string> = {};
       if (path.segments[path.length - 1] instanceof Expression) {
@@ -1853,12 +1853,15 @@ function generateGetRpcRequest(
     }
 
     if (!found) {
-      const p = sessionContext.deviceData.paths.add(
-        path.slice(0, -1).toString(),
-      );
-      syncState.gpn.add(p);
-      const f = 1 << p.length;
-      syncState.gpnPatterns.set(p, f | (syncState.gpnPatterns.get(p) ?? 0));
+      const parent = path.parent!;
+      if (parent.length) {
+        const p = sessionContext.deviceData.paths.add(parent.toString());
+        syncState.gpn.add(p);
+        const f = 1 << p.length;
+        syncState.gpnPatterns.set(p, f | (syncState.gpnPatterns.get(p) ?? 0));
+      } else {
+        syncState.gpn.add(Path.root);
+      }
     }
   }
   syncState.refreshAttributes.exist.clear();
@@ -1885,21 +1888,29 @@ function generateGetRpcRequest(
     }
 
     if (!found) {
-      const p = sessionContext.deviceData.paths.add(
-        path.slice(0, -1).toString(),
-      );
-      syncState.gpn.add(p);
-      const f = 1 << p.length;
-      syncState.gpnPatterns.set(p, f | (syncState.gpnPatterns.get(p) ?? 0));
+      const parent = path.parent!;
+      if (parent.length) {
+        const p = sessionContext.deviceData.paths.add(parent.toString());
+        syncState.gpn.add(p);
+        const f = 1 << p.length;
+        syncState.gpnPatterns.set(p, f | (syncState.gpnPatterns.get(p) ?? 0));
+      } else {
+        syncState.gpn.add(Path.root);
+      }
     }
   }
   syncState.refreshAttributes.object.clear();
 
   for (const path of syncState.refreshAttributes.writable) {
-    const p = sessionContext.deviceData.paths.add(path.slice(0, -1).toString());
-    syncState.gpn.add(p);
-    const f = 1 << p.length;
-    syncState.gpnPatterns.set(p, f | (syncState.gpnPatterns.get(p) ?? 0));
+    const parent = path.parent!;
+    if (parent.length) {
+      const p = sessionContext.deviceData.paths.add(parent.toString());
+      syncState.gpn.add(p);
+      const f = 1 << p.length;
+      syncState.gpnPatterns.set(p, f | (syncState.gpnPatterns.get(p) ?? 0));
+    } else {
+      syncState.gpn.add(Path.root);
+    }
   }
   syncState.refreshAttributes.writable.clear();
 
@@ -1938,7 +1949,6 @@ function generateGetRpcRequest(
     }
 
     if (path) {
-      let nextLevel: boolean;
       let est = 0;
       if (path.length >= GPN_NEXT_LEVEL) {
         const patterns: [Path, number][] = [[path, 0]];
@@ -1954,18 +1964,18 @@ function generateGetRpcRequest(
         est = estimateGpnCount(patterns);
       }
 
-      if (est < Math.pow(2, Math.max(0, 8 - path.length))) {
-        nextLevel = true;
-        syncState.gpn.delete(path);
-      } else {
-        nextLevel = false;
-        for (const p of sessionContext.deviceData.paths.findCompat(
-          path,
-          false,
-          true,
-          99,
-        ))
-          syncState.gpn.delete(p);
+      syncState.gpn.delete(path);
+
+      const nextLevel = est < Math.pow(2, Math.max(0, 8 - path.length));
+
+      if (!nextLevel) {
+        if (!path.length) syncState.gpn.clear();
+        else {
+          const prefix = path.toString() + ".";
+          for (const p of syncState.gpn)
+            if (p.length && p.toString().startsWith(prefix))
+              syncState.gpn.delete(p);
+        }
       }
 
       return {
@@ -2210,7 +2220,7 @@ function generateSetRpcRequest(
     const attrs = deviceData.attributes.get(p);
     const t2 = attrs?.value?.[1]?.[0] as number;
     if (!(t <= t2)) {
-      const base = p.slice(0, -1).toString();
+      const base = p.parent!.toString();
       const fileTypePath = deviceData.paths.get(`${base}.FileType`);
       const fileNamePath = deviceData.paths.get(`${base}.FileName`);
       const targetFileNamePath = deviceData.paths.get(`${base}.TargetFileName`);
@@ -2241,7 +2251,7 @@ function generateSetRpcRequest(
     const attrs = deviceData.attributes.get(p);
     const t2 = attrs?.value?.[1]?.[0] as number;
     if (!(t <= t2)) {
-      const base = p.slice(0, -1).toString();
+      const base = p.parent!.toString();
       const fileTypePath = deviceData.paths.get(`${base}.FileType`);
       const fileNamePath = deviceData.paths.get(`${base}.FileName`);
       const fileTypeAttrs = fileTypePath

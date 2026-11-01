@@ -23,6 +23,7 @@ void test("toString", () => {
   const path1 = Path.parse('abc.[ abc=123 and def=" abc " ].123');
   const path2 = Path.parse('abc.[abc = 123 AND def = " abc "].123');
   assert.strictEqual(path1.toString(), path2.toString());
+  assert.throws(() => Path.root.toString());
 });
 
 void test("slice", () => {
@@ -31,6 +32,7 @@ void test("slice", () => {
   assert.strictEqual(sliced.toString(), '*.b.[x = "y"]');
   assert.strictEqual(sliced.alias, 0b100);
   assert.strictEqual(sliced.wildcard, 0b1);
+  assert.strictEqual(path.slice(2, 2), Path.root);
 
   const path2 = Path.parse("a.b:c.d");
 

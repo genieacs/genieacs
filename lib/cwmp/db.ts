@@ -259,21 +259,22 @@ export async function saveDevice(
     )
       continue;
 
-    const parent = deviceData.paths.get(diff[0].slice(0, -1).toString());
+    // The wildcard check above excludes the root path, so .parent is defined
+    const parent = diff[0].parent!;
 
     // Param timestamps may be greater than session timestamp to track revisions
     if (diff[2] > sessionTimestamp) diff[2] = sessionTimestamp;
 
     if (diff[2] == null && diff[1] != null) {
       update["$unset"][
-        parent!.length ? parent!.toString() + "._timestamp" : "_timestamp"
+        parent.length ? parent.toString() + "._timestamp" : "_timestamp"
       ] = 1;
-    } else {
-      if (parent && (!parent.length || deviceData.attributes.has(parent))) {
-        update["$set"][
-          parent.length ? parent.toString() + "._timestamp" : "_timestamp"
-        ] = new Date(diff[2]);
-      }
+    } else if (!parent.length) {
+      update["$set"]["_timestamp"] = new Date(diff[2]);
+    } else if (
+      deviceData.attributes.has(deviceData.paths.get(parent.toString())!)
+    ) {
+      update["$set"][parent.toString() + "._timestamp"] = new Date(diff[2]);
     }
   }
 
