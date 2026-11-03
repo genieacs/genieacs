@@ -1347,6 +1347,24 @@ export async function rpcRequest(
         ? sessionContext.syncState.virtualParameterDeclarations.length
         : 0;
 
+    // Fault alias paths that can't be expanded rather than match nothing
+    for (const declaration of sessionContext.declarations[inception]) {
+      if (!declaration.path.alias) continue;
+      try {
+        device.getAliasDeclarations(declaration.path, 0);
+      } catch (err) {
+        return {
+          fault: {
+            code: "invalid_path",
+            message: `${(err as Error).message}: ${declaration.path.toString()}`,
+            timestamp: sessionContext.timestamp,
+          },
+          rpcId: null,
+          rpc: null,
+        };
+      }
+    }
+
     // Avoid unnecessary increment of iteration when using vparams
     if (inception === sessionContext.declarations.length - 1)
       sessionContext.iteration += 2;

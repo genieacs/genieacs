@@ -293,8 +293,11 @@ function clear(
 ): void {
   state.uncommitted = true;
 
-  if (state.revision === state.maxRevision)
-    state.clear.push([Path.parse(path), timestamp, attributes]);
+  if (state.revision === state.maxRevision) {
+    const parsed = Path.parse(path);
+    if (parsed.alias) throw new Error("clear() does not support alias paths");
+    state.clear.push([parsed, timestamp, attributes]);
+  }
 }
 
 function commit(): void {

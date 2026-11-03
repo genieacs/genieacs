@@ -44,14 +44,14 @@ export default class PathSet {
     return this.stringIndex.get(path);
   }
 
+  // findCompat() does not support attribute paths
   public findCompat(
     path: Path,
     superset = false,
     subset = false,
     depth = path.length,
   ): Path[] {
-    if (path.attrLength)
-      throw new Error("findCompat() does not support attribute paths");
+    if (path.attrLength) return [];
 
     depth = Math.min(31, depth);
     const paramMask = (1 << path.paramLength) - 1;

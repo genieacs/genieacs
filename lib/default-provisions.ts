@@ -41,13 +41,11 @@ export function refresh(
 
   // The documented "refresh all device parameters" passes an empty objectName
   let path = provision[1] ? Path.parse(provision[1]) : Path.root;
-  let l = path.length;
+  const l = path.length;
+
   if (refreshChildren) {
-    const segments = path.segments.slice();
-    l = segments.length;
-    segments.length = MAX_DEPTH;
-    segments.fill("*", l);
-    path = Path.parse(segments.join("."));
+    const wildcard = Path.parse("*");
+    while (path.length < MAX_DEPTH) path = path.concat(wildcard);
   }
 
   for (let i = Math.max(l, 1); i <= path.length; ++i) {

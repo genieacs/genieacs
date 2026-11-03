@@ -101,17 +101,22 @@ export function getAliasDeclarations(
   return decs;
 }
 
+// Converts an alias expression into parameter assignments, throwing for
+// unsupported shapes, including nested alias expressions
 export function expressionToAlias(exp: Expression): [Path, Value][] {
   if (exp instanceof Expression.Literal && exp.value === true) return [];
   if (exp instanceof Expression.Binary) {
     if (exp.operator === "AND")
       return [...expressionToAlias(exp.left), ...expressionToAlias(exp.right)];
-    else if (exp.operator === "=") {
-      if (
-        exp.left instanceof Expression.Parameter &&
-        exp.right instanceof Expression.Literal
-      )
-        return [[exp.left.path, exp.right.value]];
+    else if (
+      exp.operator === "=" &&
+      exp.left instanceof Expression.Parameter &&
+      exp.right instanceof Expression.Literal
+    ) {
+      for (const segment of exp.left.path.segments)
+        if (segment instanceof Expression) expressionToAlias(segment);
+
+      return [[exp.left.path, exp.right.value]];
     }
   }
   throw new Error("Invalid alias expression");
