@@ -437,7 +437,7 @@ async function applyPresets(sessionContext: SessionContext): Promise<void> {
   deviceData.attributes.revision = 1;
 
   const deviceEvents: Record<string, boolean> = {};
-  for (const p of deviceData.paths.find(Path.parse("Events"), 0b001, 0b1)) {
+  for (const p of deviceData.paths.find(Path.parse("Events"), 0, 0b10)) {
     const attrs = deviceData.attributes.get(p);
     const t = attrs?.value?.[1]?.[0] as number;
     if (t >= sessionContext.timestamp)

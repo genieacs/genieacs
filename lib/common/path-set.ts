@@ -1,5 +1,9 @@
 import Path from "./path.ts";
 
+function lowBits(n: number): number {
+  return n <= 0 ? 0 : -1 >>> (32 - n);
+}
+
 export default class PathSet {
   private paramSegmentIndex: Map<string, Set<Path>>[] = [];
   private attrSegmentIndex: Map<string, Set<Path>>[] = [];
@@ -12,6 +16,8 @@ export default class PathSet {
     if (path) return path;
     path = Path.parse(pathStr);
     if (path.alias) throw new Error("PathSet does not support aliased paths");
+    if (!path.paramLength)
+      throw new Error("PathSet does not support attribute-only paths");
 
     this.stringIndex.set(path.toString(), path);
 
@@ -49,19 +55,29 @@ export default class PathSet {
     path: Path,
     superset = false,
     subset = false,
-    depth = path.length,
+    depth = path.paramLength,
   ): Path[] {
     if (path.attrLength) return [];
 
-    depth = Math.min(31, depth);
-    const paramMask = (1 << path.paramLength) - 1;
-    let mask = ((0b10 << depth) - 1) & ~paramMask;
-    if (superset) mask |= ~path.wildcard & paramMask;
-    if (subset) mask |= path.wildcard;
-    return this.find(path, mask, 1);
+    const segmentMask = lowBits(path.paramLength);
+
+    let laxity = 0;
+    if (superset) laxity |= ~path.wildcard & segmentMask;
+    if (subset) laxity |= path.wildcard;
+
+    const lo = Math.max(1, path.paramLength);
+    const hi = Math.min(32, depth);
+    const paramMask = lowBits(hi - lo + 1) << (lo - 1);
+
+    return this.find(path, laxity, paramMask);
   }
 
-  public find(path: Path, paramMask: number, attrMask: number): Path[] {
+  public find(
+    path: Path,
+    laxity: number, // bit i: pattern segment i matches by wildcard as well
+    paramMask = -1, // bit i admits candidates with param length i + 1
+    attrMask = 1, // bit i admits candidates with attr length i
+  ): Path[] {
     if (path.alias) throw new Error("PathSet does not support aliased paths");
     if (path.paramLength > this.paramSegmentIndex.length) return [];
     if (path.attrLength > this.attrSegmentIndex.length) return [];
@@ -70,14 +86,9 @@ export default class PathSet {
 
     const indexes: [Set<Path>, Set<Path>][] = [];
 
-    const paramLengthMask = (1 << path.paramLength) - 1;
-    const attrLengthMask = (1 << path.attrLength) - 1;
-
-    const mask = (paramMask & paramLengthMask) | (attrMask << path.paramLength);
-
     for (const [i, s] of path.segments.entries()) {
       const b = 1 << i;
-      const m = mask & b;
+      const m = laxity & b;
       const w = b & path.wildcard;
       if (w && m) continue;
       const idxSet =
@@ -97,12 +108,10 @@ export default class PathSet {
     if (!indexes.length) res = [...this.stringIndex.values()];
     else res = [...indexes[0][0], ...indexes[0][1]];
 
-    const paramCover = ~paramLengthMask & paramMask;
-    const attrCover = ~attrLengthMask & attrMask;
-
     res = res.filter(
       (p) =>
-        (1 << p.paramLength) & paramCover && (1 << p.attrLength) & attrCover,
+        (1 << (p.paramLength - 1)) & paramMask &&
+        (1 << p.attrLength) & attrMask,
     );
 
     for (let i = 1; i < indexes.length; ++i) {
