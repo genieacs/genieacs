@@ -46,6 +46,9 @@ import Path from "./common/path.ts";
 
 const SERVER_NAME = `GenieACS/${VERSION}`;
 
+// Leaves a segment for derived paths (e.g. "Obj.*", "Param:writable")
+const MAX_PARAM_LENGTH = Path.MAX_LENGTH - 1;
+
 const NAMESPACES = {
   "1.0": {
     "soap-enc": "http://schemas.xmlsoap.org/soap/encoding/",
@@ -104,6 +107,19 @@ function parseBool(v: string): boolean | null {
   return null;
 }
 
+// Rejects wildcards, aliases and attributes, which a CPE must never send
+function parameterPath(name: string): Path {
+  const path = Path.parse(name);
+  if (
+    path.wildcard ||
+    path.alias ||
+    path.attrLength ||
+    path.length > MAX_PARAM_LENGTH
+  )
+    throw new Error("Invalid parameter path");
+  return path;
+}
+
 function event(xml: Element): string[] {
   return xml.children
     .filter((n) => n.localName === "EventStruct")
@@ -140,8 +156,9 @@ function parameterInfoList(xml: Element): [Path, boolean, boolean][] {
     try {
       if (!nameEl) throw new Error("Missing Name element");
       const param = nameEl.text;
-      if (!param.endsWith(".")) result.push([Path.parse(param), false, parsed]);
-      else result.push([Path.parse(param.slice(0, -1)), true, parsed]);
+      if (!param.endsWith("."))
+        result.push([parameterPath(param), false, parsed]);
+      else result.push([parameterPath(param.slice(0, -1)), true, parsed]);
     } catch {
       warnings.push({
         message: "Missing or invalid XML node",
@@ -228,7 +245,7 @@ function parameterValueList(
 
     try {
       if (!nameEl) throw new Error("Missing Name element");
-      result.push([Path.parse(nameEl.text), parsed, valueType]);
+      result.push([parameterPath(nameEl.text), parsed, valueType]);
     } catch {
       warnings.push({
         message: "Missing or invalid XML node",
@@ -280,7 +297,7 @@ function parameterAttributeList(xml: Element): [Path, number, string[]][] {
 
     try {
       if (!nameEl) throw new Error("Missing Name element");
-      result.push([Path.parse(nameEl.text), notification, accessList]);
+      result.push([parameterPath(nameEl.text), notification, accessList]);
     } catch {
       warnings.push({
         message: "Missing or invalid XML node",

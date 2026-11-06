@@ -7,6 +7,8 @@ let cache1 = new Map<string, Path>();
 let cache2 = new Map<string, Path>();
 
 export default class Path {
+  public static readonly MAX_LENGTH = 32;
+
   declare public readonly segments: Segments;
   declare public readonly colon: number;
   declare public readonly wildcard: number;
@@ -16,7 +18,7 @@ export default class Path {
 
   constructor(segments: Segments, colon: number) {
     if (!(colon <= segments.length)) throw new Error("Invalid path");
-    if (segments.length > 32) throw new Error("Path too long");
+    if (segments.length > Path.MAX_LENGTH) throw new Error("Path too long");
 
     Object.freeze(segments);
 
