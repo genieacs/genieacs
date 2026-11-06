@@ -46,6 +46,9 @@ import * as logger from "./logger.ts";
 import { encodeTag } from "./util.ts";
 import Expression, { Value } from "./common/expression.ts";
 
+// Leaves a segment for derived paths (e.g. "Obj.*", "Param:writable")
+const MAX_PARAM_LENGTH = Path.MAX_LENGTH - 1;
+
 const VALID_PARAM_TYPES = new Set([
   "xsd:int",
   "xsd:unsignedInt",
@@ -2129,9 +2132,21 @@ function generateSetRpcRequest(
   for (const [param, instances] of syncState.instancesToCreate) {
     const attrs = sessionContext.deviceData.attributes.get(param);
     if (attrs && canWrite(attrs)) {
-      const instance = instances.values().next().value;
-      if (instance) {
+      for (const instance of instances.values()) {
         instances.delete(instance);
+        const keyLength = Math.max(
+          0,
+          ...Object.keys(instance).map((k) => Path.parse(k).length),
+        );
+        // The new instance or its keys would be too long to store
+        if (param.length + 1 + keyLength > MAX_PARAM_LENGTH) {
+          logger.accessWarn({
+            sessionContext: sessionContext,
+            message: "Cannot add instance, path too long",
+            parameter: param.toString(),
+          });
+          continue;
+        }
         return {
           name: "AddObject",
           objectName: param.toString() + ".",
