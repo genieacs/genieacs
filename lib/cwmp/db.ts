@@ -11,8 +11,6 @@ import { collections, uploadsBucket } from "../db/db.ts";
 import { optimizeProjection } from "../db/util.ts";
 import * as MongoTypes from "../db/types.ts";
 
-const INVALID_PATH_SUFFIX = "__invalid";
-
 function compareAccessLists(list1: string[], list2: string[]): boolean {
   if (list1.length !== list2.length) return false;
   for (const [i, v] of list1.entries()) if (v !== list2[i]) return false;
@@ -73,19 +71,7 @@ export async function fetchDevice(
     if (obj["_accessList"] != null)
       attrs.accessList = [obj["_attributesTimestamp"] || 1, obj["_accessList"]];
 
-    try {
-      res.push([path, t, attrs]);
-    } catch {
-      // The path parser is now more strict so we might be in a situation where
-      // the database contains invalid paths from before this change So here we
-      // encode the invalid characters.
-      const splits = path.split(".");
-      splits[splits.length - 1] =
-        encodeTag(splits[splits.length - 1]) + INVALID_PATH_SUFFIX;
-      path = splits.join(".");
-      res.push([path, t, attrs]);
-      return;
-    }
+    res.push([path, t, attrs]);
 
     for (const [k, v] of Object.entries(obj)) {
       if (!k.startsWith("_")) {
@@ -387,19 +373,7 @@ export async function saveDevice(
         }
 
         if (!diff[2]) {
-          let pathStr = path.toString();
-          // Paths with that suffix are encoded and need to be decoded
-          if (pathStr.endsWith(INVALID_PATH_SUFFIX)) {
-            const splits = pathStr.split(".");
-            splits[splits.length - 1] = decodeTag(
-              splits[splits.length - 1].slice(
-                0,
-                0 - INVALID_PATH_SUFFIX.length,
-              ),
-            );
-            pathStr = splits.join(".");
-          }
-          update["$unset"][pathStr] = 1;
+          update["$unset"][path.toString()] = 1;
           continue;
         }
 
