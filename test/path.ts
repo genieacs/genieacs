@@ -148,6 +148,18 @@ void test("old alias format", () => {
   assert.throws(() => Path.parse("[abc]"));
 });
 
+void test("parse() rejects aliases nested more than 2 deep", () => {
+  // Parse time grows as 2^depth
+  assert.throws(
+    () => Path.parse("a.[b.[c.[d = 1].e = 2].f = 3].g"),
+    /Alias nesting too deep/,
+  );
+  assert.throws(
+    () => Path.parse("a.[b.[c.[d:1].e:2].f:3].g"),
+    /Alias nesting too deep/,
+  );
+});
+
 void test("slice concat round-trip", () => {
   const path = Path.parse("a.b:c.d");
 

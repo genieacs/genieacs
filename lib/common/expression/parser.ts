@@ -80,6 +80,11 @@ const CHAR_OPEN_BRACKET = 91;
 const CHAR_BACKSLASH = 92;
 const CHAR_CLOSE_BRACKET = 93;
 
+// Each level may be parsed twice, so parse time grows as 2^depth
+const MAX_ALIAS_DEPTH = 2;
+// Identifies alias levels in the boundry stack by reference
+const ALIAS_BOUNDRY = [CHAR_CLOSE_BRACKET];
+
 const BINARY_OPERATORS = [
   ">=",
   "<=",
@@ -403,6 +408,12 @@ function parseOldAlias(cursor: Cursor): Expression {
   return result;
 }
 
+function aliasDepth(cur: Cursor): number {
+  let depth = cur.boundry === ALIAS_BOUNDRY ? 1 : 0;
+  for (const b of cur.boundryStack) if (b === ALIAS_BOUNDRY) ++depth;
+  return depth;
+}
+
 export function parsePath(cur: Cursor): Path {
   const segments: (string | Expression)[] = [];
   let colon = 0;
@@ -413,8 +424,10 @@ export function parsePath(cur: Cursor): Path {
 
     if (char === CHAR_OPEN_BRACKET) {
       if (cur2.pos !== cur.pos) throw new Error("Invalid path");
+      if (aliasDepth(cur2) >= MAX_ALIAS_DEPTH)
+        throw new Error("Alias nesting too deep");
       cur2.step();
-      cur2.descend([CHAR_CLOSE_BRACKET]);
+      cur2.descend(ALIAS_BOUNDRY);
       // Try parsing as expression first
       const cur3 = cur2.fork();
       let err: unknown;
