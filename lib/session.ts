@@ -2697,7 +2697,7 @@ function processDeclarations(
               );
             } else {
               const f =
-                ((1 << currentPath.length) - 1) ^ ((1 << leafParam.length) - 1);
+                (-1 << leafParam.length) & (-1 >>> (32 - currentPath.length));
               syncState.gpnPatterns.set(
                 currentPath,
                 f | (syncState.gpnPatterns.get(currentPath) ?? 0),
