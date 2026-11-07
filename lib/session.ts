@@ -2705,15 +2705,6 @@ function processDeclarations(
             }
           } else {
             syncState.refreshAttributes.object.add(leafParam);
-            if (leafIsObject == null) {
-              const f =
-                ((1 << syncState.gpnPatterns.size) - 1) ^
-                ((1 << leafParam.length) - 1);
-              syncState.gpnPatterns.set(
-                currentPath,
-                f | (syncState.gpnPatterns.get(currentPath) ?? 0),
-              );
-            }
           }
         }
 
