@@ -1042,9 +1042,9 @@ function runDeclarations(
           p,
           Math.max(ad.pathGet || 1, allDeclareTimestamps.get(p) || 0),
         );
-        let attrTrackers: string[] | undefined;
+        const attrTrackers = ["object"];
         if (ad.attrGet) {
-          attrTrackers = Object.keys(ad.attrGet);
+          attrTrackers.push(...Object.keys(ad.attrGet));
           mergeAttributeTimestamps(p, ad.attrGet);
         }
 
@@ -1073,7 +1073,9 @@ function runDeclarations(
       );
       if (declaration.attrGet)
         mergeAttributeTimestamps(path, declaration.attrGet);
-      device.track(sessionContext.deviceData, path.toString(), "prerequisite");
+      device.track(sessionContext.deviceData, path.toString(), "prerequisite", [
+        "object",
+      ]);
     }
 
     if (declaration.attrSet) {
