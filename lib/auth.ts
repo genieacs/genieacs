@@ -167,8 +167,10 @@ export function solveDigest(
   uri: string | Buffer,
   httpMethod: string | Buffer,
   body: string | Buffer,
-  authHeader: Record<string, string>,
+  authHeader: Record<string, string | undefined>,
 ): string {
+  const realm = authHeader.realm ?? "";
+  const nonce = authHeader.nonce ?? "";
   const cnonce = randomBytes(8).toString("hex");
   const nc = "00000001";
 
@@ -181,9 +183,9 @@ export function solveDigest(
 
   const hash = digest(
     username,
-    authHeader.realm,
+    realm,
     password,
-    authHeader.nonce,
+    nonce,
     httpMethod,
     uri,
     qop,
@@ -197,8 +199,8 @@ export function solveDigest(
     `"${s.toString().replace(/["\\]/g, "\\$&")}"`;
 
   let authString = `Digest username=${quote(username)}`;
-  authString += `,realm=${quote(authHeader.realm)}`;
-  authString += `,nonce=${quote(authHeader.nonce)}`;
+  authString += `,realm=${quote(realm)}`;
+  authString += `,nonce=${quote(nonce)}`;
   authString += `,uri="${uri}"`;
   if (authHeader.algorithm) authString += `,algorithm=${authHeader.algorithm}`;
   if (qop) authString += `,qop=${qop},nc=${nc}`;
