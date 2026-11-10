@@ -52,6 +52,31 @@ void test("digest", () => {
   }
 });
 
+void test("parseWwwAuthenticateHeader picks the preferred challenge", () => {
+  // Node.js joins repeated headers with commas
+  assert.deepStrictEqual(
+    auth.parseWwwAuthenticateHeader(
+      'Basic realm="b", ' +
+        'Digest realm="r1", qop="auth", algorithm=SHA-512, nonce="n1", ' +
+        'Digest realm="r2", qop="auth, auth-int", algorithm=SHA-256, ' +
+        'nonce="n2", opaque="o2", Digest realm="r3", nonce="n3"',
+    ),
+    {
+      method: "digest",
+      realm: "r2",
+      qop: "auth, auth-int",
+      algorithm: "SHA-256",
+      nonce: "n2",
+      opaque: "o2",
+    },
+  );
+
+  assert.deepStrictEqual(
+    auth.parseWwwAuthenticateHeader('Negotiate, Basic realm="b"'),
+    { method: "basic", realm: "b" },
+  );
+});
+
 void test("digest matches RFC 7616 examples and curl", () => {
   const args = [
     "Mufasa",

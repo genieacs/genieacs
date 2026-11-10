@@ -92,7 +92,7 @@ async function authenticate(
     }
   }
 
-  if (authentication?.method === "Digest") {
+  if (authentication?.method === "digest") {
     const sessionNonce = sessionsNonces.get(sessionContext.httpRequest.socket);
 
     if (
@@ -130,14 +130,14 @@ async function authenticate(
             const username = e.args[0].value;
             const password = e.args[1].value;
             if (username != null && password != null && authentication) {
-              if (authentication["method"] === "Basic") {
+              if (authentication["method"] === "basic") {
                 return new Expression.Literal(
                   authentication["username"] === username.toString() &&
                     authentication["password"] === password.toString(),
                 );
               }
 
-              if (authentication["method"] === "Digest") {
+              if (authentication["method"] === "digest") {
                 const expected = auth.digest(
                   username.toString(),
                   REALM,

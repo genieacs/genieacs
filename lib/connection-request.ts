@@ -99,7 +99,7 @@ export async function httpConnectionRequest(
   while (!authHeader || (username != null && password != null)) {
     let opts = options;
     if (authHeader) {
-      if (authHeader["method"] === "Basic") {
+      if (authHeader["method"] === "basic") {
         if (!allowBasicAuth) return "Basic HTTP authentication not allowed";
 
         opts = Object.assign(
@@ -110,7 +110,7 @@ export async function httpConnectionRequest(
           },
           options,
         );
-      } else if (authHeader["method"] === "Digest") {
+      } else if (authHeader["method"] === "digest") {
         opts = Object.assign(
           {
             headers: {

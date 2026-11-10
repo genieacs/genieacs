@@ -1,36 +1,26 @@
 import { createHash, randomBytes, pbkdf2 } from "node:crypto";
 
-function parseHeaderFeilds(str: string): Record<string, string> {
-  const res: Record<string, string> = {};
-  const parts = str.split(",");
-
-  let part: string | undefined;
-  while ((part = parts.shift()) != null) {
-    const name = part.split("=", 1)[0];
-    if (name.length === part.length) {
-      if (!part.trim()) continue;
-      throw new Error("Unable to parse auth header");
-    }
-
-    let value = part.slice(name.length + 1);
-    if (!/^\s*"/.test(value)) {
-      value = value.trim();
+// Parses a list of auth schemes, each followed by its parameters
+function parseAuthSchemes(str: string): Record<string, string>[] {
+  // Matches either an auth scheme or a name=value parameter
+  const regex =
+    /[\s,]*([^\s=,"]+)(?:\s*=\s*("(?:[^"\\]|\\.)*"|[^\s,"]*))?[\s,]*/y;
+  const schemes: Record<string, string>[] = [];
+  while (regex.lastIndex < str.length) {
+    const match = regex.exec(str);
+    if (!match) throw new Error("Unable to parse auth header");
+    const [, name, value] = match;
+    if (value == null) {
+      // Scheme names are case-insensitive
+      schemes.push({ method: name.toLowerCase() });
     } else {
-      while (!/[^\\]"\s*$/.test(value)) {
-        const p = parts.shift();
-        if (p == null) throw new Error("Unable to parse auth header");
-        value += "," + p;
-      }
-
-      try {
-        value = JSON.parse(value);
-      } catch (error) {
-        throw new Error("Unable to parse auth header", { cause: error });
-      }
+      if (!schemes.length) throw new Error("Unable to parse auth header");
+      schemes[schemes.length - 1][name] = value.startsWith('"')
+        ? value.slice(1, -1).replace(/\\(.)/g, "$1")
+        : value;
     }
-    res[name.trim()] = value;
   }
-  return res;
+  return schemes;
 }
 
 export interface AuthorizationHeader {
@@ -51,10 +41,10 @@ export function parseAuthorizationHeader(
   authHeader: string,
 ): AuthorizationHeader {
   authHeader = authHeader.trim();
-  const method = authHeader.split(" ", 1)[0];
+  const method = authHeader.split(" ", 1)[0].toLowerCase();
   const res: AuthorizationHeader = { method: method };
 
-  if (method === "Basic") {
+  if (method === "basic") {
     // Inspired by https://github.com/jshttp/basic-auth
     const USER_PASS_REGEX = /^([^:]*):(.*)$/;
     const creds = USER_PASS_REGEX.exec(
@@ -64,8 +54,8 @@ export function parseAuthorizationHeader(
     if (!creds) throw new Error("Unable to parse auth header");
     res.username = creds[1];
     res.password = creds[2];
-  } else if (method === "Digest") {
-    Object.assign(res, parseHeaderFeilds(authHeader.slice(method.length + 1)));
+  } else if (method === "digest") {
+    Object.assign(res, parseAuthSchemes(authHeader)[0]);
   }
 
   return res;
@@ -74,11 +64,22 @@ export function parseAuthorizationHeader(
 export function parseWwwAuthenticateHeader(
   authHeader: string,
 ): Record<string, string> {
-  authHeader = authHeader.trim();
-  const method = authHeader.split(" ", 1)[0];
-  const res = { method: method };
-  Object.assign(res, parseHeaderFeilds(authHeader.slice(method.length + 1)));
-  return res;
+  // Node.js joins repeated headers with commas, so this may hold the
+  // challenges of several headers
+  const challenges = parseAuthSchemes(authHeader);
+
+  // Per RFC 7616, answer the first Digest challenge with a supported
+  // algorithm, and prefer Digest over Basic
+  const challenge =
+    challenges.find(
+      (c) =>
+        c.method === "digest" &&
+        (c.algorithm == null || getDigestHash(c.algorithm) != null),
+    ) ??
+    challenges.find((c) => c.method === "basic") ??
+    challenges[0];
+  if (!challenge) throw new Error("Unable to parse auth header");
+  return challenge;
 }
 
 export function basic(username: string, password: string): string {
@@ -192,9 +193,12 @@ export function solveDigest(
     authHeader.algorithm,
   );
 
-  let authString = `Digest username="${username}"`;
-  authString += `,realm="${authHeader.realm}"`;
-  authString += `,nonce="${authHeader.nonce}"`;
+  const quote = (s: string | Buffer): string =>
+    `"${s.toString().replace(/["\\]/g, "\\$&")}"`;
+
+  let authString = `Digest username=${quote(username)}`;
+  authString += `,realm=${quote(authHeader.realm)}`;
+  authString += `,nonce=${quote(authHeader.nonce)}`;
   authString += `,uri="${uri}"`;
   if (authHeader.algorithm) authString += `,algorithm=${authHeader.algorithm}`;
   if (qop) authString += `,qop=${qop},nc=${nc}`;
@@ -202,7 +206,7 @@ export function solveDigest(
   if (qop || authHeader.algorithm?.toUpperCase().endsWith("-SESS"))
     authString += `,cnonce="${cnonce}"`;
   authString += `,response="${hash}"`;
-  if (authHeader.opaque) authString += `,opaque="${authHeader.opaque}"`;
+  if (authHeader.opaque) authString += `,opaque=${quote(authHeader.opaque)}`;
 
   return authString;
 }
