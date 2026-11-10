@@ -2478,7 +2478,9 @@ function processDeclarations(
 
   const paths = deviceData.paths.findCompat(Path.root, false, true, 99);
   paths.sort((a, b): number =>
-    a.wildcard === b.wildcard ? a.length - b.length : a.wildcard - b.wildcard,
+    a.wildcard === b.wildcard
+      ? a.length - b.length
+      : (a.wildcard >>> 0) - (b.wildcard >>> 0),
   );
 
   const virtualParameterDeclarations = [] as VirtualParameterDeclaration[];
