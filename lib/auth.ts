@@ -85,6 +85,22 @@ export function basic(username: string, password: string): string {
   return "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
 }
 
+// Maps RFC 7616 digest algorithms to Node.js hash names
+function getDigestHash(algorithm: string): string | undefined {
+  switch (algorithm.toUpperCase()) {
+    case "MD5":
+    case "MD5-SESS":
+      return "md5";
+    case "SHA-256":
+    case "SHA-256-SESS":
+      return "sha256";
+    case "SHA-512-256":
+    case "SHA-512-256-SESS":
+      return "sha512-256";
+  }
+  return undefined;
+}
+
 export function digest(
   username: string | Buffer,
   realm: string | Buffer,
@@ -96,17 +112,31 @@ export function digest(
   body?: string | Buffer,
   cnonce?: string | Buffer,
   nc?: string | Buffer,
+  algorithm = "MD5",
 ): string {
-  const ha1 = createHash("md5");
-  ha1.update(username).update(":").update(realm).update(":").update(password);
-  // TODO support "MD5-sess" algorithm directive
-  const ha1d = ha1.digest("hex");
+  const sess = algorithm.toUpperCase().endsWith("-SESS");
+  // Unsupported algorithms fall back to MD5 and fail authentication
+  const hashName = getDigestHash(algorithm) ?? "md5";
 
-  const ha2 = createHash("md5");
+  const ha1 = createHash(hashName);
+  ha1.update(username).update(":").update(realm).update(":").update(password);
+  let ha1d = ha1.digest("hex");
+
+  if (sess) {
+    ha1d = createHash(hashName)
+      .update(ha1d)
+      .update(":")
+      .update(nonce)
+      .update(":")
+      .update(cnonce ?? "")
+      .digest("hex");
+  }
+
+  const ha2 = createHash(hashName);
   ha2.update(httpMethod).update(":").update(uri);
 
   if (qop === "auth-int") {
-    const bodyHash = createHash("md5")
+    const bodyHash = createHash(hashName)
       .update(body || "")
       .digest("hex");
     ha2.update(":").update(bodyHash);
@@ -114,7 +144,7 @@ export function digest(
 
   const ha2d = ha2.digest("hex");
 
-  const hash = createHash("md5");
+  const hash = createHash(hashName);
   hash.update(ha1d).update(":").update(nonce);
   if (qop) {
     hash
@@ -159,6 +189,7 @@ export function solveDigest(
     body,
     cnonce,
     nc,
+    authHeader.algorithm,
   );
 
   let authString = `Digest username="${username}"`;
@@ -166,7 +197,10 @@ export function solveDigest(
   authString += `,nonce="${authHeader.nonce}"`;
   authString += `,uri="${uri}"`;
   if (authHeader.algorithm) authString += `,algorithm=${authHeader.algorithm}`;
-  if (qop) authString += `,qop=${qop},nc=${nc},cnonce="${cnonce}"`;
+  if (qop) authString += `,qop=${qop},nc=${nc}`;
+  // -sess algorithms hash the cnonce even without qop
+  if (qop || authHeader.algorithm?.toUpperCase().endsWith("-SESS"))
+    authString += `,cnonce="${cnonce}"`;
   authString += `,response="${hash}"`;
   if (authHeader.opaque) authString += `,opaque="${authHeader.opaque}"`;
 
