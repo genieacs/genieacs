@@ -30,7 +30,7 @@ const options: Record<
   EXT_DIR: { type: "path", default: resolve(ROOT_DIR, "config/ext") },
   MONGODB_CONNECTION_URL: {
     type: "string",
-    default: "mongodb://127.0.0.1/genieacs",
+    default: process.env.GENIEACS_MONGODB_CONNECTION_URL,
   },
 
   CWMP_WORKER_PROCESSES: { type: "int", default: 0 },
