@@ -41,7 +41,7 @@ export abstract class SynthContextBase<
 
   bias(a: number, b: number): number {
     // Bias towards 1 then lower index
-    return (b ^ 1) - (a ^ 1);
+    return (a & 1) - (b & 1) || b - a;
   }
 
   sanitizeMinterms(minterms: Minterm[]): Minterm[] {
@@ -60,9 +60,6 @@ export abstract class SynthContextBase<
       {
         canRaise,
         canLower,
-        // espresso-iisojs declares bias as `() => boolean` but its runtime
-        // passes the return through Array.prototype.sort as a numeric comparator
-        // @ts-expect-error upstream type is wrong
         bias,
       },
     );
@@ -738,12 +735,12 @@ export class SynthContext extends SynthContextBase<Clause, Clause> {
     if (idx & 1) return true;
     const clause = this.getClause(idx >> 2);
     if (clause instanceof Clause.IsNull) return true;
-    return set.has(idx ^ 3) || set.has(idx ^ 1);
+    return set.has(idx ^ 3);
   }
 
   bias(a: number, b: number): number {
     // Bias towards 1 then true
-    return ((b & 3) ^ 3) - ((a & 3) ^ 3);
+    return (a & 1) - (b & 1) || (a & 2) - (b & 2);
   }
 
   sanitizeMinterms(minterms: Minterm[]): Minterm[] {

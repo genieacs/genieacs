@@ -127,8 +127,8 @@ void test("toMongoQuery", async () => {
       {
         $or: [
           {
-            "Param2._value": { $ne: null },
-            $and: [{ "Param2._value": { $ne: "value1" } }],
+            "Param2._value": { $ne: "value1" },
+            $and: [{ "Param2._value": { $ne: null } }],
             "Param1._value": { $eq: "value2" },
           },
           {
