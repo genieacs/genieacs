@@ -1003,6 +1003,35 @@ async function reportBadState(sessionContext: SessionContext): Promise<void> {
   if (sessionContext.state) return endSession(sessionContext);
 }
 
+function methodNotSupported(
+  sessionContext: SessionContext,
+  id: string,
+  method: string,
+): Promise<void> {
+  logger.accessWarn({
+    sessionContext: sessionContext,
+    message: "Method not supported",
+    method: method,
+  });
+
+  const f: CpeFault = {
+    faultCode: "Server",
+    faultString: "CWMP fault",
+    detail: {
+      faultCode: "8000",
+      faultString: "Method not supported",
+    },
+  };
+
+  const res = soap.response({
+    id: id,
+    acsFault: f,
+    cwmpVersion: sessionContext.cwmpVersion,
+  });
+
+  return writeResponse(sessionContext, res);
+}
+
 async function responseUnauthorized(
   sessionContext: SessionContext,
   close: boolean,
@@ -1191,7 +1220,7 @@ async function processRequest(
       if (sessionContext.state !== 1 || rpc.cpeRequest.name === "Inform")
         return void reportBadState(sessionContext);
 
-      throw new Error("ACS method not supported");
+      return methodNotSupported(sessionContext, rpc.id, rpc.cpeRequest.name);
     }
   } else if (rpc.cpeResponse) {
     if (sessionContext.state !== 2) return reportBadState(sessionContext);
@@ -1223,28 +1252,7 @@ async function processRequest(
     return nextRpc(sessionContext);
   } else if (rpc.unknownMethod) {
     if (sessionContext.state === 1) {
-      logger.accessWarn({
-        sessionContext: sessionContext,
-        message: "Method not supported",
-        method: rpc.unknownMethod,
-      });
-
-      const f: CpeFault = {
-        faultCode: "Server",
-        faultString: "CWMP fault",
-        detail: {
-          faultCode: "8000",
-          faultString: "Method not supported",
-        },
-      };
-
-      const res = soap.response({
-        id: rpc.id,
-        acsFault: f,
-        cwmpVersion: sessionContext.cwmpVersion,
-      });
-
-      return writeResponse(sessionContext, res);
+      return methodNotSupported(sessionContext, rpc.id, rpc.unknownMethod);
     } else if (sessionContext.state === 2) {
       const fault = {
         code: "invalid_response",
