@@ -3022,7 +3022,7 @@ export async function rpcResponse(
     }
   } else if (rpcRes.name === "GetParameterAttributesResponse") {
     if (rpcReq.name !== "GetParameterAttributes")
-      throw new Error("Response name does not match request name");
+      return invalidResponse("Response name does not match request name");
 
     const requested = new Set(rpcReq.parameterNames);
 
