@@ -329,9 +329,8 @@ export async function transferComplete(
   sessionContext.deviceData.timestamps.revision = revision;
   sessionContext.deviceData.attributes.revision = revision;
   const commandKey = rpcReq.commandKey;
-  const operation = sessionContext.operations[commandKey];
 
-  if (!operation) {
+  if (!Object.hasOwn(sessionContext.operations, commandKey)) {
     return {
       acsResponse: { name: "TransferCompleteResponse" },
       operation: null,
@@ -339,6 +338,7 @@ export async function transferComplete(
     };
   }
 
+  const operation = sessionContext.operations[commandKey];
   const instance = operation.args.instance;
 
   delete sessionContext.operations[commandKey];
